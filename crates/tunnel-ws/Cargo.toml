@@ -15,7 +15,6 @@ common   = { workspace = true }
 dashmap  = { workspace = true }
 futures-util = { workspace = true }
 rustls         = { workspace = true }
-rustls-pki-types = { workspace = true }
 tokio    = { workspace = true }
 tokio-tungstenite = { workspace = true }
 tracing  = { workspace = true }

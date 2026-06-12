@@ -24,5 +24,4 @@ sha2          = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }
-figment = { workspace = true }
 tempfile = { workspace = true }

@@ -32,7 +32,6 @@ base64 = "0.22.1"
 ciborium = "0.2"
 dashmap = "6"
 ed25519-dalek = { version = "2", features = ["rand_core"] }
-figment = { version = "0.10", features = ["env", "toml"] }
 futures-util = "0.3"
 hex = "0.4"
 ipnet = { version = "2", features = ["serde"] }
@@ -44,7 +43,6 @@ quinn = "0.11"
 rand_core = { version = "0.6", features = ["getrandom"] }
 reqwest = { version = "0.12", features = ["rustls-tls", "json"], default-features = false }
 rustls = { version = "0.23", default-features = false, features = ["ring", "logging", "std", "tls12"] }
-rustls-pki-types = { version = "1.14", features = ["std"] }
 secrecy = { version = "0.10", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 serde_bytes = "0.11"
@@ -58,7 +56,6 @@ tokio-rustls = { version = "0.26", default-features = false, features = ["ring",
 tokio-tungstenite = { version = "0.24", features = ["rustls-tls-native-roots"] }
 toml = "0.8"
 tracing = "0.1"
-tracing-appender = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json", "registry"] }
 webpki-roots = "1"
 x25519-dalek = { version = "2", features = ["static_secrets"] }
@@ -72,3 +69,7 @@ strip = "symbols"
 panic = "abort"
 incremental = false
 debug = false
+
+[workspace.metadata.cargo-shear]
+# `control` and `tunnel-ws` are consumed by sibling repos through path dependencies cargo-shear cannot see.
+ignored = ["control", "tunnel-ws"]

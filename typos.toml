@@ -1,0 +1,18 @@
+# typos-cli configuration.
+#
+# Keep the allowlist empty for now; extend as project-specific spellings or
+# proper nouns surface as false positives.
+
+[default]
+# Base64 thumbprint fixture in envelope_pins tokenizes to fragments that the
+# default dictionary may rewrite. Anchor the ignore on the distinctive prefix
+# so real typos elsewhere still fail.
+extend-ignore-identifiers-re = [
+    "P7IdLIpiTZiFaIoOSqbX[A-Za-z0-9]*",
+]
+
+[files]
+extend-exclude = [
+    "Cargo.lock",
+    "target/",
+]

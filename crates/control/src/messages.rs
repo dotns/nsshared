@@ -101,7 +101,7 @@ impl std::str::FromStr for LinkMode {
 ///
 /// # Errors
 ///
-/// Returns the first unparseable token's error message.
+/// Returns the first unparsable token's error message.
 pub fn parse_link_modes(list: &str) -> Result<Vec<LinkMode>, String> {
     use std::str::FromStr as _;
     list.split(',')

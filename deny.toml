@@ -1,0 +1,53 @@
+# cargo-deny policy for ns-shared.
+#
+# Source-of-truth for the dependency graph. Hard Locks 1 (pure-Rust ecosystem)
+# and 2 (rustls only) are encoded as bans here; see /pma-rust references/baseline.md.
+
+[graph]
+all-features = true
+
+[output]
+feature-depth = 1
+
+[advisories]
+version = 2
+yanked  = "warn"
+ignore  = []
+
+[licenses]
+version              = 2
+confidence-threshold = 0.93
+allow = [
+    "Apache-2.0",
+    "MIT",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    # ICU and unicode-ident data crates use the post-2024 Unicode license.
+    "Unicode-3.0",
+    # webpki-roots / webpki-root-certs bundle Mozilla CA data under CDLA-Permissive-2.0.
+    "CDLA-Permissive-2.0",
+    # foldhash is a hashbrown dependency pulled in transitively.
+    "Zlib",
+]
+
+[bans]
+multiple-versions = "warn"
+wildcards         = "warn"
+deny = [
+    # Hard Lock 1 - pure-Rust ecosystem only.
+    { name = "openssl",       reason = "rustls only - Hard Lock 1" },
+    { name = "openssl-sys",   reason = "rustls only - Hard Lock 1" },
+    { name = "native-tls",    reason = "rustls only - Hard Lock 2" },
+    { name = "native-tls-sys", reason = "rustls only - Hard Lock 2" },
+    # AWS-LC is a C-FFI fork of BoringSSL. ns-shared pins rustls/tokio-rustls
+    # to the ring provider, so this catches future default-feature regressions.
+    { name = "aws-lc-rs",     reason = "C-FFI to AWS-LC - Hard Lock 1; ring is the only allowed rustls provider" },
+    { name = "aws-lc-sys",    reason = "C-FFI to AWS-LC - Hard Lock 1; ring is the only allowed rustls provider" },
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git      = "deny"
+allow-registry   = ["https://github.com/rust-lang/crates.io-index"]
+allow-git        = []
