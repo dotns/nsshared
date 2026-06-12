@@ -1,0 +1,43 @@
+[package]
+name = "control"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+acl    = { workspace = true }
+arc-swap = { workspace = true }
+common = { workspace = true }
+secrecy = { workspace = true }
+tokio = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_bytes = { workspace = true }
+ciborium = { workspace = true }
+async-trait = { workspace = true }
+tracing = { workspace = true }
+telemetry = { workspace = true }
+opentelemetry = { workspace = true }
+thiserror = { workspace = true }
+ipnet = { workspace = true }
+base64 = { workspace = true }
+hex = { workspace = true }
+futures-util = { workspace = true }
+snow         = { workspace = true }
+quinn        = { workspace = true }
+sha2         = { workspace = true }
+tokio-rustls = { workspace = true }
+rustls       = { workspace = true }
+webpki-roots = { workspace = true }
+ed25519-dalek = { workspace = true }
+rand_core    = { workspace = true }
+ring         = "0.17.14"
+
+[dev-dependencies]
+tempfile     = { workspace = true }
+tokio        = { workspace = true, features = ["test-util"] }
+tracing-subscriber = { workspace = true }
