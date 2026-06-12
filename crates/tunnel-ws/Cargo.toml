@@ -15,6 +15,7 @@ common   = { workspace = true }
 dashmap  = { workspace = true }
 futures-util = { workspace = true }
 rustls         = { workspace = true }
+telemetry = { workspace = true }
 tokio    = { workspace = true }
 tokio-tungstenite = { workspace = true }
 tracing  = { workspace = true }
@@ -22,6 +23,7 @@ thiserror = { workspace = true }
 webpki-roots   = { workspace = true }
 
 [dev-dependencies]
+prometheus   = { workspace = true }
 rcgen        = { version = "0.13", default-features = false, features = ["pem", "ring"] }
 tempfile     = { workspace = true }
 tokio-rustls = { workspace = true }

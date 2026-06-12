@@ -13,7 +13,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use acl::{AccessContext, AclEngine, NetworkTuple, TransportKind};
 use anyhow::Context;
@@ -25,6 +25,8 @@ use futures_util::{SinkExt, StreamExt};
 use rustls::ClientConfig;
 use rustls::pki_types::CertificateDer;
 use rustls::pki_types::pem::PemObject;
+use telemetry::labels::{Outcome, Protocol as TelemetryProtocol};
+use telemetry::proxy_otel::{self, Direction};
 use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::{TcpStream, UdpSocket};
@@ -114,6 +116,14 @@ pub fn build_rustls_connector(extra_ca_certs: &Path) -> anyhow::Result<Connector
 ///
 /// Lives in `tunnel-ws` rather than `nat` so the slim NSC dep graph stays
 /// free of `nat`/`gotatun`; the concrete impl block lives in `nat`.
+#[derive(Debug, Clone)]
+pub struct WssResolvedTarget {
+    /// Backend socket address the relay should connect to.
+    pub target: SocketAddr,
+    /// Bounded services.toml service name for proxy telemetry labels.
+    pub service_name: Option<String>,
+}
+
 pub trait WssTargetResolver: Send + Sync {
     /// Resolve the requested destination. Returns `None` when no service
     /// matches, the ACL denies the connection, or DNS resolution fails —
@@ -125,6 +135,25 @@ pub trait WssTargetResolver: Send + Sync {
         dst_port: u16,
         protocol: Protocol,
     ) -> Pin<Box<dyn Future<Output = Option<SocketAddr>> + Send + 'a>>;
+
+    /// Resolve the requested destination plus optional bounded service
+    /// metadata for telemetry labels.
+    fn resolve_with_service<'a>(
+        &'a self,
+        src_ip: IpAddr,
+        dst_ip: IpAddr,
+        dst_port: u16,
+        protocol: Protocol,
+    ) -> Pin<Box<dyn Future<Output = Option<WssResolvedTarget>> + Send + 'a>> {
+        Box::pin(async move {
+            self.resolve(src_ip, dst_ip, dst_port, protocol)
+                .await
+                .map(|target| WssResolvedTarget {
+                    target,
+                    service_name: None,
+                })
+        })
+    }
 }
 
 /// Errors produced by the WebSocket tunnel.
@@ -922,6 +951,58 @@ fn wss_open_access_context(network: NetworkTuple) -> AccessContext {
     AccessContext::unknown(network, TransportKind::Terminate)
 }
 
+fn telemetry_protocol(protocol: Protocol) -> TelemetryProtocol {
+    match protocol {
+        Protocol::Udp => TelemetryProtocol::Udp,
+        _ => TelemetryProtocol::Tcp,
+    }
+}
+
+struct RelayTelemetryGuard {
+    service_name: String,
+    protocol: TelemetryProtocol,
+    outcome: Outcome,
+}
+
+impl RelayTelemetryGuard {
+    fn new(service_name: &str, protocol: TelemetryProtocol) -> Self {
+        proxy_otel::inc_active(service_name, protocol);
+        Self {
+            service_name: service_name.to_string(),
+            protocol,
+            outcome: Outcome::Error,
+        }
+    }
+
+    fn succeed(&mut self) {
+        self.outcome = Outcome::Ok;
+    }
+}
+
+impl Drop for RelayTelemetryGuard {
+    fn drop(&mut self) {
+        proxy_otel::dec_active(&self.service_name, self.protocol);
+        proxy_otel::record_result(&self.service_name, self.protocol, self.outcome);
+    }
+}
+
+// Keep these helpers isolated around the canonical direction mapping.
+fn record_tcp_ws_to_local_bytes(service_name: &str, n: u64) {
+    proxy_otel::record_bytes(service_name, TelemetryProtocol::Tcp, Direction::Tx, n);
+}
+
+fn record_tcp_local_to_ws_bytes(service_name: &str, n: u64) {
+    proxy_otel::record_bytes(service_name, TelemetryProtocol::Tcp, Direction::Rx, n);
+}
+
+fn record_udp_ws_to_local_bytes(service_name: &str, n: u64) {
+    proxy_otel::record_bytes(service_name, TelemetryProtocol::Udp, Direction::Tx, n);
+}
+
+fn record_udp_local_to_ws_bytes(service_name: &str, n: u64) {
+    proxy_otel::record_bytes(service_name, TelemetryProtocol::Udp, Direction::Rx, n);
+}
+
 // ── Frame dispatch ─────────────────────────────────────────────────────────
 
 #[allow(clippy::too_many_arguments)]
@@ -948,9 +1029,10 @@ async fn dispatch_frame(
             // the actual local backend. Without a resolver (NSC client
             // path), fall back to the legacy services gate against
             // the raw `(target_ip, target_port)`.
+            let telemetry_proto = telemetry_protocol(protocol);
             let resolved = match resolver {
                 Some(r) => {
-                    r.resolve(
+                    r.resolve_with_service(
                         IpAddr::V4(Ipv4Addr::UNSPECIFIED),
                         target_ip,
                         target_port,
@@ -960,14 +1042,17 @@ async fn dispatch_frame(
                 }
                 None => {
                     if check_target_allowed(services, acl, target_ip, target_port, protocol).await {
-                        Some(SocketAddr::new(target_ip, target_port))
+                        Some(WssResolvedTarget {
+                            target: SocketAddr::new(target_ip, target_port),
+                            service_name: None,
+                        })
                     } else {
                         None
                     }
                 }
             };
-            let target = match resolved {
-                Some(addr) => addr,
+            let resolved = match resolved {
+                Some(resolved) => resolved,
                 None => {
                     warn!(
                         %stream_id,
@@ -976,15 +1061,19 @@ async fn dispatch_frame(
                         ?protocol,
                         "WSS Open denied (services/ACL/DNS); sending Close"
                     );
+                    proxy_otel::record_result("", telemetry_proto, Outcome::Denied);
                     send_close(write_tx, stream_id).await;
                     return;
                 }
             };
+            let target = resolved.target;
+            let service_name = resolved.service_name.unwrap_or_default();
             let (data_tx, data_rx) = mpsc::channel::<Vec<u8>>(64);
             // Atomic reservation: duplicate detection in a single bucket-locked op.
             match streams.entry(stream_id) {
                 dashmap::mapref::entry::Entry::Occupied(_) => {
                     warn!(%stream_id, "WSS duplicate Open stream id; sending Close");
+                    proxy_otel::record_result(&service_name, telemetry_proto, Outcome::Error);
                     send_close(write_tx, stream_id).await;
                     return;
                 }
@@ -1001,6 +1090,7 @@ async fn dispatch_frame(
                     limit = MAX_CONCURRENT_STREAMS,
                     "WSS stream limit reached; sending Close"
                 );
+                proxy_otel::record_result(&service_name, telemetry_proto, Outcome::Error);
                 send_close(write_tx, stream_id).await;
                 return;
             }
@@ -1034,8 +1124,10 @@ async fn dispatch_frame(
             let gateway_id_close = gateway_id.to_string();
             tokio::spawn(async move {
                 let result = match protocol {
-                    Protocol::Udp => relay_udp(stream_id, target, data_rx, tx.clone()).await,
-                    _ => relay_tcp(stream_id, target, data_rx, tx.clone()).await,
+                    Protocol::Udp => {
+                        relay_udp(stream_id, target, data_rx, tx.clone(), service_name).await
+                    }
+                    _ => relay_tcp(stream_id, target, data_rx, tx.clone(), service_name).await,
                 };
                 if let Err(e) = result {
                     debug!(%stream_id, "relay task exited: {e}");
@@ -1113,13 +1205,36 @@ async fn send_close(write_tx: &mpsc::Sender<Message>, stream_id: u32) {
 // ── TCP relay ──────────────────────────────────────────────────────────────
 
 /// Relay a TCP stream between the WebSocket and a local TCP service.
+#[tracing::instrument(name = "proxy.tcp", skip_all, fields(service = %service_name, target = %target))]
 async fn relay_tcp(
     stream_id: u32,
     target: SocketAddr,
     mut data_rx: mpsc::Receiver<Vec<u8>>,
     write_tx: mpsc::Sender<Message>,
+    service_name: String,
 ) -> Result<(), Error> {
-    let mut local = TcpStream::connect(target).await?;
+    let mut guard = RelayTelemetryGuard::new(&service_name, TelemetryProtocol::Tcp);
+    let connect_start = Instant::now();
+    let mut local = match TcpStream::connect(target).await {
+        Ok(local) => {
+            proxy_otel::record_connect_duration(
+                &service_name,
+                TelemetryProtocol::Tcp,
+                Outcome::Ok,
+                connect_start.elapsed().as_secs_f64(),
+            );
+            local
+        }
+        Err(e) => {
+            proxy_otel::record_connect_duration(
+                &service_name,
+                TelemetryProtocol::Tcp,
+                Outcome::Error,
+                connect_start.elapsed().as_secs_f64(),
+            );
+            return Err(e.into());
+        }
+    };
     debug!(%stream_id, %target, "TCP relay connected");
 
     let mut buf = vec![0u8; READ_BUF];
@@ -1129,7 +1244,10 @@ async fn relay_tcp(
             // Server -> local service.
             incoming = data_rx.recv() => {
                 match incoming {
-                    Some(data) => local.write_all(&data).await?,
+                    Some(data) => {
+                        local.write_all(&data).await?;
+                        record_tcp_ws_to_local_bytes(&service_name, data.len() as u64);
+                    }
                     None => break, // Stream closed server-side.
                 }
             }
@@ -1156,12 +1274,14 @@ async fn relay_tcp(
                             .send(Message::Binary(data.encode()))
                             .await
                             .map_err(|_| Error::RelayWriteClosed)?;
+                        record_tcp_local_to_ws_bytes(&service_name, n as u64);
                     }
                 }
             }
         }
     }
 
+    guard.succeed();
     Ok(())
 }
 
@@ -1171,17 +1291,46 @@ async fn relay_tcp(
 ///
 /// Each `Data` frame maps 1:1 to one UDP datagram -- no fragmentation needed
 /// because WebSocket is already message-oriented.
+#[tracing::instrument(name = "proxy.udp", skip_all, fields(service = %service_name, target = %target))]
 async fn relay_udp(
     stream_id: u32,
     target: SocketAddr,
     mut data_rx: mpsc::Receiver<Vec<u8>>,
     write_tx: mpsc::Sender<Message>,
+    service_name: String,
 ) -> Result<(), Error> {
-    let socket = UdpSocket::bind("0.0.0.0:0").await?;
-    socket.connect(target).await?;
+    let mut guard = RelayTelemetryGuard::new(&service_name, TelemetryProtocol::Udp);
+    let connect_start = Instant::now();
+    let socket = match async {
+        let socket = UdpSocket::bind("0.0.0.0:0").await?;
+        socket.connect(target).await?;
+        Ok::<UdpSocket, std::io::Error>(socket)
+    }
+    .await
+    {
+        Ok(socket) => {
+            proxy_otel::record_connect_duration(
+                &service_name,
+                TelemetryProtocol::Udp,
+                Outcome::Ok,
+                connect_start.elapsed().as_secs_f64(),
+            );
+            socket
+        }
+        Err(e) => {
+            proxy_otel::record_connect_duration(
+                &service_name,
+                TelemetryProtocol::Udp,
+                Outcome::Error,
+                connect_start.elapsed().as_secs_f64(),
+            );
+            return Err(e.into());
+        }
+    };
     debug!(%stream_id, %target, "UDP relay bound");
 
     let mut buf = vec![0u8; READ_BUF];
+    let mut clean_exit = true;
 
     loop {
         tokio::select! {
@@ -1189,8 +1338,9 @@ async fn relay_udp(
             incoming = data_rx.recv() => {
                 match incoming {
                     Some(data) => {
-                        if let Err(e) = socket.send(&data).await {
-                            warn!(%stream_id, "UDP send error: {e}");
+                        match socket.send(&data).await {
+                            Ok(n) => record_udp_ws_to_local_bytes(&service_name, n as u64),
+                            Err(e) => warn!(%stream_id, "UDP send error: {e}"),
                         }
                     }
                     None => break,
@@ -1209,9 +1359,11 @@ async fn relay_udp(
                             .send(Message::Binary(data.encode()))
                             .await
                             .map_err(|_| Error::RelayWriteClosed)?;
+                        record_udp_local_to_ws_bytes(&service_name, n as u64);
                     }
                     Err(e) => {
                         warn!(%stream_id, "UDP recv error: {e}");
+                        clean_exit = false;
                         break;
                     }
                 }
@@ -1219,6 +1371,9 @@ async fn relay_udp(
         }
     }
 
+    if clean_exit {
+        guard.succeed();
+    }
     Ok(())
 }
 
@@ -1226,8 +1381,120 @@ async fn relay_udp(
 mod tests {
     use super::*;
     use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+    use std::sync::OnceLock;
+
+    use prometheus::TextEncoder;
 
     // ── Helpers ───────────────────────────────────────────────────────────
+
+    fn shared_test_registry() -> Arc<prometheus::Registry> {
+        static REGISTRY: OnceLock<Arc<prometheus::Registry>> = OnceLock::new();
+        REGISTRY
+            .get_or_init(|| {
+                Arc::new(telemetry::init_telemetry().expect("telemetry init should succeed"))
+            })
+            .clone()
+    }
+
+    fn metrics_text() -> String {
+        TextEncoder::new()
+            .encode_to_string(&shared_test_registry().gather())
+            .expect("encode prometheus text")
+    }
+
+    fn metric_series_name_matches(series: &str, name: &str) -> bool {
+        let aliases: &[&str] = match name {
+            "nsn_proxy_bytes_total" => &["nsn_proxy_bytes_total_total"],
+            "nsn_proxy_connections_total" => &["nsn_proxy_connections_total_total"],
+            "nsn_proxy_results_total" => &["nsn_proxy_results_total_total"],
+            "nsn_proxy_upstream_timeouts_total" => &["nsn_proxy_upstream_timeouts_total_total"],
+            "nsn_proxy_connect_duration_seconds_count" => {
+                &["nsn_proxy_connect_duration_seconds_seconds_count"]
+            }
+            _ => &[],
+        };
+
+        series == name
+            || series.starts_with(&format!("{name}{{"))
+            || aliases
+                .iter()
+                .any(|alias| series == *alias || series.starts_with(&format!("{alias}{{")))
+    }
+
+    fn metric_value(text: &str, name: &str, labels: &[(&str, &str)]) -> Option<f64> {
+        for line in text.lines() {
+            let Some((series, value)) = line.rsplit_once(' ') else {
+                continue;
+            };
+            if !metric_series_name_matches(series, name) {
+                continue;
+            }
+            let matches_labels = labels
+                .iter()
+                .all(|(key, value)| series.contains(&format!(r#"{key}="{value}""#)));
+            if matches_labels {
+                return value.parse::<f64>().ok();
+            }
+        }
+        None
+    }
+
+    fn metric_value_or_zero(text: &str, name: &str, labels: &[(&str, &str)]) -> f64 {
+        metric_value(text, name, labels).unwrap_or(0.0)
+    }
+
+    fn assert_metric_value(text: &str, name: &str, labels: &[(&str, &str)], expected: f64) {
+        let actual = metric_value_or_zero(text, name, labels);
+        assert_eq!(
+            actual, expected,
+            "expected {name}{labels:?} to equal {expected}, got {actual}:\n{text}"
+        );
+    }
+
+    fn assert_metric_delta(
+        before: &str,
+        after: &str,
+        name: &str,
+        labels: &[(&str, &str)],
+        expected_delta: f64,
+    ) {
+        let before = metric_value_or_zero(before, name, labels);
+        let after = metric_value_or_zero(after, name, labels);
+        assert_eq!(
+            after - before,
+            expected_delta,
+            "expected {name}{labels:?} delta {expected_delta}, got {before} -> {after}"
+        );
+    }
+
+    fn assert_metric_delta_at_least(
+        before: &str,
+        after: &str,
+        name: &str,
+        labels: &[(&str, &str)],
+        min_delta: f64,
+    ) {
+        let before_value = metric_value_or_zero(before, name, labels);
+        let after_value = metric_value_or_zero(after, name, labels);
+        assert!(
+            after_value - before_value >= min_delta,
+            "expected {name}{labels:?} delta at least {min_delta}, got {before_value} -> {after_value}"
+        );
+    }
+
+    async fn recv_data_frame(write_rx: &mut mpsc::Receiver<Message>) -> WsFrame {
+        let msg = tokio::time::timeout(Duration::from_secs(2), write_rx.recv())
+            .await
+            .expect("expected relay response within 2 s")
+            .expect("write_tx still open");
+        let bytes = match msg {
+            Message::Binary(b) => b,
+            other => panic!("expected Binary message, got {other:?}"),
+        };
+        let decoded = WsFrame::decode(&bytes).expect("valid frame");
+        assert!(matches!(decoded.command, FrameCommand::Data));
+        decoded
+    }
 
     /// ACL shared handle with no engine loaded (default deny).
     fn no_acl() -> Arc<ArcSwapOption<AclEngine>> {
@@ -1499,6 +1766,368 @@ strict = false
         .unwrap()
     }
 
+    async fn spawn_udp_reply_backend(response: Vec<u8>) -> SocketAddr {
+        let socket = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+        let addr = socket.local_addr().unwrap();
+        tokio::spawn(async move {
+            let mut buf = [0u8; 64];
+            if let Ok((_n, peer)) = socket.recv_from(&mut buf).await {
+                let _ = socket.send_to(&response, peer).await;
+            }
+        });
+        addr
+    }
+
+    #[tokio::test]
+    async fn relay_tcp_emits_proxy_otel_metrics_for_echo() {
+        shared_test_registry();
+        let service_name = "wss-tcp-otel";
+        let target = spawn_tcp_echo_backend().await;
+        let (data_tx, data_rx) = mpsc::channel::<Vec<u8>>(4);
+        let (write_tx, mut write_rx) = mpsc::channel::<Message>(4);
+        let payload = b"tcp-proxy-otel".to_vec();
+
+        let relay = tokio::spawn(relay_tcp(
+            3_001,
+            target,
+            data_rx,
+            write_tx,
+            service_name.to_string(),
+        ));
+        data_tx.send(payload.clone()).await.unwrap();
+
+        let decoded = recv_data_frame(&mut write_rx).await;
+        assert_eq!(decoded.stream_id, 3_001);
+        assert_eq!(decoded.payload, payload);
+
+        drop(data_tx);
+        tokio::time::timeout(Duration::from_secs(2), relay)
+            .await
+            .expect("relay task should finish")
+            .expect("relay task should not panic")
+            .expect("relay should exit cleanly");
+
+        let text = metrics_text();
+        assert_metric_value(
+            &text,
+            "nsn_proxy_bytes_total",
+            &[
+                ("service", service_name),
+                ("protocol", "tcp"),
+                ("direction", "tx"),
+            ],
+            14.0,
+        );
+        assert_metric_value(
+            &text,
+            "nsn_proxy_bytes_total",
+            &[
+                ("service", service_name),
+                ("protocol", "tcp"),
+                ("direction", "rx"),
+            ],
+            14.0,
+        );
+        assert_metric_value(
+            &text,
+            "nsn_proxy_active_connections",
+            &[("service", service_name), ("protocol", "tcp")],
+            0.0,
+        );
+        assert_metric_value(
+            &text,
+            "nsn_proxy_connections_total",
+            &[("service", service_name), ("protocol", "tcp")],
+            1.0,
+        );
+        assert_metric_value(
+            &text,
+            "nsn_proxy_results_total",
+            &[
+                ("service", service_name),
+                ("protocol", "tcp"),
+                ("result", "ok"),
+            ],
+            1.0,
+        );
+        assert_metric_value(
+            &text,
+            "nsn_proxy_connect_duration_seconds_count",
+            &[
+                ("service", service_name),
+                ("protocol", "tcp"),
+                ("result", "ok"),
+            ],
+            1.0,
+        );
+    }
+
+    #[tokio::test]
+    async fn relay_tcp_records_error_on_connect_failure() {
+        shared_test_registry();
+        let service_name = "wss-tcp-connect-fail";
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let target = listener.local_addr().unwrap();
+        drop(listener);
+        let (_data_tx, data_rx) = mpsc::channel::<Vec<u8>>(1);
+        let (write_tx, _write_rx) = mpsc::channel::<Message>(1);
+
+        let result = relay_tcp(3_002, target, data_rx, write_tx, service_name.to_string()).await;
+        assert!(result.is_err(), "connect failure should propagate");
+
+        let text = metrics_text();
+        assert_metric_value(
+            &text,
+            "nsn_proxy_active_connections",
+            &[("service", service_name), ("protocol", "tcp")],
+            0.0,
+        );
+        assert_metric_value(
+            &text,
+            "nsn_proxy_connections_total",
+            &[("service", service_name), ("protocol", "tcp")],
+            1.0,
+        );
+        assert_metric_value(
+            &text,
+            "nsn_proxy_results_total",
+            &[
+                ("service", service_name),
+                ("protocol", "tcp"),
+                ("result", "error"),
+            ],
+            1.0,
+        );
+        assert_metric_value(
+            &text,
+            "nsn_proxy_connect_duration_seconds_count",
+            &[
+                ("service", service_name),
+                ("protocol", "tcp"),
+                ("result", "error"),
+            ],
+            1.0,
+        );
+    }
+
+    #[tokio::test]
+    async fn relay_udp_emits_proxy_otel_metrics_for_echo() {
+        shared_test_registry();
+        let service_name = "wss-udp-otel";
+        let response = b"udp-rx-reply".to_vec();
+        let target = spawn_udp_reply_backend(response.clone()).await;
+        let (data_tx, data_rx) = mpsc::channel::<Vec<u8>>(4);
+        let (write_tx, mut write_rx) = mpsc::channel::<Message>(4);
+        let payload = b"udp-tx".to_vec();
+
+        let relay = tokio::spawn(relay_udp(
+            3_003,
+            target,
+            data_rx,
+            write_tx,
+            service_name.to_string(),
+        ));
+        data_tx.send(payload.clone()).await.unwrap();
+
+        let decoded = recv_data_frame(&mut write_rx).await;
+        assert_eq!(decoded.stream_id, 3_003);
+        assert_eq!(decoded.payload, response);
+
+        drop(data_tx);
+        tokio::time::timeout(Duration::from_secs(2), relay)
+            .await
+            .expect("relay task should finish")
+            .expect("relay task should not panic")
+            .expect("relay should exit cleanly");
+
+        let text = metrics_text();
+        assert_metric_value(
+            &text,
+            "nsn_proxy_bytes_total",
+            &[
+                ("service", service_name),
+                ("protocol", "udp"),
+                ("direction", "tx"),
+            ],
+            6.0,
+        );
+        assert_metric_value(
+            &text,
+            "nsn_proxy_bytes_total",
+            &[
+                ("service", service_name),
+                ("protocol", "udp"),
+                ("direction", "rx"),
+            ],
+            12.0,
+        );
+        assert_metric_value(
+            &text,
+            "nsn_proxy_active_connections",
+            &[("service", service_name), ("protocol", "udp")],
+            0.0,
+        );
+        assert_metric_value(
+            &text,
+            "nsn_proxy_connections_total",
+            &[("service", service_name), ("protocol", "udp")],
+            1.0,
+        );
+        assert_metric_value(
+            &text,
+            "nsn_proxy_results_total",
+            &[
+                ("service", service_name),
+                ("protocol", "udp"),
+                ("result", "ok"),
+            ],
+            1.0,
+        );
+        assert_metric_value(
+            &text,
+            "nsn_proxy_connect_duration_seconds_count",
+            &[
+                ("service", service_name),
+                ("protocol", "udp"),
+                ("result", "ok"),
+            ],
+            1.0,
+        );
+    }
+
+    #[tokio::test]
+    async fn open_denial_records_proxy_otel_denied_without_active_or_total() {
+        shared_test_registry();
+        let before = metrics_text();
+        let (write_tx, mut write_rx) = mpsc::channel::<Message>(8);
+        let streams = Arc::new(DashMap::new());
+        let services = Arc::new(make_strict_services("192.168.1.10", 80, Protocol::Tcp));
+
+        dispatch_frame(
+            WsFrame {
+                stream_id: 3_004,
+                command: FrameCommand::Open {
+                    target_ip: IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1)),
+                    target_port: 22,
+                    protocol: Protocol::Tcp,
+                },
+                payload: vec![],
+            },
+            &streams,
+            &write_tx,
+            &services,
+            &allow_all_acl(),
+            "test-gw",
+            &None,
+            None,
+        )
+        .await;
+
+        let msg = write_rx.try_recv().expect("expected Close frame");
+        let bytes = match msg {
+            Message::Binary(b) => b,
+            other => panic!("expected Binary message, got {other:?}"),
+        };
+        let decoded = WsFrame::decode(&bytes).expect("valid frame");
+        assert_eq!(decoded.stream_id, 3_004);
+        assert!(matches!(decoded.command, FrameCommand::Close));
+
+        let after = metrics_text();
+        assert_metric_delta_at_least(
+            &before,
+            &after,
+            "nsn_proxy_results_total",
+            &[("service", ""), ("protocol", "tcp"), ("result", "denied")],
+            1.0,
+        );
+        assert_metric_delta(
+            &before,
+            &after,
+            "nsn_proxy_active_connections",
+            &[("service", ""), ("protocol", "tcp")],
+            0.0,
+        );
+        assert_metric_delta(
+            &before,
+            &after,
+            "nsn_proxy_connections_total",
+            &[("service", ""), ("protocol", "tcp")],
+            0.0,
+        );
+    }
+
+    #[tokio::test]
+    async fn duplicate_open_records_proxy_otel_error_without_active_or_total() {
+        shared_test_registry();
+        let service_name = "stub-duplicate";
+        let before = metrics_text();
+        let (write_tx, mut write_rx) = mpsc::channel::<Message>(8);
+        let streams = Arc::new(DashMap::new());
+        let (data_tx, _data_rx) = mpsc::channel::<Vec<u8>>(8);
+        streams.insert(3_005, StreamHandle { data_tx });
+        let resolver: Arc<dyn WssTargetResolver> = Arc::new(StubResolver {
+            port: 80,
+            backend: "127.0.0.1:80".parse().unwrap(),
+            service_name,
+        });
+
+        dispatch_frame(
+            WsFrame {
+                stream_id: 3_005,
+                command: FrameCommand::Open {
+                    target_ip: IpAddr::V4(Ipv4Addr::new(192, 168, 1, 10)),
+                    target_port: 80,
+                    protocol: Protocol::Tcp,
+                },
+                payload: vec![],
+            },
+            &streams,
+            &write_tx,
+            &permissive_services(),
+            &allow_all_acl(),
+            "test-gw",
+            &None,
+            Some(&resolver),
+        )
+        .await;
+
+        let msg = write_rx.try_recv().expect("expected Close frame");
+        let bytes = match msg {
+            Message::Binary(b) => b,
+            other => panic!("expected Binary message, got {other:?}"),
+        };
+        let decoded = WsFrame::decode(&bytes).expect("valid frame");
+        assert_eq!(decoded.stream_id, 3_005);
+        assert!(matches!(decoded.command, FrameCommand::Close));
+
+        let after = metrics_text();
+        assert_metric_delta_at_least(
+            &before,
+            &after,
+            "nsn_proxy_results_total",
+            &[
+                ("service", service_name),
+                ("protocol", "tcp"),
+                ("result", "error"),
+            ],
+            1.0,
+        );
+        assert_metric_delta(
+            &before,
+            &after,
+            "nsn_proxy_active_connections",
+            &[("service", service_name), ("protocol", "tcp")],
+            0.0,
+        );
+        assert_metric_delta(
+            &before,
+            &after,
+            "nsn_proxy_connections_total",
+            &[("service", service_name), ("protocol", "tcp")],
+            0.0,
+        );
+    }
+
     #[tokio::test]
     async fn legacy_wss_open_denies_without_source_subject() {
         let services = make_strict_services("192.168.1.10", 80, Protocol::Tcp);
@@ -1653,6 +2282,7 @@ strict = false
 
     #[tokio::test]
     async fn open_denied_by_services_sends_close_frame() {
+        shared_test_registry();
         use tokio_tungstenite::tungstenite::Message;
         let (write_tx, mut write_rx) = tokio::sync::mpsc::channel::<Message>(8);
         let streams = Arc::new(DashMap::new());
@@ -1699,6 +2329,7 @@ strict = false
 
     #[tokio::test]
     async fn duplicate_open_sends_close_without_replacing_stream() {
+        shared_test_registry();
         use tokio_tungstenite::tungstenite::Message;
         let (write_tx, mut write_rx) = tokio::sync::mpsc::channel::<Message>(8);
         let streams = Arc::new(DashMap::new());
@@ -1756,6 +2387,7 @@ strict = false
 
     #[tokio::test]
     async fn stream_limit_sends_close_without_registering_stream() {
+        shared_test_registry();
         use tokio_tungstenite::tungstenite::Message;
         let (write_tx, mut write_rx) = tokio::sync::mpsc::channel::<Message>(8);
         let streams = Arc::new(DashMap::new());
@@ -1800,6 +2432,7 @@ strict = false
 
     #[tokio::test]
     async fn legacy_open_allowed_by_services_still_closes_without_subject() {
+        shared_test_registry();
         use tokio_tungstenite::tungstenite::Message;
         let (write_tx, mut write_rx) = tokio::sync::mpsc::channel::<Message>(8);
         let streams = Arc::new(DashMap::new());
@@ -1849,6 +2482,7 @@ strict = false
     struct StubResolver {
         port: u16,
         backend: SocketAddr,
+        service_name: &'static str,
     }
 
     impl WssTargetResolver for StubResolver {
@@ -1866,6 +2500,31 @@ strict = false
             Box::pin(async move {
                 if matches_port && matches_proto {
                     Some(backend)
+                } else {
+                    None
+                }
+            })
+        }
+
+        fn resolve_with_service<'a>(
+            &'a self,
+            _src_ip: IpAddr,
+            _dst_ip: IpAddr,
+            dst_port: u16,
+            protocol: Protocol,
+        ) -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = Option<WssResolvedTarget>> + Send + 'a>,
+        > {
+            let backend = self.backend;
+            let service_name = self.service_name;
+            let matches_port = dst_port == self.port;
+            let matches_proto = protocol == Protocol::Tcp;
+            Box::pin(async move {
+                if matches_port && matches_proto {
+                    Some(WssResolvedTarget {
+                        target: backend,
+                        service_name: Some(service_name.to_string()),
+                    })
                 } else {
                     None
                 }
@@ -1914,10 +2573,12 @@ strict = false
     /// backend, not the raw `target_ip`.
     #[tokio::test]
     async fn resolver_routes_open_to_resolved_backend() {
+        shared_test_registry();
         let backend = spawn_tcp_echo_backend().await;
         let resolver: Arc<dyn WssTargetResolver> = Arc::new(StubResolver {
             port: 17777,
             backend,
+            service_name: "stub-resolver",
         });
 
         let (write_tx, mut write_rx) = mpsc::channel::<Message>(16);
@@ -1994,6 +2655,7 @@ strict = false
     /// stream — fail-closed contract.
     #[tokio::test]
     async fn resolver_denial_sends_close_and_skips_registration() {
+        shared_test_registry();
         let resolver: Arc<dyn WssTargetResolver> = Arc::new(DenyAllResolver);
         let (write_tx, mut write_rx) = mpsc::channel::<Message>(16);
         let streams = Arc::new(DashMap::new());

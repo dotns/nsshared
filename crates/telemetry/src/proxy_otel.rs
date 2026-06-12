@@ -32,6 +32,9 @@ use crate::labels::{LABEL_PROTOCOL, LABEL_RESULT, LABEL_SERVICE, Outcome, Protoc
 use crate::meter::{counter_u64, histogram_seconds, meter, up_down_counter_i64};
 
 /// Direction label value for the bytes counter.
+///
+/// Direction is relative to the upstream service for all protocols:
+/// `Tx` = bytes toward the service, `Rx` = bytes from the service.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Direction {
     Tx,
