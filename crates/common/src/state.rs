@@ -17,11 +17,14 @@ use sha2::{Digest, Sha512};
 use thiserror::Error;
 use x25519_dalek::{PublicKey as X25519Public, StaticSecret as X25519Secret};
 
-/// Shared capability token for `public_ingress_config.v1` delivery.
-pub const CAPABILITY_PUBLIC_INGRESS_CONFIG_V1: &str = "public_ingress_config.v1";
+/// Shared capability token for Envoy public edge config delivery.
+pub const CAPABILITY_GATEWAY_PUBLIC_EDGE_V1: &str = "gateway_public_edge.v1";
 
-/// Public ingress MVP scope token for HTTP/1.1 reverse-proxy traffic.
-pub const PUBLIC_INGRESS_SCOPE_HTTP_1_1_REVERSE_PROXY: &str = "http_1_1_reverse_proxy";
+/// Public edge HTTP route snapshot scope token.
+pub const PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_CONFIG: &str = "gateway_http_config.v1";
+
+/// Public edge TCP/UDP listener-map snapshot scope token.
+pub const PUBLIC_EDGE_SCOPE_GATEWAY_L4_MAP: &str = "gateway_l4_map.v1";
 
 #[derive(Debug, Error)]
 pub enum StateError {
@@ -155,21 +158,29 @@ mod nsd_info_tests {
             signed_transport_keyset: None,
             nsd_envelope_pubkey: None,
             envelope_versions: vec![1],
-            capabilities: vec![CAPABILITY_PUBLIC_INGRESS_CONFIG_V1.into()],
-            public_ingress_scopes: vec![PUBLIC_INGRESS_SCOPE_HTTP_1_1_REVERSE_PROXY.into()],
+            capabilities: vec![CAPABILITY_GATEWAY_PUBLIC_EDGE_V1.into()],
+            public_ingress_scopes: vec![
+                PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_CONFIG.into(),
+                PUBLIC_EDGE_SCOPE_GATEWAY_L4_MAP.into(),
+            ],
         };
 
         let json = serde_json::to_string(&info).unwrap();
-        assert!(json.contains("\"capabilities\":[\"public_ingress_config.v1\"]"));
-        assert!(json.contains("\"public_ingress_scopes\":[\"http_1_1_reverse_proxy\"]"));
+        assert!(json.contains("\"capabilities\":[\"gateway_public_edge.v1\"]"));
+        assert!(json.contains(
+            "\"public_ingress_scopes\":[\"gateway_http_config.v1\",\"gateway_l4_map.v1\"]"
+        ));
         let decoded: NsdInfo = serde_json::from_str(&json).unwrap();
         assert_eq!(
             decoded.capabilities,
-            vec![CAPABILITY_PUBLIC_INGRESS_CONFIG_V1]
+            vec![CAPABILITY_GATEWAY_PUBLIC_EDGE_V1]
         );
         assert_eq!(
             decoded.public_ingress_scopes,
-            vec![PUBLIC_INGRESS_SCOPE_HTTP_1_1_REVERSE_PROXY]
+            vec![
+                PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_CONFIG,
+                PUBLIC_EDGE_SCOPE_GATEWAY_L4_MAP
+            ]
         );
     }
 }

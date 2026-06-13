@@ -32,3 +32,4 @@ Each task is a single line linking to its detail file. All detailed information 
 ## Tasks
 
 - [x] [**OBS-001 Add proxy path labels**](OBS-001.md) `P1`
+- [x] [**EDGE-001 Define public edge shared contract**](EDGE-001.md) `P0`

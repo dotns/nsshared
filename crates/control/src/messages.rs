@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as B64_STANDARD};
@@ -617,12 +617,21 @@ pub struct GatewayWssRelayConfig {
     pub relay_pairs: Vec<GatewayWssRelayPair>,
 }
 
-// ── public ingress config ────────────────────────────────────────────────────
+// ── public edge config ───────────────────────────────────────────────────────
 
-/// Transport policy for a public ingress route.
+/// Public edge listener protocol.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PublicEdgeProtocol {
+    Http,
+    Tcp,
+    Udp,
+}
+
+/// Transport policy for a public edge route.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum PublicIngressTransportPolicy {
+pub enum PublicEdgeTransportPolicy {
     Wg,
     Wss,
     #[default]
@@ -630,7 +639,7 @@ pub enum PublicIngressTransportPolicy {
     PreferWss,
 }
 
-impl PublicIngressTransportPolicy {
+impl PublicEdgeTransportPolicy {
     /// Map service tunnel intent into the public ingress gateway policy token.
     pub fn from_service_tunnel_preference(tunnel: &TunnelPreference) -> Self {
         match tunnel {
@@ -641,52 +650,247 @@ impl PublicIngressTransportPolicy {
     }
 }
 
-/// Public ingress route scope.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize)]
+/// Public edge backend kind.
+///
+/// First cut only constructs `NsnBacked`. Gateway-owned egress/exit backends
+/// are intentionally omitted until their trust model and declaration contract
+/// are implemented.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum PublicIngressScope {
+pub enum PublicEdgeBackendKind {
     #[default]
-    #[serde(rename = "http_1_1_reverse_proxy")]
-    Http11ReverseProxy,
+    NsnBacked,
 }
 
-fn default_public_ingress_scope() -> PublicIngressScope {
-    PublicIngressScope::Http11ReverseProxy
-}
-
-/// A single public ingress route pushed to capable gateway subscribers.
+/// ACL resource consumed by NSN for `NsnBacked` public edge routes.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
-pub struct PublicIngressRoute {
-    /// Public host/domain name accepted by the gateway.
-    pub domain: String,
-    /// Site identifier, typically the NSN machine ID.
-    pub site: String,
-    /// Service name as defined in `services.toml`.
-    pub service: String,
-    /// NSN's WireGuard virtual IP.
-    pub nsn_wg_ip: Ipv4Addr,
-    /// Effective upstream service port for the MVP.
-    pub port: u16,
-    /// NSD-assigned virtual port, retained for compatibility but
-    /// non-effective for the public ingress MVP.
+pub struct PublicEdgeAclRef {
+    pub realm_id: String,
+    pub resource_id: String,
+}
+
+/// Policy generation metadata carried with a public edge route.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct PublicEdgePolicyRevision {
+    pub generation: u64,
+    pub version: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub virtual_port: Option<u16>,
-    /// Route scope. MVP supports HTTP/1.1 reverse proxy traffic.
-    #[serde(default = "default_public_ingress_scope")]
-    pub scope: PublicIngressScope,
-    /// Gateway egress preference.
-    #[serde(default)]
-    pub transport_policy: PublicIngressTransportPolicy,
-    /// Subject policy used by NSGW before proxying public HTTP ingress.
-    #[serde(default)]
-    pub subject_policy: PublicIngressSubjectPolicy,
+    pub previous_generation: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rollback_of: Option<u64>,
 }
 
-/// Public ingress routes pushed only when the realm feature and gateway
-/// capability both advertise `public_ingress_config.v1`.
+/// Stable route identity for NSD-produced public edge artifacts.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
-pub struct PublicIngressConfig {
-    pub routes: Vec<PublicIngressRoute>,
+pub struct PublicEdgeRouteIdentity {
+    pub protocol: PublicEdgeProtocol,
+    pub realm_id: String,
+    pub gateway_id: String,
+    pub route_id: String,
+    pub public_port: u16,
+    pub nsgw_internal_port: u16,
+    pub nsn_wg_vip: Ipv4Addr,
+    pub upstream_port: u16,
+    pub acl: PublicEdgeAclRef,
+    pub subject_policy: PublicIngressSubjectPolicy,
+    pub transport_policy: PublicEdgeTransportPolicy,
+    pub policy_revision: PublicEdgePolicyRevision,
+}
+
+/// Transport-agnostic certificate reference carried by public edge snapshots.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct PublicEdgeCertificateRef {
+    pub id: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub hostnames: Vec<String>,
+    #[serde(default)]
+    pub policy: PublicEdgeCertificatePolicy,
+    pub source: PublicEdgeCertificateSource,
+}
+
+/// Certificate policy metadata. Private keys never appear in this contract.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize)]
+pub struct PublicEdgeCertificatePolicy {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub issuer_ref: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_tls_version: Option<String>,
+    #[serde(default)]
+    pub require_sni: bool,
+}
+
+/// Where Envoy/NSGW should resolve certificate material.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PublicEdgeCertificateSource {
+    CertManager { secret_ref: String },
+    Sds { secret_name: String },
+    MountedSecret { path_ref: String },
+    ExternalAcme { certificate_ref: String },
+}
+
+/// HTTP external identity import shape. Runtime activation is deferred.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize)]
+pub struct HttpExternalIdentityImport {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub providers: Vec<ExternalIdentityProviderRef>,
+    #[serde(default)]
+    pub anonymous_bypass: bool,
+    #[serde(default)]
+    pub fail_closed: bool,
+}
+
+/// Reference to an external identity provider or credential store.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct ExternalIdentityProviderRef {
+    pub kind: ExternalIdentityProviderKind,
+    pub ref_id: String,
+}
+
+/// External identity mechanisms reserved by the contract.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExternalIdentityProviderKind {
+    Oidc,
+    OAuth2,
+    ClientMtls,
+    ApiKey,
+    BearerToken,
+    SignedRequest,
+    BasicAuth,
+}
+
+/// Signed internal subject-header policy for NSGW-to-NSN forwarding.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize)]
+pub struct SignedSubjectHeaderPolicy {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub header_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signature_header_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub keyset_ref: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub validity_seconds: Option<u32>,
+    #[serde(default)]
+    pub strip_inbound_headers: bool,
+}
+
+/// HTTP middleware references reserved by the public edge contract.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize)]
+pub struct HttpMiddlewarePolicy {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chain_ref: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub waf_ref: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ext_authz_ref: Option<String>,
+}
+
+/// Edge rate, connection, and body-size limit references.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize)]
+pub struct EdgeLimitPolicy {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rate_limit_ref: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub connection_limit_ref: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request_body_bytes: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub response_body_bytes: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub slow_client_ref: Option<String>,
+}
+
+/// HTTP request/response transform references.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize)]
+pub struct HttpTransformPolicy {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request_rewrite_ref: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub response_header_ref: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub forwarded_subject_ref: Option<String>,
+}
+
+/// Audit policy references and stable route metadata.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize)]
+pub struct EdgeAuditPolicy {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub audit_ref: Option<String>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub metadata: BTreeMap<String, String>,
+}
+
+/// A single HTTP public edge host route.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct GatewayHttpRoute {
+    pub identity: PublicEdgeRouteIdentity,
+    pub host: String,
+    #[serde(default)]
+    pub backend: PublicEdgeBackendKind,
+    pub service: String,
+    pub site: String,
+    #[serde(default)]
+    pub identity_import: HttpExternalIdentityImport,
+    #[serde(default)]
+    pub signed_subject_headers: SignedSubjectHeaderPolicy,
+    #[serde(default)]
+    pub middleware: HttpMiddlewarePolicy,
+    #[serde(default)]
+    pub edge_limits: EdgeLimitPolicy,
+    #[serde(default)]
+    pub transforms: HttpTransformPolicy,
+    #[serde(default)]
+    pub audit: EdgeAuditPolicy,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub certificate_ref: Option<String>,
+}
+
+/// HTTP public edge routes pushed to capable gateways.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct GatewayHttpConfig {
+    pub gateway_id: String,
+    pub realm_id: String,
+    pub routes: Vec<GatewayHttpRoute>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub certificates: Vec<PublicEdgeCertificateRef>,
+}
+
+/// L4 route policy references reserved by the public edge contract.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize)]
+pub struct L4Policy {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub connection_limit_ref: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_limit_ref: Option<String>,
+}
+
+/// A single TCP or UDP public listener route.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct GatewayL4Route {
+    pub identity: PublicEdgeRouteIdentity,
+    #[serde(default)]
+    pub backend: PublicEdgeBackendKind,
+    pub service: String,
+    pub site: String,
+    /// Required public listener port allocated by NSD from `virtual_port`.
+    pub virtual_port: u16,
+    #[serde(default)]
+    pub l4: L4Policy,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub certificate_ref: Option<String>,
+}
+
+/// TCP/UDP public edge listener map pushed to capable gateways.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct GatewayL4Map {
+    pub gateway_id: String,
+    pub realm_id: String,
+    pub routes: Vec<GatewayL4Route>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub certificates: Vec<PublicEdgeCertificateRef>,
 }
 
 // ── direct P2P candidate signaling ──────────────────────────────────────────
@@ -806,9 +1010,12 @@ pub enum ControlMessage {
     RoutingConfig(RoutingConfig),
     /// Server → Client: global DNS records for all NSC clients.
     DnsConfig(DnsConfig),
-    /// Server → Gateway: explicit public ingress routes.
-    #[serde(rename = "public_ingress_config.v1")]
-    PublicIngressConfig(PublicIngressConfig),
+    /// Server → Gateway: HTTP public edge routes.
+    #[serde(rename = "gateway_http_config.v1")]
+    GatewayHttpConfig(GatewayHttpConfig),
+    /// Server → Gateway: TCP/UDP public edge listener map.
+    #[serde(rename = "gateway_l4_map.v1")]
+    GatewayL4Map(GatewayL4Map),
     /// Server → Client: direct-P2P candidate update for one peer.
     PeerCandidates(PeerCandidatesUpdate),
     /// Catch-all for `type` tags introduced by a newer NSD.
@@ -845,7 +1052,8 @@ impl ControlMessage {
             ControlMessage::GatewayWssRelay(_) => "gateway_wss_relay",
             ControlMessage::RoutingConfig(_) => "routing_config",
             ControlMessage::DnsConfig(_) => "dns_config",
-            ControlMessage::PublicIngressConfig(_) => "public_ingress_config.v1",
+            ControlMessage::GatewayHttpConfig(_) => "gateway_http_config.v1",
+            ControlMessage::GatewayL4Map(_) => "gateway_l4_map.v1",
             ControlMessage::PeerCandidates(_) => "peer_candidates",
             ControlMessage::Unknown => "unknown",
         }
@@ -855,7 +1063,6 @@ impl ControlMessage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use common::PUBLIC_INGRESS_SCOPE_HTTP_1_1_REVERSE_PROXY;
     use std::net::Ipv4Addr;
 
     fn sample_wg_config() -> WgConfig {
@@ -1568,127 +1775,221 @@ tunnel = "ws"
         }
     }
 
-    // ── PublicIngressConfig ──────────────────────────────────────────────────
+    // ── public edge config ───────────────────────────────────────────────────
+
+    fn sample_public_edge_identity(
+        protocol: PublicEdgeProtocol,
+        public_port: u16,
+        internal_port: u16,
+    ) -> PublicEdgeRouteIdentity {
+        PublicEdgeRouteIdentity {
+            protocol,
+            realm_id: "realm-a".to_owned(),
+            gateway_id: "gw-a".to_owned(),
+            route_id: format!("realm-a:gw-a:{protocol:?}:{public_port}:web"),
+            public_port,
+            nsgw_internal_port: internal_port,
+            nsn_wg_vip: Ipv4Addr::new(10, 0, 0, 2),
+            upstream_port: 8080,
+            acl: PublicEdgeAclRef {
+                realm_id: "realm-a".to_owned(),
+                resource_id: "service:web".to_owned(),
+            },
+            subject_policy: PublicIngressSubjectPolicy::Anonymous,
+            transport_policy: PublicEdgeTransportPolicy::PreferWss,
+            policy_revision: PublicEdgePolicyRevision {
+                generation: 42,
+                version: "public-edge-v42".to_owned(),
+                previous_generation: Some(41),
+                rollback_of: None,
+            },
+        }
+    }
+
+    fn sample_gateway_http_route() -> GatewayHttpRoute {
+        GatewayHttpRoute {
+            identity: sample_public_edge_identity(PublicEdgeProtocol::Http, 443, 18_080),
+            host: "web.example.test".to_owned(),
+            backend: PublicEdgeBackendKind::NsnBacked,
+            service: "web".to_owned(),
+            site: "site-a".to_owned(),
+            identity_import: HttpExternalIdentityImport {
+                providers: vec![ExternalIdentityProviderRef {
+                    kind: ExternalIdentityProviderKind::Oidc,
+                    ref_id: "idp-main".to_owned(),
+                }],
+                anonymous_bypass: true,
+                fail_closed: false,
+            },
+            signed_subject_headers: SignedSubjectHeaderPolicy {
+                enabled: true,
+                header_name: Some("X-NSIO-Subject".to_owned()),
+                signature_header_name: Some("X-NSIO-Subject-Sig".to_owned()),
+                keyset_ref: Some("gateway-subject-keyset".to_owned()),
+                validity_seconds: Some(30),
+                strip_inbound_headers: true,
+            },
+            middleware: HttpMiddlewarePolicy {
+                chain_ref: Some("http-chain-a".to_owned()),
+                waf_ref: Some("waf-a".to_owned()),
+                ext_authz_ref: Some("ext-authz-a".to_owned()),
+            },
+            edge_limits: EdgeLimitPolicy {
+                rate_limit_ref: Some("rate-a".to_owned()),
+                connection_limit_ref: Some("conn-a".to_owned()),
+                request_body_bytes: Some(1_048_576),
+                response_body_bytes: Some(2_097_152),
+                slow_client_ref: Some("slow-client-a".to_owned()),
+            },
+            transforms: HttpTransformPolicy {
+                request_rewrite_ref: Some("rewrite-a".to_owned()),
+                response_header_ref: Some("headers-a".to_owned()),
+                forwarded_subject_ref: Some("subject-forward-a".to_owned()),
+            },
+            audit: EdgeAuditPolicy {
+                audit_ref: Some("audit-a".to_owned()),
+                metadata: BTreeMap::from([("owner".to_owned(), "platform".to_owned())]),
+            },
+            certificate_ref: Some("cert-web".to_owned()),
+        }
+    }
+
+    fn sample_certificate() -> PublicEdgeCertificateRef {
+        PublicEdgeCertificateRef {
+            id: "cert-web".to_owned(),
+            hostnames: vec!["web.example.test".to_owned()],
+            policy: PublicEdgeCertificatePolicy {
+                issuer_ref: Some("letsencrypt-prod".to_owned()),
+                min_tls_version: Some("1.3".to_owned()),
+                require_sni: true,
+            },
+            source: PublicEdgeCertificateSource::Sds {
+                secret_name: "web-example-test".to_owned(),
+            },
+        }
+    }
 
     #[test]
-    fn public_ingress_config_round_trips_via_json() {
-        let orig = PublicIngressConfig {
-            routes: vec![PublicIngressRoute {
-                domain: "web.example.test".into(),
-                site: "site-a".into(),
-                service: "web".into(),
-                nsn_wg_ip: Ipv4Addr::new(10, 0, 0, 2),
-                port: 8080,
-                virtual_port: Some(10_000),
-                scope: PublicIngressScope::Http11ReverseProxy,
-                transport_policy: PublicIngressTransportPolicy::PreferWss,
-                subject_policy: PublicIngressSubjectPolicy::Anonymous,
-            }],
+    fn gateway_http_config_round_trips_via_json() {
+        let orig = GatewayHttpConfig {
+            gateway_id: "gw-a".to_owned(),
+            realm_id: "realm-a".to_owned(),
+            routes: vec![sample_gateway_http_route()],
+            certificates: vec![sample_certificate()],
         };
-
         let json = serde_json::to_string(&orig).unwrap();
-        assert!(json.contains("\"port\":8080"));
-        assert!(json.contains("\"virtual_port\":10000"));
-        assert!(json.contains("\"scope\":\"http_1_1_reverse_proxy\""));
-        assert!(json.contains("\"transport_policy\":\"prefer_wss\""));
+        assert!(json.contains("\"protocol\":\"http\""));
+        assert!(json.contains("\"public_port\":443"));
+        assert!(json.contains("\"nsgw_internal_port\":18080"));
+        assert!(json.contains("\"nsn_wg_vip\":\"10.0.0.2\""));
+        assert!(json.contains("\"upstream_port\":8080"));
+        assert!(json.contains("\"resource_id\":\"service:web\""));
         assert!(json.contains("\"subject_policy\":\"anonymous\""));
+        assert!(json.contains("\"transport_policy\":\"prefer_wss\""));
+        assert!(json.contains("\"identity_import\""));
+        assert!(json.contains("\"signed_subject_headers\""));
+        assert!(json.contains("\"middleware\""));
+        assert!(json.contains("\"edge_limits\""));
+        assert!(json.contains("\"transforms\""));
+        assert!(json.contains("\"audit\""));
+        assert!(json.contains("\"certificates\""));
 
-        let decoded: PublicIngressConfig = serde_json::from_str(&json).unwrap();
+        let decoded: GatewayHttpConfig = serde_json::from_str(&json).unwrap();
         assert_eq!(decoded, orig);
-        assert_eq!(decoded.routes[0].port, 8080);
-        assert_eq!(decoded.routes[0].virtual_port, Some(10_000));
+        assert_eq!(
+            decoded.routes[0].identity.protocol,
+            PublicEdgeProtocol::Http
+        );
+        assert_eq!(decoded.routes[0].identity.public_port, 443);
+        assert_eq!(decoded.routes[0].identity.nsgw_internal_port, 18_080);
+        assert_eq!(
+            decoded.routes[0].identity.nsn_wg_vip,
+            Ipv4Addr::new(10, 0, 0, 2)
+        );
+        assert_eq!(decoded.routes[0].identity.acl.resource_id, "service:web");
     }
 
     #[test]
-    fn public_ingress_config_empty_routes_round_trips() {
-        let orig = PublicIngressConfig { routes: vec![] };
-        let json = serde_json::to_string(&orig).unwrap();
-        let decoded: PublicIngressConfig = serde_json::from_str(&json).unwrap();
-        assert!(decoded.routes.is_empty());
-    }
-
-    #[test]
-    fn public_ingress_route_defaults_to_prefer_wg() {
-        let decoded: PublicIngressRoute = serde_json::from_str(
+    fn default_http_route_shape_decodes_empty_contract_fields() {
+        let decoded: GatewayHttpRoute = serde_json::from_str(
             r#"{
-                "domain":"web.example.test",
+                "identity":{
+                    "protocol":"http",
+                    "realm_id":"realm-a",
+                    "gateway_id":"gw-a",
+                    "route_id":"realm-a:gw-a:http:443:web",
+                    "public_port":443,
+                    "nsgw_internal_port":18080,
+                    "nsn_wg_vip":"10.0.0.2",
+                    "upstream_port":8080,
+                    "acl":{"realm_id":"realm-a","resource_id":"service:web"},
+                    "subject_policy":"external_idp",
+                    "transport_policy":"prefer_wg",
+                    "policy_revision":{"generation":1,"version":"v1"}
+                },
+                "host":"web.example.test",
+                "backend":"nsn_backed",
                 "site":"site-a",
-                "service":"web",
-                "nsn_wg_ip":"10.0.0.2",
-                "port":8080
+                "service":"web"
             }"#,
         )
         .unwrap();
 
+        assert_eq!(decoded.identity.protocol, PublicEdgeProtocol::Http);
         assert_eq!(
-            decoded.transport_policy,
-            PublicIngressTransportPolicy::PreferWg
+            decoded.identity.transport_policy,
+            PublicEdgeTransportPolicy::PreferWg
         );
-        assert_eq!(decoded.scope, PublicIngressScope::Http11ReverseProxy);
-        assert!(decoded.virtual_port.is_none());
         assert_eq!(
-            decoded.subject_policy,
+            decoded.identity.subject_policy,
             PublicIngressSubjectPolicy::ExternalIdp
         );
+        assert_eq!(decoded.backend, PublicEdgeBackendKind::NsnBacked);
+        assert!(decoded.identity_import.providers.is_empty());
+        assert!(!decoded.identity_import.fail_closed);
+        assert!(!decoded.signed_subject_headers.enabled);
+        assert!(decoded.middleware.chain_ref.is_none());
+        assert!(decoded.edge_limits.rate_limit_ref.is_none());
+        assert!(decoded.transforms.request_rewrite_ref.is_none());
+        assert!(decoded.audit.metadata.is_empty());
     }
 
     #[test]
-    fn public_ingress_scope_token_round_trips() {
-        let explicit = serde_json::json!({
-            "domain": "web.example.test",
-            "site": "site-a",
-            "service": "web",
-            "nsn_wg_ip": "10.0.0.2",
-            "port": 8080,
-            "scope": PUBLIC_INGRESS_SCOPE_HTTP_1_1_REVERSE_PROXY,
-            "transport_policy": "prefer_wg",
-            "subject_policy": "anonymous"
-        });
-
-        let decoded: PublicIngressRoute = serde_json::from_value(explicit).unwrap();
-        assert_eq!(decoded.scope, PublicIngressScope::Http11ReverseProxy);
-        assert_eq!(
-            decoded.subject_policy,
-            PublicIngressSubjectPolicy::Anonymous
-        );
-    }
-
-    #[test]
-    fn public_ingress_transport_policy_tokens_round_trip() {
+    fn public_edge_transport_policy_tokens_round_trip() {
         let policies = [
-            ("wg", PublicIngressTransportPolicy::Wg),
-            ("wss", PublicIngressTransportPolicy::Wss),
-            ("prefer_wg", PublicIngressTransportPolicy::PreferWg),
-            ("prefer_wss", PublicIngressTransportPolicy::PreferWss),
+            ("wg", PublicEdgeTransportPolicy::Wg),
+            ("wss", PublicEdgeTransportPolicy::Wss),
+            ("prefer_wg", PublicEdgeTransportPolicy::PreferWg),
+            ("prefer_wss", PublicEdgeTransportPolicy::PreferWss),
         ];
 
         for (token, policy) in policies {
             let json = format!(r#""{token}""#);
-            let decoded: PublicIngressTransportPolicy = serde_json::from_str(&json).unwrap();
+            let decoded: PublicEdgeTransportPolicy = serde_json::from_str(&json).unwrap();
             assert_eq!(decoded, policy);
             assert_eq!(serde_json::to_string(&decoded).unwrap(), json);
         }
     }
 
     #[test]
-    fn public_ingress_policy_maps_service_tunnel_tokens() {
+    fn public_edge_policy_maps_service_tunnel_tokens() {
         let cases = [
             (
                 TunnelPreference::Auto,
                 r#""auto""#,
-                PublicIngressTransportPolicy::PreferWg,
+                PublicEdgeTransportPolicy::PreferWg,
                 r#""prefer_wg""#,
             ),
             (
                 TunnelPreference::Wg,
                 r#""wg""#,
-                PublicIngressTransportPolicy::Wg,
+                PublicEdgeTransportPolicy::Wg,
                 r#""wg""#,
             ),
             (
                 TunnelPreference::Ws,
                 r#""ws""#,
-                PublicIngressTransportPolicy::Wss,
+                PublicEdgeTransportPolicy::Wss,
                 r#""wss""#,
             ),
         ];
@@ -1699,44 +2000,104 @@ tunnel = "ws"
                 service_token
             );
             let derived =
-                PublicIngressTransportPolicy::from_service_tunnel_preference(&service_tunnel);
+                PublicEdgeTransportPolicy::from_service_tunnel_preference(&service_tunnel);
             assert_eq!(derived, public_policy);
             assert_eq!(serde_json::to_string(&derived).unwrap(), public_token);
         }
     }
 
     #[test]
-    fn control_message_public_ingress_config_round_trips_with_v1_type() {
-        let msg = ControlMessage::PublicIngressConfig(PublicIngressConfig {
-            routes: vec![PublicIngressRoute {
-                domain: "web.example.test".into(),
-                site: "site-a".into(),
-                service: "web".into(),
-                nsn_wg_ip: Ipv4Addr::new(10, 0, 0, 2),
-                port: 8080,
-                virtual_port: Some(10_000),
-                scope: PublicIngressScope::Http11ReverseProxy,
-                transport_policy: PublicIngressTransportPolicy::PreferWg,
-                subject_policy: PublicIngressSubjectPolicy::ExternalIdp,
-            }],
+    fn gateway_l4_map_round_trips_via_json_with_tcp_and_udp_entries() {
+        let tcp = GatewayL4Route {
+            identity: sample_public_edge_identity(PublicEdgeProtocol::Tcp, 10_000, 20_000),
+            backend: PublicEdgeBackendKind::NsnBacked,
+            service: "tcp-web".to_owned(),
+            site: "site-a".to_owned(),
+            virtual_port: 10_000,
+            l4: L4Policy {
+                connection_limit_ref: Some("conn-l4".to_owned()),
+                session_limit_ref: None,
+            },
+            certificate_ref: None,
+        };
+        let udp = GatewayL4Route {
+            identity: PublicEdgeRouteIdentity {
+                protocol: PublicEdgeProtocol::Udp,
+                route_id: "realm-a:gw-a:udp:10000:dns".to_owned(),
+                upstream_port: 53,
+                ..sample_public_edge_identity(PublicEdgeProtocol::Udp, 10_000, 20_001)
+            },
+            backend: PublicEdgeBackendKind::NsnBacked,
+            service: "dns".to_owned(),
+            site: "site-a".to_owned(),
+            virtual_port: 10_000,
+            l4: L4Policy {
+                connection_limit_ref: None,
+                session_limit_ref: Some("udp-session".to_owned()),
+            },
+            certificate_ref: None,
+        };
+        let orig = GatewayL4Map {
+            gateway_id: "gw-a".to_owned(),
+            realm_id: "realm-a".to_owned(),
+            routes: vec![tcp, udp],
+            certificates: Vec::new(),
+        };
+
+        let json = serde_json::to_string(&orig).unwrap();
+        assert!(json.contains("\"protocol\":\"tcp\""));
+        assert!(json.contains("\"protocol\":\"udp\""));
+        assert!(json.contains("\"virtual_port\":10000"));
+        assert!(json.contains("\"public_port\":10000"));
+        assert!(json.contains("\"nsgw_internal_port\":20000"));
+        assert!(json.contains("\"nsgw_internal_port\":20001"));
+        let decoded: GatewayL4Map = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded, orig);
+        assert_eq!(decoded.routes[0].identity.protocol, PublicEdgeProtocol::Tcp);
+        assert_eq!(decoded.routes[1].identity.protocol, PublicEdgeProtocol::Udp);
+        assert_eq!(
+            decoded.routes[0].identity.public_port,
+            decoded.routes[1].identity.public_port
+        );
+    }
+
+    #[test]
+    fn control_message_public_edge_configs_round_trip_with_v1_types() {
+        let msg = ControlMessage::GatewayHttpConfig(GatewayHttpConfig {
+            gateway_id: "gw-a".to_owned(),
+            realm_id: "realm-a".to_owned(),
+            routes: vec![sample_gateway_http_route()],
+            certificates: Vec::new(),
         });
 
         let json = serde_json::to_string(&msg).unwrap();
-        assert!(json.contains("\"type\":\"public_ingress_config.v1\""));
+        assert!(json.contains("\"type\":\"gateway_http_config.v1\""));
         assert!(!json.contains("\"type\":\"routing_config\""));
         assert!(!json.contains("\"type\":\"gateway_config\""));
-        assert_eq!(msg.event_type(), "public_ingress_config.v1");
+        assert_eq!(msg.event_type(), "gateway_http_config.v1");
 
         let decoded: ControlMessage = serde_json::from_str(&json).unwrap();
         match decoded {
-            ControlMessage::PublicIngressConfig(cfg) => {
+            ControlMessage::GatewayHttpConfig(cfg) => {
                 assert_eq!(cfg.routes.len(), 1);
-                assert_eq!(cfg.routes[0].nsn_wg_ip, Ipv4Addr::new(10, 0, 0, 2));
-                assert_eq!(cfg.routes[0].port, 8080);
-                assert_eq!(cfg.routes[0].virtual_port, Some(10_000));
+                assert_eq!(
+                    cfg.routes[0].identity.nsn_wg_vip,
+                    Ipv4Addr::new(10, 0, 0, 2)
+                );
+                assert_eq!(cfg.routes[0].identity.upstream_port, 8080);
             }
             _ => panic!("wrong variant"),
         }
+
+        let l4_msg = ControlMessage::GatewayL4Map(GatewayL4Map {
+            gateway_id: "gw-a".to_owned(),
+            realm_id: "realm-a".to_owned(),
+            routes: Vec::new(),
+            certificates: Vec::new(),
+        });
+        let l4_json = serde_json::to_string(&l4_msg).unwrap();
+        assert!(l4_json.contains("\"type\":\"gateway_l4_map.v1\""));
+        assert_eq!(l4_msg.event_type(), "gateway_l4_map.v1");
     }
 
     #[test]

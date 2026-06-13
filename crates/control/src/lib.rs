@@ -948,10 +948,16 @@ impl ControlPlane {
                     return Ok(true);
                 }
             }
-            ControlMessage::PublicIngressConfig(cfg) => {
+            ControlMessage::GatewayHttpConfig(cfg) => {
                 info!(
                     routes = cfg.routes.len(),
-                    "received public_ingress_config.v1"
+                    "ignored gateway_http_config.v1 on non-gateway control plane"
+                );
+            }
+            ControlMessage::GatewayL4Map(cfg) => {
+                info!(
+                    routes = cfg.routes.len(),
+                    "ignored gateway_l4_map.v1 on non-gateway control plane"
                 );
             }
             ControlMessage::PeerCandidates(update) => {

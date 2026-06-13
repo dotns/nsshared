@@ -398,7 +398,8 @@ mod serde_bytes_array_16 {
 mod tests {
     use super::*;
     use common::{
-        CAPABILITY_PUBLIC_INGRESS_CONFIG_V1, PUBLIC_INGRESS_SCOPE_HTTP_1_1_REVERSE_PROXY,
+        CAPABILITY_GATEWAY_PUBLIC_EDGE_V1, PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_CONFIG,
+        PUBLIC_EDGE_SCOPE_GATEWAY_L4_MAP,
     };
 
     #[test]
@@ -412,7 +413,7 @@ mod tests {
             version: "0.1.0".into(),
             r#type: None,
             system_info: None,
-            capabilities: vec![CAPABILITY_PUBLIC_INGRESS_CONFIG_V1.into()],
+            capabilities: vec![CAPABILITY_GATEWAY_PUBLIC_EDGE_V1.into()],
             supported_link_modes: vec![LinkMode::Direct, LinkMode::WgRelay],
             preferred_mode: Some(LinkMode::WgRelay),
         };
@@ -423,7 +424,7 @@ mod tests {
         assert_eq!(req.hostname, decoded.hostname);
         assert_eq!(
             decoded.capabilities,
-            vec![CAPABILITY_PUBLIC_INGRESS_CONFIG_V1]
+            vec![CAPABILITY_GATEWAY_PUBLIC_EDGE_V1]
         );
         assert_eq!(
             decoded.supported_link_modes,
@@ -548,8 +549,11 @@ mod tests {
             nsc_connections: Some(7),
             wg_relay_endpoint: Some("1.2.3.4:51999".into()),
             draining: true,
-            capabilities: vec![CAPABILITY_PUBLIC_INGRESS_CONFIG_V1.into()],
-            public_ingress_scopes: vec![PUBLIC_INGRESS_SCOPE_HTTP_1_1_REVERSE_PROXY.into()],
+            capabilities: vec![CAPABILITY_GATEWAY_PUBLIC_EDGE_V1.into()],
+            public_ingress_scopes: vec![
+                PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_CONFIG.into(),
+                PUBLIC_EDGE_SCOPE_GATEWAY_L4_MAP.into(),
+            ],
         };
         let bytes = to_cbor(&req).unwrap();
         let decoded: GatewayReportRequest = from_cbor(&bytes).unwrap();
@@ -564,11 +568,14 @@ mod tests {
         assert!(decoded.draining);
         assert_eq!(
             decoded.capabilities,
-            vec![CAPABILITY_PUBLIC_INGRESS_CONFIG_V1]
+            vec![CAPABILITY_GATEWAY_PUBLIC_EDGE_V1]
         );
         assert_eq!(
             decoded.public_ingress_scopes,
-            vec![PUBLIC_INGRESS_SCOPE_HTTP_1_1_REVERSE_PROXY]
+            vec![
+                PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_CONFIG,
+                PUBLIC_EDGE_SCOPE_GATEWAY_L4_MAP
+            ]
         );
     }
 
@@ -717,18 +724,24 @@ mod tests {
         assert!(decoded.public_ingress_scopes.is_empty());
 
         let capable = ConfigStreamRequest {
-            capabilities: vec![CAPABILITY_PUBLIC_INGRESS_CONFIG_V1.into()],
-            public_ingress_scopes: vec![PUBLIC_INGRESS_SCOPE_HTTP_1_1_REVERSE_PROXY.into()],
+            capabilities: vec![CAPABILITY_GATEWAY_PUBLIC_EDGE_V1.into()],
+            public_ingress_scopes: vec![
+                PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_CONFIG.into(),
+                PUBLIC_EDGE_SCOPE_GATEWAY_L4_MAP.into(),
+            ],
         };
         let bytes = to_cbor(&capable).unwrap();
         let decoded: ConfigStreamRequest = from_cbor(&bytes).unwrap();
         assert_eq!(
             decoded.capabilities,
-            vec![CAPABILITY_PUBLIC_INGRESS_CONFIG_V1]
+            vec![CAPABILITY_GATEWAY_PUBLIC_EDGE_V1]
         );
         assert_eq!(
             decoded.public_ingress_scopes,
-            vec![PUBLIC_INGRESS_SCOPE_HTTP_1_1_REVERSE_PROXY]
+            vec![
+                PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_CONFIG,
+                PUBLIC_EDGE_SCOPE_GATEWAY_L4_MAP
+            ]
         );
     }
 
@@ -833,8 +846,11 @@ mod tests {
             signed_transport_keyset: None,
             nsd_envelope_pubkey: None,
             envelope_versions: vec![1],
-            capabilities: vec![CAPABILITY_PUBLIC_INGRESS_CONFIG_V1.into()],
-            public_ingress_scopes: vec![PUBLIC_INGRESS_SCOPE_HTTP_1_1_REVERSE_PROXY.into()],
+            capabilities: vec![CAPABILITY_GATEWAY_PUBLIC_EDGE_V1.into()],
+            public_ingress_scopes: vec![
+                PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_CONFIG.into(),
+                PUBLIC_EDGE_SCOPE_GATEWAY_L4_MAP.into(),
+            ],
         };
         let resp = InfoGetResponse { info };
         let bytes = to_cbor(&resp).unwrap();
@@ -842,11 +858,14 @@ mod tests {
         assert_eq!(decoded.info.envelope_versions, vec![1]);
         assert_eq!(
             decoded.info.capabilities,
-            vec![CAPABILITY_PUBLIC_INGRESS_CONFIG_V1]
+            vec![CAPABILITY_GATEWAY_PUBLIC_EDGE_V1]
         );
         assert_eq!(
             decoded.info.public_ingress_scopes,
-            vec![PUBLIC_INGRESS_SCOPE_HTTP_1_1_REVERSE_PROXY]
+            vec![
+                PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_CONFIG,
+                PUBLIC_EDGE_SCOPE_GATEWAY_L4_MAP
+            ]
         );
     }
 
