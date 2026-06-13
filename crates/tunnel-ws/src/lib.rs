@@ -25,7 +25,7 @@ use futures_util::{SinkExt, StreamExt};
 use rustls::ClientConfig;
 use rustls::pki_types::CertificateDer;
 use rustls::pki_types::pem::PemObject;
-use telemetry::labels::{Outcome, Protocol as TelemetryProtocol};
+use telemetry::labels::{Outcome, Path as TelemetryPath, Protocol as TelemetryProtocol};
 use telemetry::proxy_otel::{self, Direction};
 use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
@@ -961,15 +961,18 @@ fn telemetry_protocol(protocol: Protocol) -> TelemetryProtocol {
 struct RelayTelemetryGuard {
     service_name: String,
     protocol: TelemetryProtocol,
+    path: TelemetryPath,
     outcome: Outcome,
 }
 
 impl RelayTelemetryGuard {
     fn new(service_name: &str, protocol: TelemetryProtocol) -> Self {
-        proxy_otel::inc_active(service_name, protocol);
+        let path = TelemetryPath::Wss;
+        proxy_otel::inc_active(service_name, protocol, path);
         Self {
             service_name: service_name.to_string(),
             protocol,
+            path,
             outcome: Outcome::Error,
         }
     }
@@ -981,26 +984,50 @@ impl RelayTelemetryGuard {
 
 impl Drop for RelayTelemetryGuard {
     fn drop(&mut self) {
-        proxy_otel::dec_active(&self.service_name, self.protocol);
-        proxy_otel::record_result(&self.service_name, self.protocol, self.outcome);
+        proxy_otel::dec_active(&self.service_name, self.protocol, self.path);
+        proxy_otel::record_result(&self.service_name, self.protocol, self.path, self.outcome);
     }
 }
 
 // Keep these helpers isolated around the canonical direction mapping.
 fn record_tcp_ws_to_local_bytes(service_name: &str, n: u64) {
-    proxy_otel::record_bytes(service_name, TelemetryProtocol::Tcp, Direction::Tx, n);
+    proxy_otel::record_bytes(
+        service_name,
+        TelemetryProtocol::Tcp,
+        TelemetryPath::Wss,
+        Direction::Tx,
+        n,
+    );
 }
 
 fn record_tcp_local_to_ws_bytes(service_name: &str, n: u64) {
-    proxy_otel::record_bytes(service_name, TelemetryProtocol::Tcp, Direction::Rx, n);
+    proxy_otel::record_bytes(
+        service_name,
+        TelemetryProtocol::Tcp,
+        TelemetryPath::Wss,
+        Direction::Rx,
+        n,
+    );
 }
 
 fn record_udp_ws_to_local_bytes(service_name: &str, n: u64) {
-    proxy_otel::record_bytes(service_name, TelemetryProtocol::Udp, Direction::Tx, n);
+    proxy_otel::record_bytes(
+        service_name,
+        TelemetryProtocol::Udp,
+        TelemetryPath::Wss,
+        Direction::Tx,
+        n,
+    );
 }
 
 fn record_udp_local_to_ws_bytes(service_name: &str, n: u64) {
-    proxy_otel::record_bytes(service_name, TelemetryProtocol::Udp, Direction::Rx, n);
+    proxy_otel::record_bytes(
+        service_name,
+        TelemetryProtocol::Udp,
+        TelemetryPath::Wss,
+        Direction::Rx,
+        n,
+    );
 }
 
 // ── Frame dispatch ─────────────────────────────────────────────────────────
@@ -1061,7 +1088,12 @@ async fn dispatch_frame(
                         ?protocol,
                         "WSS Open denied (services/ACL/DNS); sending Close"
                     );
-                    proxy_otel::record_result("", telemetry_proto, Outcome::Denied);
+                    proxy_otel::record_result(
+                        "",
+                        telemetry_proto,
+                        TelemetryPath::Wss,
+                        Outcome::Denied,
+                    );
                     send_close(write_tx, stream_id).await;
                     return;
                 }
@@ -1073,7 +1105,12 @@ async fn dispatch_frame(
             match streams.entry(stream_id) {
                 dashmap::mapref::entry::Entry::Occupied(_) => {
                     warn!(%stream_id, "WSS duplicate Open stream id; sending Close");
-                    proxy_otel::record_result(&service_name, telemetry_proto, Outcome::Error);
+                    proxy_otel::record_result(
+                        &service_name,
+                        telemetry_proto,
+                        TelemetryPath::Wss,
+                        Outcome::Error,
+                    );
                     send_close(write_tx, stream_id).await;
                     return;
                 }
@@ -1090,7 +1127,12 @@ async fn dispatch_frame(
                     limit = MAX_CONCURRENT_STREAMS,
                     "WSS stream limit reached; sending Close"
                 );
-                proxy_otel::record_result(&service_name, telemetry_proto, Outcome::Error);
+                proxy_otel::record_result(
+                    &service_name,
+                    telemetry_proto,
+                    TelemetryPath::Wss,
+                    Outcome::Error,
+                );
                 send_close(write_tx, stream_id).await;
                 return;
             }
@@ -1220,6 +1262,7 @@ async fn relay_tcp(
             proxy_otel::record_connect_duration(
                 &service_name,
                 TelemetryProtocol::Tcp,
+                TelemetryPath::Wss,
                 Outcome::Ok,
                 connect_start.elapsed().as_secs_f64(),
             );
@@ -1229,6 +1272,7 @@ async fn relay_tcp(
             proxy_otel::record_connect_duration(
                 &service_name,
                 TelemetryProtocol::Tcp,
+                TelemetryPath::Wss,
                 Outcome::Error,
                 connect_start.elapsed().as_secs_f64(),
             );
@@ -1312,6 +1356,7 @@ async fn relay_udp(
             proxy_otel::record_connect_duration(
                 &service_name,
                 TelemetryProtocol::Udp,
+                TelemetryPath::Wss,
                 Outcome::Ok,
                 connect_start.elapsed().as_secs_f64(),
             );
@@ -1321,6 +1366,7 @@ async fn relay_udp(
             proxy_otel::record_connect_duration(
                 &service_name,
                 TelemetryProtocol::Udp,
+                TelemetryPath::Wss,
                 Outcome::Error,
                 connect_start.elapsed().as_secs_f64(),
             );
@@ -1814,6 +1860,7 @@ strict = false
             &[
                 ("service", service_name),
                 ("protocol", "tcp"),
+                ("path", "wss"),
                 ("direction", "tx"),
             ],
             14.0,
@@ -1824,6 +1871,7 @@ strict = false
             &[
                 ("service", service_name),
                 ("protocol", "tcp"),
+                ("path", "wss"),
                 ("direction", "rx"),
             ],
             14.0,
@@ -1831,13 +1879,21 @@ strict = false
         assert_metric_value(
             &text,
             "nsn_proxy_active_connections",
-            &[("service", service_name), ("protocol", "tcp")],
+            &[
+                ("service", service_name),
+                ("protocol", "tcp"),
+                ("path", "wss"),
+            ],
             0.0,
         );
         assert_metric_value(
             &text,
             "nsn_proxy_connections_total",
-            &[("service", service_name), ("protocol", "tcp")],
+            &[
+                ("service", service_name),
+                ("protocol", "tcp"),
+                ("path", "wss"),
+            ],
             1.0,
         );
         assert_metric_value(
@@ -1846,6 +1902,7 @@ strict = false
             &[
                 ("service", service_name),
                 ("protocol", "tcp"),
+                ("path", "wss"),
                 ("result", "ok"),
             ],
             1.0,
@@ -1856,6 +1913,7 @@ strict = false
             &[
                 ("service", service_name),
                 ("protocol", "tcp"),
+                ("path", "wss"),
                 ("result", "ok"),
             ],
             1.0,
@@ -1879,13 +1937,21 @@ strict = false
         assert_metric_value(
             &text,
             "nsn_proxy_active_connections",
-            &[("service", service_name), ("protocol", "tcp")],
+            &[
+                ("service", service_name),
+                ("protocol", "tcp"),
+                ("path", "wss"),
+            ],
             0.0,
         );
         assert_metric_value(
             &text,
             "nsn_proxy_connections_total",
-            &[("service", service_name), ("protocol", "tcp")],
+            &[
+                ("service", service_name),
+                ("protocol", "tcp"),
+                ("path", "wss"),
+            ],
             1.0,
         );
         assert_metric_value(
@@ -1894,6 +1960,7 @@ strict = false
             &[
                 ("service", service_name),
                 ("protocol", "tcp"),
+                ("path", "wss"),
                 ("result", "error"),
             ],
             1.0,
@@ -1904,6 +1971,7 @@ strict = false
             &[
                 ("service", service_name),
                 ("protocol", "tcp"),
+                ("path", "wss"),
                 ("result", "error"),
             ],
             1.0,
@@ -1947,6 +2015,7 @@ strict = false
             &[
                 ("service", service_name),
                 ("protocol", "udp"),
+                ("path", "wss"),
                 ("direction", "tx"),
             ],
             6.0,
@@ -1957,6 +2026,7 @@ strict = false
             &[
                 ("service", service_name),
                 ("protocol", "udp"),
+                ("path", "wss"),
                 ("direction", "rx"),
             ],
             12.0,
@@ -1964,13 +2034,21 @@ strict = false
         assert_metric_value(
             &text,
             "nsn_proxy_active_connections",
-            &[("service", service_name), ("protocol", "udp")],
+            &[
+                ("service", service_name),
+                ("protocol", "udp"),
+                ("path", "wss"),
+            ],
             0.0,
         );
         assert_metric_value(
             &text,
             "nsn_proxy_connections_total",
-            &[("service", service_name), ("protocol", "udp")],
+            &[
+                ("service", service_name),
+                ("protocol", "udp"),
+                ("path", "wss"),
+            ],
             1.0,
         );
         assert_metric_value(
@@ -1979,6 +2057,7 @@ strict = false
             &[
                 ("service", service_name),
                 ("protocol", "udp"),
+                ("path", "wss"),
                 ("result", "ok"),
             ],
             1.0,
@@ -1989,6 +2068,7 @@ strict = false
             &[
                 ("service", service_name),
                 ("protocol", "udp"),
+                ("path", "wss"),
                 ("result", "ok"),
             ],
             1.0,
@@ -2037,21 +2117,26 @@ strict = false
             &before,
             &after,
             "nsn_proxy_results_total",
-            &[("service", ""), ("protocol", "tcp"), ("result", "denied")],
+            &[
+                ("service", ""),
+                ("protocol", "tcp"),
+                ("path", "wss"),
+                ("result", "denied"),
+            ],
             1.0,
         );
         assert_metric_delta(
             &before,
             &after,
             "nsn_proxy_active_connections",
-            &[("service", ""), ("protocol", "tcp")],
+            &[("service", ""), ("protocol", "tcp"), ("path", "wss")],
             0.0,
         );
         assert_metric_delta(
             &before,
             &after,
             "nsn_proxy_connections_total",
-            &[("service", ""), ("protocol", "tcp")],
+            &[("service", ""), ("protocol", "tcp"), ("path", "wss")],
             0.0,
         );
     }
@@ -2108,6 +2193,7 @@ strict = false
             &[
                 ("service", service_name),
                 ("protocol", "tcp"),
+                ("path", "wss"),
                 ("result", "error"),
             ],
             1.0,
@@ -2116,14 +2202,22 @@ strict = false
             &before,
             &after,
             "nsn_proxy_active_connections",
-            &[("service", service_name), ("protocol", "tcp")],
+            &[
+                ("service", service_name),
+                ("protocol", "tcp"),
+                ("path", "wss"),
+            ],
             0.0,
         );
         assert_metric_delta(
             &before,
             &after,
             "nsn_proxy_connections_total",
-            &[("service", service_name), ("protocol", "tcp")],
+            &[
+                ("service", service_name),
+                ("protocol", "tcp"),
+                ("path", "wss"),
+            ],
             0.0,
         );
     }

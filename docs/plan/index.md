@@ -1,6 +1,6 @@
 # ns-shared - Plan Index
 
-> Updated: 2026-06-12
+> Updated: 2026-06-13
 
 ## Usage
 
@@ -28,3 +28,5 @@ Each plan is a single line linking to its detail file. All detailed information 
 ---
 
 ## Plans
+
+- [x] [**PLAN-001 Proxy OTel path label**](PLAN-001.md) `2026-06-13`

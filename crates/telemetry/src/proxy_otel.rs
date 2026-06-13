@@ -5,20 +5,21 @@
 //! (nothing reads them for external consumption). This module provides a
 //! **global, label-aware** replacement:
 //!
-//! - `nsn_proxy_bytes_total{service, protocol, direction}` — bidirectional
-//!   byte count.
-//! - `nsn_proxy_active_connections{service, protocol}` — currently open
+//! - `nsn_proxy_bytes_total{service, protocol, path, direction}` —
+//!   bidirectional byte count.
+//! - `nsn_proxy_active_connections{service, protocol, path}` — currently open
 //!   proxy connections.
-//! - `nsn_proxy_connections_total{service, protocol}` — cumulative accepted
+//! - `nsn_proxy_connections_total{service, protocol, path}` — cumulative accepted
 //!   connections.
-//! - `nsn_proxy_results_total{service, protocol, result}` — per-outcome
+//! - `nsn_proxy_results_total{service, protocol, path, result}` — per-outcome
 //!   terminal count (ok / timeout / error / denied).
-//! - `nsn_proxy_upstream_timeouts_total{service, protocol}` — upstream
+//! - `nsn_proxy_upstream_timeouts_total{service, protocol, path}` — upstream
 //!   recv-timeout events.
 //!
 //! Cardinality: `service` comes from `services.toml` (tens), `protocol` is
-//! `{tcp, udp}`, `direction` is `{tx, rx}`, `result` is one of four values
-//! from [`crate::labels::Outcome`]. Bounded across all dimensions.
+//! `{tcp, udp}`, `path` is `{tun, userspace, wss}`, `direction` is `{tx, rx}`,
+//! `result` is one of four values from [`crate::labels::Outcome`]. Bounded
+//! across all dimensions.
 //!
 //! Instruments are lazily created behind `OnceLock` — first call wins, all
 //! later calls share the same handles.
@@ -28,7 +29,9 @@ use std::sync::OnceLock;
 use opentelemetry::KeyValue;
 use opentelemetry::metrics::{Counter, Histogram, UpDownCounter};
 
-use crate::labels::{LABEL_PROTOCOL, LABEL_RESULT, LABEL_SERVICE, Outcome, Protocol};
+use crate::labels::{
+    LABEL_PATH, LABEL_PROTOCOL, LABEL_RESULT, LABEL_SERVICE, Outcome, Path, Protocol,
+};
 use crate::meter::{counter_u64, histogram_seconds, meter, up_down_counter_i64};
 
 /// Direction label value for the bytes counter.
@@ -101,13 +104,14 @@ fn instruments() -> &'static Instruments {
     })
 }
 
-/// Record `n` bytes in the given direction for a `{service, protocol}` flow.
-pub fn record_bytes(service: &str, protocol: Protocol, direction: Direction, n: u64) {
+/// Record `n` bytes in the given direction for a `{service, protocol, path}` flow.
+pub fn record_bytes(service: &str, protocol: Protocol, path: Path, direction: Direction, n: u64) {
     instruments().bytes.add(
         n,
         &[
             KeyValue::new(LABEL_SERVICE, service.to_owned()),
             KeyValue::new(LABEL_PROTOCOL, protocol.as_str()),
+            KeyValue::new(LABEL_PATH, path.as_str()),
             KeyValue::new(LABEL_DIRECTION, direction.as_str()),
         ],
     );
@@ -116,33 +120,36 @@ pub fn record_bytes(service: &str, protocol: Protocol, direction: Direction, n: 
 /// Increment the active-connections gauge when a new proxy connection starts.
 ///
 /// Pair with [`dec_active`] on every exit path (including error and cancel).
-pub fn inc_active(service: &str, protocol: Protocol) {
+pub fn inc_active(service: &str, protocol: Protocol, path: Path) {
     let labels = [
         KeyValue::new(LABEL_SERVICE, service.to_owned()),
         KeyValue::new(LABEL_PROTOCOL, protocol.as_str()),
+        KeyValue::new(LABEL_PATH, path.as_str()),
     ];
     instruments().active.add(1, &labels);
     instruments().total.add(1, &labels);
 }
 
 /// Decrement the active-connections gauge when a proxy connection ends.
-pub fn dec_active(service: &str, protocol: Protocol) {
+pub fn dec_active(service: &str, protocol: Protocol, path: Path) {
     instruments().active.add(
         -1,
         &[
             KeyValue::new(LABEL_SERVICE, service.to_owned()),
             KeyValue::new(LABEL_PROTOCOL, protocol.as_str()),
+            KeyValue::new(LABEL_PATH, path.as_str()),
         ],
     );
 }
 
 /// Record the terminal outcome of a proxy flow.
-pub fn record_result(service: &str, protocol: Protocol, outcome: Outcome) {
+pub fn record_result(service: &str, protocol: Protocol, path: Path, outcome: Outcome) {
     instruments().results.add(
         1,
         &[
             KeyValue::new(LABEL_SERVICE, service.to_owned()),
             KeyValue::new(LABEL_PROTOCOL, protocol.as_str()),
+            KeyValue::new(LABEL_PATH, path.as_str()),
             KeyValue::new(LABEL_RESULT, outcome.as_str()),
         ],
     );
@@ -153,24 +160,32 @@ pub fn record_result(service: &str, protocol: Protocol, outcome: Outcome) {
 ///
 /// Measures connect/bind latency only — not the duration of the subsequent
 /// relay copy. Taken once per connection, so it stays off the per-packet path.
-pub fn record_connect_duration(service: &str, protocol: Protocol, outcome: Outcome, secs: f64) {
+pub fn record_connect_duration(
+    service: &str,
+    protocol: Protocol,
+    path: Path,
+    outcome: Outcome,
+    secs: f64,
+) {
     instruments().connect_duration.record(
         secs,
         &[
             KeyValue::new(LABEL_SERVICE, service.to_owned()),
             KeyValue::new(LABEL_PROTOCOL, protocol.as_str()),
+            KeyValue::new(LABEL_PATH, path.as_str()),
             KeyValue::new(LABEL_RESULT, outcome.as_str()),
         ],
     );
 }
 
 /// Record an upstream recv-timeout on a UDP relay.
-pub fn record_upstream_timeout(service: &str, protocol: Protocol) {
+pub fn record_upstream_timeout(service: &str, protocol: Protocol, path: Path) {
     instruments().timeouts.add(
         1,
         &[
             KeyValue::new(LABEL_SERVICE, service.to_owned()),
             KeyValue::new(LABEL_PROTOCOL, protocol.as_str()),
+            KeyValue::new(LABEL_PATH, path.as_str()),
         ],
     );
 }
@@ -187,15 +202,15 @@ mod tests {
 
     #[test]
     fn record_bytes_does_not_panic_on_empty_service() {
-        record_bytes("", Protocol::Tcp, Direction::Tx, 0);
+        record_bytes("", Protocol::Tcp, Path::Userspace, Direction::Tx, 0);
     }
 
     #[test]
     fn inc_and_dec_active_are_symmetric() {
         // Pure API smoke; the noop meter provider is fine — we just assert
         // these calls do not panic or trip the debug_assert on naming.
-        inc_active("web", Protocol::Tcp);
-        dec_active("web", Protocol::Tcp);
+        inc_active("web", Protocol::Tcp, Path::Userspace);
+        dec_active("web", Protocol::Tcp, Path::Userspace);
     }
 
     #[test]
@@ -206,19 +221,19 @@ mod tests {
             Outcome::Timeout,
             Outcome::Error,
         ] {
-            record_result("web", Protocol::Udp, o);
+            record_result("web", Protocol::Udp, Path::Wss, o);
         }
     }
 
     #[test]
     fn record_bytes_accepts_both_directions() {
-        record_bytes("web", Protocol::Tcp, Direction::Tx, 100);
-        record_bytes("web", Protocol::Tcp, Direction::Rx, 200);
+        record_bytes("web", Protocol::Tcp, Path::Tun, Direction::Tx, 100);
+        record_bytes("web", Protocol::Tcp, Path::Tun, Direction::Rx, 200);
     }
 
     #[test]
     fn record_upstream_timeout_does_not_panic() {
-        record_upstream_timeout("dns", Protocol::Udp);
+        record_upstream_timeout("dns", Protocol::Udp, Path::Userspace);
     }
 
     #[test]
@@ -229,7 +244,7 @@ mod tests {
             Outcome::Timeout,
             Outcome::Error,
         ] {
-            record_connect_duration("web", Protocol::Tcp, o, 0.001);
+            record_connect_duration("web", Protocol::Tcp, Path::Wss, o, 0.001);
         }
     }
 }

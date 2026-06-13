@@ -1,6 +1,6 @@
 # ns-shared - Task List
 
-> Updated: 2026-06-12
+> Updated: 2026-06-13
 
 ## Usage
 
@@ -30,3 +30,5 @@ Each task is a single line linking to its detail file. All detailed information 
 ---
 
 ## Tasks
+
+- [x] [**OBS-001 Add proxy path labels**](OBS-001.md) `P1`
