@@ -252,6 +252,15 @@ pub struct GatewayReportRequest {
     /// p2p-reflector targets from; older gateways omit it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub wg_relay_endpoint: Option<String>,
+    /// Envoy ADS HTTP listener public port for host-routed HTTP ingress.
+    /// Older gateways omit it; NSD must then avoid emitting HTTP routes for
+    /// public-edge capable gateways.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub envoy_http_public_port: Option<u16>,
+    /// Internal plain-HTTP public-ingress listener port that Envoy targets on
+    /// this gateway.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub public_ingress_internal_http_port: Option<u16>,
     /// Whether this gateway is intentionally draining new public ingress
     /// traffic while keeping existing routes visible.
     #[serde(default)]
@@ -548,6 +557,8 @@ mod tests {
             nsgw_version: Some("1.2.3".into()),
             nsc_connections: Some(7),
             wg_relay_endpoint: Some("1.2.3.4:51999".into()),
+            envoy_http_public_port: Some(8443),
+            public_ingress_internal_http_port: Some(8080),
             draining: true,
             capabilities: vec![CAPABILITY_GATEWAY_PUBLIC_EDGE_V1.into()],
             public_ingress_scopes: vec![
@@ -565,6 +576,8 @@ mod tests {
         assert_eq!(decoded.nsgw_version.as_deref(), Some("1.2.3"));
         assert_eq!(decoded.nsc_connections, Some(7));
         assert_eq!(decoded.wg_relay_endpoint.as_deref(), Some("1.2.3.4:51999"));
+        assert_eq!(decoded.envoy_http_public_port, Some(8443));
+        assert_eq!(decoded.public_ingress_internal_http_port, Some(8080));
         assert!(decoded.draining);
         assert_eq!(
             decoded.capabilities,
@@ -603,6 +616,8 @@ mod tests {
         assert!(decoded.nsgw_version.is_none());
         assert!(decoded.nsc_connections.is_none());
         assert!(decoded.wg_relay_endpoint.is_none());
+        assert!(decoded.envoy_http_public_port.is_none());
+        assert!(decoded.public_ingress_internal_http_port.is_none());
         assert!(!decoded.draining);
         assert!(decoded.capabilities.is_empty());
         assert!(decoded.public_ingress_scopes.is_empty());
@@ -636,6 +651,8 @@ mod tests {
             nsgw_version: Some("1.2.3".into()),
             nsc_connections: Some(5),
             wg_relay_endpoint: None,
+            envoy_http_public_port: Some(8443),
+            public_ingress_internal_http_port: Some(8080),
             draining: false,
             capabilities: Vec::new(),
             public_ingress_scopes: Vec::new(),
