@@ -1,6 +1,6 @@
 # ns-shared - Task List
 
-> Updated: 2026-06-13
+> Updated: 2026-06-14
 
 ## Usage
 
@@ -33,3 +33,4 @@ Each task is a single line linking to its detail file. All detailed information 
 
 - [x] [**OBS-001 Add proxy path labels**](OBS-001.md) `P1`
 - [x] [**EDGE-001 Define public edge shared contract**](EDGE-001.md) `P0`
+- [x] [**EDGE-002 Define gateway certificate distribution contract**](EDGE-002.md) `P0`

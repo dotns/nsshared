@@ -20,7 +20,10 @@ use std::net::{Ipv4Addr, SocketAddr};
 use common::{NsdInfo, SystemInfo};
 use serde::{Deserialize, Serialize};
 
-use crate::messages::{ControlMessage, LinkMode, PeerCandidatesReport, ServiceReport, ServicesAck};
+use crate::messages::{
+    ControlMessage, GatewayCertificateStatus, LinkMode, PeerCandidatesReport, ServiceReport,
+    ServicesAck,
+};
 use crate::types::ConnectorType;
 
 pub use crate::types::ConnectorType as RegisterType;
@@ -271,6 +274,9 @@ pub struct GatewayReportRequest {
     /// Public ingress route scopes advertised by this gateway.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub public_ingress_scopes: Vec<String>,
+    /// Non-secret certificate activation status reported by this gateway.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub certificate_statuses: Vec<GatewayCertificateStatus>,
 }
 
 /// Response payload for `api = "gateway.report"` (D4). Empty on success — the
@@ -565,6 +571,15 @@ mod tests {
                 PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_CONFIG.into(),
                 PUBLIC_EDGE_SCOPE_GATEWAY_L4_MAP.into(),
             ],
+            certificate_statuses: vec![GatewayCertificateStatus {
+                cert_id: "cert:web.example.test".into(),
+                hostnames: vec!["web.example.test".into()],
+                issuer: "letsencrypt-prod".into(),
+                not_after: 1_787_000_000,
+                fingerprint: "sha256:abc123".into(),
+                gateway_ack_generation: Some(7),
+                last_error_code: None,
+            }],
         };
         let bytes = to_cbor(&req).unwrap();
         let decoded: GatewayReportRequest = from_cbor(&bytes).unwrap();
@@ -589,6 +604,15 @@ mod tests {
                 PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_CONFIG,
                 PUBLIC_EDGE_SCOPE_GATEWAY_L4_MAP
             ]
+        );
+        assert_eq!(decoded.certificate_statuses.len(), 1);
+        assert_eq!(
+            decoded.certificate_statuses[0].cert_id,
+            "cert:web.example.test"
+        );
+        assert_eq!(
+            decoded.certificate_statuses[0].gateway_ack_generation,
+            Some(7)
         );
     }
 
@@ -621,6 +645,7 @@ mod tests {
         assert!(!decoded.draining);
         assert!(decoded.capabilities.is_empty());
         assert!(decoded.public_ingress_scopes.is_empty());
+        assert!(decoded.certificate_statuses.is_empty());
     }
 
     #[test]
@@ -656,6 +681,7 @@ mod tests {
             draining: false,
             capabilities: Vec::new(),
             public_ingress_scopes: Vec::new(),
+            certificate_statuses: Vec::new(),
         };
 
         let bytes = to_cbor(&req).unwrap();

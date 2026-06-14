@@ -960,6 +960,14 @@ impl ControlPlane {
                     "ignored gateway_l4_map.v1 on non-gateway control plane"
                 );
             }
+            ControlMessage::GatewayCertificateBundle(bundle) => {
+                info!(
+                    cert_id = %bundle.cert_id,
+                    hostnames = bundle.hostnames.len(),
+                    generation = bundle.generation,
+                    "ignored gateway_certificate_bundle.v1 on non-gateway control plane"
+                );
+            }
             ControlMessage::PeerCandidates(update) => {
                 info!(
                     machine_id = %update.machine_id,

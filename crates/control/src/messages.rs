@@ -717,6 +717,20 @@ pub struct PublicEdgeCertificatePolicy {
     pub min_tls_version: Option<String>,
     #[serde(default)]
     pub require_sni: bool,
+    #[serde(default)]
+    pub challenge_preference: PublicEdgeCertificateChallengePreference,
+}
+
+/// Preferred ACME challenge family for a public edge certificate identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
+pub enum PublicEdgeCertificateChallengePreference {
+    #[default]
+    #[serde(rename = "tls_alpn_01")]
+    TlsAlpn01,
+    #[serde(rename = "http_01")]
+    Http01,
+    #[serde(rename = "dns_01")]
+    Dns01,
 }
 
 /// Where Envoy/NSGW should resolve certificate material.
@@ -893,6 +907,54 @@ pub struct GatewayL4Map {
     pub certificates: Vec<PublicEdgeCertificateRef>,
 }
 
+/// Secret-bearing certificate material targeted to one gateway over the
+/// signed control stream.
+#[derive(Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct GatewayCertificateBundle {
+    pub cert_id: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub hostnames: Vec<String>,
+    pub fullchain_pem: String,
+    pub private_key_pem: String,
+    pub issuer: String,
+    /// Certificate expiry as a Unix timestamp in seconds.
+    pub not_after: u64,
+    /// Monotonic per `cert_id` generation used by consumers to reject stale
+    /// material.
+    pub generation: u64,
+}
+
+impl std::fmt::Debug for GatewayCertificateBundle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GatewayCertificateBundle")
+            .field("cert_id", &self.cert_id)
+            .field("hostnames", &self.hostnames)
+            .field("fullchain_pem", &self.fullchain_pem)
+            .field("private_key_pem", &"<redacted>")
+            .field("issuer", &self.issuer)
+            .field("not_after", &self.not_after)
+            .field("generation", &self.generation)
+            .finish()
+    }
+}
+
+/// Non-secret certificate status reported by gateways and exposed by NSD.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct GatewayCertificateStatus {
+    pub cert_id: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub hostnames: Vec<String>,
+    pub issuer: String,
+    /// Certificate expiry as a Unix timestamp in seconds.
+    pub not_after: u64,
+    /// Fingerprint of the activated certificate material.
+    pub fingerprint: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gateway_ack_generation: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_error_code: Option<String>,
+}
+
 // ── direct P2P candidate signaling ──────────────────────────────────────────
 
 /// Direct-P2P candidate category advertised by NSN peers.
@@ -1016,6 +1078,9 @@ pub enum ControlMessage {
     /// Server → Gateway: TCP/UDP public edge listener map.
     #[serde(rename = "gateway_l4_map.v1")]
     GatewayL4Map(GatewayL4Map),
+    /// Server → Gateway: secret-bearing certificate material distribution.
+    #[serde(rename = "gateway_certificate_bundle.v1")]
+    GatewayCertificateBundle(GatewayCertificateBundle),
     /// Server → Client: direct-P2P candidate update for one peer.
     PeerCandidates(PeerCandidatesUpdate),
     /// Catch-all for `type` tags introduced by a newer NSD.
@@ -1054,6 +1119,7 @@ impl ControlMessage {
             ControlMessage::DnsConfig(_) => "dns_config",
             ControlMessage::GatewayHttpConfig(_) => "gateway_http_config.v1",
             ControlMessage::GatewayL4Map(_) => "gateway_l4_map.v1",
+            ControlMessage::GatewayCertificateBundle(_) => "gateway_certificate_bundle.v1",
             ControlMessage::PeerCandidates(_) => "peer_candidates",
             ControlMessage::Unknown => "unknown",
         }
@@ -1862,6 +1928,7 @@ tunnel = "ws"
                 issuer_ref: Some("letsencrypt-prod".to_owned()),
                 min_tls_version: Some("1.3".to_owned()),
                 require_sni: true,
+                challenge_preference: PublicEdgeCertificateChallengePreference::Dns01,
             },
             source: PublicEdgeCertificateSource::Sds {
                 secret_name: "web-example-test".to_owned(),
@@ -2007,6 +2074,33 @@ tunnel = "ws"
     }
 
     #[test]
+    fn public_edge_certificate_challenge_preference_tokens_round_trip() {
+        let preferences = [
+            (
+                "tls_alpn_01",
+                PublicEdgeCertificateChallengePreference::TlsAlpn01,
+            ),
+            ("http_01", PublicEdgeCertificateChallengePreference::Http01),
+            ("dns_01", PublicEdgeCertificateChallengePreference::Dns01),
+        ];
+
+        for (token, preference) in preferences {
+            let json = format!(r#""{token}""#);
+            let decoded: PublicEdgeCertificateChallengePreference =
+                serde_json::from_str(&json).unwrap();
+            assert_eq!(decoded, preference);
+            assert_eq!(serde_json::to_string(&decoded).unwrap(), json);
+        }
+
+        let decoded: PublicEdgeCertificatePolicy =
+            serde_json::from_str(r#"{"require_sni":true}"#).unwrap();
+        assert_eq!(
+            decoded.challenge_preference,
+            PublicEdgeCertificateChallengePreference::TlsAlpn01
+        );
+    }
+
+    #[test]
     fn gateway_l4_map_round_trips_via_json_with_tcp_and_udp_entries() {
         let tcp = GatewayL4Route {
             identity: sample_public_edge_identity(PublicEdgeProtocol::Tcp, 10_000, 20_000),
@@ -2059,6 +2153,94 @@ tunnel = "ws"
             decoded.routes[0].identity.public_port,
             decoded.routes[1].identity.public_port
         );
+    }
+
+    #[test]
+    fn gateway_certificate_bundle_round_trips_as_separate_control_message() {
+        let private_key = "-----BEGIN PRIVATE KEY-----\nsecret-key\n-----END PRIVATE KEY-----";
+        let bundle = GatewayCertificateBundle {
+            cert_id: "cert:web.example.test".to_owned(),
+            hostnames: vec!["web.example.test".to_owned(), "*.example.test".to_owned()],
+            fullchain_pem: "-----BEGIN CERTIFICATE-----\ncert\n-----END CERTIFICATE-----"
+                .to_owned(),
+            private_key_pem: private_key.to_owned(),
+            issuer: "letsencrypt-prod".to_owned(),
+            not_after: 1_787_000_000,
+            generation: 17,
+        };
+
+        let msg = ControlMessage::GatewayCertificateBundle(bundle.clone());
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"type\":\"gateway_certificate_bundle.v1\""));
+        assert!(json.contains("\"cert_id\":\"cert:web.example.test\""));
+        assert!(json.contains("\"fullchain_pem\""));
+        assert!(json.contains("\"private_key_pem\""));
+        assert!(json.contains("BEGIN PRIVATE KEY"));
+        assert!(json.contains("secret-key"));
+        assert_eq!(msg.event_type(), "gateway_certificate_bundle.v1");
+
+        let decoded: ControlMessage = serde_json::from_str(&json).unwrap();
+        match decoded {
+            ControlMessage::GatewayCertificateBundle(decoded) => {
+                assert_eq!(decoded, bundle);
+                assert_eq!(decoded.generation, 17);
+                assert_eq!(decoded.private_key_pem, private_key);
+            }
+            _ => panic!("wrong variant"),
+        }
+
+        let debug = format!("{bundle:?}");
+        assert!(!debug.contains(private_key));
+        assert!(debug.contains("<redacted>"));
+    }
+
+    #[test]
+    fn gateway_certificate_status_round_trips_without_secret_material() {
+        let status = GatewayCertificateStatus {
+            cert_id: "cert:web.example.test".to_owned(),
+            hostnames: vec!["web.example.test".to_owned()],
+            issuer: "letsencrypt-prod".to_owned(),
+            not_after: 1_787_000_000,
+            fingerprint: "sha256:abcdef".to_owned(),
+            gateway_ack_generation: Some(17),
+            last_error_code: Some("sds_write_failed".to_owned()),
+        };
+
+        let json = serde_json::to_string(&status).unwrap();
+        assert!(json.contains("\"cert_id\":\"cert:web.example.test\""));
+        assert!(json.contains("\"gateway_ack_generation\":17"));
+        assert!(json.contains("\"last_error_code\":\"sds_write_failed\""));
+        assert!(!json.contains("private_key"));
+        assert!(!json.contains("PRIVATE KEY"));
+
+        let decoded: GatewayCertificateStatus = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded, status);
+    }
+
+    #[test]
+    fn public_edge_policy_snapshots_never_serialize_private_keys() {
+        let private_key = "-----BEGIN PRIVATE KEY-----\nsecret-key\n-----END PRIVATE KEY-----";
+        let http = GatewayHttpConfig {
+            gateway_id: "gw-a".to_owned(),
+            realm_id: "realm-a".to_owned(),
+            routes: vec![sample_gateway_http_route()],
+            certificates: vec![sample_certificate()],
+        };
+        let l4 = GatewayL4Map {
+            gateway_id: "gw-a".to_owned(),
+            realm_id: "realm-a".to_owned(),
+            routes: Vec::new(),
+            certificates: vec![sample_certificate()],
+        };
+
+        for json in [
+            serde_json::to_string(&ControlMessage::GatewayHttpConfig(http)).unwrap(),
+            serde_json::to_string(&ControlMessage::GatewayL4Map(l4)).unwrap(),
+        ] {
+            assert!(!json.contains("private_key"));
+            assert!(!json.contains(private_key));
+            assert!(!json.contains("gateway_certificate_bundle.v1"));
+        }
     }
 
     #[test]
