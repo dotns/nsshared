@@ -10,6 +10,6 @@ This workspace currently contains:
 - `control`
 - `tunnel-ws`
 
-Consumers should pin this repository by an immutable tag or commit when it is
-published. During local development, sibling checkouts can use path
-dependencies such as `../ns-shared/crates/common`.
+Consumers should pin source dependencies by an immutable tag or commit. This
+workspace is configured with `publish = false`; during local development,
+sibling checkouts use path dependencies such as `../ns-shared/crates/common`.

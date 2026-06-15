@@ -28,6 +28,8 @@ The sibling `Cargo.toml` manifests in `/workspace/nsiod/ns`, `/workspace/nsiod/n
 
 This checkout is a live dependency root for the sibling workspaces listed above because their manifests point directly at `../ns-shared/crates/*`. Changes in this tree can affect local builds of those consumers without publishing a package or updating a version.
 
+The workspace package configuration sets `publish = false`, and all member crates inherit that setting. These crates are therefore consumed from source through path dependencies or immutable repository refs rather than as published package artifacts.
+
 Docs-only changes and additive Rust API changes can land in this repository after local quality gates pass. Breaking API or behavior changes require a coordinated cascade across the affected consumers before landing, because the sibling path dependencies resolve against this working tree.
 
 ## Quality Gates

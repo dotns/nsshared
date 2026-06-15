@@ -51,8 +51,9 @@ pub struct PeerConfig {
 ///
 /// NSD projects the NSN `machine_id` here (the NSGW bridge pairs the two opaque
 /// legs by authenticated identity, so NSC must know which NSN to target). No NSN
-/// endpoint is ever carried — both ends dial outbound to NSGW (DERP invariant,
-/// `docs/acl-identity-transport-design.md` §8).
+/// endpoint is ever carried; both ends dial outbound to NSGW. The detailed
+/// link-mode design lives in the sibling `ns` repository's
+/// `docs/acl-identity-transport-design.md`.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct WssRelayDial {
     pub nsn_machine_id: String,

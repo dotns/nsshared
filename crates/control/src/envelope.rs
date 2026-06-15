@@ -5,7 +5,8 @@
 //! length-prefixed binary string, **not** the CBOR bytes, so signature
 //! verification does not depend on a canonical encoder.
 //!
-//! See `docs/plan/PLAN-022.md` for design context.
+//! Design context lives in the sibling `ns` repository's
+//! `docs/plan/PLAN-022.md`; this crate contains the implemented wire type.
 #![allow(missing_docs)]
 
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
