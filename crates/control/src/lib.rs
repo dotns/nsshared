@@ -317,6 +317,8 @@ pub struct ControlPlane {
     dns_config_tx: mpsc::Sender<DnsConfig>,
     peer_candidates_tx: mpsc::Sender<PeerCandidatesUpdate>,
     token_refresh_tx: mpsc::Sender<String>,
+    /// Capability tokens advertised on the config stream subscription.
+    config_stream_capabilities: Vec<String>,
     /// Pluggable signed-envelope transport for control calls and streams.
     transport: Arc<dyn transport::ControlTransport>,
     /// Periodic heartbeat client for this single NSD. Owned by the same task
@@ -373,6 +375,7 @@ impl ControlPlane {
             dns_config_tx: dns_tx,
             peer_candidates_tx,
             token_refresh_tx,
+            config_stream_capabilities: Vec::new(),
             transport,
             heartbeat_client,
             heartbeat_interval: Duration::from_secs(60),
@@ -400,6 +403,12 @@ impl ControlPlane {
     /// Callers use this to reflect liveness without waiting for a config push.
     pub fn set_status_tx(&mut self, tx: mpsc::Sender<bool>) {
         self.status_tx = Some(tx);
+    }
+
+    pub fn set_config_stream_capabilities(&mut self, capabilities: Vec<String>) {
+        self.config_stream_capabilities = capabilities;
+        self.config_stream_capabilities.sort();
+        self.config_stream_capabilities.dedup();
     }
 
     pub fn set_nsd_id(&mut self, id: String) {
@@ -822,7 +831,10 @@ impl ControlPlane {
     fn config_stream_envelope(&self) -> Result<ControlEnvelope, Error> {
         self.sign_control_envelope(
             envelope_api::CONFIG_STREAM,
-            &api::ConfigStreamRequest::default(),
+            &api::ConfigStreamRequest {
+                capabilities: self.config_stream_capabilities.clone(),
+                public_ingress_scopes: Vec::new(),
+            },
         )
     }
 
@@ -1279,6 +1291,7 @@ mod post_services_reauth_tests {
     use super::auth::AuthClient;
     use super::{ControlPlane, ControlStream, MachineRecoveryCircuit, MachineRecoveryPolicy};
     use crate::Error;
+    use crate::api;
     use crate::envelope::ControlEnvelope;
     use crate::messages::ServiceReport;
 
@@ -1444,6 +1457,34 @@ mod post_services_reauth_tests {
             strict_mode: false,
             system_info: None,
         }
+    }
+
+    #[tokio::test]
+    async fn config_stream_envelope_carries_configured_capabilities() {
+        let state = registered_state().await;
+        let auth = AuthClient::new("http://127.0.0.1:3001", state);
+        let (mut plane, _wg, _proxy, _acl, _gw, _rt, _dns, _peer, _tok_rx) = ControlPlane::new(
+            dummy_config("http://127.0.0.1:3001".to_string()),
+            empty_report(),
+            auth,
+        )
+        .expect("control plane");
+
+        plane.set_config_stream_capabilities(vec![
+            common::CAPABILITY_NSC_APPLICATION_UDP_V1.to_owned(),
+            common::CAPABILITY_NSC_APPLICATION_UDP_V1.to_owned(),
+        ]);
+
+        let envelope = plane
+            .config_stream_envelope()
+            .expect("config stream envelope");
+        let request: api::ConfigStreamRequest =
+            api::from_cbor(envelope.payload.as_ref()).expect("config stream request decodes");
+        assert_eq!(
+            request.capabilities,
+            vec![common::CAPABILITY_NSC_APPLICATION_UDP_V1.to_owned()]
+        );
+        assert!(request.public_ingress_scopes.is_empty());
     }
 
     fn register_response(machine_id: &str) -> String {
