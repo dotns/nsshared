@@ -915,6 +915,29 @@ impl ControlPlane {
             ControlMessage::ServicesReport(_) => {
                 warn!("received unexpected services_report from server");
             }
+            ControlMessage::GatewayServicesReport(_) => {
+                warn!("received unexpected gateway.services_report from server");
+            }
+            ControlMessage::GatewayServicesAck(ack) => {
+                if !ack.accepted_services.is_empty() {
+                    info!(
+                        services = %ack.accepted_services.join(", "),
+                        "server: gateway services accepted"
+                    );
+                }
+                if !ack.accepted_exit_profiles.is_empty() {
+                    info!(
+                        exit_profiles = %ack.accepted_exit_profiles.join(", "),
+                        "server: gateway exit profiles accepted"
+                    );
+                }
+                if !ack.rejected.is_empty() {
+                    warn!(
+                        declarations = %ack.rejected.join(", "),
+                        "server: gateway service declarations rejected"
+                    );
+                }
+            }
             ControlMessage::GatewayConfig(cfg) => {
                 info!(gateways = cfg.gateways.len(), "received gateway_config");
                 if self.gateway_config_tx.send(cfg).await.is_err() {

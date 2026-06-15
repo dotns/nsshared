@@ -21,8 +21,8 @@ use common::{NsdInfo, SystemInfo};
 use serde::{Deserialize, Serialize};
 
 use crate::messages::{
-    ControlMessage, GatewayCertificateStatus, LinkMode, PeerCandidatesReport, ServiceReport,
-    ServicesAck,
+    ControlMessage, GatewayCertificateStatus, GatewayServicesAck, GatewayServicesReport, LinkMode,
+    PeerCandidatesReport, ServiceReport, ServicesAck,
 };
 use crate::types::ConnectorType;
 
@@ -165,6 +165,14 @@ pub type ServicesReportRequest = ServiceReport;
 
 /// Response payload for `api = "services.report"` — reuses [`ServicesAck`].
 pub type ServicesReportResponse = ServicesAck;
+
+// ── gateway.services_report ─────────────────────────────────────────────────
+
+/// Request payload for `api = "gateway.services_report"`.
+pub type GatewayServicesReportRequest = GatewayServicesReport;
+
+/// Response payload for `api = "gateway.services_report"`.
+pub type GatewayServicesReportResponse = GatewayServicesAck;
 
 // ── peer_candidates.report ──────────────────────────────────────────────────
 

@@ -167,6 +167,7 @@ fn api_label(api: &str) -> &'static str {
         api::MACHINE_AUTH => "machine.auth",
         api::MACHINE_HEARTBEAT => "machine.heartbeat",
         api::SERVICES_REPORT => "services.report",
+        api::GATEWAY_SERVICES_REPORT => "gateway.services_report",
         api::PEER_CANDIDATES_REPORT => "peer_candidates.report",
         api::CONFIG_STREAM => "config.stream",
         api::GATEWAY_REPORT => "gateway.report",

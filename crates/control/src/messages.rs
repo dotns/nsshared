@@ -427,13 +427,128 @@ pub struct ServicesAck {
     pub rejected: Vec<String>,
 }
 
+// ── gateway services report ──────────────────────────────────────────────────
+
+/// Scope advertised for a gateway-owned exit profile.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExitScope {
+    /// Explicit CIDR allowlist for a future exit profile.
+    Cidrs {
+        #[serde(with = "serde_ipnet_vec")]
+        cidrs: Vec<IpNet>,
+    },
+    /// Reserved for future default-route exit. MVP consumers must reject it.
+    DefaultRoute,
+}
+
+mod serde_ipnet_vec {
+    use super::*;
+
+    pub fn serialize<S>(cidrs: &[IpNet], serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        cidrs
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<IpNet>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Vec::<String>::deserialize(deserializer)?
+            .into_iter()
+            .map(|cidr| cidr.parse().map_err(de::Error::custom))
+            .collect()
+    }
+}
+
+/// Gateway-local service declaration reported as the local floor.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct GatewayServiceDeclaration {
+    pub service_ref: String,
+    pub protocol: Protocol,
+    pub target_host: String,
+    pub target_port: u16,
+    #[serde(default = "default_enabled")]
+    pub enabled: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub capabilities: Vec<String>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub policy_labels: BTreeMap<String, String>,
+}
+
+/// Gateway-local exit profile declaration reported as the local floor.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct GatewayExitProfileDeclaration {
+    pub profile_ref: String,
+    pub scope: ExitScope,
+    #[serde(default = "default_enabled")]
+    pub enabled: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub capabilities: Vec<String>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub policy_labels: BTreeMap<String, String>,
+}
+
+/// Full-snapshot gateway-owned service floor report.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
+pub struct GatewayServicesReport {
+    #[serde(default)]
+    pub services: Vec<GatewayServiceDeclaration>,
+    #[serde(default)]
+    pub exit_profiles: Vec<GatewayExitProfileDeclaration>,
+}
+
+/// Server acknowledgement of a [`GatewayServicesReport`].
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
+pub struct GatewayServicesAck {
+    #[serde(default)]
+    pub accepted_services: Vec<String>,
+    #[serde(default)]
+    pub accepted_exit_profiles: Vec<String>,
+    #[serde(default)]
+    pub rejected: Vec<String>,
+}
+
+const fn default_enabled() -> bool {
+    true
+}
+
 // ── routing config ────────────────────────────────────────────────────────────
+
+/// Backend family for NSC-facing service routes.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ServiceBackendKind {
+    #[default]
+    NsnBacked,
+    GatewayEgress {
+        service_ref: String,
+    },
+    GatewayExit {
+        profile_ref: String,
+        scope: ExitScope,
+    },
+}
+
+impl ServiceBackendKind {
+    /// Return whether the backend is the legacy NSN-backed path.
+    #[must_use]
+    pub const fn is_nsn_backed(&self) -> bool {
+        matches!(self, Self::NsnBacked)
+    }
+}
 
 /// A single route entry in a [`RoutingConfig`].
 ///
 /// Used by NSGW for HTTP reverse-proxy routing and by NSC for local DNS
 /// resolution.
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct RouteEntry {
     /// Virtual domain name for this service (e.g. `"web.n.ns"`).
     pub domain: String,
@@ -443,6 +558,12 @@ pub struct RouteEntry {
     pub service: String,
     /// Port the service listens on.
     pub port: u16,
+    /// Backend family for this route. Defaults to the legacy NSN-backed path.
+    #[serde(default, skip_serializing_if = "ServiceBackendKind::is_nsn_backed")]
+    pub backend: ServiceBackendKind,
+    /// NSC-dialable VIP for the route backend.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_vip: Option<Ipv4Addr>,
     /// NSN's WG virtual IP for this service (D1).
     ///
     /// Reverse-proxies (NSGW Traefik) connect to this address — it is
@@ -656,11 +777,26 @@ impl PublicEdgeTransportPolicy {
 /// First cut only constructs `NsnBacked`. Gateway-owned egress/exit backends
 /// are intentionally omitted until their trust model and declaration contract
 /// are implemented.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PublicEdgeBackendKind {
     #[default]
     NsnBacked,
+    GatewayEgress {
+        service_ref: String,
+    },
+    GatewayExit {
+        profile_ref: String,
+        scope: ExitScope,
+    },
+}
+
+impl PublicEdgeBackendKind {
+    /// Return whether the backend is the legacy NSN-backed path.
+    #[must_use]
+    pub const fn is_nsn_backed(&self) -> bool {
+        matches!(self, Self::NsnBacked)
+    }
 }
 
 /// ACL resource consumed by NSN for `NsnBacked` public edge routes.
@@ -1063,6 +1199,12 @@ pub enum ControlMessage {
     ServicesReport(ServiceReport),
     /// Server → Client: acknowledgement of [`ServicesReport`].
     ServicesAck(ServicesAck),
+    /// Gateway → Server: gateway-owned service declaration snapshot.
+    #[serde(rename = "gateway.services_report")]
+    GatewayServicesReport(GatewayServicesReport),
+    /// Server → Gateway: acknowledgement of [`GatewayServicesReport`].
+    #[serde(rename = "gateway.services_ack")]
+    GatewayServicesAck(GatewayServicesAck),
     /// Server → Client: gateway list with WSS relay endpoints.
     GatewayConfig(GatewayConfig),
     /// Server → Gateway: zero-trust WireGuard relay pair table.
@@ -1113,6 +1255,8 @@ impl ControlMessage {
             ControlMessage::Pong => "pong",
             ControlMessage::ServicesReport(_) => "services_report",
             ControlMessage::ServicesAck(_) => "services_ack",
+            ControlMessage::GatewayServicesReport(_) => "gateway.services_report",
+            ControlMessage::GatewayServicesAck(_) => "gateway.services_ack",
             ControlMessage::GatewayConfig(_) => "gateway_config",
             ControlMessage::GatewayWgRelay(_) => "gateway_wg_relay",
             ControlMessage::GatewayWssRelay(_) => "gateway_wss_relay",
@@ -1698,6 +1842,8 @@ tunnel = "ws"
                     site: "site-a".to_string(),
                     service: "web".to_string(),
                     port: 80,
+                    backend: ServiceBackendKind::NsnBacked,
+                    target_vip: None,
                     nsn_wg_ip: None,
                     virtual_port: None,
                 },
@@ -1706,6 +1852,8 @@ tunnel = "ws"
                     site: "site-a".to_string(),
                     service: "db".to_string(),
                     port: 5432,
+                    backend: ServiceBackendKind::NsnBacked,
+                    target_vip: None,
                     nsn_wg_ip: None,
                     virtual_port: None,
                 },
@@ -1722,9 +1870,12 @@ tunnel = "ws"
         assert!(decoded.routes[0].nsn_wg_ip.is_none());
         assert!(decoded.routes[0].virtual_port.is_none());
         assert!(
-            !json.contains("nsn_wg_ip") && !json.contains("virtual_port"),
-            "None D1 fields must be omitted on the wire; got {json}"
+            !json.contains("nsn_wg_ip")
+                && !json.contains("virtual_port")
+                && !json.contains("target_vip"),
+            "None additive fields must be omitted on the wire; got {json}"
         );
+        assert!(!json.contains("\"backend\""));
     }
 
     #[test]
@@ -1734,13 +1885,19 @@ tunnel = "ws"
             site: "site-d1".into(),
             service: "web".into(),
             port: 80,
+            backend: ServiceBackendKind::NsnBacked,
+            target_vip: Some(Ipv4Addr::new(10, 0, 0, 2)),
             nsn_wg_ip: Some(Ipv4Addr::new(10, 0, 0, 2)),
             virtual_port: Some(10_000),
         };
         let json = serde_json::to_string(&orig).unwrap();
+        assert!(!json.contains("\"backend\""));
+        assert!(json.contains("\"target_vip\":\"10.0.0.2\""));
         assert!(json.contains("\"nsn_wg_ip\":\"10.0.0.2\""));
         assert!(json.contains("\"virtual_port\":10000"));
         let decoded: RouteEntry = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.backend, ServiceBackendKind::NsnBacked);
+        assert_eq!(decoded.target_vip, Some(Ipv4Addr::new(10, 0, 0, 2)));
         assert_eq!(decoded.nsn_wg_ip, Some(Ipv4Addr::new(10, 0, 0, 2)));
         assert_eq!(decoded.virtual_port, Some(10_000));
     }
@@ -1751,8 +1908,40 @@ tunnel = "ws"
         // deserialize with both fields absent to satisfy adversarial gate A.
         let legacy = r#"{"domain":"a","site":"b","service":"c","port":1}"#;
         let decoded: RouteEntry = serde_json::from_str(legacy).unwrap();
+        assert_eq!(decoded.backend, ServiceBackendKind::NsnBacked);
+        assert!(decoded.target_vip.is_none());
         assert!(decoded.nsn_wg_ip.is_none());
         assert!(decoded.virtual_port.is_none());
+    }
+
+    #[test]
+    fn route_entry_gateway_owned_backends_round_trip_via_cbor() {
+        let egress = RouteEntry {
+            domain: "api.gateway.n.ns".into(),
+            site: "gateway-a".into(),
+            service: "api".into(),
+            port: 443,
+            backend: ServiceBackendKind::GatewayEgress {
+                service_ref: "saas-api".into(),
+            },
+            target_vip: Some(Ipv4Addr::new(100, 64, 0, 10)),
+            nsn_wg_ip: None,
+            virtual_port: None,
+        };
+        let egress_bytes = crate::api::to_cbor(&egress).unwrap();
+        let egress_decoded: RouteEntry = crate::api::from_cbor(&egress_bytes).unwrap();
+        assert_eq!(egress_decoded, egress);
+
+        let exit = RouteEntry {
+            backend: ServiceBackendKind::GatewayExit {
+                profile_ref: "corp-exit".into(),
+                scope: ExitScope::DefaultRoute,
+            },
+            ..egress
+        };
+        let exit_bytes = crate::api::to_cbor(&exit).unwrap();
+        let exit_decoded: RouteEntry = crate::api::from_cbor(&exit_bytes).unwrap();
+        assert_eq!(exit_decoded, exit);
     }
 
     #[test]
@@ -1802,6 +1991,8 @@ tunnel = "ws"
                 site: "s1".to_string(),
                 service: "web".to_string(),
                 port: 8080,
+                backend: ServiceBackendKind::NsnBacked,
+                target_vip: None,
                 nsn_wg_ip: None,
                 virtual_port: None,
             }],
@@ -2154,6 +2345,55 @@ tunnel = "ws"
             decoded.routes[0].identity.public_port,
             decoded.routes[1].identity.public_port
         );
+    }
+
+    #[test]
+    fn public_edge_backend_kind_preserves_nsn_token_and_round_trips_gateway_exit_cbor() {
+        let nsn = PublicEdgeBackendKind::NsnBacked;
+        assert_eq!(serde_json::to_string(&nsn).unwrap(), r#""nsn_backed""#);
+        let decoded_nsn: PublicEdgeBackendKind = serde_json::from_str(r#""nsn_backed""#).unwrap();
+        assert_eq!(decoded_nsn, PublicEdgeBackendKind::NsnBacked);
+
+        let exit = PublicEdgeBackendKind::GatewayExit {
+            profile_ref: "corp-exit".to_owned(),
+            scope: ExitScope::DefaultRoute,
+        };
+        let bytes = crate::api::to_cbor(&exit).unwrap();
+        let decoded: PublicEdgeBackendKind = crate::api::from_cbor(&bytes).unwrap();
+        assert_eq!(decoded, exit);
+    }
+
+    #[test]
+    fn gateway_services_report_round_trips_as_separate_control_message() {
+        let report = GatewayServicesReport {
+            services: vec![GatewayServiceDeclaration {
+                service_ref: "saas-api".to_owned(),
+                protocol: Protocol::Tcp,
+                target_host: "203.0.113.10".to_owned(),
+                target_port: 443,
+                enabled: true,
+                capabilities: vec!["gateway_egress".to_owned()],
+                policy_labels: BTreeMap::from([("tier".to_owned(), "prod".to_owned())]),
+            }],
+            exit_profiles: vec![GatewayExitProfileDeclaration {
+                profile_ref: "corp-cidr".to_owned(),
+                scope: ExitScope::Cidrs {
+                    cidrs: vec!["198.51.100.0/24".parse().unwrap()],
+                },
+                enabled: false,
+                capabilities: vec!["gateway_exit".to_owned()],
+                policy_labels: BTreeMap::new(),
+            }],
+        };
+
+        let msg = ControlMessage::GatewayServicesReport(report.clone());
+        assert_eq!(msg.event_type(), "gateway.services_report");
+        let bytes = crate::api::to_cbor(&msg).unwrap();
+        let decoded: ControlMessage = crate::api::from_cbor(&bytes).unwrap();
+        match decoded {
+            ControlMessage::GatewayServicesReport(decoded) => assert_eq!(decoded, report),
+            _ => panic!("wrong variant"),
+        }
     }
 
     #[test]

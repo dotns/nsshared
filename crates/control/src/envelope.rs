@@ -39,6 +39,7 @@ pub mod api {
     pub const MACHINE_AUTH: &str = "machine.auth";
     pub const MACHINE_HEARTBEAT: &str = "machine.heartbeat";
     pub const SERVICES_REPORT: &str = "services.report";
+    pub const GATEWAY_SERVICES_REPORT: &str = "gateway.services_report";
     pub const PEER_CANDIDATES_REPORT: &str = "peer_candidates.report";
     pub const GATEWAY_REFLEXIVE: &str = "gateway.reflexive";
     pub const WG_RELAY_REGISTER_SOURCE: &str = "wg_relay.register_source";
