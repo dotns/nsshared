@@ -1274,6 +1274,8 @@ pub struct AuthClient {
     /// letting NSD apply its backward-compatible default.
     supported_link_modes: Vec<LinkMode>,
     preferred_link_mode: Option<LinkMode>,
+    /// Client capability tokens advertised at registration.
+    capabilities: Vec<String>,
     /// Optional pluggable transport. When present the envelope path is used
     /// for [`register_via_envelope`] and related methods; reqwest remains
     /// available for the legacy paths until Phase 8 of PLAN-022 ships.
@@ -1299,6 +1301,7 @@ impl AuthClient {
             system_info: None,
             supported_link_modes: Vec::new(),
             preferred_link_mode: None,
+            capabilities: Vec::new(),
             transport: None,
             endpoint: to_endpoint(base_url),
             jwt_verifier: None,
@@ -1381,6 +1384,11 @@ impl AuthClient {
     pub fn set_link_modes(&mut self, supported: Vec<LinkMode>, preferred: Option<LinkMode>) {
         self.supported_link_modes = supported;
         self.preferred_link_mode = preferred;
+    }
+
+    /// Declare client capability tokens advertised during machine registration.
+    pub fn set_capabilities(&mut self, capabilities: Vec<String>) {
+        self.capabilities = capabilities;
     }
 
     /// Build a [`HeartbeatClient`] for this NSD endpoint and machine ID.
@@ -1509,7 +1517,7 @@ impl AuthClient {
             version: env!("CARGO_PKG_VERSION").to_string(),
             r#type: None,
             system_info: self.system_info.clone(),
-            capabilities: Vec::new(),
+            capabilities: self.capabilities.clone(),
             supported_link_modes: self.supported_link_modes.clone(),
             preferred_mode: self.preferred_link_mode,
         };
@@ -1536,7 +1544,7 @@ impl AuthClient {
             version: env!("CARGO_PKG_VERSION").to_string(),
             r#type: None,
             system_info: self.system_info.clone(),
-            capabilities: Vec::new(),
+            capabilities: self.capabilities.clone(),
             supported_link_modes: self.supported_link_modes.clone(),
             preferred_mode: self.preferred_link_mode,
         };
@@ -1585,7 +1593,7 @@ impl AuthClient {
             // follow-up on the ns/ side.
             r#type: None,
             system_info: self.system_info.clone(),
-            capabilities: Vec::new(),
+            capabilities: self.capabilities.clone(),
             supported_link_modes: self.supported_link_modes.clone(),
             preferred_mode: self.preferred_link_mode,
         }
@@ -1852,6 +1860,7 @@ pub use envelope::Error as EnvelopeError;
 mod tests {
     use super::*;
     use crate::transport::{BoxStream, builder::build_transport};
+    use common::CAPABILITY_CAPTURE_ROUTES_V1;
     use ed25519_dalek::{Signer, SigningKey};
     use futures_util::future::BoxFuture;
     use rand_core::OsRng;
@@ -2099,6 +2108,7 @@ mod tests {
         let mut auth = AuthClient::new("http://nsd-1:3001", state)
             .with_transport(transport)
             .with_envelope_trust("nsd-a", "realm-a", "/tmp/nsio-test", vec![nsd_pin], None);
+        auth.set_capabilities(vec![CAPABILITY_CAPTURE_ROUTES_V1.to_owned()]);
 
         auth.register_via_envelope("secret-key").await.unwrap();
 
@@ -2113,6 +2123,7 @@ mod tests {
         assert_eq!(req.auth_key.as_deref(), Some("secret-key"));
         assert!(req.access_token.is_none());
         assert!(req.r#type.is_none());
+        assert_eq!(req.capabilities, vec![CAPABILITY_CAPTURE_ROUTES_V1]);
     }
 
     #[tokio::test]

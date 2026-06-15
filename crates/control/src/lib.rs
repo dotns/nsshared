@@ -317,6 +317,7 @@ pub struct ControlPlane {
     dns_config_tx: mpsc::Sender<DnsConfig>,
     peer_candidates_tx: mpsc::Sender<PeerCandidatesUpdate>,
     token_refresh_tx: mpsc::Sender<String>,
+    config_stream_request: api::ConfigStreamRequest,
     /// Pluggable signed-envelope transport for control calls and streams.
     transport: Arc<dyn transport::ControlTransport>,
     /// Periodic heartbeat client for this single NSD. Owned by the same task
@@ -373,6 +374,7 @@ impl ControlPlane {
             dns_config_tx: dns_tx,
             peer_candidates_tx,
             token_refresh_tx,
+            config_stream_request: api::ConfigStreamRequest::default(),
             transport,
             heartbeat_client,
             heartbeat_interval: Duration::from_secs(60),
@@ -417,6 +419,10 @@ impl ControlPlane {
     pub fn set_machine_recovery(&mut self, recovery: MachineRecoveryConfig) {
         self.recovery_circuit = MachineRecoveryCircuit::new(recovery.policy());
         self.machine_recovery = Some(recovery);
+    }
+
+    pub fn set_config_stream_capabilities(&mut self, capabilities: Vec<String>) {
+        self.config_stream_request.capabilities = capabilities;
     }
 
     /// Run the control plane loop.
@@ -820,10 +826,7 @@ impl ControlPlane {
     }
 
     fn config_stream_envelope(&self) -> Result<ControlEnvelope, Error> {
-        self.sign_control_envelope(
-            envelope_api::CONFIG_STREAM,
-            &api::ConfigStreamRequest::default(),
-        )
+        self.sign_control_envelope(envelope_api::CONFIG_STREAM, &self.config_stream_request)
     }
 
     fn sign_control_envelope<T: serde::Serialize>(
@@ -1272,7 +1275,7 @@ mod post_services_reauth_tests {
     use std::sync::Mutex;
 
     use async_trait::async_trait;
-    use common::{ConnectorConfig, MachineState};
+    use common::{CAPABILITY_CAPTURE_ROUTES_V1, ConnectorConfig, MachineState};
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
 
@@ -1444,6 +1447,28 @@ mod post_services_reauth_tests {
             strict_mode: false,
             system_info: None,
         }
+    }
+
+    #[tokio::test]
+    async fn config_stream_envelope_uses_declared_capabilities() {
+        let state = registered_state().await;
+        let auth = AuthClient::new("http://nsd.test:3001", state);
+        let (mut plane, _wg, _proxy, _acl, _gw, _rt, _dns, _peer, _tok_rx) = ControlPlane::new(
+            dummy_config("http://nsd.test:3001".to_string()),
+            empty_report(),
+            auth,
+        )
+        .expect("control plane");
+
+        plane.set_config_stream_capabilities(vec![CAPABILITY_CAPTURE_ROUTES_V1.to_owned()]);
+
+        let envelope = plane
+            .config_stream_envelope()
+            .expect("config stream envelope");
+        let request: crate::api::ConfigStreamRequest =
+            crate::api::from_cbor(envelope.payload.as_ref()).expect("decode request");
+        assert_eq!(request.capabilities, vec![CAPABILITY_CAPTURE_ROUTES_V1]);
+        assert!(request.public_ingress_scopes.is_empty());
     }
 
     fn register_response(machine_id: &str) -> String {
