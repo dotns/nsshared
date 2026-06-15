@@ -36,3 +36,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**EDGE-002 Define gateway certificate distribution contract**](EDGE-002.md) `P0`
 - [x] [**DOC-001 Reconcile current docs with implementation**](DOC-001.md) `P1`
 - [x] [**EDGE-003 Define gateway-owned backend contract**](EDGE-003.md) `P0`
+- [x] [**CAPTURE-001 Define shared route-capture contract**](CAPTURE-001.md) `P0`

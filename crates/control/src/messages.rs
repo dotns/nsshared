@@ -586,6 +586,72 @@ pub struct RouteEntry {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct RoutingConfig {
     pub routes: Vec<RouteEntry>,
+    /// Route-capture policies for NSC TUN capture.
+    ///
+    /// These are not service routes: they never allocate service VIPs and do
+    /// not carry service domain, service name, port, backend, or target VIP
+    /// fields. Older consumers receive the legacy byte shape when this list is
+    /// empty.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub capture_routes: Vec<CaptureRoute>,
+}
+
+/// A route-capture policy entry for NSC-side packet capture.
+///
+/// Capture routes are deliberately separated from [`RouteEntry`]. They do not
+/// represent services, cannot allocate service VIPs, and intentionally omit
+/// service-domain, service-port, backend, and target-VIP fields.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct CaptureRoute {
+    /// Stable route identity scoped by realm and gateway/profile binding.
+    pub route_id: String,
+    /// Monotonic policy generation that produced this route.
+    pub generation: u64,
+    /// Realm that owns this capture route.
+    pub realm_id: String,
+    /// Gateway authorized to provide the exit path.
+    pub gateway_id: String,
+    /// Gateway-exit profile reference selected by policy.
+    pub profile_ref: String,
+    /// Destination CIDRs captured by the NSC route manager.
+    pub destination_cidrs: Vec<IpNet>,
+    /// Source address the NSC uses for packets captured by this route.
+    pub source: CaptureRouteSource,
+    /// Declarative route-table and priority selection policy.
+    pub table_policy: CaptureRouteTablePolicy,
+    /// Declarative kill-switch policy. This field does not activate routing,
+    /// nft, SNAT, or forwarding behavior by itself.
+    pub kill_switch: CaptureRouteKillSwitchPolicy,
+}
+
+/// Source address policy for captured packets.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+pub struct CaptureRouteSource {
+    pub address: Ipv4Addr,
+    pub prefix_len: u8,
+}
+
+/// Route-table and priority policy for a capture route.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct CaptureRouteTablePolicy {
+    pub table: CaptureRouteTable,
+    pub priority: u32,
+}
+
+/// Route table selected for a capture route.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CaptureRouteTable {
+    Main,
+    Dedicated { table_id: u32 },
+}
+
+/// Kill-switch policy carried with a capture route.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CaptureRouteKillSwitchPolicy {
+    Disabled,
+    FailClosed,
 }
 
 // ── dns config ────────────────────────────────────────────────────────────────
@@ -1291,6 +1357,42 @@ mod tests {
         }
     }
 
+    fn sample_route_entry() -> RouteEntry {
+        RouteEntry {
+            domain: "web.n.ns".to_string(),
+            site: "site-a".to_string(),
+            service: "web".to_string(),
+            port: 80,
+            backend: ServiceBackendKind::NsnBacked,
+            target_vip: None,
+            nsn_wg_ip: None,
+            virtual_port: None,
+        }
+    }
+
+    fn sample_capture_route() -> CaptureRoute {
+        CaptureRoute {
+            route_id: "capture-default".to_string(),
+            generation: 42,
+            realm_id: "realm-a".to_string(),
+            gateway_id: "gw-exit-a".to_string(),
+            profile_ref: "corp-egress".to_string(),
+            destination_cidrs: vec![
+                "0.0.0.0/0".parse().unwrap(),
+                "10.20.0.0/16".parse().unwrap(),
+            ],
+            source: CaptureRouteSource {
+                address: Ipv4Addr::new(100, 64, 0, 7),
+                prefix_len: 32,
+            },
+            table_policy: CaptureRouteTablePolicy {
+                table: CaptureRouteTable::Dedicated { table_id: 20_100 },
+                priority: 10_100,
+            },
+            kill_switch: CaptureRouteKillSwitchPolicy::FailClosed,
+        }
+    }
+
     // ── WgConfig ──────────────────────────────────────────────────────────────
 
     #[test]
@@ -1837,16 +1939,7 @@ tunnel = "ws"
     fn routing_config_round_trips_via_json() {
         let orig = RoutingConfig {
             routes: vec![
-                RouteEntry {
-                    domain: "web.n.ns".to_string(),
-                    site: "site-a".to_string(),
-                    service: "web".to_string(),
-                    port: 80,
-                    backend: ServiceBackendKind::NsnBacked,
-                    target_vip: None,
-                    nsn_wg_ip: None,
-                    virtual_port: None,
-                },
+                sample_route_entry(),
                 RouteEntry {
                     domain: "db.n.ns".to_string(),
                     site: "site-a".to_string(),
@@ -1858,6 +1951,7 @@ tunnel = "ws"
                     virtual_port: None,
                 },
             ],
+            capture_routes: Vec::new(),
         };
         let json = serde_json::to_string(&orig).unwrap();
         let decoded: RoutingConfig = serde_json::from_str(&json).unwrap();
@@ -1876,6 +1970,8 @@ tunnel = "ws"
             "None additive fields must be omitted on the wire; got {json}"
         );
         assert!(!json.contains("\"backend\""));
+        assert!(decoded.capture_routes.is_empty());
+        assert!(!json.contains("capture_routes"));
     }
 
     #[test]
@@ -1946,10 +2042,158 @@ tunnel = "ws"
 
     #[test]
     fn routing_config_empty_routes_round_trips() {
-        let orig = RoutingConfig { routes: vec![] };
+        let orig = RoutingConfig {
+            routes: vec![],
+            capture_routes: Vec::new(),
+        };
         let json = serde_json::to_string(&orig).unwrap();
         let decoded: RoutingConfig = serde_json::from_str(&json).unwrap();
         assert!(decoded.routes.is_empty());
+        assert!(decoded.capture_routes.is_empty());
+        assert!(
+            !json.contains("capture_routes"),
+            "empty capture routes must stay off the wire; got {json}"
+        );
+    }
+
+    #[test]
+    fn capture_route_round_trips_via_cbor() {
+        let route = sample_capture_route();
+        let cfg = RoutingConfig {
+            routes: vec![],
+            capture_routes: vec![route.clone()],
+        };
+
+        let bytes = crate::api::to_cbor(&cfg).unwrap();
+        let decoded: RoutingConfig = crate::api::from_cbor(&bytes).unwrap();
+
+        assert!(decoded.routes.is_empty());
+        assert_eq!(decoded.capture_routes, vec![route]);
+    }
+
+    #[test]
+    fn routing_config_empty_capture_routes_match_legacy_cbor() {
+        #[derive(serde::Serialize)]
+        struct LegacyRoutingConfig {
+            routes: Vec<RouteEntry>,
+        }
+
+        let routes = vec![sample_route_entry()];
+        let current = RoutingConfig {
+            routes: routes.clone(),
+            capture_routes: Vec::new(),
+        };
+        let legacy = LegacyRoutingConfig { routes };
+
+        let current_bytes = crate::api::to_cbor(&current).unwrap();
+        let legacy_bytes = crate::api::to_cbor(&legacy).unwrap();
+        assert_eq!(
+            current_bytes, legacy_bytes,
+            "empty capture_routes must keep legacy RoutingConfig CBOR byte-identical"
+        );
+
+        let decoded: RoutingConfig = crate::api::from_cbor(&legacy_bytes).unwrap();
+        assert_eq!(decoded.routes.len(), 1);
+        assert!(decoded.capture_routes.is_empty());
+    }
+
+    #[test]
+    fn existing_wire_shapes_stay_byte_identical() {
+        #[derive(serde::Serialize)]
+        struct LegacyRouteEntry {
+            domain: String,
+            site: String,
+            service: String,
+            port: u16,
+            #[serde(default, skip_serializing_if = "ServiceBackendKind::is_nsn_backed")]
+            backend: ServiceBackendKind,
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            target_vip: Option<Ipv4Addr>,
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            nsn_wg_ip: Option<Ipv4Addr>,
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            virtual_port: Option<u16>,
+        }
+
+        #[derive(serde::Serialize)]
+        struct LegacyWgConfig {
+            ip_address: Ipv4Addr,
+            listen_port: u16,
+            peers: Vec<PeerConfig>,
+        }
+
+        #[derive(serde::Serialize)]
+        struct LegacyGatewayL4Map {
+            gateway_id: String,
+            realm_id: String,
+            routes: Vec<GatewayL4Route>,
+            #[serde(default, skip_serializing_if = "Vec::is_empty")]
+            certificates: Vec<PublicEdgeCertificateRef>,
+        }
+
+        let route = sample_route_entry();
+        let legacy_route = LegacyRouteEntry {
+            domain: route.domain.clone(),
+            site: route.site.clone(),
+            service: route.service.clone(),
+            port: route.port,
+            backend: route.backend.clone(),
+            target_vip: route.target_vip,
+            nsn_wg_ip: route.nsn_wg_ip,
+            virtual_port: route.virtual_port,
+        };
+        assert_eq!(
+            crate::api::to_cbor(&route).unwrap(),
+            crate::api::to_cbor(&legacy_route).unwrap(),
+            "RouteEntry CBOR must remain byte-identical"
+        );
+
+        let wg = sample_wg_config();
+        let legacy_wg = LegacyWgConfig {
+            ip_address: wg.ip_address,
+            listen_port: wg.listen_port,
+            peers: wg.peers.clone(),
+        };
+        assert_eq!(
+            crate::api::to_cbor(&wg).unwrap(),
+            crate::api::to_cbor(&legacy_wg).unwrap(),
+            "WgConfig CBOR must remain byte-identical"
+        );
+
+        let l4 = GatewayL4Map {
+            gateway_id: "gw-a".to_owned(),
+            realm_id: "realm-a".to_owned(),
+            routes: vec![GatewayL4Route {
+                identity: sample_public_edge_identity(PublicEdgeProtocol::Tcp, 10_000, 20_000),
+                backend: PublicEdgeBackendKind::NsnBacked,
+                service: "web".to_owned(),
+                site: "site-a".to_owned(),
+                virtual_port: 20_000,
+                l4: L4Policy::default(),
+                certificate_ref: None,
+            }],
+            certificates: Vec::new(),
+        };
+        let legacy_l4 = LegacyGatewayL4Map {
+            gateway_id: l4.gateway_id.clone(),
+            realm_id: l4.realm_id.clone(),
+            routes: l4.routes.clone(),
+            certificates: l4.certificates.clone(),
+        };
+        assert_eq!(
+            crate::api::to_cbor(&l4).unwrap(),
+            crate::api::to_cbor(&legacy_l4).unwrap(),
+            "public-edge L4 CBOR must remain byte-identical"
+        );
+
+        let capture_json = serde_json::to_string(&sample_capture_route()).unwrap();
+        assert!(
+            !capture_json.contains("target_vip")
+                && !capture_json.contains("domain")
+                && !capture_json.contains("service")
+                && !capture_json.contains("backend"),
+            "capture routes must not carry service-route or service-VIP fields"
+        );
     }
 
     // ── DnsConfig ─────────────────────────────────────────────────────────────
@@ -1996,6 +2240,7 @@ tunnel = "ws"
                 nsn_wg_ip: None,
                 virtual_port: None,
             }],
+            capture_routes: Vec::new(),
         });
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains("\"type\":\"routing_config\""));

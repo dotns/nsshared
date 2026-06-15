@@ -20,6 +20,9 @@ use x25519_dalek::{PublicKey as X25519Public, StaticSecret as X25519Secret};
 /// Shared capability token for Envoy public edge config delivery.
 pub const CAPABILITY_GATEWAY_PUBLIC_EDGE_V1: &str = "gateway_public_edge.v1";
 
+/// Shared capability token for NSC route-capture config delivery.
+pub const CAPABILITY_CAPTURE_ROUTES_V1: &str = "capture_routes.v1";
+
 /// Public edge HTTP route snapshot scope token.
 pub const PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_CONFIG: &str = "gateway_http_config.v1";
 
