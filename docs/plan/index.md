@@ -34,3 +34,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**PLAN-003 Gateway certificate distribution contract (nsgw PLAN-071 S1)**](PLAN-003.md) `2026-06-14`
 - [x] [**PLAN-004 Reconcile current docs with implementation**](PLAN-004.md) `2026-06-15`
 - [x] [**PLAN-005 Shared route-capture contract**](PLAN-005.md) `2026-06-15`
+- [x] [**PLAN-006 Config-stream capability transport**](PLAN-006.md) `2026-06-15`

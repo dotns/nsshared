@@ -4,6 +4,7 @@
 
 use std::sync::Arc;
 
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use futures_util::future::BoxFuture;
 use rustls::ClientConfig;
 use rustls::pki_types::ServerName;
@@ -14,7 +15,7 @@ use tracing::debug;
 
 use super::BoxStream;
 use crate::{
-    Error,
+    Error, api,
     auth::unauthorized_error_from_body,
     envelope::ControlEnvelope,
     transport::{ControlTransport, framing},
@@ -118,19 +119,20 @@ impl ControlTransport for SseTransport {
     fn connect_stream<'a>(
         &'a self,
         endpoint: &'a str,
-        _envelope: ControlEnvelope,
+        envelope: ControlEnvelope,
         bearer_token: Option<&'a str>,
     ) -> BoxFuture<'a, Result<BoxStream, Error>> {
         Box::pin(async move {
             let bearer_token = bearer_token
                 .ok_or_else(|| Error::Auth("missing bearer token for config.stream".into()))?;
             let host = endpoint_host(endpoint);
+            let path = config_stream_path(&envelope)?;
             let mut stream = self.connect(endpoint).await?;
             // The deployed NSD config stream is the GET route. The bearer
             // comes from the same control auth flow that follows envelope
             // registration; pushed events are signed `config-envelope.v1` SSE
             // frames verified by `crate::sse::SseFramer`.
-            http_open_get_stream(&mut stream, host, "/api/v1/config/stream", bearer_token).await?;
+            http_open_get_stream(&mut stream, host, &path, bearer_token).await?;
             Ok(stream)
         })
     }
@@ -164,6 +166,19 @@ pub(crate) fn endpoint_host(endpoint: &str) -> &str {
         .rsplit_once(':')
         .map(|(host, _)| host)
         .unwrap_or(endpoint)
+}
+
+pub(crate) fn config_stream_path(envelope: &ControlEnvelope) -> Result<String, Error> {
+    if envelope.payload.is_empty() {
+        return Ok("/api/v1/config/stream".to_owned());
+    }
+    let request: api::ConfigStreamRequest = api::from_cbor(envelope.payload.as_ref())
+        .map_err(|e| Error::Auth(format!("config.stream request cbor decode: {e}")))?;
+    if request.capabilities.is_empty() && request.public_ingress_scopes.is_empty() {
+        return Ok("/api/v1/config/stream".to_owned());
+    }
+    let request = URL_SAFE_NO_PAD.encode(envelope.to_cbor()?);
+    Ok(format!("/api/v1/config/stream?request={request}"))
 }
 
 fn body_text(body: &[u8]) -> std::borrow::Cow<'_, str> {
@@ -240,6 +255,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::api::ConfigStreamRequest;
     use crate::envelope::{self, ControlEnvelope};
     use ed25519_dalek::{Signer, SigningKey};
     use rand_core::OsRng;
@@ -251,6 +267,20 @@ mod tests {
         ControlEnvelope::sign_request(api, Some("m-1".to_string()), pk, Vec::new(), |msg| {
             signer.sign(msg).to_bytes()
         })
+        .unwrap()
+    }
+
+    fn signed_config_stream_envelope(request: &ConfigStreamRequest) -> ControlEnvelope {
+        let payload = crate::api::to_cbor(request).unwrap();
+        let signer = SigningKey::generate(&mut OsRng);
+        let pk = signer.verifying_key().to_bytes();
+        ControlEnvelope::sign_request(
+            envelope::api::CONFIG_STREAM,
+            Some("m-1".to_string()),
+            pk,
+            payload,
+            |msg| signer.sign(msg).to_bytes(),
+        )
         .unwrap()
     }
 
@@ -299,6 +329,40 @@ mod tests {
         assert!(rendered.contains(&body.len().to_string()));
         assert!(!rendered.contains("bearer-token-that-must-not-hit-logs"));
         assert!(!rendered.contains("server echoed"));
+    }
+
+    #[test]
+    fn config_stream_path_omits_default_request_query() {
+        let envelope = signed_config_stream_envelope(&ConfigStreamRequest::default());
+
+        assert_eq!(
+            config_stream_path(&envelope).unwrap(),
+            "/api/v1/config/stream"
+        );
+    }
+
+    #[test]
+    fn config_stream_path_encodes_non_empty_signed_request_query() {
+        let request = ConfigStreamRequest {
+            capabilities: vec![common::CAPABILITY_CAPTURE_ROUTES_V1.to_owned()],
+            public_ingress_scopes: Vec::new(),
+        };
+        let envelope = signed_config_stream_envelope(&request);
+
+        let path = config_stream_path(&envelope).unwrap();
+        let encoded = path
+            .strip_prefix("/api/v1/config/stream?request=")
+            .expect("query prefix");
+        let decoded = URL_SAFE_NO_PAD.decode(encoded).unwrap();
+        let decoded = ControlEnvelope::from_cbor(&decoded).unwrap();
+        assert_eq!(decoded.api, envelope::api::CONFIG_STREAM);
+        assert!(decoded.verify_request(decoded.ts).is_ok());
+        let decoded_request: ConfigStreamRequest =
+            crate::api::from_cbor(decoded.payload.as_ref()).unwrap();
+        assert_eq!(
+            decoded_request.capabilities,
+            vec![common::CAPABILITY_CAPTURE_ROUTES_V1]
+        );
     }
 
     #[tokio::test]

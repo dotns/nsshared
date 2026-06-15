@@ -25,7 +25,7 @@ use crate::{
     envelope::ControlEnvelope,
     transport::{
         ControlTransport, framing,
-        sse::{endpoint_host, http_open_get_stream, map_status_to_envelope},
+        sse::{config_stream_path, endpoint_host, http_open_get_stream, map_status_to_envelope},
     },
 };
 
@@ -396,15 +396,16 @@ impl ControlTransport for NoiseTransport {
     fn connect_stream<'a>(
         &'a self,
         endpoint: &'a str,
-        _envelope: ControlEnvelope,
+        envelope: ControlEnvelope,
         bearer_token: Option<&'a str>,
     ) -> BoxFuture<'a, Result<BoxStream, Error>> {
         Box::pin(async move {
             let bearer_token = bearer_token
                 .ok_or_else(|| Error::Auth("missing bearer token for config.stream".into()))?;
             let host = endpoint_host(endpoint);
+            let path = config_stream_path(&envelope)?;
             let mut stream = self.connect(endpoint).await?;
-            http_open_get_stream(&mut stream, host, "/api/v1/config/stream", bearer_token).await?;
+            http_open_get_stream(&mut stream, host, &path, bearer_token).await?;
             Ok(stream)
         })
     }
