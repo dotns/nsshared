@@ -30,9 +30,10 @@ pub use services::{
     ServiceSettings, ServicesConfig, TunnelPreference, port_in_range, proto_matches,
 };
 pub use state::{
-    AuthMethod, CAPABILITY_GATEWAY_PUBLIC_EDGE_V1, MachineIdentity, MachineState, NsdInfo,
-    NsdTransportKeyset, NsdType, PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_CONFIG,
-    PUBLIC_EDGE_SCOPE_GATEWAY_L4_MAP, RealmRegistration, StateError,
+    AuthMethod, CAPABILITY_GATEWAY_PUBLIC_EDGE_V1, CAPABILITY_NSC_APPLICATION_UDP_V1,
+    MachineIdentity, MachineState, NsdInfo, NsdTransportKeyset, NsdType,
+    PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_CONFIG, PUBLIC_EDGE_SCOPE_GATEWAY_L4_MAP, RealmRegistration,
+    StateError,
 };
 
 /// Shared error type for common configuration.

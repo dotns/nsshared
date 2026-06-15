@@ -26,6 +26,9 @@ pub const PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_CONFIG: &str = "gateway_http_config.v1"
 /// Public edge TCP/UDP listener-map snapshot scope token.
 pub const PUBLIC_EDGE_SCOPE_GATEWAY_L4_MAP: &str = "gateway_l4_map.v1";
 
+/// NSC application UDP route capability token.
+pub const CAPABILITY_NSC_APPLICATION_UDP_V1: &str = "nsc_application_udp.v1";
+
 #[derive(Debug, Error)]
 pub enum StateError {
     #[error("I/O error reading/writing state file: {0}")]

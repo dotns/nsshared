@@ -544,6 +544,23 @@ impl ServiceBackendKind {
     }
 }
 
+/// Transport protocol for NSC-facing service routes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RouteProtocol {
+    #[default]
+    Tcp,
+    Udp,
+}
+
+impl RouteProtocol {
+    /// Return whether this route uses the default TCP transport.
+    #[must_use]
+    pub const fn is_tcp(&self) -> bool {
+        matches!(self, Self::Tcp)
+    }
+}
+
 /// A single route entry in a [`RoutingConfig`].
 ///
 /// Used by NSGW for HTTP reverse-proxy routing and by NSC for local DNS
@@ -558,6 +575,9 @@ pub struct RouteEntry {
     pub service: String,
     /// Port the service listens on.
     pub port: u16,
+    /// Normalized transport protocol for this route.
+    #[serde(default, skip_serializing_if = "RouteProtocol::is_tcp")]
+    pub protocol: RouteProtocol,
     /// Backend family for this route. Defaults to the legacy NSN-backed path.
     #[serde(default, skip_serializing_if = "ServiceBackendKind::is_nsn_backed")]
     pub backend: ServiceBackendKind,
@@ -1842,6 +1862,7 @@ tunnel = "ws"
                     site: "site-a".to_string(),
                     service: "web".to_string(),
                     port: 80,
+                    protocol: RouteProtocol::Tcp,
                     backend: ServiceBackendKind::NsnBacked,
                     target_vip: None,
                     nsn_wg_ip: None,
@@ -1852,6 +1873,7 @@ tunnel = "ws"
                     site: "site-a".to_string(),
                     service: "db".to_string(),
                     port: 5432,
+                    protocol: RouteProtocol::Tcp,
                     backend: ServiceBackendKind::NsnBacked,
                     target_vip: None,
                     nsn_wg_ip: None,
@@ -1872,7 +1894,8 @@ tunnel = "ws"
         assert!(
             !json.contains("nsn_wg_ip")
                 && !json.contains("virtual_port")
-                && !json.contains("target_vip"),
+                && !json.contains("target_vip")
+                && !json.contains("protocol"),
             "None additive fields must be omitted on the wire; got {json}"
         );
         assert!(!json.contains("\"backend\""));
@@ -1885,6 +1908,7 @@ tunnel = "ws"
             site: "site-d1".into(),
             service: "web".into(),
             port: 80,
+            protocol: RouteProtocol::Tcp,
             backend: ServiceBackendKind::NsnBacked,
             target_vip: Some(Ipv4Addr::new(10, 0, 0, 2)),
             nsn_wg_ip: Some(Ipv4Addr::new(10, 0, 0, 2)),
@@ -1908,10 +1932,78 @@ tunnel = "ws"
         // deserialize with both fields absent to satisfy adversarial gate A.
         let legacy = r#"{"domain":"a","site":"b","service":"c","port":1}"#;
         let decoded: RouteEntry = serde_json::from_str(legacy).unwrap();
+        assert_eq!(decoded.protocol, RouteProtocol::Tcp);
         assert_eq!(decoded.backend, ServiceBackendKind::NsnBacked);
         assert!(decoded.target_vip.is_none());
         assert!(decoded.nsn_wg_ip.is_none());
         assert!(decoded.virtual_port.is_none());
+    }
+
+    #[test]
+    fn route_entry_tcp_protocol_is_cbor_byte_identical_to_legacy_shape() {
+        #[derive(Serialize)]
+        struct LegacyRouteEntry<'a> {
+            domain: &'a str,
+            site: &'a str,
+            service: &'a str,
+            port: u16,
+            #[serde(default, skip_serializing_if = "ServiceBackendKind::is_nsn_backed")]
+            backend: ServiceBackendKind,
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            target_vip: Option<Ipv4Addr>,
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            nsn_wg_ip: Option<Ipv4Addr>,
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            virtual_port: Option<u16>,
+        }
+
+        let route = RouteEntry {
+            domain: "web.n.ns".into(),
+            site: "site-a".into(),
+            service: "web".into(),
+            port: 80,
+            protocol: RouteProtocol::Tcp,
+            backend: ServiceBackendKind::NsnBacked,
+            target_vip: None,
+            nsn_wg_ip: None,
+            virtual_port: None,
+        };
+        let legacy = LegacyRouteEntry {
+            domain: "web.n.ns",
+            site: "site-a",
+            service: "web",
+            port: 80,
+            backend: ServiceBackendKind::NsnBacked,
+            target_vip: None,
+            nsn_wg_ip: None,
+            virtual_port: None,
+        };
+
+        let route_bytes = crate::api::to_cbor(&route).unwrap();
+        let legacy_bytes = crate::api::to_cbor(&legacy).unwrap();
+        assert_eq!(route_bytes, legacy_bytes);
+        let decoded: RouteEntry = crate::api::from_cbor(&legacy_bytes).unwrap();
+        assert_eq!(decoded.protocol, RouteProtocol::Tcp);
+    }
+
+    #[test]
+    fn route_entry_udp_protocol_round_trips() {
+        let route = RouteEntry {
+            domain: "dns.n.ns".into(),
+            site: "site-a".into(),
+            service: "dns".into(),
+            port: 53,
+            protocol: RouteProtocol::Udp,
+            backend: ServiceBackendKind::NsnBacked,
+            target_vip: None,
+            nsn_wg_ip: None,
+            virtual_port: None,
+        };
+
+        let json = serde_json::to_string(&route).unwrap();
+        assert!(json.contains(r#""protocol":"udp""#));
+        let decoded: RouteEntry = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.protocol, RouteProtocol::Udp);
     }
 
     #[test]
@@ -1921,6 +2013,7 @@ tunnel = "ws"
             site: "gateway-a".into(),
             service: "api".into(),
             port: 443,
+            protocol: RouteProtocol::Tcp,
             backend: ServiceBackendKind::GatewayEgress {
                 service_ref: "saas-api".into(),
             },
@@ -1991,6 +2084,7 @@ tunnel = "ws"
                 site: "s1".to_string(),
                 service: "web".to_string(),
                 port: 8080,
+                protocol: RouteProtocol::Tcp,
                 backend: ServiceBackendKind::NsnBacked,
                 target_vip: None,
                 nsn_wg_ip: None,
