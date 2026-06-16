@@ -404,6 +404,12 @@ impl ControlPlane {
         self.status_tx = Some(tx);
     }
 
+    pub fn set_config_stream_capabilities(&mut self, capabilities: Vec<String>) {
+        self.config_stream_request.capabilities = capabilities;
+        self.config_stream_request.capabilities.sort();
+        self.config_stream_request.capabilities.dedup();
+    }
+
     pub fn set_nsd_id(&mut self, id: String) {
         self.nsd_id = Some(id);
     }
@@ -419,10 +425,6 @@ impl ControlPlane {
     pub fn set_machine_recovery(&mut self, recovery: MachineRecoveryConfig) {
         self.recovery_circuit = MachineRecoveryCircuit::new(recovery.policy());
         self.machine_recovery = Some(recovery);
-    }
-
-    pub fn set_config_stream_capabilities(&mut self, capabilities: Vec<String>) {
-        self.config_stream_request.capabilities = capabilities;
     }
 
     /// Run the control plane loop.
@@ -1450,24 +1452,34 @@ mod post_services_reauth_tests {
     }
 
     #[tokio::test]
-    async fn config_stream_envelope_uses_declared_capabilities() {
+    async fn config_stream_envelope_carries_configured_capabilities() {
         let state = registered_state().await;
-        let auth = AuthClient::new("http://nsd.test:3001", state);
+        let auth = AuthClient::new("http://127.0.0.1:3001", state);
         let (mut plane, _wg, _proxy, _acl, _gw, _rt, _dns, _peer, _tok_rx) = ControlPlane::new(
-            dummy_config("http://nsd.test:3001".to_string()),
+            dummy_config("http://127.0.0.1:3001".to_string()),
             empty_report(),
             auth,
         )
         .expect("control plane");
 
-        plane.set_config_stream_capabilities(vec![CAPABILITY_CAPTURE_ROUTES_V1.to_owned()]);
+        plane.set_config_stream_capabilities(vec![
+            common::CAPABILITY_NSC_APPLICATION_UDP_V1.to_owned(),
+            common::CAPABILITY_NSC_APPLICATION_UDP_V1.to_owned(),
+            CAPABILITY_CAPTURE_ROUTES_V1.to_owned(),
+        ]);
 
         let envelope = plane
             .config_stream_envelope()
             .expect("config stream envelope");
         let request: crate::api::ConfigStreamRequest =
             crate::api::from_cbor(envelope.payload.as_ref()).expect("decode request");
-        assert_eq!(request.capabilities, vec![CAPABILITY_CAPTURE_ROUTES_V1]);
+        assert_eq!(
+            request.capabilities,
+            vec![
+                CAPABILITY_CAPTURE_ROUTES_V1.to_owned(),
+                common::CAPABILITY_NSC_APPLICATION_UDP_V1.to_owned(),
+            ]
+        );
         assert!(request.public_ingress_scopes.is_empty());
     }
 

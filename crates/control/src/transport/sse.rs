@@ -344,7 +344,10 @@ mod tests {
     #[test]
     fn config_stream_path_encodes_non_empty_signed_request_query() {
         let request = ConfigStreamRequest {
-            capabilities: vec![common::CAPABILITY_CAPTURE_ROUTES_V1.to_owned()],
+            capabilities: vec![
+                common::CAPABILITY_CAPTURE_ROUTES_V1.to_owned(),
+                common::CAPABILITY_NSC_APPLICATION_UDP_V1.to_owned(),
+            ],
             public_ingress_scopes: Vec::new(),
         };
         let envelope = signed_config_stream_envelope(&request);
@@ -361,7 +364,10 @@ mod tests {
             crate::api::from_cbor(decoded.payload.as_ref()).unwrap();
         assert_eq!(
             decoded_request.capabilities,
-            vec![common::CAPABILITY_CAPTURE_ROUTES_V1]
+            vec![
+                common::CAPABILITY_CAPTURE_ROUTES_V1.to_owned(),
+                common::CAPABILITY_NSC_APPLICATION_UDP_V1.to_owned(),
+            ]
         );
     }
 
