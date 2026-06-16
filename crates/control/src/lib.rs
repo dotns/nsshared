@@ -962,6 +962,12 @@ impl ControlPlane {
                     "ignored gateway_wss_relay on non-gateway control plane"
                 );
             }
+            ControlMessage::GatewayExitNftConfig(cfg) => {
+                info!(
+                    profiles = cfg.profiles.len(),
+                    "ignored gateway_exit_config.v1 on non-gateway control plane"
+                );
+            }
             ControlMessage::RoutingConfig(cfg) => {
                 info!(routes = cfg.routes.len(), "received routing_config");
                 if self.routing_config_tx.send(cfg).await.is_err() {

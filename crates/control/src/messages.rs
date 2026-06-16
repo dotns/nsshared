@@ -825,6 +825,24 @@ pub struct GatewayWssRelayConfig {
     pub relay_pairs: Vec<GatewayWssRelayPair>,
 }
 
+// ── gateway exit nft config ─────────────────────────────────────────────────
+
+/// Per-profile nft input for one gateway-owned `GatewayExit` profile.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct GatewayExitNftProfile {
+    pub profile_ref: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub owned_cidrs: Vec<IpNet>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub authorized_sources: Vec<IpNet>,
+}
+
+/// Gateway-specific `GatewayExit` nft input pushed by NSD.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize)]
+pub struct GatewayExitNftConfig {
+    pub profiles: Vec<GatewayExitNftProfile>,
+}
+
 // ── public edge config ───────────────────────────────────────────────────────
 
 /// Public edge listener protocol.
@@ -1297,6 +1315,9 @@ pub enum ControlMessage {
     GatewayWgRelay(GatewayWgRelayConfig),
     /// Server → Gateway: zero-trust opaque WebSocket relay pair table.
     GatewayWssRelay(GatewayWssRelayConfig),
+    /// Server → Gateway: GatewayExit nft source and destination sets.
+    #[serde(rename = "gateway_exit_config.v1")]
+    GatewayExitNftConfig(GatewayExitNftConfig),
     /// Server → Client: HTTP routing rules for NSGW and NSC DNS.
     RoutingConfig(RoutingConfig),
     /// Server → Client: global DNS records for all NSC clients.
@@ -1346,6 +1367,7 @@ impl ControlMessage {
             ControlMessage::GatewayConfig(_) => "gateway_config",
             ControlMessage::GatewayWgRelay(_) => "gateway_wg_relay",
             ControlMessage::GatewayWssRelay(_) => "gateway_wss_relay",
+            ControlMessage::GatewayExitNftConfig(_) => "gateway_exit_config.v1",
             ControlMessage::RoutingConfig(_) => "routing_config",
             ControlMessage::DnsConfig(_) => "dns_config",
             ControlMessage::GatewayHttpConfig(_) => "gateway_http_config.v1",
@@ -3039,6 +3061,39 @@ tunnel = "ws"
 
         let decoded: ControlMessage = serde_json::from_str(&json).unwrap();
         assert!(matches!(decoded, ControlMessage::GatewayWssRelay(_)));
+    }
+
+    #[test]
+    fn gateway_exit_nft_config_round_trips_via_json() {
+        let cfg = GatewayExitNftConfig {
+            profiles: vec![GatewayExitNftProfile {
+                profile_ref: "corp-exit".to_owned(),
+                owned_cidrs: vec!["198.51.100.0/24".parse().unwrap()],
+                authorized_sources: vec![
+                    "10.255.0.2/32".parse().unwrap(),
+                    "10.255.0.3/32".parse().unwrap(),
+                ],
+            }],
+        };
+
+        let json = serde_json::to_string(&cfg).unwrap();
+        assert!(json.contains("\"profile_ref\":\"corp-exit\""));
+        assert!(json.contains("\"owned_cidrs\":[\"198.51.100.0/24\"]"));
+        assert!(json.contains("\"authorized_sources\":[\"10.255.0.2/32\",\"10.255.0.3/32\"]"));
+
+        let decoded: GatewayExitNftConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded, cfg);
+    }
+
+    #[test]
+    fn control_message_gateway_exit_nft_config_round_trips() {
+        let msg = ControlMessage::GatewayExitNftConfig(GatewayExitNftConfig::default());
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"type\":\"gateway_exit_config.v1\""));
+        assert_eq!(msg.event_type(), "gateway_exit_config.v1");
+
+        let decoded: ControlMessage = serde_json::from_str(&json).unwrap();
+        assert!(matches!(decoded, ControlMessage::GatewayExitNftConfig(_)));
     }
 
     // ── AclConfig sentinel ────────────────────────────────────────────────────
