@@ -433,13 +433,31 @@ pub struct ServicesAck {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ExitScope {
-    /// Explicit CIDR allowlist for a future exit profile.
+    /// Explicit CIDR allowlist for an exit profile.
     Cidrs {
         #[serde(with = "serde_ipnet_vec")]
         cidrs: Vec<IpNet>,
     },
-    /// Reserved for future default-route exit. MVP consumers must reject it.
+    /// Default-route exit-node capability advertised by a gateway.
     DefaultRoute,
+}
+
+/// DNS routing policy selected for an exit-node route.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExitNodeDnsPolicy {
+    Exit,
+    #[default]
+    Local,
+}
+
+/// Selection fallback policy when the selected gateway is unavailable.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExitNodeFallbackPolicy {
+    #[default]
+    None,
+    NextAvailable,
 }
 
 mod serde_ipnet_vec {
@@ -517,6 +535,17 @@ pub struct GatewayServicesAck {
 
 const fn default_enabled() -> bool {
     true
+}
+
+const fn default_true() -> bool {
+    true
+}
+
+fn is_default<T>(value: &T) -> bool
+where
+    T: Default + PartialEq,
+{
+    value == &T::default()
 }
 
 // ── routing config ────────────────────────────────────────────────────────────
@@ -635,6 +664,27 @@ pub struct CaptureRoute {
     pub profile_ref: String,
     /// Destination CIDRs captured by the NSC route manager.
     pub destination_cidrs: Vec<IpNet>,
+    /// Logical route scope behind the concrete destination CIDRs.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub logical_scope: CaptureRouteLogicalScope,
+    /// Split-default concrete CIDRs for logical default-route capture.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub split_default: Option<CaptureRouteSplitDefault>,
+    /// Destination CIDRs explicitly excluded from this capture route.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub excluded_cidrs: Vec<IpNet>,
+    /// Endpoint bypass hints required before default-route activation.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub endpoint_bypass_hints: Vec<CaptureRouteEndpointBypassHint>,
+    /// DNS leak policy associated with this capture route.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub dns_policy: ExitNodeDnsPolicy,
+    /// Configured reserved pools carried from NSD to NSC.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub reserved_pools: Vec<CaptureRouteReservedPool>,
+    /// Selection generation that produced this capture route.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selection_generation: Option<u64>,
     /// Source address the NSC uses for packets captured by this route.
     pub source: CaptureRouteSource,
     /// Declarative route-table and priority selection policy.
@@ -642,6 +692,74 @@ pub struct CaptureRoute {
     /// Declarative kill-switch policy. This field does not activate routing,
     /// nft, SNAT, or forwarding behavior by itself.
     pub kill_switch: CaptureRouteKillSwitchPolicy,
+}
+
+/// Logical scope of a route-capture contract.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CaptureRouteLogicalScope {
+    #[default]
+    Cidrs,
+    DefaultRoute,
+}
+
+/// Concrete split-default routes for a logical default-route capture.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct CaptureRouteSplitDefault {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ipv4_cidrs: Vec<IpNet>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ipv6_cidrs: Vec<IpNet>,
+    pub ipv6_policy: CaptureRouteIpv6Policy,
+}
+
+/// IPv6 status for default-route capture.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CaptureRouteIpv6Policy {
+    #[default]
+    UnsupportedFailClosed,
+    Supported,
+}
+
+/// Endpoint class for a capture-route bypass hint.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CaptureRouteEndpointBypassKind {
+    SelectedGatewayWireGuard,
+    SelectedGatewayWireGuardRelay,
+    SelectedGatewayWss,
+    NonSelectedGatewayWireGuard,
+    NonSelectedGatewayWireGuardRelay,
+    NonSelectedGatewayWss,
+    FallbackGatewayWireGuard,
+    FallbackGatewayWireGuardRelay,
+    FallbackGatewayWss,
+    NsdControl,
+    Bootstrap,
+    TokenRefresh,
+    Dns,
+}
+
+/// A concrete endpoint that NSC must bypass outside capture.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct CaptureRouteEndpointBypassHint {
+    pub kind: CaptureRouteEndpointBypassKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gateway_id: Option<String>,
+    pub endpoint: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub resolved_ips: Vec<IpAddr>,
+    #[serde(default = "default_true")]
+    pub required: bool,
+}
+
+/// Configured reserved network pool projected with a capture route.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct CaptureRouteReservedPool {
+    pub label: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub cidrs: Vec<IpNet>,
 }
 
 /// Source address policy for captured packets.
@@ -827,20 +945,25 @@ pub struct GatewayWssRelayConfig {
 
 // ── gateway exit nft config ─────────────────────────────────────────────────
 
-/// Per-profile nft input for one gateway-owned `GatewayExit` profile.
+/// Selection-scoped nft input for one authorized GatewayExit source.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
-pub struct GatewayExitNftProfile {
+pub struct GatewayExitNftPairing {
+    pub realm_id: String,
+    pub gateway_id: String,
     pub profile_ref: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub owned_cidrs: Vec<IpNet>,
+    pub destination_cidrs: Vec<IpNet>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub authorized_sources: Vec<IpNet>,
+    pub excluded_cidrs: Vec<IpNet>,
+    pub source: IpNet,
+    pub selection_generation: u64,
 }
 
 /// Gateway-specific `GatewayExit` nft input pushed by NSD.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize)]
 pub struct GatewayExitNftConfig {
-    pub profiles: Vec<GatewayExitNftProfile>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pairings: Vec<GatewayExitNftPairing>,
 }
 
 // ── public edge config ───────────────────────────────────────────────────────
@@ -1424,6 +1547,13 @@ mod tests {
                 "0.0.0.0/0".parse().unwrap(),
                 "10.20.0.0/16".parse().unwrap(),
             ],
+            logical_scope: CaptureRouteLogicalScope::Cidrs,
+            split_default: None,
+            excluded_cidrs: Vec::new(),
+            endpoint_bypass_hints: Vec::new(),
+            dns_policy: ExitNodeDnsPolicy::Local,
+            reserved_pools: Vec::new(),
+            selection_generation: None,
             source: CaptureRouteSource {
                 address: Ipv4Addr::new(100, 64, 0, 7),
                 prefix_len: 32,
@@ -2184,6 +2314,63 @@ tunnel = "ws"
 
         assert!(decoded.routes.is_empty());
         assert_eq!(decoded.capture_routes, vec![route]);
+    }
+
+    #[test]
+    fn default_route_capture_contract_round_trips_via_cbor() {
+        let mut route = sample_capture_route();
+        route.logical_scope = CaptureRouteLogicalScope::DefaultRoute;
+        route.destination_cidrs =
+            vec!["0.0.0.0/1".parse().unwrap(), "128.0.0.0/1".parse().unwrap()];
+        route.split_default = Some(CaptureRouteSplitDefault {
+            ipv4_cidrs: route.destination_cidrs.clone(),
+            ipv6_cidrs: vec!["::/1".parse().unwrap(), "8000::/1".parse().unwrap()],
+            ipv6_policy: CaptureRouteIpv6Policy::UnsupportedFailClosed,
+        });
+        route.excluded_cidrs = vec!["10.100.0.0/16".parse().unwrap()];
+        route.endpoint_bypass_hints = vec![
+            CaptureRouteEndpointBypassHint {
+                kind: CaptureRouteEndpointBypassKind::SelectedGatewayWireGuard,
+                gateway_id: Some("gw-exit-a".to_owned()),
+                endpoint: "203.0.113.10:51820".to_owned(),
+                resolved_ips: vec!["203.0.113.10".parse().unwrap()],
+                required: true,
+            },
+            CaptureRouteEndpointBypassHint {
+                kind: CaptureRouteEndpointBypassKind::TokenRefresh,
+                gateway_id: None,
+                endpoint: "https://nsd.example.test/api/v1/machine/auth".to_owned(),
+                resolved_ips: vec!["198.51.100.9".parse().unwrap()],
+                required: true,
+            },
+        ];
+        route.dns_policy = ExitNodeDnsPolicy::Exit;
+        route.reserved_pools = vec![CaptureRouteReservedPool {
+            label: "legacy NSC TUN VIP pool".to_owned(),
+            cidrs: vec!["10.100.0.0/16".parse().unwrap()],
+        }];
+        route.selection_generation = Some(77);
+
+        let bytes = crate::api::to_cbor(&route).unwrap();
+        let decoded: CaptureRoute = crate::api::from_cbor(&bytes).unwrap();
+
+        assert_eq!(
+            decoded.logical_scope,
+            CaptureRouteLogicalScope::DefaultRoute
+        );
+        assert_eq!(decoded.selection_generation, Some(77));
+        assert_eq!(
+            decoded.split_default.as_ref().unwrap().ipv4_cidrs,
+            vec![
+                "0.0.0.0/1".parse::<IpNet>().unwrap(),
+                "128.0.0.0/1".parse().unwrap(),
+            ],
+        );
+        assert_eq!(
+            decoded.split_default.as_ref().unwrap().ipv6_policy,
+            CaptureRouteIpv6Policy::UnsupportedFailClosed,
+        );
+        assert_eq!(decoded, route);
     }
 
     #[test]
@@ -3066,22 +3253,50 @@ tunnel = "ws"
     #[test]
     fn gateway_exit_nft_config_round_trips_via_json() {
         let cfg = GatewayExitNftConfig {
-            profiles: vec![GatewayExitNftProfile {
+            pairings: vec![GatewayExitNftPairing {
+                realm_id: "realm-a".to_owned(),
+                gateway_id: "gw-a".to_owned(),
                 profile_ref: "corp-exit".to_owned(),
-                owned_cidrs: vec!["198.51.100.0/24".parse().unwrap()],
-                authorized_sources: vec![
-                    "10.255.0.2/32".parse().unwrap(),
-                    "10.255.0.3/32".parse().unwrap(),
-                ],
+                source: "10.255.0.2/32".parse().unwrap(),
+                destination_cidrs: vec!["198.51.100.0/24".parse().unwrap()],
+                excluded_cidrs: vec!["198.51.100.64/26".parse().unwrap()],
+                selection_generation: 9,
             }],
         };
 
         let json = serde_json::to_string(&cfg).unwrap();
+        assert!(json.contains("\"realm_id\":\"realm-a\""));
+        assert!(json.contains("\"gateway_id\":\"gw-a\""));
         assert!(json.contains("\"profile_ref\":\"corp-exit\""));
-        assert!(json.contains("\"owned_cidrs\":[\"198.51.100.0/24\"]"));
-        assert!(json.contains("\"authorized_sources\":[\"10.255.0.2/32\",\"10.255.0.3/32\"]"));
+        assert!(json.contains("\"source\":\"10.255.0.2/32\""));
+        assert!(json.contains("\"destination_cidrs\":[\"198.51.100.0/24\"]"));
+        assert!(json.contains("\"excluded_cidrs\":[\"198.51.100.64/26\"]"));
+        assert!(json.contains("\"selection_generation\":9"));
 
         let decoded: GatewayExitNftConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded, cfg);
+    }
+
+    #[test]
+    fn gateway_exit_nft_pairings_round_trip_via_cbor() {
+        let cfg = GatewayExitNftConfig {
+            pairings: vec![GatewayExitNftPairing {
+                realm_id: "realm-a".to_owned(),
+                gateway_id: "gw-a".to_owned(),
+                profile_ref: "corp-exit".to_owned(),
+                source: "10.255.0.2/32".parse().unwrap(),
+                destination_cidrs: vec![
+                    "0.0.0.0/1".parse().unwrap(),
+                    "128.0.0.0/1".parse().unwrap(),
+                ],
+                excluded_cidrs: vec!["10.100.0.0/16".parse().unwrap()],
+                selection_generation: 31,
+            }],
+        };
+
+        let bytes = crate::api::to_cbor(&cfg).unwrap();
+        let decoded: GatewayExitNftConfig = crate::api::from_cbor(&bytes).unwrap();
+
         assert_eq!(decoded, cfg);
     }
 

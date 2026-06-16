@@ -39,3 +39,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**CAPTURE-001 Define shared route-capture contract**](CAPTURE-001.md) `P0`
 - [x] [**CAPTURE-002 Carry config-stream capabilities on stream open**](CAPTURE-002.md) `P0`
 - [x] [**CAPTURE-003 Define GatewayExit gateway nft input contract**](CAPTURE-003.md) `P0`
+- [x] [**CAPTURE-004 Define exit-node selection and pairing contracts**](CAPTURE-004.md) `P0`

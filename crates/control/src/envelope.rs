@@ -43,6 +43,7 @@ pub mod api {
     pub const PEER_CANDIDATES_REPORT: &str = "peer_candidates.report";
     pub const GATEWAY_REFLEXIVE: &str = "gateway.reflexive";
     pub const WG_RELAY_REGISTER_SOURCE: &str = "wg_relay.register_source";
+    pub const CLIENT_EXIT_NODE_SELECTION: &str = "client.exit_node_selection.v1";
     /// D4 (`INGEST-005`): logical id for `POST /api/v1/gateway/report` over
     /// the envelope path. Must stay byte-equal to NSD's INGEST-004 local
     /// constant — adversarial gate C.

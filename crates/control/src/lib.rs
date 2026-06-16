@@ -964,7 +964,7 @@ impl ControlPlane {
             }
             ControlMessage::GatewayExitNftConfig(cfg) => {
                 info!(
-                    profiles = cfg.profiles.len(),
+                    pairings = cfg.pairings.len(),
                     "ignored gateway_exit_config.v1 on non-gateway control plane"
                 );
             }

@@ -17,12 +17,13 @@
 
 use std::net::{Ipv4Addr, SocketAddr};
 
-use common::{NsdInfo, SystemInfo};
+use common::{IpNet, NsdInfo, SystemInfo};
 use serde::{Deserialize, Serialize};
 
 use crate::messages::{
-    ControlMessage, GatewayCertificateStatus, GatewayServicesAck, GatewayServicesReport, LinkMode,
-    PeerCandidatesReport, ServiceReport, ServicesAck,
+    ControlMessage, ExitNodeDnsPolicy, ExitNodeFallbackPolicy, GatewayCertificateStatus,
+    GatewayServicesAck, GatewayServicesReport, LinkMode, PeerCandidatesReport, ServiceReport,
+    ServicesAck,
 };
 use crate::types::ConnectorType;
 
@@ -182,6 +183,45 @@ pub type PeerCandidatesReportRequest = PeerCandidatesReport;
 /// Response payload for `api = "peer_candidates.report"`. Empty on success.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct PeerCandidatesReportResponse {}
+
+// ── client.exit_node_selection.v1 ───────────────────────────────────────────
+
+/// Requested route scope for `api = "client.exit_node_selection.v1"`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExitNodeSelectionScope {
+    DefaultRoute,
+    Cidrs {
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        cidrs: Vec<IpNet>,
+    },
+}
+
+/// Client-selected GatewayExit target for one machine or user.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ExitNodeSelectionRequest {
+    pub realm_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub machine_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub user: Option<String>,
+    pub selected_gateway_id: String,
+    pub requested_scope: ExitNodeSelectionScope,
+    pub allow_lan: bool,
+    pub dns_policy: ExitNodeDnsPolicy,
+    pub fallback_policy: ExitNodeFallbackPolicy,
+    pub generation: u64,
+}
+
+/// Response payload for `api = "client.exit_node_selection.v1"`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ExitNodeSelectionResponse {
+    pub accepted: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selection_generation: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+}
 
 // ── config.stream ────────────────────────────────────────────────────────────
 
@@ -960,5 +1000,47 @@ mod tests {
         let resp = PeerCandidatesReportResponse::default();
         let bytes = to_cbor(&resp).unwrap();
         let _: PeerCandidatesReportResponse = from_cbor(&bytes).unwrap();
+    }
+
+    #[test]
+    fn exit_node_selection_request_roundtrips_via_cbor() {
+        let req = ExitNodeSelectionRequest {
+            realm_id: "realm-a".to_owned(),
+            machine_id: Some("m-nsc".to_owned()),
+            user: None,
+            selected_gateway_id: "gw-exit".to_owned(),
+            requested_scope: ExitNodeSelectionScope::DefaultRoute,
+            allow_lan: true,
+            dns_policy: ExitNodeDnsPolicy::Exit,
+            fallback_policy: ExitNodeFallbackPolicy::None,
+            generation: 11,
+        };
+
+        let bytes = to_cbor(&req).unwrap();
+        let decoded: ExitNodeSelectionRequest = from_cbor(&bytes).unwrap();
+
+        assert_eq!(decoded, req);
+    }
+
+    #[test]
+    fn exit_node_selection_cidr_scope_roundtrips_via_cbor() {
+        let req = ExitNodeSelectionRequest {
+            realm_id: "realm-a".to_owned(),
+            machine_id: None,
+            user: Some("user-a".to_owned()),
+            selected_gateway_id: "gw-cidr".to_owned(),
+            requested_scope: ExitNodeSelectionScope::Cidrs {
+                cidrs: vec!["203.0.113.0/24".parse().unwrap()],
+            },
+            allow_lan: false,
+            dns_policy: ExitNodeDnsPolicy::Local,
+            fallback_policy: ExitNodeFallbackPolicy::NextAvailable,
+            generation: 12,
+        };
+
+        let bytes = to_cbor(&req).unwrap();
+        let decoded: ExitNodeSelectionRequest = from_cbor(&bytes).unwrap();
+
+        assert_eq!(decoded, req);
     }
 }
