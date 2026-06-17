@@ -36,3 +36,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**PLAN-005 Shared route-capture contract**](PLAN-005.md) `2026-06-15`
 - [x] [**PLAN-006 Config-stream capability transport**](PLAN-006.md) `2026-06-15`
 - [x] [**PLAN-007 Canonical internal DNS helpers**](PLAN-007.md) `2026-06-17`
+- [x] [**PLAN-008 WG GatewayEgress control contract**](PLAN-008.md) `2026-06-17`

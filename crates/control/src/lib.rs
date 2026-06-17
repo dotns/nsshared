@@ -962,6 +962,13 @@ impl ControlPlane {
                     "ignored gateway_wss_relay on non-gateway control plane"
                 );
             }
+            ControlMessage::GatewayEgressWgConfig(cfg) => {
+                info!(
+                    pairings = cfg.pairings.len(),
+                    source_identities = cfg.source_identities.len(),
+                    "ignored gateway_egress_wg_config.v1 on non-gateway control plane"
+                );
+            }
             ControlMessage::GatewayExitNftConfig(cfg) => {
                 info!(
                     pairings = cfg.pairings.len(),

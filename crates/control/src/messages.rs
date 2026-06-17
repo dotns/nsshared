@@ -943,6 +943,39 @@ pub struct GatewayWssRelayConfig {
     pub relay_pairs: Vec<GatewayWssRelayPair>,
 }
 
+// ── gateway egress WG config ────────────────────────────────────────────────
+
+/// WireGuard GatewayEgress pairing for one source VIP and service endpoint.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct GatewayEgressWgPairing {
+    pub realm_id: String,
+    pub source_vip: Ipv4Addr,
+    pub service_vip: Ipv4Addr,
+    pub protocol: RouteProtocol,
+    pub port: u16,
+    pub service_ref: String,
+    pub generation: u64,
+}
+
+/// Source identity recovered from a cryptokey-authenticated WG source VIP.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct GatewayEgressWgSourceIdentity {
+    pub realm_id: String,
+    pub source_vip: Ipv4Addr,
+    pub subject: String,
+    pub terminate_binding_anchor: String,
+    pub generation: u64,
+}
+
+/// Gateway-specific `GatewayEgress` WG pairing and source identity snapshot.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize)]
+pub struct GatewayEgressWgConfig {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pairings: Vec<GatewayEgressWgPairing>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub source_identities: Vec<GatewayEgressWgSourceIdentity>,
+}
+
 // ── gateway exit nft config ─────────────────────────────────────────────────
 
 /// Selection-scoped nft input for one authorized GatewayExit source.
@@ -1438,6 +1471,9 @@ pub enum ControlMessage {
     GatewayWgRelay(GatewayWgRelayConfig),
     /// Server → Gateway: zero-trust opaque WebSocket relay pair table.
     GatewayWssRelay(GatewayWssRelayConfig),
+    /// Server → Gateway: WG GatewayEgress pairing and source identity snapshot.
+    #[serde(rename = "gateway_egress_wg_config.v1")]
+    GatewayEgressWgConfig(GatewayEgressWgConfig),
     /// Server → Gateway: GatewayExit nft source and destination sets.
     #[serde(rename = "gateway_exit_config.v1")]
     GatewayExitNftConfig(GatewayExitNftConfig),
@@ -1490,6 +1526,7 @@ impl ControlMessage {
             ControlMessage::GatewayConfig(_) => "gateway_config",
             ControlMessage::GatewayWgRelay(_) => "gateway_wg_relay",
             ControlMessage::GatewayWssRelay(_) => "gateway_wss_relay",
+            ControlMessage::GatewayEgressWgConfig(_) => "gateway_egress_wg_config.v1",
             ControlMessage::GatewayExitNftConfig(_) => "gateway_exit_config.v1",
             ControlMessage::RoutingConfig(_) => "routing_config",
             ControlMessage::DnsConfig(_) => "dns_config",
@@ -3248,6 +3285,89 @@ tunnel = "ws"
 
         let decoded: ControlMessage = serde_json::from_str(&json).unwrap();
         assert!(matches!(decoded, ControlMessage::GatewayWssRelay(_)));
+    }
+
+    #[test]
+    fn gateway_egress_wg_config_round_trips_via_json() {
+        let cfg = GatewayEgressWgConfig {
+            pairings: vec![GatewayEgressWgPairing {
+                realm_id: "realm-a".to_owned(),
+                source_vip: Ipv4Addr::new(10, 255, 0, 2),
+                service_vip: Ipv4Addr::new(10, 96, 0, 10),
+                protocol: RouteProtocol::Tcp,
+                port: 443,
+                service_ref: "saas-api".to_owned(),
+                generation: 42,
+            }],
+            source_identities: vec![GatewayEgressWgSourceIdentity {
+                realm_id: "realm-a".to_owned(),
+                source_vip: Ipv4Addr::new(10, 255, 0, 2),
+                subject: "user:alice".to_owned(),
+                terminate_binding_anchor: "wg-peer:alice".to_owned(),
+                generation: 42,
+            }],
+        };
+
+        let json = serde_json::to_string(&cfg).unwrap();
+        assert!(json.contains("\"realm_id\":\"realm-a\""));
+        assert!(json.contains("\"source_vip\":\"10.255.0.2\""));
+        assert!(json.contains("\"service_vip\":\"10.96.0.10\""));
+        assert!(json.contains("\"protocol\":\"tcp\""));
+        assert!(json.contains("\"port\":443"));
+        assert!(json.contains("\"service_ref\":\"saas-api\""));
+        assert!(json.contains("\"subject\":\"user:alice\""));
+        assert!(json.contains("\"terminate_binding_anchor\":\"wg-peer:alice\""));
+        assert!(json.contains("\"generation\":42"));
+
+        let decoded: GatewayEgressWgConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded, cfg);
+    }
+
+    #[test]
+    fn gateway_egress_wg_config_skips_empty_lists() {
+        let json = serde_json::to_string(&GatewayEgressWgConfig::default()).unwrap();
+        assert_eq!(json, "{}");
+
+        let decoded: GatewayEgressWgConfig = serde_json::from_str("{}").unwrap();
+        assert_eq!(decoded, GatewayEgressWgConfig::default());
+    }
+
+    #[test]
+    fn gateway_egress_wg_config_round_trips_via_cbor() {
+        let cfg = GatewayEgressWgConfig {
+            pairings: vec![GatewayEgressWgPairing {
+                realm_id: "realm-a".to_owned(),
+                source_vip: Ipv4Addr::new(10, 255, 0, 3),
+                service_vip: Ipv4Addr::new(10, 96, 0, 53),
+                protocol: RouteProtocol::Udp,
+                port: 53,
+                service_ref: "dns".to_owned(),
+                generation: 43,
+            }],
+            source_identities: vec![GatewayEgressWgSourceIdentity {
+                realm_id: "realm-a".to_owned(),
+                source_vip: Ipv4Addr::new(10, 255, 0, 3),
+                subject: "machine:m-client".to_owned(),
+                terminate_binding_anchor: "wg-peer:client".to_owned(),
+                generation: 43,
+            }],
+        };
+
+        let bytes = crate::api::to_cbor(&cfg).unwrap();
+        let decoded: GatewayEgressWgConfig = crate::api::from_cbor(&bytes).unwrap();
+
+        assert_eq!(decoded, cfg);
+    }
+
+    #[test]
+    fn control_message_gateway_egress_wg_config_round_trips() {
+        let msg = ControlMessage::GatewayEgressWgConfig(GatewayEgressWgConfig::default());
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"type\":\"gateway_egress_wg_config.v1\""));
+        assert_eq!(msg.event_type(), "gateway_egress_wg_config.v1");
+
+        let decoded: ControlMessage = serde_json::from_str(&json).unwrap();
+        assert!(matches!(decoded, ControlMessage::GatewayEgressWgConfig(_)));
     }
 
     #[test]
