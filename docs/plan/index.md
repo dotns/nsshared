@@ -1,6 +1,6 @@
 # ns-shared - Plan Index
 
-> Updated: 2026-06-15
+> Updated: 2026-06-17
 
 ## Usage
 
@@ -35,3 +35,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**PLAN-004 Reconcile current docs with implementation**](PLAN-004.md) `2026-06-15`
 - [x] [**PLAN-005 Shared route-capture contract**](PLAN-005.md) `2026-06-15`
 - [x] [**PLAN-006 Config-stream capability transport**](PLAN-006.md) `2026-06-15`
+- [x] [**PLAN-007 Canonical internal DNS helpers**](PLAN-007.md) `2026-06-17`

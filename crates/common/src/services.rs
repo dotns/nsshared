@@ -37,7 +37,7 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{IpNet, Protocol};
+use crate::{IpNet, Protocol, dns_names};
 
 // ── errors ───────────────────────────────────────────────────────────────────
 
@@ -198,12 +198,12 @@ impl ServiceDef {
 
     /// Returns the fully-qualified identifier for this service.
     ///
-    /// Format: `"{name}.{node_id}.n.ns"`, e.g. `"web.ab3xk9mnpq.n.ns"`.
+    /// Format: `"{name}.{node_id}.n.ns.io"`, e.g. `"web.ab3xk9mnpq.n.ns.io"`.
     ///
     /// `name` is the service key from `services.toml` (the `[services.NAME]` section header).
     /// `node_id` is the machine ID assigned by NSD on registration.
     pub fn fqid(&self, name: &str, node_id: &str) -> String {
-        format!("{}.{}.n.ns", name, node_id)
+        dns_names::service_fqdn(name, node_id)
     }
 }
 
@@ -1016,7 +1016,7 @@ enabled = false
                 protocol: Protocol::Http,
                 host: "127.0.0.1".into(),
                 port: 17777,
-                domain: Some("local-http.test.n.ns".into()),
+                domain: Some("local-http.test.n.ns.io".into()),
                 description: None,
                 enabled: true,
                 tunnel: TunnelPreference::Auto,
@@ -1041,7 +1041,7 @@ enabled = false
                 protocol: Protocol::Https,
                 host: "10.0.0.1".into(),
                 port: 8443,
-                domain: Some("secure.test.n.ns".into()),
+                domain: Some("secure.test.n.ns.io".into()),
                 description: None,
                 enabled: true,
                 tunnel: TunnelPreference::Auto,
@@ -1066,7 +1066,7 @@ enabled = false
                 protocol: Protocol::Http,
                 host: "127.0.0.1".into(),
                 port: 17777,
-                domain: Some("local-http.test.n.ns".into()),
+                domain: Some("local-http.test.n.ns.io".into()),
                 description: None,
                 enabled: true,
                 tunnel: TunnelPreference::Auto,
@@ -1091,7 +1091,7 @@ enabled = false
                 protocol: Protocol::Http,
                 host: "127.0.0.1".into(),
                 port: 17777,
-                domain: Some("local-http.test.n.ns".into()),
+                domain: Some("local-http.test.n.ns.io".into()),
                 description: None,
                 enabled: false,
                 tunnel: TunnelPreference::Auto,
@@ -1176,6 +1176,14 @@ enabled = false
             gateway: GatewayPreference::Auto,
             public_ingress_subject_policy: PublicIngressSubjectPolicy::ExternalIdp,
         }
+    }
+
+    #[test]
+    fn fqid_uses_canonical_service_dns_name() {
+        assert_eq!(
+            svc("127.0.0.1").fqid("web", "site-001"),
+            "web.site-001.n.ns.io"
+        );
     }
 
     #[test]

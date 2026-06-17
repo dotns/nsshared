@@ -12,6 +12,7 @@
 //! - [`ServicesConfig`] / [`ServiceDef`] — local service whitelist.
 //! - [`Protocol`], [`IpNet`] — shared protocol primitives.
 
+pub mod dns_names;
 pub mod envelope_pins;
 pub mod jwt_pins;
 pub mod services;
@@ -24,6 +25,10 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+pub use dns_names::{
+    GATEWAY_DNS_SUFFIX, MACHINE_DNS_SUFFIX, SERVICE_DNS_SUFFIX, gateway_fqdn, is_gateway_fqdn,
+    is_machine_fqdn, is_service_fqdn, machine_fqdn, service_fqdn,
+};
 pub use ipnet::IpNet;
 pub use services::{
     GatewayPreference, PublicIngressSubjectPolicy, RuleViolation, ServiceDef, ServiceError,

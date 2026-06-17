@@ -254,7 +254,7 @@ pub struct MachineState {
     pub server_peer_pub: Option<[u8; 32]>,
     pub server_endpoint: Option<SocketAddr>,
     /// Auto-assigned domain namespace returned by NSD on registration.
-    /// Format: `"{machine_id}.n.ns"`.
+    /// Format: `"{machine_id}.m.ns.io"`.
     pub domain_base: Option<String>,
 }
 
@@ -599,6 +599,7 @@ impl MachineState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::dns_names::machine_fqdn;
     use ed25519_dalek::Verifier;
 
     #[tokio::test]
@@ -634,7 +635,7 @@ mod tests {
                 "mid-001".to_string(),
                 &server_pub,
                 "127.0.0.1:51820",
-                Some("mid-001.n.ns".to_string()),
+                Some(machine_fqdn("mid-001")),
             )
             .unwrap();
         state.save(dir.path()).await.unwrap();
@@ -643,7 +644,7 @@ mod tests {
         assert!(loaded.is_registered());
         assert_eq!(loaded.machine_id.as_deref(), Some("mid-001"));
         assert_eq!(loaded.server_peer_pub, Some([42u8; 32]));
-        assert_eq!(loaded.domain_base.as_deref(), Some("mid-001.n.ns"));
+        assert_eq!(loaded.domain_base.as_deref(), Some("mid-001.m.ns.io"));
     }
 
     #[tokio::test]
@@ -669,7 +670,7 @@ mod tests {
                 "cloud-mid".to_string(),
                 &server_pub,
                 "1.2.3.4:51820",
-                Some("cloud-mid.n.ns".to_string()),
+                Some(machine_fqdn("cloud-mid")),
             )
             .unwrap();
         cloud.save(dir.path()).await.unwrap();
