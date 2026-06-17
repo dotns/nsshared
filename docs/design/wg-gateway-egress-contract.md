@@ -7,9 +7,9 @@ Accepted for additive shared contract definition.
 ## Purpose
 
 NSGW needs a control-plane snapshot that tells it which WireGuard source VIPs
-may reach which gateway-owned service VIPs, and how to recover the ACL source
-identity at the transparent listener. The NSD producer lives outside this crate,
-so `ns-shared` only defines the wire contract and compatibility rules.
+may reach which stable GatewayEgress service VIPs, and how to recover the ACL
+source identity at the transparent listener. The NSD producer lives outside this
+crate, so `ns-shared` only defines the wire contract and compatibility rules.
 
 ## Message
 
@@ -30,7 +30,8 @@ Each `GatewayEgressWgPairing` row contains:
 
 - `realm_id: String`: realm that owns the selection.
 - `source_vip: Ipv4Addr`: WG source VIP assigned to the connector.
-- `service_vip: Ipv4Addr`: gateway-owned service VIP matched by NSGW.
+- `service_vip: Ipv4Addr`: stable GatewayEgress service VIP keyed by
+  `(realm_id, service_ref)`.
 - `protocol: RouteProtocol`: concrete L4 protocol, `tcp` or `udp`.
 - `port: u16`: service port matched with the protocol.
 - `service_ref: String`: gateway service declaration reference.
@@ -39,6 +40,12 @@ Each `GatewayEgressWgPairing` row contains:
 `Ipv4Addr` matches existing WG tunnel and VIP conventions. `RouteProtocol` is
 used instead of `Protocol` because nft/TPROXY matching needs one concrete L4
 protocol, not `both`, `http`, or `https`.
+
+`service_vip` is not the declaring gateway machine VIP. Multiple gateways may
+declare the same `service_ref`; NSC-facing routes and WG pairings for that
+service use one stable VIP for the realm/service pair. The connected gateway
+that declares the service performs egress, giving reconnect-based redundancy
+without an anycast or per-flow selection algorithm in this contract.
 
 ## Source Identity Schema
 
@@ -72,10 +79,10 @@ Duplicate, missing, or stale VIP mappings must fail closed in the NSGW consumer.
 
 ## Producer Responsibilities
 
-NSD projects this snapshot from selection state, route/service VIP allocation,
-gateway service declarations, and ACL binding state after the contract is
-available. It must keep pairings and source identities generation consistent
-enough for consumers to reject stale joins.
+NSD projects this snapshot from selection state, stable per-service VIP
+allocation, gateway service declarations, and ACL binding state after the
+contract is available. It must keep pairings and source identities generation
+consistent enough for consumers to reject stale joins.
 
 `nsd-remote` is out of scope for this campaign and is not a producer for this
 contract rollout.
