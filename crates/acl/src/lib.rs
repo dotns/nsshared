@@ -18,6 +18,7 @@ pub mod engine;
 pub mod matcher;
 pub mod merge;
 pub mod policy;
+pub mod subject;
 
 pub use deny_scope::{DenyScope, DenyScopeOutcome, DropReason, DroppedRule, apply_deny_scope};
 pub use engine::{
@@ -28,6 +29,7 @@ pub use merge::{
     MergeStats, MergedPolicy, PolicyLayers, RemotePolicy, RuleProvenance, merge_layered,
 };
 pub use policy::{AclPolicy, PolicyLint};
+pub use subject::{encode_external_subject, encode_subject_component};
 
 use thiserror::Error;
 
