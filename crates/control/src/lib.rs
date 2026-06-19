@@ -1001,6 +1001,14 @@ impl ControlPlane {
                     "ignored gateway_l4_map.v1 on non-gateway control plane"
                 );
             }
+            ControlMessage::GatewayAuthConfig(cfg) => {
+                info!(
+                    realm_id = %cfg.realm_id,
+                    generation = cfg.generation,
+                    providers = cfg.providers.len(),
+                    "ignored gateway_auth_config.v1 on non-gateway control plane"
+                );
+            }
             ControlMessage::GatewayCertificateBundle(bundle) => {
                 info!(
                     cert_id = %bundle.cert_id,

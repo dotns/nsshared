@@ -1304,6 +1304,114 @@ pub struct GatewayL4Map {
     pub certificates: Vec<PublicEdgeCertificateRef>,
 }
 
+/// Realm-level NSD-owned public edge auth config projected to gateways.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct GatewayAuthConfig {
+    /// NSD control-plane realm that owns this projection.
+    pub realm_id: String,
+    /// Monotonic per `realm_id` generation used by consumers to reject stale
+    /// material.
+    pub generation: u64,
+    /// Realm default provider used when a route does not name one explicitly.
+    pub default_provider_ref: String,
+    /// Providers keyed by `(realm_id, provider_ref)`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub providers: Vec<GatewayAuthProvider>,
+    /// Realm cookie signing/encryption material with active+previous overlap.
+    pub cookie_keys: GatewayAuthSecretSet,
+}
+
+/// Projected public edge auth provider config plus secret material.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct GatewayAuthProvider {
+    /// Provider reference scoped by the parent [`GatewayAuthConfig::realm_id`].
+    pub provider_ref: String,
+    /// Provider protocol family.
+    pub kind: GatewayAuthProviderKind,
+    /// OIDC issuer URL.
+    pub issuer: String,
+    /// OIDC client/application id for the public edge.
+    pub client_id: String,
+    /// OIDC client secret material with active+previous overlap.
+    pub client_secret: GatewayAuthSecretSet,
+    /// Requested OIDC scopes.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub scopes: Vec<String>,
+    /// Expected token audience / resource indicator.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub audience: Option<String>,
+    /// Template for the derived external ACL subject.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subject_template: Option<String>,
+    /// Template for the `x-ns-external-idp` value.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub idp_template: Option<String>,
+    /// External identity namespace used by subject/idp templates. This is
+    /// independent of the parent control-plane realm.
+    pub subject_realm: String,
+    /// Provider organization id for organization-mode realms.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub organization_id: Option<String>,
+    /// Explicit organization-mode semantics marker. When present with
+    /// `organization_id`, consumers apply provider-specific organization login,
+    /// scope, and token-exchange behavior.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub organization_mode: Option<GatewayAuthOrganizationMode>,
+    /// Public redirect/callback base URL for this realm/provider binding.
+    pub redirect_base_url: String,
+}
+
+/// Provider protocol families supported by projected auth config.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GatewayAuthProviderKind {
+    /// OpenID Connect relying-party provider.
+    Oidc,
+}
+
+/// Explicit organization-mode behavior carried by projected auth config.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GatewayAuthOrganizationMode {
+    /// Logto organization mode: append `organization_id` and `prompt=consent`
+    /// during login, request Logto organization scopes, and exchange the
+    /// refresh token for an organization-scoped resource token.
+    Logto,
+}
+
+/// Active secret version plus previous versions accepted during rotation.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct GatewayAuthSecretSet {
+    pub current: GatewayAuthSecretVersion,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub previous: Vec<GatewayAuthSecretVersion>,
+}
+
+/// Versioned auth secret material. Only `value` is secret.
+#[derive(Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct GatewayAuthSecretVersion {
+    /// Secret reference name.
+    #[serde(rename = "ref")]
+    pub ref_id: String,
+    /// Secret version for readiness/audit and rotation coordination.
+    pub version: u32,
+    /// Secret expiry as a Unix timestamp in seconds.
+    pub expires_at: u64,
+    /// Secret value carried on the wire.
+    pub value: String,
+}
+
+impl std::fmt::Debug for GatewayAuthSecretVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GatewayAuthSecretVersion")
+            .field("ref", &self.ref_id)
+            .field("version", &self.version)
+            .field("expires_at", &self.expires_at)
+            .field("value", &"<redacted>")
+            .finish()
+    }
+}
+
 /// Secret-bearing certificate material targeted to one gateway over the
 /// signed control stream.
 #[derive(Clone, PartialEq, Eq, Deserialize, Serialize)]
@@ -1487,6 +1595,9 @@ pub enum ControlMessage {
     /// Server → Gateway: TCP/UDP public edge listener map.
     #[serde(rename = "gateway_l4_map.v1")]
     GatewayL4Map(GatewayL4Map),
+    /// Server → Gateway: secret-bearing public edge auth config.
+    #[serde(rename = "gateway_auth_config.v1")]
+    GatewayAuthConfig(GatewayAuthConfig),
     /// Server → Gateway: secret-bearing certificate material distribution.
     #[serde(rename = "gateway_certificate_bundle.v1")]
     GatewayCertificateBundle(GatewayCertificateBundle),
@@ -1532,6 +1643,7 @@ impl ControlMessage {
             ControlMessage::DnsConfig(_) => "dns_config",
             ControlMessage::GatewayHttpConfig(_) => "gateway_http_config.v1",
             ControlMessage::GatewayL4Map(_) => "gateway_l4_map.v1",
+            ControlMessage::GatewayAuthConfig(_) => "gateway_auth_config.v1",
             ControlMessage::GatewayCertificateBundle(_) => "gateway_certificate_bundle.v1",
             ControlMessage::PeerCandidates(_) => "peer_candidates",
             ControlMessage::Unknown => "unknown",
@@ -2981,6 +3093,116 @@ tunnel = "ws"
         }
     }
 
+    fn sample_gateway_auth_config() -> GatewayAuthConfig {
+        GatewayAuthConfig {
+            realm_id: "bops".to_owned(),
+            generation: 23,
+            default_provider_ref: "logto-main".to_owned(),
+            providers: vec![GatewayAuthProvider {
+                provider_ref: "logto-main".to_owned(),
+                kind: GatewayAuthProviderKind::Oidc,
+                issuer: "https://auth.example.test/oidc".to_owned(),
+                client_id: "public-edge-client".to_owned(),
+                client_secret: GatewayAuthSecretSet {
+                    current: GatewayAuthSecretVersion {
+                        ref_id: "client-secret-main".to_owned(),
+                        version: 7,
+                        expires_at: 1_787_010_000,
+                        value: "current-client-secret".to_owned(),
+                    },
+                    previous: vec![GatewayAuthSecretVersion {
+                        ref_id: "client-secret-previous".to_owned(),
+                        version: 6,
+                        expires_at: 1_787_000_000,
+                        value: "previous-client-secret".to_owned(),
+                    }],
+                },
+                scopes: vec![
+                    "openid".to_owned(),
+                    "profile".to_owned(),
+                    "offline_access".to_owned(),
+                    "urn:logto:scope:organizations".to_owned(),
+                ],
+                audience: Some("https://api.example.test".to_owned()),
+                subject_template: Some("logto:{realm}:{organization_id}:{sub}".to_owned()),
+                idp_template: Some("logto:{realm}".to_owned()),
+                subject_realm: "realm-a".to_owned(),
+                organization_id: Some("org-realm-a".to_owned()),
+                organization_mode: Some(GatewayAuthOrganizationMode::Logto),
+                redirect_base_url: "https://gw.example.test".to_owned(),
+            }],
+            cookie_keys: GatewayAuthSecretSet {
+                current: GatewayAuthSecretVersion {
+                    ref_id: "cookie-key-main".to_owned(),
+                    version: 11,
+                    expires_at: 1_787_020_000,
+                    value: "current-cookie-key".to_owned(),
+                },
+                previous: vec![GatewayAuthSecretVersion {
+                    ref_id: "cookie-key-previous".to_owned(),
+                    version: 10,
+                    expires_at: 1_787_000_000,
+                    value: "previous-cookie-key".to_owned(),
+                }],
+            },
+        }
+    }
+
+    #[test]
+    fn gateway_auth_config_round_trips_as_separate_control_message() {
+        let config = sample_gateway_auth_config();
+        let msg = ControlMessage::GatewayAuthConfig(config.clone());
+
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"type\":\"gateway_auth_config.v1\""));
+        assert!(json.contains("\"realm_id\":\"bops\""));
+        assert!(json.contains("\"provider_ref\":\"logto-main\""));
+        assert!(json.contains("\"subject_realm\":\"realm-a\""));
+        assert!(json.contains("\"organization_mode\":\"logto\""));
+        assert!(json.contains("\"ref\":\"client-secret-main\""));
+        assert!(json.contains("\"ref\":\"cookie-key-main\""));
+        assert!(json.contains("current-client-secret"));
+        assert!(json.contains("previous-client-secret"));
+        assert!(json.contains("current-cookie-key"));
+        assert!(json.contains("previous-cookie-key"));
+        assert_eq!(msg.event_type(), "gateway_auth_config.v1");
+
+        let decoded: ControlMessage = serde_json::from_str(&json).unwrap();
+        match decoded {
+            ControlMessage::GatewayAuthConfig(decoded) => {
+                assert_eq!(decoded, config);
+                assert_eq!(decoded.generation, 23);
+                assert_eq!(
+                    decoded.providers[0].client_secret.current.value,
+                    "current-client-secret"
+                );
+                assert_eq!(decoded.cookie_keys.current.value, "current-cookie-key");
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn gateway_auth_config_debug_redacts_secret_values() {
+        let config = sample_gateway_auth_config();
+        let config_debug = format!("{config:?}");
+        let message_debug = format!("{:?}", ControlMessage::GatewayAuthConfig(config));
+
+        for secret in [
+            "current-client-secret",
+            "previous-client-secret",
+            "current-cookie-key",
+            "previous-cookie-key",
+        ] {
+            assert!(!config_debug.contains(secret));
+            assert!(!message_debug.contains(secret));
+        }
+        assert!(config_debug.contains("<redacted>"));
+        assert!(message_debug.contains("<redacted>"));
+        assert!(message_debug.contains("client-secret-main"));
+        assert!(message_debug.contains("cookie-key-main"));
+    }
+
     #[test]
     fn gateway_certificate_bundle_round_trips_as_separate_control_message() {
         let private_key = "-----BEGIN PRIVATE KEY-----\nsecret-key\n-----END PRIVATE KEY-----";
@@ -3065,6 +3287,9 @@ tunnel = "ws"
         ] {
             assert!(!json.contains("private_key"));
             assert!(!json.contains(private_key));
+            assert!(!json.contains("client_secret"));
+            assert!(!json.contains("cookie_keys"));
+            assert!(!json.contains("gateway_auth_config.v1"));
             assert!(!json.contains("gateway_certificate_bundle.v1"));
         }
     }
