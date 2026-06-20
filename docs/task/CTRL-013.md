@@ -1,6 +1,6 @@
 # CTRL-013 Distinct-host control-transport fallback (return winning endpoint)
 
-- **status**: working
+- **status**: completed
 - **priority**: P3
 - **owner**: s7
 - **createdAt**: 2026-06-20

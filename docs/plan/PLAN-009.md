@@ -5,7 +5,7 @@
 - **owner**: coordinator
 - **createdAt**: 2026-06-20
 - **approvedAt**: 2026-06-20
-- **relatedTask**: S1 CTRL-011 ns-shared (522cce1) / S2 CTRL-011 nsgw (3072a30) / S3 CTRL-013 ns (5777dcb) / S4 integration CTRL-014 ns (live-drop 796d40b) + CTRL-016 ns (default_mode-ordering + sticky assertions c1aefe4) / S5 nsd_default_mode: CTRL-012 ns-shared (S5a, dcfac46) + CTRL-012 nsgw (S5b, 3d7a5a9) + CTRL-015 ns S5c (base 278049d + rest fad4ed3) / S6 CTRL-014 ns (P1 nsc startup-path fallback, landed c4dd32e) + S7 CTRL-013 ns-shared+nsgw (P3 distinct-host fallback, in progress) — folded in by M/user
+- **relatedTask**: S1 CTRL-011 ns-shared (522cce1) / S2 CTRL-011 nsgw (3072a30) / S3 CTRL-013 ns (5777dcb) / S4 integration CTRL-014 ns (live-drop 796d40b) + CTRL-016 ns (default_mode-ordering + sticky assertions c1aefe4) / S5 nsd_default_mode: CTRL-012 ns-shared (S5a, dcfac46) + CTRL-012 nsgw (S5b, 3d7a5a9) + CTRL-015 ns S5c (base 278049d + rest fad4ed3) / S6 CTRL-014 ns (P1 nsc startup-path fallback, landed c4dd32e) + S7 CTRL-013 ns-shared+nsgw (P3 distinct-host fallback, landed: ns-shared 6a8fb87 + nsgw c15ddcd + ns 9e9a76e tier3/09) — folded in by M/user
 
 ## Context
 
@@ -151,9 +151,11 @@ user-facing surface did not.
 > primary is blocked recovers over the ordered list at startup — DELIVERED by S6
 > (CTRL-014, c4dd32e), proven by tier3/08 (`cold_first_registration_over_fallback`
 > + `registered_restart_recovers_over_fallback` + `secondary_reachable_through_running_node`
-> + `blocked_run_reached_controlplane`, all green, real binaries). REMAINING: nsgw
-> distinct-host failover (S7 / CTRL-013, in progress); until S7 lands, do NOT
-> describe nsgw distinct-host fallback as delivered.
+> + `blocked_run_reached_controlplane`, all green, real binaries); AND (3) nsgw
+> distinct-host failover — DELIVERED by S7 (CTRL-013, nsgw c15ddcd + ns-shared
+> 6a8fb87): nsgw sticks to the winning endpoint, proven by tier3/09 (distinct-host
+> register-through-nsd-b + sticky + winner-reselect, real binaries). All three
+> resilience properties are now delivered.
 
 - **nsc startup discovery over the ordered list — RESOLVED by S6 (CTRL-014, landed
   c4dd32e).** Previously `run_daemon` did `discover_nsd_info(primary_nsd_url)`
@@ -165,13 +167,19 @@ user-facing surface did not.
   different realm than the node's identity realm; credential/realm errors terminal,
   only connect/timeout advances). tier3/08 asserts both blocked-startup recoveries
   green with real binaries. No longer a limitation.
-- **nsgw distinct-host fallback — folded in as S7 (CTRL-013, IN PROGRESS).**
-  `bootstrap_control_transport_fallback` returned `(NsdInfo, transport)` not the
-  winning endpoint, so nsgw's stateless re-dial assumed a single front door. S7
-  extends the fn to return the winning endpoint + makes nsgw stick to it (re-settable
-  active-winner that re-selects on winner-failure — not pinned to a dead winner) +
-  adds a distinct-host tier3/09 E2E. nsc (`ControlPlane`) already sticks to the
-  winner. Not yet landed.
+- **nsgw distinct-host fallback — DELIVERED by S7 (CTRL-013, landed nsgw c15ddcd +
+  ns-shared 6a8fb87).** `bootstrap_control_transport_fallback` returned
+  `(NsdInfo, transport)` not the winning endpoint, so nsgw's stateless re-dial
+  assumed a single front door. S7 returns the winning endpoint
+  (`BootstrapControlFallbackOutcome`) + makes nsgw stick to it. The active winner is
+  cleared to RE-SELECT only when an alternative endpoint exists
+  (`has_reselectable_control_endpoints`, len>1); a single endpoint keeps the eager,
+  pin-free path — the control transport is a per-call factory (fresh dial each op;
+  noise re-handshakes per `connect_stream`), so it self-heals without re-bootstrapping
+  (single-endpoint transient errors retry on the same transport). nsc (`ControlPlane`)
+  already sticks to the winner. Proven by tier3/09: nsgw registers through nsd-b with
+  nsd-a's host blocked, sticks, re-selects on winner-failure, and re-selects nsd-a
+  after unblock (9/9, real binaries, mock=false).
 
 ## Deferred
 

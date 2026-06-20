@@ -44,5 +44,5 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**EGRESS-001 Define WG GatewayEgress control contract**](EGRESS-001.md) `P0`
 - [x] [**CTRL-011 Add ordered multi-endpoint control-transport fallback**](CTRL-011.md) `P2`
 - [x] [**CTRL-012 Add nsd_default_mode primary-by-transport selector**](CTRL-012.md) `P2`
-- [-] [**CTRL-013 Distinct-host control-transport fallback (return winning endpoint)**](CTRL-013.md) `P3`
+- [x] [**CTRL-013 Distinct-host control-transport fallback (return winning endpoint)**](CTRL-013.md) `P3`
 - [x] [**CTRL-014 nsc pre-control discovery + registration over the fallback list**](CTRL-014.md) `P1`
