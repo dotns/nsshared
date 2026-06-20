@@ -1,14 +1,14 @@
 # CTRL-014 nsc pre-control discovery + registration over the fallback list
 
-- **status**: todo
+- **status**: working
 - **priority**: P1
-- **owner**: unassigned
+- **owner**: s6
 - **createdAt**: 2026-06-20
 
 ## Description
 
 Follow-up to PLAN-009 (ratified amendment / known-limitation, M rulings #3/#5).
-**NOT folded into the current PLAN-009 slices** — M decides fold-in-as-S6 vs an
+**FOLDED into PLAN-009 as S6** (P1) per M/the user after S4 live-drop passed; codex proposal-first, in progress. (Prior note:
 immediate P1 fast-follow at merge-readiness, once the S4 live-drop core property
 passes. Severity raised to **P1** (was P3): this is not a rare edge.
 

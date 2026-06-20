@@ -1,14 +1,14 @@
 # CTRL-013 Distinct-host control-transport fallback (return winning endpoint)
 
-- **status**: todo
+- **status**: working
 - **priority**: P3
-- **owner**: unassigned
+- **owner**: s7
 - **createdAt**: 2026-06-20
 
 ## Description
 
 Follow-up to PLAN-009 (ratified amendment / known-limitation, M ruling #4).
-**NOT in PLAN-009 scope** — tracked as a candidate task.
+**FOLDED into PLAN-009 as S7** (P3) per M/the user; codex proposal-first, in progress.
 
 `control::bootstrap::bootstrap_control_transport_fallback` currently returns only
 `(NsdInfo, Arc<dyn ControlTransport>)`, not the winning `ControlCenterConfig`.
