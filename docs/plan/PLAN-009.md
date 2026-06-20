@@ -144,16 +144,35 @@ user-facing surface did not.
 
 ## Known limitations / follow-ups (NOT in PLAN-009 scope)
 
+> **Resilience boundary PLAN-009 actually delivers (state this precisely on merge):**
+> a RUNNING, registered node falls back on a live control-stream drop (ordered
+> reconnect over `control_centers`, inside `control.run()`) — proven by S4's
+> live-drop real-binary E2E. A (re)STARTING node does NOT fall back — see the nsc
+> startup-discovery limitation below. Do not describe the feature as more complete
+> than this.
+
 - **nsgw distinct-host fallback** — `bootstrap_control_transport_fallback` returns
   `(NsdInfo, transport)`, not the winning endpoint, so nsgw's stateless re-dial
   assumes a single front door (endpoints share host:port, differ by scheme). True
   distinct-host failover needs S1 to return the winner + nsgw to stick to it. nsc
-  (`ControlPlane`) already sticks to the winner. → separate follow-up task.
-- **nsc cold-registration while primary blocked** — first-run REGISTER uses
-  `primary_nsd_url` (primary-only) before `ControlPlane`, so a cold node whose
-  primary is down cannot register via fallback. S1 fallback covers a *registered*
-  node's auth / services_report / config_stream (PLAN-009's core property). Cold
-  registration over the fallback list is a separate nsc-bootstrap follow-up.
+  (`ControlPlane`) already sticks to the winner. → separate follow-up task (CTRL-013).
+- **nsc startup discovery is primary-only — gates cold-registration AND
+  registered-restart** (severity raised after S4). `run_daemon` calls
+  `discover_nsd_info(primary_nsd_url)` (crates/nsc/src/main.rs:766, PRIMARY url
+  only) BEFORE it builds `control_centers` (:939) / `ControlPlane::new` (:1004) /
+  `control.run()` (:1033). So a node whose primary is blocked AT STARTUP fails
+  pre-control discovery and cannot come up — this gates BOTH a cold (never-
+  registered) node AND an already-registered node that RESTARTS (deploy / reboot /
+  crash / OOM) during a primary outage. S1's ordered fallback lives inside
+  `control.run()` and covers only the live-drop/reconnect path of an already-running
+  node (= the delivered core property). Registered-restart is a COMMON event during
+  the very outage this feature targets — higher severity than a rare cold-
+  registration edge — and closing it completes PLAN-009's own Bootstrap design
+  intent ("ordered attempt loop … connect + boot handshake/register"). Fix = apply
+  the same ordered-fallback pattern to pre-control discovery (build `control_centers`
+  first; try `discover_nsd_info` over the list in priority order). Tracked as widened
+  **CTRL-014 (elevated priority)**; fold-in-as-S6 vs immediate fast-follow decided at
+  merge-readiness once live-drop passes. Not folded into the current slice mid-flight.
 
 ## Deferred
 
