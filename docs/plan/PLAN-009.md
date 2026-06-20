@@ -5,7 +5,7 @@
 - **owner**: coordinator
 - **createdAt**: 2026-06-20
 - **approvedAt**: 2026-06-20
-- **relatedTask**: S1 CTRL-011 ns-shared (522cce1) / S2 CTRL-011 nsgw (3072a30) / S3 CTRL-013 ns (5777dcb) / S4 integration CTRL-014 ns (live-drop PASS, 796d40b) / S5 nsd_default_mode: CTRL-012 ns-shared (S5a, dcfac46) + CTRL-012 nsgw (S5b, 3d7a5a9) + CTRL-015 ns S5c (base 278049d + rest fad4ed3)
+- **relatedTask**: S1 CTRL-011 ns-shared (522cce1) / S2 CTRL-011 nsgw (3072a30) / S3 CTRL-013 ns (5777dcb) / S4 integration CTRL-014 ns (live-drop 796d40b) + CTRL-016 ns (default_mode-ordering + sticky assertions c1aefe4) / S5 nsd_default_mode: CTRL-012 ns-shared (S5a, dcfac46) + CTRL-012 nsgw (S5b, 3d7a5a9) + CTRL-015 ns S5c (base 278049d + rest fad4ed3)
 
 ## Context
 
