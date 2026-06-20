@@ -24,6 +24,11 @@ nsd is unaffected — it is the server (accepts connections), not a dialer.
 
 ## Decisions (settled)
 
+> ⚠ **Superseded in part during S1 — see "Decisions — ratified amendments
+> (2026-06-20)" below.** §1 (schema) and §2 (selector) changed: the ordered list
+> reuses `common` `control_centers` + `priority`; the user-facing CLI/env surface
+> in "Config syntax" below did **not** change. §3 (sticky) stands as written.
+
 1. **Schema: list** — `nsd_urls: Vec<String>` (not "primary + fallbacks").
 2. **Default selector** — `nsd_default_mode: Option<ControlMode>` names the
    primary endpoint by transport; if unset, the **first** list entry is primary.
@@ -104,6 +109,51 @@ S1+S2+S3 land in one window. nsd untouched.
 - **Per-endpoint identity** — each endpoint advertises/uses its own transport
   keys; envelope-pin trust is shared. Ensure register/heartbeat re-bind cleanly
   when the active endpoint changes.
+
+## Decisions — ratified amendments (2026-06-20, M)
+
+Ratified after S1's investigation. These supersede "Decisions (settled)" §1–2 and
+the "Config" schema where they conflict; the internal schema changed, the
+user-facing surface did not.
+
+- **A1 — reuse `common` `control_centers`, not a new `nsd_urls`.** The ordered
+  endpoint list IS `ConnectorConfig.control_centers: Vec<ControlCenterConfig>`
+  (already present + tested via `effective_control_centers()`). Rationale:
+  `ControlCenterConfig` already carries per-endpoint `noise_bootstrap_pubkey` /
+  `quic_bootstrap_cert_sha256` / `nsd_envelope_key_pins` / `realm` / `priority`;
+  a flat `Vec<String>` cannot, and would add a second overlapping multi-endpoint
+  schema to `common`. Back-compat: a single `server_url` synthesizes a
+  one-element list.
+- **A2 — primary selector is `priority` (lower = primary), not transport-mode.**
+  Declared order with default priorities ⇒ first entry primary. `nsd_default_mode`
+  is **retained** but as an *optional* scheme-preference reorder applied before
+  the fallback sequence (`control::order_endpoints_by_default_mode`, stable;
+  `None` = priority/list order authoritative = byte-for-byte back-compat) — not
+  as the primary selector. (S5.)
+- **A3 — one additive field** `nsd_endpoint_attempt_timeout_secs: u64 = 8` bounds
+  each connect/register attempt only; a live stream outlives it.
+- **A4 — user-facing surface unchanged.** `--nsd-url` (repeatable) / `nsd_urls`
+  (env) / `--nsd-default-mode` remain; consumers translate them into
+  `control_centers` (generated ids, declared-order priorities) via
+  `connector::control_centers_from_urls`.
+- **A5 — per-consumer strategy is intentionally split.** nsc & nsgw use S1
+  **sequential** fallback (single live connection, ordered failover); **nsn keeps
+  simultaneous multi-home** (`control::multi::MultiControlPlane`) — strictly more
+  resilient for nsn, so sequential fallback is **not** added to nsn. Both consume
+  the same ordered `control_centers` list.
+
+## Known limitations / follow-ups (NOT in PLAN-009 scope)
+
+- **nsgw distinct-host fallback** — `bootstrap_control_transport_fallback` returns
+  `(NsdInfo, transport)`, not the winning endpoint, so nsgw's stateless re-dial
+  assumes a single front door (endpoints share host:port, differ by scheme). True
+  distinct-host failover needs S1 to return the winner + nsgw to stick to it. nsc
+  (`ControlPlane`) already sticks to the winner. → separate follow-up task.
+- **nsc cold-registration while primary blocked** — first-run REGISTER uses
+  `primary_nsd_url` (primary-only) before `ControlPlane`, so a cold node whose
+  primary is down cannot register via fallback. S1 fallback covers a *registered*
+  node's auth / services_report / config_stream (PLAN-009's core property). Cold
+  registration over the fallback list is a separate nsc-bootstrap follow-up.
 
 ## Deferred
 
