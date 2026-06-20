@@ -709,6 +709,7 @@ mod tests {
             auth_key: None,
             machine_id: None,
             dns_timeout_secs: 5,
+            nsd_endpoint_attempt_timeout_secs: 8,
             dns_cache_ttl_secs: 60,
             ws_max_messages_per_sec: 100,
             ws_max_message_size: 1_048_576,

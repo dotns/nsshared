@@ -36,12 +36,12 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use common::ConnectorConfig;
+use common::{ConnectorConfig, ControlCenterConfig};
 use secrecy::{ExposeSecret, SecretString};
 use tokio::sync::mpsc;
 use tracing::{error, info, warn};
 
-use auth::AuthClient;
+use auth::{AuthClient, AuthEndpointTrust};
 use envelope::ControlEnvelope;
 use envelope::api as envelope_api;
 use messages::{
@@ -358,7 +358,13 @@ impl ControlPlane {
         let (peer_candidates_tx, peer_candidates_rx) = mpsc::channel(32);
         let (token_refresh_tx, token_refresh_rx) = mpsc::channel(8);
 
-        let transport = build_control_transport(&config, &auth_client)?;
+        let transport = if config.control_centers.is_empty() {
+            build_control_transport(&config, &auth_client)?
+        } else if let Some(transport) = auth_client.transport() {
+            transport
+        } else {
+            Arc::new(transport::sse::SseTransport::plaintext())
+        };
         let heartbeat_client = auth_client.heartbeat_client();
         let recovery_circuit = MachineRecoveryCircuit::new(MachineRecoveryPolicy::default());
 
@@ -434,48 +440,331 @@ impl ControlPlane {
     /// exponential backoff on failure.  Runs until all downstream receivers
     /// are dropped.
     pub async fn run(mut self) -> Result<(), Error> {
-        let token = self
-            .authenticate_control_with_recovery("initial authenticate")
+        let mut backoff_secs: u64 = 1;
+        let mut heartbeat = tokio::time::interval_at(
+            tokio::time::Instant::now() + self.heartbeat_interval,
+            self.heartbeat_interval,
+        );
+
+        loop {
+            let mut connected = match self.connect_active_endpoint().await {
+                Ok(connected) => {
+                    backoff_secs = 1;
+                    if let Some(ref tx) = self.status_tx {
+                        let _ = tx.send(true).await;
+                    }
+                    connected
+                }
+                Err(e) => {
+                    warn!(
+                        error = %e,
+                        backoff = backoff_secs,
+                        "all control endpoints failed, retrying"
+                    );
+                    if let Some(ref tx) = self.status_tx {
+                        let _ = tx.send(false).await;
+                    }
+                    tokio::time::sleep(Duration::from_secs(backoff_secs)).await;
+                    backoff_secs = (backoff_secs * 2).min(60);
+                    continue;
+                }
+            };
+
+            match self
+                .drive_connected_stream(&mut connected.token, &mut connected.stream, &mut heartbeat)
+                .await?
+            {
+                LiveStreamExit::Shutdown => return Ok(()),
+                LiveStreamExit::Disconnected => {
+                    if let Some(ref tx) = self.status_tx {
+                        let _ = tx.send(false).await;
+                    }
+                    tokio::time::sleep(Duration::from_secs(backoff_secs)).await;
+                    backoff_secs = (backoff_secs * 2).min(60);
+                }
+            }
+        }
+    }
+
+    async fn connect_active_endpoint(&mut self) -> Result<ConnectedControlStream, Error> {
+        let endpoints = self.control_endpoint_sequence();
+        if endpoints.is_empty() {
+            return Err(Error::Connect(
+                "no control endpoints configured".to_string(),
+            ));
+        }
+
+        let timeout = self.endpoint_attempt_timeout();
+        let mut failures = Vec::new();
+        for endpoint in endpoints {
+            let id = endpoint.id().to_string();
+            let url = endpoint.url().to_string();
+            match tokio::time::timeout(timeout, self.try_connect_endpoint(endpoint)).await {
+                Ok(Ok(connected)) => return Ok(connected),
+                Ok(Err(e)) => {
+                    warn!(
+                        nsd_id = %id,
+                        nsd = %url,
+                        error = %e,
+                        "control endpoint attempt failed"
+                    );
+                    failures.push(format!("{id} ({url}): {e}"));
+                }
+                Err(_) => {
+                    warn!(
+                        nsd_id = %id,
+                        nsd = %url,
+                        timeout_secs = timeout.as_secs(),
+                        "control endpoint attempt timed out"
+                    );
+                    failures.push(format!(
+                        "{id} ({url}): timed out after {}s",
+                        timeout.as_secs()
+                    ));
+                }
+            }
+        }
+
+        Err(Error::Connect(format!(
+            "all control endpoints failed: {}",
+            failures.join("; ")
+        )))
+    }
+
+    async fn try_connect_endpoint(
+        &mut self,
+        endpoint: ControlEndpoint,
+    ) -> Result<ConnectedControlStream, Error> {
+        let endpoint_config = self.endpoint_connector_config(&endpoint);
+        let build_auth = self.auth_client.rebound_for_endpoint(
+            endpoint.url(),
+            None,
+            self.endpoint_trust(&endpoint),
+        );
+        let transport = build_control_transport(&endpoint_config, &build_auth)?;
+        let auth_client = self.auth_client.rebound_for_endpoint(
+            endpoint.url(),
+            Some(transport.clone()),
+            self.endpoint_trust(&endpoint),
+        );
+
+        self.transport = transport.clone();
+        self.auth_client = auth_client;
+        self.heartbeat_client = self.auth_client.heartbeat_client();
+
+        let mut token = self
+            .authenticate_control_with_recovery("control endpoint authenticate")
             .await?;
+        info!(
+            nsd_id = %endpoint.id(),
+            nsd = %endpoint.url(),
+            transport = %self.transport.name(),
+            "authenticated with control endpoint"
+        );
 
-        info!("authenticated with control plane");
+        let mut stream = self.make_control_stream(transport, &endpoint);
+        stream.set_token(token.clone());
 
-        // Whether the operator chose Noise / QUIC is already reflected in
-        // `self.transport`. Build the matching `ControlStream` factory and
-        // hand off to the unified loop.
-        let transport_arc = self.transport.clone();
-        let endpoint = url_to_tcp_endpoint(&self.config.server_url);
+        let services_report = self.services_report_envelope()?;
+        match stream.post_services_report(services_report).await {
+            Ok(()) => {
+                info!(
+                    nsd_id = %endpoint.id(),
+                    nsd = %endpoint.url(),
+                    services = self.services_report.services.len(),
+                    strict_mode = self.services_report.strict_mode,
+                    "sent services_report to control endpoint"
+                );
+            }
+            Err(Error::MachineUnknown(url)) => {
+                if self
+                    .recover_machine_unknown("services.report", &url)
+                    .await
+                    .unwrap_or(false)
+                {
+                    token = self
+                        .authenticate_control_with_recovery("post-recovery authenticate")
+                        .await?;
+                    stream.set_token(token.clone());
+                    let services_report = self.services_report_envelope()?;
+                    stream.post_services_report(services_report).await?;
+                } else {
+                    return Err(Error::MachineUnknown(url));
+                }
+            }
+            Err(e) => return Err(e),
+        }
+
+        if let Some(refreshed) = self.re_auth_after_services_report().await {
+            token = refreshed.clone();
+            stream.set_token(refreshed);
+        }
+
+        let config_stream = self.config_stream_envelope()?;
+        stream.connect(config_stream).await?;
+        info!(
+            nsd_id = %endpoint.id(),
+            nsd = %endpoint.url(),
+            "connected to control config stream"
+        );
+
+        Ok(ConnectedControlStream { stream, token })
+    }
+
+    async fn drive_connected_stream(
+        &mut self,
+        token: &mut String,
+        stream: &mut Box<dyn ControlStream>,
+        heartbeat: &mut tokio::time::Interval,
+    ) -> Result<LiveStreamExit, Error> {
+        loop {
+            tokio::select! {
+                msg = stream.next_message() => {
+                    match msg {
+                        Ok(msg) => {
+                            let old_token = token.clone();
+                            let event_type = msg.event_type();
+                            let dispatch_start = std::time::Instant::now();
+                            let shutdown = self.dispatch_message(msg, token).await;
+                            let outcome = match &shutdown {
+                                Ok(_) => telemetry::labels::Outcome::Ok,
+                                Err(_) => telemetry::labels::Outcome::Error,
+                            };
+                            telemetry::control_otel::record_sse_delivery_duration(
+                                event_type,
+                                outcome,
+                                dispatch_start.elapsed().as_secs_f64(),
+                            );
+                            if shutdown? {
+                                return Ok(LiveStreamExit::Shutdown);
+                            }
+                            if *token != old_token {
+                                stream.set_token(token.clone());
+                            }
+                        }
+                        Err(e) => {
+                            warn!(error = %e, "SSE error, reconnecting");
+                            return Ok(LiveStreamExit::Disconnected);
+                        }
+                    }
+                }
+                _ = heartbeat.tick(), if self.heartbeat_client.is_some() => {
+                    let uptime_secs = self.heartbeat_start_time.elapsed().as_secs();
+                    let local_ips = common::SystemInfo::collect_local_ips();
+                    match self.send_heartbeat(uptime_secs, local_ips).await {
+                        Ok(()) => {}
+                        Err(Error::MachineUnknown(url)) => {
+                            match self.recover_machine_unknown("heartbeat", &url).await {
+                                Ok(true) => return Ok(LiveStreamExit::Disconnected),
+                                Ok(false) => {
+                                    warn!(
+                                        nsd = %url,
+                                        "heartbeat found unknown machine; recovery deferred"
+                                    );
+                                }
+                                Err(e) => {
+                                    warn!(
+                                        nsd = %url,
+                                        error = %e,
+                                        "heartbeat machine recovery failed"
+                                    );
+                                }
+                            }
+                        }
+                        Err(Error::Unauthorized(url)) => {
+                            warn!(
+                                nsd = %url,
+                                "heartbeat unauthorized after bearer refresh; will retry next cycle"
+                            );
+                        }
+                        Err(e) => {
+                            warn!(error = %e, "heartbeat failed");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn control_endpoint_sequence(&self) -> Vec<ControlEndpoint> {
+        let explicit_centers = !self.config.control_centers.is_empty();
+        self.config
+            .effective_control_centers()
+            .into_iter()
+            .map(|config| {
+                let mode = if explicit_centers {
+                    control_mode_from_url(&config.url).to_string()
+                } else {
+                    self.config.control_mode.clone()
+                };
+                ControlEndpoint { config, mode }
+            })
+            .collect()
+    }
+
+    fn endpoint_connector_config(&self, endpoint: &ControlEndpoint) -> ConnectorConfig {
+        let mut config = (*self.config).clone();
+        config.server_url = endpoint.config.url.clone();
+        config.control_centers.clear();
+        config.control_mode = endpoint.mode.clone();
+        config.realm = endpoint.config.realm.clone();
+        config.noise_bootstrap_pubkey = endpoint.config.noise_bootstrap_pubkey.clone();
+        config.quic_bootstrap_cert_sha256 = endpoint.config.quic_bootstrap_cert_sha256.clone();
+        config.nsd_envelope_key_pins = endpoint.config.nsd_envelope_key_pins.clone();
+        config
+    }
+
+    fn endpoint_trust(&self, endpoint: &ControlEndpoint) -> AuthEndpointTrust {
+        AuthEndpointTrust {
+            nsd_id: endpoint.config.id.clone(),
+            realm: endpoint
+                .config
+                .realm
+                .clone()
+                .or_else(|| self.config.realm.clone())
+                .unwrap_or_else(|| "default".to_string()),
+            state_dir: PathBuf::from(&self.config.state_dir),
+            jwt_key_pins: self.config.nsd_jwt_key_pins.clone(),
+            envelope_key_pins: endpoint.config.nsd_envelope_key_pins.clone(),
+            advertised_envelope_pubkey: None,
+        }
+    }
+
+    fn make_control_stream(
+        &self,
+        transport: Arc<dyn transport::ControlTransport>,
+        endpoint: &ControlEndpoint,
+    ) -> Box<dyn ControlStream> {
+        let tcp_endpoint = url_to_tcp_endpoint(endpoint.url());
         let max_rate = self.config.ws_max_messages_per_sec;
         let max_size = self.config.ws_max_message_size;
         let envelope_trust = self.auth_client.envelope_trust();
+        if transport.name() == "sse" {
+            Box::new(SseControl::new(
+                transport,
+                tcp_endpoint,
+                max_rate,
+                max_size,
+                envelope_trust,
+            ))
+        } else {
+            Box::new(NoiseControl::new(
+                transport,
+                tcp_endpoint,
+                max_rate,
+                max_size,
+                envelope_trust,
+            ))
+        }
+    }
 
-        let make_stream = move || -> Box<dyn ControlStream> {
-            let transport = transport_arc.clone();
-            let trust = envelope_trust.clone();
-            if transport.name() == "sse" {
-                Box::new(SseControl::new(
-                    transport,
-                    endpoint.clone(),
-                    max_rate,
-                    max_size,
-                    trust,
-                ))
-            } else {
-                Box::new(NoiseControl::new(
-                    transport,
-                    endpoint.clone(),
-                    max_rate,
-                    max_size,
-                    trust,
-                ))
-            }
-        };
-
-        self.run_loop(token, make_stream).await
+    fn endpoint_attempt_timeout(&self) -> Duration {
+        Duration::from_secs(self.config.nsd_endpoint_attempt_timeout_secs)
     }
 
     /// Shared SSE/Noise loop. `make_stream` opens a fresh stream on each
     /// reconnect; the auth token is rotated on `ControlMessage::TokenRefresh`.
+    #[cfg(test)]
     async fn run_loop<F>(&mut self, mut token: String, make_stream: F) -> Result<(), Error>
     where
         F: Fn() -> Box<dyn ControlStream>,
@@ -1051,6 +1340,32 @@ pub type ControlPlaneInit = (
     mpsc::Receiver<String>,
 );
 
+#[derive(Clone)]
+struct ControlEndpoint {
+    config: ControlCenterConfig,
+    mode: String,
+}
+
+impl ControlEndpoint {
+    fn id(&self) -> &str {
+        &self.config.id
+    }
+
+    fn url(&self) -> &str {
+        &self.config.url
+    }
+}
+
+struct ConnectedControlStream {
+    stream: Box<dyn ControlStream>,
+    token: String,
+}
+
+enum LiveStreamExit {
+    Disconnected,
+    Shutdown,
+}
+
 // -- Helper functions ---------------------------------------------------------
 
 fn build_control_transport(
@@ -1142,6 +1457,16 @@ fn build_quic_transport(config: &ConnectorConfig) -> Result<transport::quic::Qui
     transport::quic::QuicTransport::new(fingerprint)
 }
 
+fn control_mode_from_url(url: &str) -> &'static str {
+    if url.starts_with("noise://") {
+        "noise"
+    } else if url.starts_with("quic://") {
+        "quic"
+    } else {
+        "sse"
+    }
+}
+
 /// Strip a known URL scheme (`https?://`, `noise://`, `quic://`) from `url`.
 fn strip_url_scheme(url: &str) -> &str {
     url.strip_prefix("https://")
@@ -1205,6 +1530,7 @@ mod control_transport_build_tests {
             auth_key: None,
             machine_id: None,
             dns_timeout_secs: 5,
+            nsd_endpoint_attempt_timeout_secs: 8,
             dns_cache_ttl_secs: 60,
             ws_max_messages_per_sec: 100,
             ws_max_message_size: 1_048_576,
@@ -1296,9 +1622,12 @@ mod post_services_reauth_tests {
     use std::collections::HashMap;
     use std::sync::Arc;
     use std::sync::Mutex;
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
     use async_trait::async_trait;
-    use common::{CAPABILITY_CAPTURE_ROUTES_V1, ConnectorConfig, MachineState};
+    use common::{
+        CAPABILITY_CAPTURE_ROUTES_V1, ConnectorConfig, ControlCenterConfig, MachineState,
+    };
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
 
@@ -1443,6 +1772,7 @@ mod post_services_reauth_tests {
             auth_key: None,
             machine_id: None,
             dns_timeout_secs: 5,
+            nsd_endpoint_attempt_timeout_secs: 8,
             dns_cache_ttl_secs: 60,
             ws_max_messages_per_sec: 100,
             ws_max_message_size: 1_048_576,
@@ -1532,6 +1862,284 @@ mod post_services_reauth_tests {
         fn set_token(&mut self, token: String) {
             self.tokens.lock().expect("token log poisoned").push(token);
         }
+    }
+
+    struct PendingStream {
+        polls: Arc<AtomicUsize>,
+    }
+
+    #[async_trait]
+    impl ControlStream for PendingStream {
+        async fn post_services_report(&mut self, _envelope: ControlEnvelope) -> Result<(), Error> {
+            Ok(())
+        }
+
+        async fn connect(&mut self, _envelope: ControlEnvelope) -> Result<(), Error> {
+            Ok(())
+        }
+
+        async fn next_message(&mut self) -> Result<crate::messages::ControlMessage, Error> {
+            self.polls.fetch_add(1, Ordering::SeqCst);
+            std::future::pending().await
+        }
+
+        fn set_token(&mut self, _token: String) {}
+    }
+
+    struct DisconnectStream;
+
+    #[async_trait]
+    impl ControlStream for DisconnectStream {
+        async fn post_services_report(&mut self, _envelope: ControlEnvelope) -> Result<(), Error> {
+            Ok(())
+        }
+
+        async fn connect(&mut self, _envelope: ControlEnvelope) -> Result<(), Error> {
+            Ok(())
+        }
+
+        async fn next_message(&mut self) -> Result<crate::messages::ControlMessage, Error> {
+            Err(Error::Sse("scripted disconnect".to_string()))
+        }
+
+        fn set_token(&mut self, _token: String) {}
+    }
+
+    fn control_center(
+        id: &str,
+        url: &str,
+        priority: u32,
+        noise_key: Option<String>,
+        quic_key: Option<String>,
+        pins: Vec<String>,
+    ) -> ControlCenterConfig {
+        ControlCenterConfig {
+            id: id.to_string(),
+            url: url.to_string(),
+            realm: None,
+            noise_bootstrap_pubkey: noise_key,
+            quic_bootstrap_cert_sha256: quic_key,
+            nsd_envelope_key_pins: pins,
+            priority,
+        }
+    }
+
+    async fn plane_for_config(config: Arc<ConnectorConfig>) -> ControlPlane {
+        let state = registered_state().await;
+        let auth = AuthClient::new("http://bootstrap.test:3001", state);
+        let (plane, _wg, _proxy, _acl, _gw, _rt, _dns, _peer, _tok_rx) =
+            ControlPlane::new(config, empty_report(), auth).expect("control plane");
+        plane
+    }
+
+    #[tokio::test]
+    async fn explicit_control_centers_are_ordered_by_priority_and_scheme() {
+        let mut config = (*dummy_config("http://legacy.test:3001".to_string())).clone();
+        config.control_centers = vec![
+            control_center("quic", "quic://nsd-quic:4002", 20, None, None, vec![]),
+            control_center("noise", "noise://nsd-noise:4001", 10, None, None, vec![]),
+            control_center("sse", "https://nsd-sse.example", 30, None, None, vec![]),
+        ];
+        let plane = plane_for_config(Arc::new(config)).await;
+
+        let endpoints = plane.control_endpoint_sequence();
+        let order = endpoints
+            .iter()
+            .map(|endpoint| (endpoint.id(), endpoint.mode.as_str()))
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            order,
+            vec![("noise", "noise"), ("quic", "quic"), ("sse", "sse")]
+        );
+    }
+
+    #[tokio::test]
+    async fn single_server_url_keeps_control_mode_back_compat() {
+        let mut config = (*dummy_config("http://legacy.test:3001".to_string())).clone();
+        config.control_mode = "noise".to_string();
+        config.noise_bootstrap_pubkey = Some("aa".repeat(32));
+        let plane = plane_for_config(Arc::new(config)).await;
+
+        let endpoints = plane.control_endpoint_sequence();
+
+        assert_eq!(endpoints.len(), 1);
+        assert_eq!(endpoints[0].id(), "default");
+        assert_eq!(endpoints[0].url(), "http://legacy.test:3001");
+        assert_eq!(endpoints[0].mode, "noise");
+    }
+
+    #[tokio::test]
+    async fn endpoint_config_and_trust_are_rebound_per_endpoint() {
+        let mut config = (*dummy_config("http://legacy.test:3001".to_string())).clone();
+        config.realm = Some("shared-realm".to_string());
+        config.nsd_envelope_key_pins = vec!["shared-pin".to_string()];
+        config.control_centers = vec![
+            control_center(
+                "noise",
+                "noise://nsd-noise:4001",
+                1,
+                Some("aa".repeat(32)),
+                None,
+                vec!["noise-pin".to_string()],
+            ),
+            control_center(
+                "quic",
+                "quic://nsd-quic:4002",
+                2,
+                None,
+                Some("bb".repeat(32)),
+                vec![],
+            ),
+        ];
+        let plane = plane_for_config(Arc::new(config)).await;
+        let endpoints = plane.control_endpoint_sequence();
+
+        let noise_config = plane.endpoint_connector_config(&endpoints[0]);
+        let noise_trust = plane.endpoint_trust(&endpoints[0]);
+        assert_eq!(noise_config.server_url, "noise://nsd-noise:4001");
+        assert_eq!(noise_config.control_mode, "noise");
+        assert_eq!(noise_config.noise_bootstrap_pubkey, Some("aa".repeat(32)));
+        assert_eq!(noise_config.quic_bootstrap_cert_sha256, None);
+        assert_eq!(noise_trust.envelope_key_pins, vec!["noise-pin"]);
+
+        let quic_config = plane.endpoint_connector_config(&endpoints[1]);
+        let quic_trust = plane.endpoint_trust(&endpoints[1]);
+        assert_eq!(quic_config.server_url, "quic://nsd-quic:4002");
+        assert_eq!(quic_config.control_mode, "quic");
+        assert_eq!(quic_config.noise_bootstrap_pubkey, None);
+        assert_eq!(
+            quic_config.quic_bootstrap_cert_sha256,
+            Some("bb".repeat(32))
+        );
+        assert_eq!(quic_trust.envelope_key_pins, vec!["shared-pin"]);
+        assert_eq!(quic_trust.realm, "shared-realm");
+    }
+
+    #[tokio::test]
+    async fn all_endpoint_failures_are_aggregated_without_inner_backoff() {
+        let mut config = (*dummy_config("http://legacy.test:3001".to_string())).clone();
+        config.nsd_endpoint_attempt_timeout_secs = 1;
+        config.control_centers = vec![
+            control_center("primary", "noise://nsd-primary:4001", 1, None, None, vec![]),
+            control_center(
+                "secondary",
+                "quic://nsd-secondary:4002",
+                2,
+                None,
+                None,
+                vec![],
+            ),
+        ];
+        let mut plane = plane_for_config(Arc::new(config)).await;
+
+        let err = match plane.connect_active_endpoint().await {
+            Ok(_) => panic!("all endpoints should fail"),
+            Err(err) => err,
+        };
+        let rendered = err.to_string();
+        assert!(rendered.contains("primary"));
+        assert!(rendered.contains("secondary"));
+        assert!(rendered.contains("all control endpoints failed"));
+    }
+
+    #[tokio::test]
+    async fn established_stream_outlives_endpoint_attempt_timeout() {
+        let mut plane = plane_for_config(dummy_config("http://127.0.0.1:3001".to_string())).await;
+        let mut heartbeat = tokio::time::interval_at(
+            tokio::time::Instant::now() + std::time::Duration::from_secs(60),
+            std::time::Duration::from_secs(60),
+        );
+        let polls = Arc::new(AtomicUsize::new(0));
+        let mut stream: Box<dyn ControlStream> = Box::new(PendingStream {
+            polls: Arc::clone(&polls),
+        });
+        let mut token = "token-A".to_string();
+
+        let result = tokio::time::timeout(
+            std::time::Duration::from_millis(1_100),
+            plane.drive_connected_stream(&mut token, &mut stream, &mut heartbeat),
+        )
+        .await;
+
+        assert!(
+            result.is_err(),
+            "live stream must not be closed by the 1s endpoint attempt timeout"
+        );
+        assert_eq!(polls.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn live_stream_does_not_reselect_when_primary_recovers() {
+        let mut config = (*dummy_config("http://legacy.test:3001".to_string())).clone();
+        config.control_centers = vec![
+            control_center("primary", "https://primary.example", 1, None, None, vec![]),
+            control_center(
+                "fallback",
+                "https://fallback.example",
+                2,
+                None,
+                None,
+                vec![],
+            ),
+        ];
+        let mut plane = plane_for_config(Arc::new(config)).await;
+        let primary_recovered = Arc::new(AtomicBool::new(false));
+        let mut heartbeat = tokio::time::interval_at(
+            tokio::time::Instant::now() + std::time::Duration::from_secs(60),
+            std::time::Duration::from_secs(60),
+        );
+        let polls = Arc::new(AtomicUsize::new(0));
+        let mut stream: Box<dyn ControlStream> = Box::new(PendingStream {
+            polls: Arc::clone(&polls),
+        });
+        let mut token = "fallback-token".to_string();
+
+        primary_recovered.store(true, Ordering::SeqCst);
+        let result = tokio::time::timeout(
+            std::time::Duration::from_millis(200),
+            plane.drive_connected_stream(&mut token, &mut stream, &mut heartbeat),
+        )
+        .await;
+
+        assert!(primary_recovered.load(Ordering::SeqCst));
+        assert!(
+            result.is_err(),
+            "recovered primary must not interrupt a live fallback stream"
+        );
+        assert_eq!(polls.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn disconnect_restarts_selection_from_primary() {
+        let mut config = (*dummy_config("http://legacy.test:3001".to_string())).clone();
+        config.control_centers = vec![
+            control_center("primary", "https://primary.example", 1, None, None, vec![]),
+            control_center(
+                "fallback",
+                "https://fallback.example",
+                2,
+                None,
+                None,
+                vec![],
+            ),
+        ];
+        let mut plane = plane_for_config(Arc::new(config)).await;
+        let mut heartbeat = tokio::time::interval_at(
+            tokio::time::Instant::now() + std::time::Duration::from_secs(60),
+            std::time::Duration::from_secs(60),
+        );
+        let mut stream: Box<dyn ControlStream> = Box::new(DisconnectStream);
+        let mut token = "fallback-token".to_string();
+
+        let exit = plane
+            .drive_connected_stream(&mut token, &mut stream, &mut heartbeat)
+            .await
+            .expect("disconnect should be a reconnect signal");
+
+        assert!(matches!(exit, super::LiveStreamExit::Disconnected));
+        let next_sequence = plane.control_endpoint_sequence();
+        assert_eq!(next_sequence[0].id(), "primary");
     }
 
     #[tokio::test]

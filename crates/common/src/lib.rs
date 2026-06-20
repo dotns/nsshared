@@ -139,6 +139,12 @@ pub struct ConnectorConfig {
     /// Defaults to 5 seconds.
     #[serde(default = "default_dns_timeout_secs")]
     pub dns_timeout_secs: u64,
+    /// Per-NSD control endpoint establishment timeout, in seconds.
+    ///
+    /// Bounds endpoint selection (auth, services report, stream open) but not
+    /// the long-lived config stream after it is established.
+    #[serde(default = "default_nsd_endpoint_attempt_timeout_secs")]
+    pub nsd_endpoint_attempt_timeout_secs: u64,
     /// TTL for the DNS result cache, in seconds. Defaults to 60 seconds.
     #[serde(default = "default_dns_cache_ttl_secs")]
     pub dns_cache_ttl_secs: u64,
@@ -356,6 +362,14 @@ impl ConnectorConfig {
     pub fn effective_control_centers(&self) -> Vec<ControlCenterConfig> {
         if !self.control_centers.is_empty() {
             let mut ccs = self.control_centers.clone();
+            for cc in &mut ccs {
+                if cc.realm.is_none() {
+                    cc.realm = self.realm.clone();
+                }
+                if cc.nsd_envelope_key_pins.is_empty() {
+                    cc.nsd_envelope_key_pins = self.nsd_envelope_key_pins.clone();
+                }
+            }
             ccs.sort_by_key(|c| c.priority);
             ccs
         } else if !self.server_url.is_empty() {
@@ -416,6 +430,10 @@ fn default_state_dir() -> String {
 
 fn default_dns_timeout_secs() -> u64 {
     5
+}
+
+fn default_nsd_endpoint_attempt_timeout_secs() -> u64 {
+    8
 }
 
 fn default_dns_cache_ttl_secs() -> u64 {
@@ -677,6 +695,7 @@ mod tests {
             auth_key: None,
             machine_id: None,
             dns_timeout_secs: 5,
+            nsd_endpoint_attempt_timeout_secs: 8,
             dns_cache_ttl_secs: 60,
             ws_max_messages_per_sec: 100,
             ws_max_message_size: 1_048_576,
@@ -782,6 +801,13 @@ mod tests {
     }
 
     #[test]
+    fn config_nsd_endpoint_attempt_timeout_defaults_to_8() {
+        let json = r#"{"server_url":"http://localhost"}"#;
+        let cfg: ConnectorConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(cfg.nsd_endpoint_attempt_timeout_secs, 8);
+    }
+
+    #[test]
     fn config_empty_has_no_endpoint() {
         // server_url now defaults to empty string; has_endpoint() catches missing config.
         let json = r#"{}"#;
@@ -815,6 +841,30 @@ mod tests {
         // sorted by priority
         assert_eq!(ccs[0].id, "nsd-a");
         assert_eq!(ccs[1].id, "nsd-b");
+    }
+
+    #[test]
+    fn config_effective_control_centers_inherits_shared_realm_and_envelope_pins() {
+        let json = r#"{
+            "realm": "realm-a",
+            "nsd_envelope_key_pins": ["pin-shared"],
+            "control_centers": [
+                {"id": "nsd-a", "url": "https://nsd1.example.com", "priority": 1},
+                {
+                    "id": "nsd-b",
+                    "url": "https://nsd2.example.com",
+                    "realm": "realm-b",
+                    "nsd_envelope_key_pins": ["pin-b"],
+                    "priority": 2
+                }
+            ]
+        }"#;
+        let cfg: ConnectorConfig = serde_json::from_str(json).unwrap();
+        let ccs = cfg.effective_control_centers();
+        assert_eq!(ccs[0].realm.as_deref(), Some("realm-a"));
+        assert_eq!(ccs[0].nsd_envelope_key_pins, vec!["pin-shared"]);
+        assert_eq!(ccs[1].realm.as_deref(), Some("realm-b"));
+        assert_eq!(ccs[1].nsd_envelope_key_pins, vec!["pin-b"]);
     }
 
     #[test]

@@ -1262,6 +1262,16 @@ struct AuthResponse {
 
 // ── AuthClient ────────────────────────────────────────────────────────────────
 
+#[derive(Clone)]
+pub(crate) struct AuthEndpointTrust {
+    pub nsd_id: String,
+    pub realm: String,
+    pub state_dir: PathBuf,
+    pub jwt_key_pins: Vec<String>,
+    pub envelope_key_pins: Vec<String>,
+    pub advertised_envelope_pubkey: Option<String>,
+}
+
 /// HTTP client that manages machine registration and session authentication.
 pub struct AuthClient {
     http: reqwest::Client,
@@ -1370,6 +1380,43 @@ impl AuthClient {
 
     pub(crate) fn transport(&self) -> Option<Arc<dyn ControlTransport>> {
         self.transport.clone()
+    }
+
+    pub(crate) fn rebound_for_endpoint(
+        &self,
+        base_url: &str,
+        transport: Option<Arc<dyn ControlTransport>>,
+        trust: AuthEndpointTrust,
+    ) -> Self {
+        let mut auth = Self::new(base_url, self.state.clone());
+        auth.system_info = self.system_info.clone();
+        auth.supported_link_modes = self.supported_link_modes.clone();
+        auth.preferred_link_mode = self.preferred_link_mode;
+        auth.capabilities = self.capabilities.clone();
+        if let Some(transport) = transport {
+            auth = auth.with_transport(transport);
+        }
+        if self.jwt_verifier.is_some() || !trust.jwt_key_pins.is_empty() {
+            auth = auth.with_jwt_trust(
+                trust.nsd_id.clone(),
+                trust.realm.clone(),
+                trust.state_dir.clone(),
+                trust.jwt_key_pins,
+            );
+        }
+        if self.envelope_trust.is_some()
+            || !trust.envelope_key_pins.is_empty()
+            || trust.advertised_envelope_pubkey.is_some()
+        {
+            auth = auth.with_envelope_trust(
+                trust.nsd_id,
+                trust.realm,
+                trust.state_dir,
+                trust.envelope_key_pins,
+                trust.advertised_envelope_pubkey,
+            );
+        }
+        auth
     }
 
     /// Attach system info to be included in the next registration request.

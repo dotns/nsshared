@@ -4,6 +4,7 @@
 
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 
 use common::{AuthMethod, NsdInfo, NsdType};
 
@@ -76,6 +77,45 @@ where
     let signed_transport =
         build_required_transport(&cfg.mode, &cfg.url, &info, peer_key_priv, "signed keyset")?;
     Ok((info, signed_transport))
+}
+
+pub async fn bootstrap_control_transport_fallback<F>(
+    endpoints: Vec<BootstrapControlConfig>,
+    endpoint_attempt_timeout: Duration,
+    machine_key_pub: [u8; 32],
+    peer_key_priv: [u8; 32],
+    mut sign: F,
+) -> Result<(NsdInfo, Arc<dyn ControlTransport>), Error>
+where
+    F: FnMut(&[u8]) -> [u8; 64],
+{
+    if endpoints.is_empty() {
+        return Err(Error::Connect(
+            "no control bootstrap endpoints configured".to_string(),
+        ));
+    }
+
+    let mut failures = Vec::new();
+    for cfg in endpoints {
+        let nsd_id = cfg.nsd_id.clone();
+        let url = cfg.url.clone();
+        let attempt = bootstrap_control_transport(cfg, machine_key_pub, peer_key_priv, |message| {
+            sign(message)
+        });
+        match tokio::time::timeout(endpoint_attempt_timeout, attempt).await {
+            Ok(Ok(result)) => return Ok(result),
+            Ok(Err(e)) => failures.push(format!("{nsd_id} ({url}): {e}")),
+            Err(_) => failures.push(format!(
+                "{nsd_id} ({url}): timed out after {}s",
+                endpoint_attempt_timeout.as_secs()
+            )),
+        }
+    }
+
+    Err(Error::Connect(format!(
+        "all control bootstrap endpoints failed: {}",
+        failures.join("; ")
+    )))
 }
 
 fn bootstrap_nsd_info(cfg: &BootstrapControlConfig) -> Result<NsdInfo, Error> {
@@ -175,6 +215,11 @@ mod tests {
         task: tokio::task::JoinHandle<()>,
     }
 
+    struct StallingInfoServer {
+        url: String,
+        task: tokio::task::JoinHandle<()>,
+    }
+
     fn cfg_for(mode: &str, url: String, pins: Vec<String>) -> BootstrapControlConfig {
         BootstrapControlConfig {
             mode: mode.to_string(),
@@ -242,6 +287,19 @@ mod tests {
         InfoServer {
             url: format!("http://{addr}"),
             request: request_rx,
+            task,
+        }
+    }
+
+    async fn spawn_stalling_info_server() -> StallingInfoServer {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let task = tokio::spawn(async move {
+            let (_stream, _) = listener.accept().await.unwrap();
+            std::future::pending::<()>().await;
+        });
+        StallingInfoServer {
+            url: format!("http://{addr}"),
             task,
         }
     }
@@ -332,6 +390,94 @@ mod tests {
         assert_eq!(request.machine_id, None);
         assert_eq!(request.machine_key_pub, machine_pubkey);
         assert_eq!(request.v, envelope::ENVELOPE_VERSION);
+    }
+
+    #[tokio::test]
+    async fn bootstrap_fallback_uses_first_success_in_order() {
+        let nsd_key = SigningKey::generate(&mut OsRng);
+        let pin = envelope_pin_for_key(&nsd_key);
+        let server = spawn_info_server(v1_info(), nsd_key, InfoServerMode::Ok).await;
+        let (machine_key, machine_pubkey) = machine_key();
+        let mut first = cfg_for("sse", "http://127.0.0.1:9".to_string(), Vec::new());
+        first.nsd_id = "primary".to_string();
+        let mut second = cfg_for("sse", server.url, vec![pin]);
+        second.nsd_id = "secondary".to_string();
+
+        let (info, transport) = bootstrap_control_transport_fallback(
+            vec![first, second],
+            std::time::Duration::from_secs(1),
+            machine_pubkey,
+            [7u8; 32],
+            |message| machine_key.sign(message).to_bytes(),
+        )
+        .await
+        .unwrap();
+
+        let request = server.request.await.unwrap();
+        server.task.await.unwrap();
+        assert_eq!(info.realm, "default");
+        assert_eq!(transport.name(), "sse");
+        assert_eq!(request.api, envelope::api::INFO_GET);
+    }
+
+    #[tokio::test]
+    async fn bootstrap_fallback_all_failures_are_aggregated() {
+        let (_, machine_pubkey) = machine_key();
+        let mut first = cfg_for("sse", "http://127.0.0.1:9".to_string(), Vec::new());
+        first.nsd_id = "primary".to_string();
+        let mut second = cfg_for("noise", "noise://127.0.0.1:4001".to_string(), Vec::new());
+        second.nsd_id = "secondary".to_string();
+
+        let err = match bootstrap_control_transport_fallback(
+            vec![first, second],
+            std::time::Duration::from_secs(1),
+            machine_pubkey,
+            [7u8; 32],
+            |_| [0u8; 64],
+        )
+        .await
+        {
+            Ok((_info, transport)) => {
+                panic!(
+                    "all endpoints should fail, got {} transport",
+                    transport.name()
+                )
+            }
+            Err(err) => err,
+        };
+        let rendered = err.to_string();
+        assert!(rendered.contains("primary"));
+        assert!(rendered.contains("secondary"));
+        assert!(rendered.contains("all control bootstrap endpoints failed"));
+    }
+
+    #[tokio::test]
+    async fn bootstrap_fallback_timeout_advances_to_next_endpoint() {
+        let stalled = spawn_stalling_info_server().await;
+        let nsd_key = SigningKey::generate(&mut OsRng);
+        let pin = envelope_pin_for_key(&nsd_key);
+        let server = spawn_info_server(v1_info(), nsd_key, InfoServerMode::Ok).await;
+        let (machine_key, machine_pubkey) = machine_key();
+        let mut first = cfg_for("sse", stalled.url, vec![pin.clone()]);
+        first.nsd_id = "primary".to_string();
+        let mut second = cfg_for("sse", server.url, vec![pin]);
+        second.nsd_id = "secondary".to_string();
+
+        let (_info, transport) = bootstrap_control_transport_fallback(
+            vec![first, second],
+            std::time::Duration::from_millis(50),
+            machine_pubkey,
+            [7u8; 32],
+            |message| machine_key.sign(message).to_bytes(),
+        )
+        .await
+        .unwrap();
+
+        let _ = server.request.await.unwrap();
+        server.task.await.unwrap();
+        stalled.task.abort();
+        let _ = stalled.task.await;
+        assert_eq!(transport.name(), "sse");
     }
 
     #[tokio::test]
