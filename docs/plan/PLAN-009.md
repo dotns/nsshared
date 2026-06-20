@@ -5,7 +5,7 @@
 - **owner**: coordinator
 - **createdAt**: 2026-06-20
 - **approvedAt**: 2026-06-20
-- **relatedTask**: S1 CTRL-011 ns-shared (522cce1) / S2 CTRL-011 nsgw (3072a30) / S3 CTRL-013 ns (5777dcb) / S4 integration (in progress) / S5 nsd_default_mode: CTRL-012 ns-shared (S5a, dcfac46) + nsgw (S5b) + ns (S5c)
+- **relatedTask**: S1 CTRL-011 ns-shared (522cce1) / S2 CTRL-011 nsgw (3072a30) / S3 CTRL-013 ns (5777dcb) / S4 integration (in progress) / S5 nsd_default_mode: CTRL-012 ns-shared (S5a, dcfac46) + CTRL-012 nsgw (S5b, 3d7a5a9) + ns (S5c) [S5c base 278049d]
 
 ## Context
 
