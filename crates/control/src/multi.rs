@@ -719,6 +719,7 @@ mod tests {
             log_dir: None,
             snat_addr: None,
             control_mode: "sse".to_string(),
+            nsd_default_mode: None,
             realm: None,
             noise_bootstrap_pubkey: None,
             quic_bootstrap_cert_sha256: None,

@@ -186,6 +186,23 @@ pub struct ConnectorConfig {
     /// Set via `--control-mode` CLI flag or `CONTROL_MODE` env var.
     #[serde(default = "default_control_mode")]
     pub control_mode: String,
+    /// Explicit primary control endpoint selector by transport (PLAN-009).
+    ///
+    /// Names the PRIMARY control endpoint by transport mode — one of `"sse"`,
+    /// `"noise"`, or `"quic"` — independently of `control_centers` list / priority
+    /// order. When set, the effective control endpoint sequence is reordered so
+    /// the first entry whose URL scheme maps to this mode (`noise://` → `noise`,
+    /// `quic://` → `quic`, `http(s)://` or scheme-less → `sse`) becomes primary;
+    /// the remaining entries keep their relative order, and the per-endpoint
+    /// fallback chain is preserved. The reordering is performed by the shared
+    /// `control::order_endpoints_by_default_mode` helper so all consumers
+    /// (ns-shared, nsgw, ns) reorder identically.
+    ///
+    /// `None` (unset) leaves list order authoritative — `control_centers[0]`
+    /// (lowest priority value) stays primary, byte-for-byte backward compatible.
+    /// An unrecognised value matches no endpoint and is therefore ignored.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub nsd_default_mode: Option<String>,
     /// Expected default NSD realm for tunnel-first bootstrap.
     ///
     /// Used for single-endpoint configs and as a fallback for
@@ -705,6 +722,7 @@ mod tests {
             log_dir: None,
             snat_addr: None,
             control_mode: "sse".to_string(),
+            nsd_default_mode: None,
             realm: None,
             noise_bootstrap_pubkey: None,
             quic_bootstrap_cert_sha256: None,

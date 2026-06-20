@@ -688,8 +688,16 @@ impl ControlPlane {
 
     fn control_endpoint_sequence(&self) -> Vec<ControlEndpoint> {
         let explicit_centers = !self.config.control_centers.is_empty();
-        self.config
-            .effective_control_centers()
+        let mut centers = self.config.effective_control_centers();
+        // PLAN-009: an explicit `nsd_default_mode` names the primary endpoint by
+        // transport, overriding list / priority order before the per-endpoint
+        // fallback loop consumes the sequence.
+        order_endpoints_by_default_mode(
+            &mut centers,
+            self.config.nsd_default_mode.as_deref(),
+            |cc| cc.url.as_str(),
+        );
+        centers
             .into_iter()
             .map(|config| {
                 let mode = if explicit_centers {
@@ -1457,7 +1465,14 @@ fn build_quic_transport(config: &ConnectorConfig) -> Result<transport::quic::Qui
     transport::quic::QuicTransport::new(fingerprint)
 }
 
-fn control_mode_from_url(url: &str) -> &'static str {
+/// Canonical control-transport mode for a control endpoint URL scheme.
+///
+/// `noise://` → `"noise"`, `quic://` → `"quic"`, and everything else
+/// (`http(s)://` or scheme-less) → `"sse"`. This is the single shared
+/// scheme → mode mapping used by the per-endpoint fallback ordering and by
+/// [`order_endpoints_by_default_mode`]; nsgw and ns reuse it so all repos
+/// classify endpoints identically.
+pub fn control_mode_from_url(url: &str) -> &'static str {
     if url.starts_with("noise://") {
         "noise"
     } else if url.starts_with("quic://") {
@@ -1465,6 +1480,46 @@ fn control_mode_from_url(url: &str) -> &'static str {
     } else {
         "sse"
     }
+}
+
+/// Reorder `items` in place so the first endpoint whose URL scheme maps to
+/// `default_mode` becomes primary, preserving every other entry's relative
+/// order.
+///
+/// Implements the `nsd_default_mode` selector (PLAN-009): an explicit
+/// primary-by-transport choice that is independent of list / priority order.
+/// The scheme → mode mapping is [`control_mode_from_url`], shared with the
+/// per-endpoint fallback so ns-shared, nsgw, and ns all reorder identically.
+/// `url_of` extracts the URL from each item, so the helper is reusable across
+/// endpoint representations (ns-shared `ControlCenterConfig`, nsgw
+/// `BootstrapControlConfig`, plain `String` URL lists, …).
+///
+/// Behaviour:
+/// - `default_mode == None` → no-op (`items[0]` stays primary). This keeps an
+///   unset `nsd_default_mode` byte-for-byte backward compatible.
+/// - `Some(mode)` with the first scheme-matching entry at index `i` → that
+///   entry is rotated to the front: result is
+///   `[items[i]] ++ items[..i] ++ items[i+1..]` (stable for the rest). `i == 0`
+///   is a no-op.
+/// - `Some(mode)` with no scheme match (including an unrecognised `mode`) →
+///   no-op.
+pub fn order_endpoints_by_default_mode<T>(
+    items: &mut [T],
+    default_mode: Option<&str>,
+    url_of: impl Fn(&T) -> &str,
+) {
+    let Some(mode) = default_mode else {
+        return;
+    };
+    let Some(idx) = items
+        .iter()
+        .position(|item| control_mode_from_url(url_of(item)) == mode)
+    else {
+        return;
+    };
+    // `i == 0` rotates a single-element prefix → no-op; `i > 0` moves item `i`
+    // to the front while keeping the relative order of all other entries.
+    items[..=idx].rotate_right(1);
 }
 
 /// Strip a known URL scheme (`https?://`, `noise://`, `quic://`) from `url`.
@@ -1514,6 +1569,166 @@ mod url_helper_tests {
 }
 
 #[cfg(test)]
+mod order_endpoints_tests {
+    use common::ControlCenterConfig;
+
+    use super::order_endpoints_by_default_mode;
+
+    fn urls(items: &[String]) -> Vec<&str> {
+        items.iter().map(String::as_str).collect()
+    }
+
+    #[test]
+    fn none_default_mode_is_noop() {
+        let mut list = vec![
+            "https://sse.example".to_string(),
+            "noise://noise.example:4001".to_string(),
+            "quic://quic.example:4002".to_string(),
+        ];
+        order_endpoints_by_default_mode(&mut list, None, |u| u.as_str());
+        assert_eq!(
+            urls(&list),
+            vec![
+                "https://sse.example",
+                "noise://noise.example:4001",
+                "quic://quic.example:4002",
+            ]
+        );
+    }
+
+    #[test]
+    fn picks_first_scheme_match_as_primary() {
+        // [sse, noise] + default_mode="noise" -> noise becomes primary.
+        let mut list = vec![
+            "https://sse.example".to_string(),
+            "noise://noise.example:4001".to_string(),
+        ];
+        order_endpoints_by_default_mode(&mut list, Some("noise"), |u| u.as_str());
+        assert_eq!(
+            urls(&list),
+            vec!["noise://noise.example:4001", "https://sse.example"]
+        );
+    }
+
+    #[test]
+    fn remaining_entries_keep_relative_order() {
+        // The first quic moves to front; every other entry keeps its order.
+        let mut list = vec![
+            "https://sse-1.example".to_string(),
+            "noise://noise.example:4001".to_string(),
+            "quic://quic.example:4002".to_string(),
+            "https://sse-2.example".to_string(),
+        ];
+        order_endpoints_by_default_mode(&mut list, Some("quic"), |u| u.as_str());
+        assert_eq!(
+            urls(&list),
+            vec![
+                "quic://quic.example:4002",
+                "https://sse-1.example",
+                "noise://noise.example:4001",
+                "https://sse-2.example",
+            ]
+        );
+    }
+
+    #[test]
+    fn picks_first_of_duplicate_scheme_matches_stably() {
+        let mut list = vec![
+            "https://sse.example".to_string(),
+            "noise://noise-1.example:4001".to_string(),
+            "noise://noise-2.example:4001".to_string(),
+        ];
+        order_endpoints_by_default_mode(&mut list, Some("noise"), |u| u.as_str());
+        assert_eq!(
+            urls(&list),
+            vec![
+                "noise://noise-1.example:4001",
+                "https://sse.example",
+                "noise://noise-2.example:4001",
+            ]
+        );
+    }
+
+    #[test]
+    fn no_scheme_match_is_noop() {
+        let mut list = vec![
+            "https://sse.example".to_string(),
+            "noise://noise.example:4001".to_string(),
+        ];
+        order_endpoints_by_default_mode(&mut list, Some("quic"), |u| u.as_str());
+        assert_eq!(
+            urls(&list),
+            vec!["https://sse.example", "noise://noise.example:4001"]
+        );
+    }
+
+    #[test]
+    fn unrecognised_mode_is_noop() {
+        let mut list = vec![
+            "https://sse.example".to_string(),
+            "noise://noise.example:4001".to_string(),
+        ];
+        order_endpoints_by_default_mode(&mut list, Some("not-a-mode"), |u| u.as_str());
+        assert_eq!(
+            urls(&list),
+            vec!["https://sse.example", "noise://noise.example:4001"]
+        );
+    }
+
+    #[test]
+    fn match_already_primary_is_noop() {
+        // First scheme match at index 0 -> unchanged.
+        let mut list = vec![
+            "noise://noise.example:4001".to_string(),
+            "https://sse.example".to_string(),
+        ];
+        order_endpoints_by_default_mode(&mut list, Some("noise"), |u| u.as_str());
+        assert_eq!(
+            urls(&list),
+            vec!["noise://noise.example:4001", "https://sse.example"]
+        );
+    }
+
+    #[test]
+    fn scheme_less_url_classifies_as_sse() {
+        // [noise, scheme-less] + default_mode="sse" -> scheme-less endpoint first.
+        let mut list = vec![
+            "noise://noise.example:4001".to_string(),
+            "nsd.example.com".to_string(),
+        ];
+        order_endpoints_by_default_mode(&mut list, Some("sse"), |u| u.as_str());
+        assert_eq!(
+            urls(&list),
+            vec!["nsd.example.com", "noise://noise.example:4001"]
+        );
+    }
+
+    #[test]
+    fn works_on_control_center_config_via_url_accessor() {
+        // Reusability across endpoint representations: the same helper reorders
+        // ns-shared's `ControlCenterConfig` list via the `url` field accessor,
+        // exactly as nsgw / ns will reorder their own endpoint structs.
+        let cc = |id: &str, url: &str| ControlCenterConfig {
+            id: id.to_string(),
+            url: url.to_string(),
+            realm: None,
+            noise_bootstrap_pubkey: None,
+            quic_bootstrap_cert_sha256: None,
+            nsd_envelope_key_pins: vec![],
+            priority: 1,
+        };
+        let mut centers = vec![
+            cc("sse", "https://sse.example"),
+            cc("quic", "quic://quic.example:4002"),
+            cc("noise", "noise://noise.example:4001"),
+        ];
+        order_endpoints_by_default_mode(&mut centers, Some("noise"), |c| c.url.as_str());
+        let ids: Vec<&str> = centers.iter().map(|c| c.id.as_str()).collect();
+        assert_eq!(ids, vec!["noise", "sse", "quic"]);
+    }
+}
+
+#[cfg(test)]
 mod control_transport_build_tests {
     use std::sync::Arc;
 
@@ -1540,6 +1755,7 @@ mod control_transport_build_tests {
             log_dir: None,
             snat_addr: None,
             control_mode: control_mode.to_string(),
+            nsd_default_mode: None,
             realm: None,
             noise_bootstrap_pubkey: None,
             quic_bootstrap_cert_sha256: None,
@@ -1782,6 +1998,7 @@ mod post_services_reauth_tests {
             log_dir: None,
             snat_addr: None,
             control_mode: "sse".to_string(),
+            nsd_default_mode: None,
             realm: None,
             noise_bootstrap_pubkey: None,
             quic_bootstrap_cert_sha256: None,
@@ -1952,6 +2169,54 @@ mod post_services_reauth_tests {
             order,
             vec![("noise", "noise"), ("quic", "quic"), ("sse", "sse")]
         );
+    }
+
+    #[tokio::test]
+    async fn nsd_default_mode_reorders_effective_sequence() {
+        // Priority order alone would keep the sse endpoint primary; an explicit
+        // nsd_default_mode="noise" promotes the noise endpoint to primary in the
+        // sequence the per-endpoint fallback loop consumes.
+        let mut config = (*dummy_config("http://legacy.test:3001".to_string())).clone();
+        config.control_centers = vec![
+            control_center("sse", "https://nsd-sse.example", 1, None, None, vec![]),
+            control_center("noise", "noise://nsd-noise:4001", 2, None, None, vec![]),
+        ];
+        config.nsd_default_mode = Some("noise".to_string());
+        let plane = plane_for_config(Arc::new(config)).await;
+
+        let order = plane
+            .control_endpoint_sequence()
+            .iter()
+            .map(|endpoint| (endpoint.id().to_string(), endpoint.mode.clone()))
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            order,
+            vec![
+                ("noise".to_string(), "noise".to_string()),
+                ("sse".to_string(), "sse".to_string()),
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn nsd_default_mode_unset_keeps_priority_order() {
+        // Back-compat: without nsd_default_mode the priority-sorted order (sse
+        // primary) is unchanged.
+        let mut config = (*dummy_config("http://legacy.test:3001".to_string())).clone();
+        config.control_centers = vec![
+            control_center("sse", "https://nsd-sse.example", 1, None, None, vec![]),
+            control_center("noise", "noise://nsd-noise:4001", 2, None, None, vec![]),
+        ];
+        let plane = plane_for_config(Arc::new(config)).await;
+
+        let ids = plane
+            .control_endpoint_sequence()
+            .iter()
+            .map(|endpoint| endpoint.id().to_string())
+            .collect::<Vec<_>>();
+
+        assert_eq!(ids, vec!["sse".to_string(), "noise".to_string()]);
     }
 
     #[tokio::test]
