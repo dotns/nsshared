@@ -1,6 +1,6 @@
 # CTRL-014 nsc pre-control discovery + registration over the fallback list
 
-- **status**: working
+- **status**: completed
 - **priority**: P1
 - **owner**: s6
 - **createdAt**: 2026-06-20
