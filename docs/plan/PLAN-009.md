@@ -181,6 +181,25 @@ user-facing surface did not.
   nsd-a's host blocked, sticks, re-selects on winner-failure, and re-selects nsd-a
   after unblock (9/9, real binaries, mock=false).
 
+## Known test/harness follow-ups (non-blocking; surfaced at merge re-verify)
+
+TEST/CI issues, not product/resilience gaps. The PLAN-009 product (S1–S7) is
+verified green (3-repo fmt/clippy/nextest with only the 2 known sandbox reds;
+tier3/08 19/19 + tier3/09 9/9, real binaries). Tracked; NOT merge blockers.
+
+- **tier3/01 `e2e_11_multi_nsd_config_merge` (A5 multi-home) — PRE-EXISTING
+  timeout.** Already failing at the envelope-pin gate before S7; S7's
+  `tier3/01-multi-nsd/docker-compose.yml` change (deterministic nsd-mock envelope
+  pins) advances it past that gate, after which it times out at the config-merge /
+  "poll until BOTH control_centers connected" step. NOT a PLAN-009 regression — no
+  nsn code changed across S1–S7 (nsn `MultiControlPlane` behavior unchanged; A5
+  code intact). The worker surfaced it honestly rather than absorbing it. Follow-up:
+  investigate the multi-nsd config-merge timeout (pre-existing nsn-side / test-infra).
+- **tier3/08 `run.sh` exits 1 on cleanup.** The `trap cleanup EXIT` post-run step
+  returns non-zero even when the test passes (`result.json` is a clean 19/19,
+  fatal=null) — a harness-wrapper bug that would false-fail CI. Follow-up: make
+  cleanup not propagate a non-zero exit when the run succeeded.
+
 ## Deferred
 
 - Periodic primary re-check while connected (auto-fail-back).
