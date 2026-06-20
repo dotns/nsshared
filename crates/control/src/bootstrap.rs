@@ -23,6 +23,12 @@ pub struct BootstrapControlConfig {
     pub quic_bootstrap_cert_sha256: Option<String>,
 }
 
+pub struct BootstrapControlFallbackOutcome {
+    pub info: NsdInfo,
+    pub transport: Arc<dyn ControlTransport>,
+    pub endpoint_url: String,
+}
+
 pub async fn bootstrap_control_transport<F>(
     cfg: BootstrapControlConfig,
     machine_key_pub: [u8; 32],
@@ -85,7 +91,7 @@ pub async fn bootstrap_control_transport_fallback<F>(
     machine_key_pub: [u8; 32],
     peer_key_priv: [u8; 32],
     mut sign: F,
-) -> Result<(NsdInfo, Arc<dyn ControlTransport>), Error>
+) -> Result<BootstrapControlFallbackOutcome, Error>
 where
     F: FnMut(&[u8]) -> [u8; 64],
 {
@@ -103,7 +109,13 @@ where
             sign(message)
         });
         match tokio::time::timeout(endpoint_attempt_timeout, attempt).await {
-            Ok(Ok(result)) => return Ok(result),
+            Ok(Ok((info, transport))) => {
+                return Ok(BootstrapControlFallbackOutcome {
+                    info,
+                    transport,
+                    endpoint_url: url,
+                });
+            }
             Ok(Err(e)) => failures.push(format!("{nsd_id} ({url}): {e}")),
             Err(_) => failures.push(format!(
                 "{nsd_id} ({url}): timed out after {}s",
@@ -402,8 +414,9 @@ mod tests {
         first.nsd_id = "primary".to_string();
         let mut second = cfg_for("sse", server.url, vec![pin]);
         second.nsd_id = "secondary".to_string();
+        let expected_endpoint_url = second.url.clone();
 
-        let (info, transport) = bootstrap_control_transport_fallback(
+        let outcome = bootstrap_control_transport_fallback(
             vec![first, second],
             std::time::Duration::from_secs(1),
             machine_pubkey,
@@ -415,8 +428,9 @@ mod tests {
 
         let request = server.request.await.unwrap();
         server.task.await.unwrap();
-        assert_eq!(info.realm, "default");
-        assert_eq!(transport.name(), "sse");
+        assert_eq!(outcome.info.realm, "default");
+        assert_eq!(outcome.transport.name(), "sse");
+        assert_eq!(outcome.endpoint_url, expected_endpoint_url);
         assert_eq!(request.api, envelope::api::INFO_GET);
     }
 
@@ -437,10 +451,10 @@ mod tests {
         )
         .await
         {
-            Ok((_info, transport)) => {
+            Ok(outcome) => {
                 panic!(
                     "all endpoints should fail, got {} transport",
-                    transport.name()
+                    outcome.transport.name()
                 )
             }
             Err(err) => err,
@@ -462,8 +476,9 @@ mod tests {
         first.nsd_id = "primary".to_string();
         let mut second = cfg_for("sse", server.url, vec![pin]);
         second.nsd_id = "secondary".to_string();
+        let expected_endpoint_url = second.url.clone();
 
-        let (_info, transport) = bootstrap_control_transport_fallback(
+        let outcome = bootstrap_control_transport_fallback(
             vec![first, second],
             std::time::Duration::from_millis(50),
             machine_pubkey,
@@ -477,7 +492,8 @@ mod tests {
         server.task.await.unwrap();
         stalled.task.abort();
         let _ = stalled.task.await;
-        assert_eq!(transport.name(), "sse");
+        assert_eq!(outcome.transport.name(), "sse");
+        assert_eq!(outcome.endpoint_url, expected_endpoint_url);
     }
 
     #[tokio::test]
