@@ -42,3 +42,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**CAPTURE-004 Define exit-node selection and pairing contracts**](CAPTURE-004.md) `P0`
 - [x] [**DNS-001 Define canonical internal DNS helpers**](DNS-001.md) `P0`
 - [x] [**EGRESS-001 Define WG GatewayEgress control contract**](EGRESS-001.md) `P0`
+- [x] [**CTRL-011 Add ordered multi-endpoint control-transport fallback**](CTRL-011.md) `P2`

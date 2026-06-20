@@ -5,7 +5,7 @@
 - **owner**: coordinator
 - **createdAt**: 2026-06-20
 - **approvedAt**: 2026-06-20
-- **relatedTask**: SHARED-NNN (S1) / nsgw / ns / integration (created by sub-coordinator)
+- **relatedTask**: CTRL-011 (S1, landed 522cce1) / nsgw (S2) / ns (S3) / integration (S4)
 
 ## Context
 
