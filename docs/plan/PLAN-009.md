@@ -142,37 +142,36 @@ user-facing surface did not.
   resilient for nsn, so sequential fallback is **not** added to nsn. Both consume
   the same ordered `control_centers` list.
 
-## Known limitations / follow-ups (NOT in PLAN-009 scope)
+## Scope additions (folded in by user decision) — delivery status
 
-> **Resilience boundary PLAN-009 actually delivers (state this precisely on merge):**
-> a RUNNING, registered node falls back on a live control-stream drop (ordered
+> **Resilience boundary PLAN-009 delivers (state this precisely on merge):**
+> (1) a RUNNING, registered node falls back on a live control-stream drop (ordered
 > reconnect over `control_centers`, inside `control.run()`) — proven by S4's
-> live-drop real-binary E2E. A (re)STARTING node does NOT fall back — see the nsc
-> startup-discovery limitation below. Do not describe the feature as more complete
-> than this.
+> live-drop E2E; AND (2) a (re)STARTING node (cold OR registered-restart) whose
+> primary is blocked recovers over the ordered list at startup — DELIVERED by S6
+> (CTRL-014, c4dd32e), proven by tier3/08 (`cold_first_registration_over_fallback`
+> + `registered_restart_recovers_over_fallback` + `secondary_reachable_through_running_node`
+> + `blocked_run_reached_controlplane`, all green, real binaries). REMAINING: nsgw
+> distinct-host failover (S7 / CTRL-013, in progress); until S7 lands, do NOT
+> describe nsgw distinct-host fallback as delivered.
 
-- **nsgw distinct-host fallback** — `bootstrap_control_transport_fallback` returns
-  `(NsdInfo, transport)`, not the winning endpoint, so nsgw's stateless re-dial
-  assumes a single front door (endpoints share host:port, differ by scheme). True
-  distinct-host failover needs S1 to return the winner + nsgw to stick to it. nsc
-  (`ControlPlane`) already sticks to the winner. → separate follow-up task (CTRL-013).
-- **nsc startup discovery is primary-only — gates cold-registration AND
-  registered-restart** (severity raised after S4). `run_daemon` calls
-  `discover_nsd_info(primary_nsd_url)` (crates/nsc/src/main.rs:766, PRIMARY url
-  only) BEFORE it builds `control_centers` (:939) / `ControlPlane::new` (:1004) /
-  `control.run()` (:1033). So a node whose primary is blocked AT STARTUP fails
-  pre-control discovery and cannot come up — this gates BOTH a cold (never-
-  registered) node AND an already-registered node that RESTARTS (deploy / reboot /
-  crash / OOM) during a primary outage. S1's ordered fallback lives inside
-  `control.run()` and covers only the live-drop/reconnect path of an already-running
-  node (= the delivered core property). Registered-restart is a COMMON event during
-  the very outage this feature targets — higher severity than a rare cold-
-  registration edge — and closing it completes PLAN-009's own Bootstrap design
-  intent ("ordered attempt loop … connect + boot handshake/register"). Fix = apply
-  the same ordered-fallback pattern to pre-control discovery (build `control_centers`
-  first; try `discover_nsd_info` over the list in priority order). Tracked as widened
-  **CTRL-014 (elevated priority)**; fold-in-as-S6 vs immediate fast-follow decided at
-  merge-readiness once live-drop passes. Not folded into the current slice mid-flight.
+- **nsc startup discovery over the ordered list — RESOLVED by S6 (CTRL-014, landed
+  c4dd32e).** Previously `run_daemon` did `discover_nsd_info(primary_nsd_url)`
+  (primary-only) before building `control_centers`, so a node whose primary was
+  blocked AT STARTUP could not come up — gating both cold-registration AND
+  registered-restart. S6 reorders `run_daemon` (build `control_centers` first) and
+  runs pre-control discovery + first-run registration over the ordered list
+  (per-endpoint, priority order; FAIL-CLOSED on realm mismatch — never registers to a
+  different realm than the node's identity realm; credential/realm errors terminal,
+  only connect/timeout advances). tier3/08 asserts both blocked-startup recoveries
+  green with real binaries. No longer a limitation.
+- **nsgw distinct-host fallback — folded in as S7 (CTRL-013, IN PROGRESS).**
+  `bootstrap_control_transport_fallback` returned `(NsdInfo, transport)` not the
+  winning endpoint, so nsgw's stateless re-dial assumed a single front door. S7
+  extends the fn to return the winning endpoint + makes nsgw stick to it (re-settable
+  active-winner that re-selects on winner-failure — not pinned to a dead winner) +
+  adds a distinct-host tier3/09 E2E. nsc (`ControlPlane`) already sticks to the
+  winner. Not yet landed.
 
 ## Deferred
 
