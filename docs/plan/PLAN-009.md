@@ -141,6 +141,12 @@ user-facing surface did not.
   simultaneous multi-home** (`control::multi::MultiControlPlane`) — strictly more
   resilient for nsn, so sequential fallback is **not** added to nsn. Both consume
   the same ordered `control_centers` list.
+  > **Known A5 E2E gap (pre-existing, tracked `ns/CTRL-017`):** tier3/01
+  > `e2e_11_multi_nsd_config_merge` times out at config-merge. NOT caused by
+  > PLAN-009 — no nsn/nsc code change across S1–S7; S7's only tier3/01 touch is the
+  > envelope-pin compose fix (advances the test past the pin gate, surfacing the
+  > residual timeout). nsn `MultiControlPlane` (A5) code is preserved. Not a merge
+  > blocker.
 
 ## Scope additions (folded in by user decision) — delivery status
 
