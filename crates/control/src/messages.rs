@@ -1716,6 +1716,35 @@ pub struct GatewayCertificateStatus {
     pub last_error_code: Option<String>,
 }
 
+/// Non-secret client-CA trust bundle targeted to one gateway for downstream
+/// client-mTLS validation.
+///
+/// Mirrors [`GatewayCertificateBundle`] but carries only public CA certificate
+/// material (no private key), so nothing here is secret and `Debug` is not
+/// redacted. `ca_pem` holds the active and previous client-CA certificates
+/// concatenated as PEM so both validate during a CA rotation overlap (Envoy's
+/// `trusted_ca` accepts a multi-certificate bundle). The material projection for
+/// the [`GatewayAuthMtlsBinding::trust_ref`] deferred by the PLAN-089 foundation
+/// is delivered by this message.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct GatewayClientCaBundle {
+    /// Trust bundle reference; matches [`GatewayAuthMtlsBinding::trust_ref`].
+    pub trust_ref: String,
+    /// Public HTTPS hosts whose listener validates client certificates against
+    /// this bundle.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub hostnames: Vec<String>,
+    /// SPIFFE trust domain the client certificate's URI SAN must belong to
+    /// (enforced at the gateway as a `spiffe://<trust_domain>/` SAN match).
+    pub trust_domain: String,
+    /// Active + previous client-CA certificates concatenated as PEM. Both
+    /// validate during a rotation overlap.
+    pub ca_pem: String,
+    /// Monotonic per `(realm, trust_ref)` generation used by consumers to reject
+    /// stale material.
+    pub generation: u64,
+}
+
 // ── direct P2P candidate signaling ──────────────────────────────────────────
 
 /// Direct-P2P candidate category advertised by NSN peers.
@@ -1857,6 +1886,10 @@ pub enum ControlMessage {
     /// Server → Gateway: secret-bearing certificate material distribution.
     #[serde(rename = "gateway_certificate_bundle.v1")]
     GatewayCertificateBundle(GatewayCertificateBundle),
+    /// Server → Gateway: non-secret client-CA trust bundle for downstream
+    /// client-mTLS validation.
+    #[serde(rename = "gateway_client_ca_bundle.v1")]
+    GatewayClientCaBundle(GatewayClientCaBundle),
     /// Server → Client: direct-P2P candidate update for one peer.
     PeerCandidates(PeerCandidatesUpdate),
     /// Catch-all for `type` tags introduced by a newer NSD.
@@ -1901,6 +1934,7 @@ impl ControlMessage {
             ControlMessage::GatewayL4Map(_) => "gateway_l4_map.v1",
             ControlMessage::GatewayAuthConfig(_) => "gateway_auth_config.v1",
             ControlMessage::GatewayCertificateBundle(_) => "gateway_certificate_bundle.v1",
+            ControlMessage::GatewayClientCaBundle(_) => "gateway_client_ca_bundle.v1",
             ControlMessage::PeerCandidates(_) => "peer_candidates",
             ControlMessage::Unknown => "unknown",
         }
@@ -3648,6 +3682,41 @@ tunnel = "ws"
         let debug = format!("{bundle:?}");
         assert!(!debug.contains(private_key));
         assert!(debug.contains("<redacted>"));
+    }
+
+    #[test]
+    fn gateway_client_ca_bundle_round_trips_as_public_material() {
+        let bundle = GatewayClientCaBundle {
+            trust_ref: "trust:acme-clients".to_owned(),
+            hostnames: vec!["api.example.test".to_owned()],
+            trust_domain: "clients.example.test".to_owned(),
+            ca_pem: "-----BEGIN CERTIFICATE-----\nnew-ca\n-----END CERTIFICATE-----\n\
+                     -----BEGIN CERTIFICATE-----\nold-ca\n-----END CERTIFICATE-----"
+                .to_owned(),
+            generation: 4,
+        };
+
+        let msg = ControlMessage::GatewayClientCaBundle(bundle.clone());
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"type\":\"gateway_client_ca_bundle.v1\""));
+        assert!(json.contains("\"trust_ref\":\"trust:acme-clients\""));
+        assert!(json.contains("\"trust_domain\":\"clients.example.test\""));
+        // Active + previous CA both travel so they overlap during rotation.
+        assert!(json.contains("new-ca"));
+        assert!(json.contains("old-ca"));
+        assert_eq!(msg.event_type(), "gateway_client_ca_bundle.v1");
+
+        let decoded: ControlMessage = serde_json::from_str(&json).unwrap();
+        match decoded {
+            ControlMessage::GatewayClientCaBundle(decoded) => {
+                assert_eq!(decoded, bundle);
+                assert_eq!(decoded.generation, 4);
+            }
+            _ => panic!("wrong variant"),
+        }
+
+        // CA material is public certificate data; Debug carries it unredacted.
+        assert!(format!("{bundle:?}").contains("new-ca"));
     }
 
     #[test]

@@ -1314,6 +1314,14 @@ impl ControlPlane {
                     "ignored gateway_certificate_bundle.v1 on non-gateway control plane"
                 );
             }
+            ControlMessage::GatewayClientCaBundle(bundle) => {
+                info!(
+                    trust_ref = %bundle.trust_ref,
+                    hostnames = bundle.hostnames.len(),
+                    generation = bundle.generation,
+                    "ignored gateway_client_ca_bundle.v1 on non-gateway control plane"
+                );
+            }
             ControlMessage::PeerCandidates(update) => {
                 info!(
                     machine_id = %update.machine_id,
