@@ -1319,6 +1319,262 @@ pub struct GatewayAuthConfig {
     pub providers: Vec<GatewayAuthProvider>,
     /// Realm cookie signing/encryption material with active+previous overlap.
     pub cookie_keys: GatewayAuthSecretSet,
+    /// Additive (PLAN-089): realm public-edge auth consumers (Kong consumer
+    /// model). Empty for OIDC-only realms and skipped on the wire so existing
+    /// OIDC configs serialize byte-for-byte unchanged.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub consumers: Vec<GatewayAuthConsumer>,
+    /// Additive (PLAN-089): method-specific verifier credentials bound to
+    /// `consumers`. Skipped on the wire when empty so OIDC configs are
+    /// unchanged.
+    #[serde(default, skip_serializing_if = "GatewayAuthCredentials::is_empty")]
+    pub credentials: GatewayAuthCredentials,
+}
+
+/// One public-edge auth consumer (stable identity) owned by a realm.
+///
+/// Mirrors the Kong consumer model: a single consumer binds N method-specific
+/// credentials and carries the one stable `external:` ACL subject judged by the
+/// NSN subject-ACL. Credentials do not each mint a subject.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct GatewayAuthConsumer {
+    /// Consumer reference scoped by the parent [`GatewayAuthConfig::realm_id`].
+    pub consumer_ref: String,
+    /// Opaque, admin-set, stable `external:` ACL subject judged by the NSN
+    /// subject-ACL. Not computed from credentials.
+    pub subject: String,
+    /// Whether the consumer is active. Disabled consumers are still projected so
+    /// the gateway can reject their credentials deterministically.
+    pub enabled: bool,
+    /// Optional human-friendly label for admin surfaces.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
+}
+
+/// Method-specific verifier credentials bound to realm consumers.
+///
+/// Additive companion to [`GatewayAuthConfig`]. Each vector holds verifier
+/// material only — never plaintext. Empty vectors are skipped on the wire so
+/// OIDC-only configs serialize unchanged.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize)]
+pub struct GatewayAuthCredentials {
+    /// API-key verifier credentials.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub api_keys: Vec<GatewayAuthApiKeyCredential>,
+    /// `BasicAuth` verifier credentials.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub basic: Vec<GatewayAuthBasicCredential>,
+    /// Signed-URL HMAC keyset credentials.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub signed_url_keys: Vec<GatewayAuthSignedUrlCredential>,
+    /// Client-mTLS bindings.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub mtls_bindings: Vec<GatewayAuthMtlsBinding>,
+    /// Machine-JWT issuer configs.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub jwt_issuers: Vec<GatewayAuthJwtIssuer>,
+    /// Inbound webhook HMAC verifier credentials (type only; custody deferred).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub webhook_hmac: Vec<GatewayAuthWebhookHmac>,
+}
+
+impl GatewayAuthCredentials {
+    /// Returns `true` when no credential records of any method are present.
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.api_keys.is_empty()
+            && self.basic.is_empty()
+            && self.signed_url_keys.is_empty()
+            && self.mtls_bindings.is_empty()
+            && self.jwt_issuers.is_empty()
+            && self.webhook_hmac.is_empty()
+    }
+}
+
+/// API-key verifier credential.
+///
+/// Transport is `Authorization: ApiKey <key_id>.<secret>`. Only `key_id` is
+/// logged; `verifier_hash` is the projected verifier (constant-time compared at
+/// the gateway) and is redacted in `Debug`. Plaintext is never stored or
+/// projected.
+#[derive(Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct GatewayAuthApiKeyCredential {
+    /// Owning consumer reference.
+    pub consumer_ref: String,
+    /// Stable credential id used in audit logs.
+    pub credential_id: String,
+    /// Public key identifier carried in the transport prefix and logs.
+    pub key_id: String,
+    /// Last four characters of the secret, for admin display only.
+    pub last4: String,
+    /// Self-describing verifier hash of the high-entropy secret, e.g.
+    /// `"sha256:<hex>"`. Carried on the wire; redacted in `Debug`.
+    pub verifier_hash: String,
+    /// Whether the credential is active.
+    pub enabled: bool,
+    /// Optional expiry as a Unix timestamp in seconds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<u64>,
+    /// Optional scopes granted by this credential.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub scopes: Vec<String>,
+}
+
+impl std::fmt::Debug for GatewayAuthApiKeyCredential {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GatewayAuthApiKeyCredential")
+            .field("consumer_ref", &self.consumer_ref)
+            .field("credential_id", &self.credential_id)
+            .field("key_id", &self.key_id)
+            .field("last4", &self.last4)
+            .field("verifier_hash", &"<redacted>")
+            .field("enabled", &self.enabled)
+            .field("expires_at", &self.expires_at)
+            .field("scopes", &self.scopes)
+            .finish()
+    }
+}
+
+/// `BasicAuth` verifier credential.
+///
+/// `phc_hash` is a PHC-string password hash (argon2id) carried on the wire and
+/// redacted in `Debug`. Plaintext passwords are never stored or projected.
+#[derive(Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct GatewayAuthBasicCredential {
+    /// Owning consumer reference.
+    pub consumer_ref: String,
+    /// Stable credential id used in audit logs.
+    pub credential_id: String,
+    /// `BasicAuth` username.
+    pub username: String,
+    /// PHC-string password hash (argon2id). Carried on the wire; redacted in
+    /// `Debug`.
+    pub phc_hash: String,
+    /// Whether the credential is active.
+    pub enabled: bool,
+    /// Optional expiry as a Unix timestamp in seconds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<u64>,
+    /// Optional scopes granted by this credential.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub scopes: Vec<String>,
+}
+
+impl std::fmt::Debug for GatewayAuthBasicCredential {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GatewayAuthBasicCredential")
+            .field("consumer_ref", &self.consumer_ref)
+            .field("credential_id", &self.credential_id)
+            .field("username", &self.username)
+            .field("phc_hash", &"<redacted>")
+            .field("enabled", &self.enabled)
+            .field("expires_at", &self.expires_at)
+            .field("scopes", &self.scopes)
+            .finish()
+    }
+}
+
+/// Signed-URL HMAC keyset credential.
+///
+/// The active+previous HMAC keyset is sealed at rest and projected so the
+/// gateway can recompute signatures. Secret `value`s redact via
+/// [`GatewayAuthSecretVersion`]'s `Debug`.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct GatewayAuthSignedUrlCredential {
+    /// Owning consumer reference.
+    pub consumer_ref: String,
+    /// Stable credential id used in audit logs.
+    pub credential_id: String,
+    /// Key id (`kid`) bound into the signature.
+    pub kid: String,
+    /// Active+previous HMAC signing keyset.
+    pub hmac_keys: GatewayAuthSecretSet,
+    /// Whether the credential is active.
+    pub enabled: bool,
+    /// Optional expiry as a Unix timestamp in seconds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<u64>,
+    /// Optional scopes granted by this credential.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub scopes: Vec<String>,
+}
+
+/// Client-mTLS binding credential.
+///
+/// The CA / trust-bundle material projection is deferred to the mTLS slice; this
+/// record carries the SPIFFE identity and a reference to the trust bundle.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct GatewayAuthMtlsBinding {
+    /// Owning consumer reference.
+    pub consumer_ref: String,
+    /// Stable credential id used in audit logs (e.g. the cert fingerprint).
+    pub credential_id: String,
+    /// SPIFFE ID used to build `external:mtls:<realm>:<url-encoded-spiffe-id>`.
+    pub spiffe_id: String,
+    /// Reference to the client-CA / trust bundle (material projection deferred).
+    pub trust_ref: String,
+    /// Whether the credential is active.
+    pub enabled: bool,
+    /// Optional expiry as a Unix timestamp in seconds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<u64>,
+    /// Optional scopes granted by this credential.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub scopes: Vec<String>,
+}
+
+/// Machine-JWT issuer config.
+///
+/// Validation runs in Envoy's native `jwt_authn` filter; NSD projects the public
+/// JWKS plus the claim that resolves a request to a consumer. Nothing here is
+/// secret.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct GatewayAuthJwtIssuer {
+    /// Owning consumer reference.
+    pub consumer_ref: String,
+    /// Stable credential id used in audit logs.
+    pub credential_id: String,
+    /// Token issuer (`iss`).
+    pub issuer: String,
+    /// Public JWKS document (JSON) projected as Envoy `local_jwks`.
+    pub jwks: String,
+    /// Accepted token audiences.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub audiences: Vec<String>,
+    /// Claim whose value resolves the request to a consumer at the gateway.
+    pub consumer_claim: String,
+    /// Whether the issuer config is active.
+    pub enabled: bool,
+    /// Optional expiry as a Unix timestamp in seconds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<u64>,
+    /// Optional scopes granted by this issuer.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub scopes: Vec<String>,
+}
+
+/// Inbound webhook HMAC verifier credential.
+///
+/// **Type only** for the PLAN-089 foundation: NSD custody, table, and the
+/// verifier are deferred to the webhook slice, so the projection currently
+/// always emits an empty `webhook_hmac` list. `secret_ref` is a reference, not
+/// secret material.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct GatewayAuthWebhookHmac {
+    /// Owning consumer reference.
+    pub consumer_ref: String,
+    /// Stable credential id used in audit logs.
+    pub credential_id: String,
+    /// Reference to the sealed signing secret (custody deferred).
+    pub secret_ref: String,
+    /// Whether the credential is active.
+    pub enabled: bool,
+    /// Optional expiry as a Unix timestamp in seconds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<u64>,
+    /// Optional scopes granted by this credential.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub scopes: Vec<String>,
 }
 
 /// Projected public edge auth provider config plus secret material.
@@ -3145,7 +3401,91 @@ tunnel = "ws"
                     value: "previous-cookie-key".to_owned(),
                 }],
             },
+            consumers: Vec::new(),
+            credentials: GatewayAuthCredentials::default(),
         }
+    }
+
+    fn sample_gateway_auth_config_with_credentials() -> GatewayAuthConfig {
+        let mut config = sample_gateway_auth_config();
+        config.consumers = vec![GatewayAuthConsumer {
+            consumer_ref: "svc-checkout".to_owned(),
+            subject: "external:apikey:realm-a:kid-checkout".to_owned(),
+            enabled: true,
+            display_name: Some("Checkout service".to_owned()),
+        }];
+        config.credentials = GatewayAuthCredentials {
+            api_keys: vec![GatewayAuthApiKeyCredential {
+                consumer_ref: "svc-checkout".to_owned(),
+                credential_id: "cred-apikey-1".to_owned(),
+                key_id: "kid-checkout".to_owned(),
+                last4: "4321".to_owned(),
+                verifier_hash: "sha256:apikeyverifierhash".to_owned(),
+                enabled: true,
+                expires_at: Some(1_790_000_000),
+                scopes: vec!["orders:read".to_owned()],
+            }],
+            basic: vec![GatewayAuthBasicCredential {
+                consumer_ref: "svc-checkout".to_owned(),
+                credential_id: "cred-basic-1".to_owned(),
+                username: "ops".to_owned(),
+                phc_hash: "$argon2id$v=19$m=19456,t=2,p=1$c2FsdHNhbHQ$basicphchashvalue".to_owned(),
+                enabled: true,
+                expires_at: None,
+                scopes: Vec::new(),
+            }],
+            signed_url_keys: vec![GatewayAuthSignedUrlCredential {
+                consumer_ref: "svc-checkout".to_owned(),
+                credential_id: "cred-signed-1".to_owned(),
+                kid: "signed-kid-1".to_owned(),
+                hmac_keys: GatewayAuthSecretSet {
+                    current: GatewayAuthSecretVersion {
+                        ref_id: "signed-hmac-main".to_owned(),
+                        version: 3,
+                        expires_at: 1_787_030_000,
+                        value: "current-signed-hmac".to_owned(),
+                    },
+                    previous: vec![GatewayAuthSecretVersion {
+                        ref_id: "signed-hmac-previous".to_owned(),
+                        version: 2,
+                        expires_at: 1_787_000_000,
+                        value: "previous-signed-hmac".to_owned(),
+                    }],
+                },
+                enabled: true,
+                expires_at: None,
+                scopes: Vec::new(),
+            }],
+            mtls_bindings: vec![GatewayAuthMtlsBinding {
+                consumer_ref: "svc-checkout".to_owned(),
+                credential_id: "sha256:fingerprintabc".to_owned(),
+                spiffe_id: "spiffe://example.test/svc/checkout".to_owned(),
+                trust_ref: "trust-bundle-main".to_owned(),
+                enabled: true,
+                expires_at: None,
+                scopes: Vec::new(),
+            }],
+            jwt_issuers: vec![GatewayAuthJwtIssuer {
+                consumer_ref: "svc-checkout".to_owned(),
+                credential_id: "cred-jwt-1".to_owned(),
+                issuer: "https://issuer.example.test".to_owned(),
+                jwks: "{\"keys\":[]}".to_owned(),
+                audiences: vec!["https://api.example.test".to_owned()],
+                consumer_claim: "sub".to_owned(),
+                enabled: true,
+                expires_at: None,
+                scopes: Vec::new(),
+            }],
+            webhook_hmac: vec![GatewayAuthWebhookHmac {
+                consumer_ref: "svc-checkout".to_owned(),
+                credential_id: "cred-webhook-1".to_owned(),
+                secret_ref: "webhook-secret-ref-1".to_owned(),
+                enabled: true,
+                expires_at: None,
+                scopes: Vec::new(),
+            }],
+        };
+        config
     }
 
     #[test]
@@ -3201,6 +3541,74 @@ tunnel = "ws"
         assert!(message_debug.contains("<redacted>"));
         assert!(message_debug.contains("client-secret-main"));
         assert!(message_debug.contains("cookie-key-main"));
+    }
+
+    #[test]
+    fn gateway_auth_config_credentials_round_trip() {
+        let config = sample_gateway_auth_config_with_credentials();
+        let msg = ControlMessage::GatewayAuthConfig(config.clone());
+
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"consumers\""));
+        assert!(json.contains("\"credentials\""));
+        assert!(json.contains("\"subject\":\"external:apikey:realm-a:kid-checkout\""));
+        assert!(json.contains("\"key_id\":\"kid-checkout\""));
+        assert!(json.contains("\"credential_id\":\"cred-apikey-1\""));
+        // Verifier material rides the wire — it is the projected verifier.
+        assert!(json.contains("sha256:apikeyverifierhash"));
+        assert!(json.contains("basicphchashvalue"));
+        assert!(json.contains("current-signed-hmac"));
+        assert!(json.contains("\"spiffe_id\":\"spiffe://example.test/svc/checkout\""));
+        assert!(json.contains("webhook-secret-ref-1"));
+
+        let decoded: ControlMessage = serde_json::from_str(&json).unwrap();
+        match decoded {
+            ControlMessage::GatewayAuthConfig(decoded) => assert_eq!(decoded, config),
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn gateway_auth_config_credentials_debug_redacts_secrets() {
+        let config = sample_gateway_auth_config_with_credentials();
+        let config_debug = format!("{config:?}");
+        let message_debug = format!("{:?}", ControlMessage::GatewayAuthConfig(config));
+
+        for secret in [
+            "sha256:apikeyverifierhash",
+            "basicphchashvalue",
+            "current-signed-hmac",
+            "previous-signed-hmac",
+        ] {
+            assert!(
+                !config_debug.contains(secret),
+                "config debug leaked {secret}"
+            );
+            assert!(
+                !message_debug.contains(secret),
+                "message debug leaked {secret}"
+            );
+        }
+        assert!(config_debug.contains("<redacted>"));
+        // Non-secret identifiers stay visible for ops/audit.
+        assert!(config_debug.contains("kid-checkout"));
+        assert!(config_debug.contains("cred-apikey-1"));
+        assert!(config_debug.contains("4321"));
+    }
+
+    #[test]
+    fn gateway_auth_config_oidc_only_serializes_without_new_keys() {
+        // OIDC-unchanged regression: an OIDC-only config must serialize as
+        // before — none of the additive keys may appear on the wire.
+        let config = sample_gateway_auth_config();
+        assert!(config.consumers.is_empty());
+        assert!(config.credentials.is_empty());
+
+        let json = serde_json::to_string(&ControlMessage::GatewayAuthConfig(config)).unwrap();
+        assert!(!json.contains("consumers"));
+        assert!(!json.contains("credentials"));
+        assert!(!json.contains("api_keys"));
+        assert!(!json.contains("webhook_hmac"));
     }
 
     #[test]
