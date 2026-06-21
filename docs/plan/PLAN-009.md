@@ -1,6 +1,6 @@
 # PLAN-009 Multi-endpoint control-transport fallback
 
-- **status**: implementing
+- **status**: completed
 - **priority**: P2
 - **owner**: coordinator
 - **createdAt**: 2026-06-20
