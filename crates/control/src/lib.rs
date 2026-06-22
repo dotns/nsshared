@@ -25,6 +25,7 @@ pub mod merge;
 pub mod messages;
 pub mod multi;
 pub mod retry;
+pub mod signed_url;
 pub mod sse;
 pub mod transport;
 pub mod types;
