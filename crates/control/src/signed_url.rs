@@ -18,8 +18,11 @@ use sha2::{Digest as _, Sha256};
 /// `SigV4` percent-encoding set: encode every byte except the RFC 3986 unreserved
 /// characters `A-Za-z0-9-_.~`. `percent_encoding` emits uppercase hex (`%2F`),
 /// matching the `SigV4` rule.
-const SIGV4_UNRESERVED: &AsciiSet =
-    &NON_ALPHANUMERIC.remove(b'-').remove(b'_').remove(b'.').remove(b'~');
+const SIGV4_UNRESERVED: &AsciiSet = &NON_ALPHANUMERIC
+    .remove(b'-')
+    .remove(b'_')
+    .remove(b'.')
+    .remove(b'~');
 
 /// Algorithm tag carried in [`ALGORITHM_PARAM`] and bound into the
 /// string-to-sign; pins HMAC-SHA256 so a verifier never accepts another algo.
@@ -72,7 +75,9 @@ pub fn encode_sigv4(value: &[u8]) -> String {
 /// an empty query.
 #[must_use]
 pub fn split_request_target(path_and_query: &str) -> (&str, &str) {
-    path_and_query.split_once('?').map_or((path_and_query, ""), |(path, query)| (path, query))
+    path_and_query
+        .split_once('?')
+        .map_or((path_and_query, ""), |(path, query)| (path, query))
 }
 
 /// Percent-decode each `name=value` pair of a query string into raw bytes,
@@ -86,7 +91,10 @@ pub fn decode_query_pairs(query: &str) -> Vec<(Vec<u8>, Vec<u8>)> {
         .filter(|segment| !segment.is_empty())
         .map(|segment| {
             let (name, value) = segment.split_once('=').unwrap_or((segment, ""));
-            (percent_decode_str(name).collect(), percent_decode_str(value).collect())
+            (
+                percent_decode_str(name).collect(),
+                percent_decode_str(value).collect(),
+            )
         })
         .collect()
 }
@@ -102,7 +110,11 @@ pub fn canonical_query_string(query: &str) -> String {
         .map(|(name, value)| (encode_sigv4(&name), encode_sigv4(&value)))
         .collect();
     encoded.sort();
-    encoded.into_iter().map(|(name, value)| format!("{name}={value}")).collect::<Vec<_>>().join("&")
+    encoded
+        .into_iter()
+        .map(|(name, value)| format!("{name}={value}"))
+        .collect::<Vec<_>>()
+        .join("&")
 }
 
 /// Canonicalize the host for signing: lowercase, and omit the default port for
@@ -111,7 +123,11 @@ pub fn canonical_query_string(query: &str) -> String {
 #[must_use]
 pub fn canonical_host(host: &str, scheme: &str) -> String {
     let mut lowered = host.trim().to_ascii_lowercase();
-    let default_port = if scheme.eq_ignore_ascii_case("http") { ":80" } else { ":443" };
+    let default_port = if scheme.eq_ignore_ascii_case("http") {
+        ":80"
+    } else {
+        ":443"
+    };
     if lowered.ends_with(default_port) {
         lowered.truncate(lowered.len() - default_port.len());
     }
@@ -159,7 +175,11 @@ pub fn signing_query(kid: &str, expires_at: u64, extra: &[(String, String)]) -> 
     params
         .iter()
         .map(|(name, value)| {
-            format!("{}={}", encode_sigv4(name.as_bytes()), encode_sigv4(value.as_bytes()))
+            format!(
+                "{}={}",
+                encode_sigv4(name.as_bytes()),
+                encode_sigv4(value.as_bytes())
+            )
         })
         .collect::<Vec<_>>()
         .join("&")
@@ -191,12 +211,27 @@ mod tests {
 
     #[test]
     fn canonical_host_lowercases_and_strips_default_port() {
-        assert_eq!(canonical_host("Files.Example.COM", "https"), "files.example.com");
-        assert_eq!(canonical_host("files.example.com:443", "https"), "files.example.com");
-        assert_eq!(canonical_host("files.example.com:8443", "https"), "files.example.com:8443");
-        assert_eq!(canonical_host("files.example.com:80", "http"), "files.example.com");
+        assert_eq!(
+            canonical_host("Files.Example.COM", "https"),
+            "files.example.com"
+        );
+        assert_eq!(
+            canonical_host("files.example.com:443", "https"),
+            "files.example.com"
+        );
+        assert_eq!(
+            canonical_host("files.example.com:8443", "https"),
+            "files.example.com:8443"
+        );
+        assert_eq!(
+            canonical_host("files.example.com:80", "http"),
+            "files.example.com"
+        );
         // 443 is non-default for http, so it stays signed.
-        assert_eq!(canonical_host("files.example.com:443", "http"), "files.example.com:443");
+        assert_eq!(
+            canonical_host("files.example.com:443", "http"),
+            "files.example.com:443"
+        );
         // An empty scheme falls back to the https default-port rule.
         assert_eq!(canonical_host("files.example.com", ""), "files.example.com");
     }
@@ -204,7 +239,12 @@ mod tests {
     #[test]
     fn canonical_request_has_sigv4_shape() {
         assert_eq!(
-            canonical_request("GET", "/download/file.bin", "X-Nsgw-Kid=sig-1", "files.example.com"),
+            canonical_request(
+                "GET",
+                "/download/file.bin",
+                "X-Nsgw-Kid=sig-1",
+                "files.example.com"
+            ),
             "GET\n/download/file.bin\nX-Nsgw-Kid=sig-1\nhost:files.example.com\n\nhost\nUNSIGNED-PAYLOAD"
         );
     }
@@ -243,7 +283,11 @@ mod tests {
         // The final line is the lowercase-hex SHA-256 of the canonical request.
         let hashed = lines.next().expect("hash line");
         assert_eq!(hashed.len(), 64);
-        assert!(hashed.bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase()));
+        assert!(
+            hashed
+                .bytes()
+                .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+        );
         assert_eq!(lines.next(), None);
     }
 
@@ -251,14 +295,22 @@ mod tests {
     fn string_to_sign_is_independent_of_signed_query_param_order() {
         // The signer may emit extra params in any order; the verifier re-sorts,
         // so the string-to-sign — and thus the signature — is identical.
-        let a = signing_query("sig-1", 1_781_744_400, &[
-            ("a".to_owned(), "1".to_owned()),
-            ("b".to_owned(), "2".to_owned()),
-        ]);
-        let b = signing_query("sig-1", 1_781_744_400, &[
-            ("b".to_owned(), "2".to_owned()),
-            ("a".to_owned(), "1".to_owned()),
-        ]);
+        let a = signing_query(
+            "sig-1",
+            1_781_744_400,
+            &[
+                ("a".to_owned(), "1".to_owned()),
+                ("b".to_owned(), "2".to_owned()),
+            ],
+        );
+        let b = signing_query(
+            "sig-1",
+            1_781_744_400,
+            &[
+                ("b".to_owned(), "2".to_owned()),
+                ("a".to_owned(), "1".to_owned()),
+            ],
+        );
         assert_ne!(a, b, "raw insertion order differs");
         assert_eq!(
             string_to_sign(&scope_for(&a, "route-a")),
