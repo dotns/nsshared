@@ -1333,6 +1333,12 @@ pub struct L4Policy {
     pub connection_limit_ref: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub session_limit_ref: Option<String>,
+    /// Optional source-IP admission gate applied before L4 proxying.
+    ///
+    /// Additive: producers that predate this field omit it, and it
+    /// deserializes as `None` and re-serializes to nothing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_ip: Option<HttpSourceIpAdmissionPolicy>,
 }
 
 /// A single TCP or UDP public listener route.
@@ -3598,6 +3604,7 @@ tunnel = "ws"
             l4: L4Policy {
                 connection_limit_ref: Some("conn-l4".to_owned()),
                 session_limit_ref: None,
+                source_ip: None,
             },
             certificate_ref: None,
         };
@@ -3615,6 +3622,7 @@ tunnel = "ws"
             l4: L4Policy {
                 connection_limit_ref: None,
                 session_limit_ref: Some("udp-session".to_owned()),
+                source_ip: None,
             },
             certificate_ref: None,
         };
@@ -3639,6 +3647,51 @@ tunnel = "ws"
         assert_eq!(
             decoded.routes[0].identity.public_port,
             decoded.routes[1].identity.public_port
+        );
+    }
+
+    #[test]
+    fn gateway_l4_route_source_ip_round_trips_via_json_and_cbor() {
+        let absent = GatewayL4Route {
+            identity: sample_public_edge_identity(PublicEdgeProtocol::Tcp, 10_000, 20_000),
+            backend: PublicEdgeBackendKind::NsnBacked,
+            service: "tcp-web".to_owned(),
+            site: "site-a".to_owned(),
+            virtual_port: 10_000,
+            l4: L4Policy::default(),
+            certificate_ref: None,
+        };
+        let mut present = absent.clone();
+        present.l4.source_ip = Some(HttpSourceIpAdmissionPolicy {
+            allow_cidrs: vec!["203.0.113.0/24".parse().unwrap()],
+            deny_cidrs: vec!["203.0.113.7/32".parse().unwrap()],
+            fail_closed: true,
+        });
+
+        let absent_json = serde_json::to_string(&absent).unwrap();
+        assert!(!absent_json.contains("source_ip"));
+        assert_eq!(
+            serde_json::from_str::<GatewayL4Route>(&absent_json).unwrap(),
+            absent
+        );
+        assert_eq!(
+            crate::api::from_cbor::<GatewayL4Route>(&crate::api::to_cbor(&absent).unwrap())
+                .unwrap(),
+            absent
+        );
+
+        let present_json = serde_json::to_string(&present).unwrap();
+        assert!(present_json.contains("\"source_ip\""));
+        assert!(present_json.contains("\"allow_cidrs\":[\"203.0.113.0/24\"]"));
+        assert!(present_json.contains("\"deny_cidrs\":[\"203.0.113.7/32\"]"));
+        assert_eq!(
+            serde_json::from_str::<GatewayL4Route>(&present_json).unwrap(),
+            present
+        );
+        assert_eq!(
+            crate::api::from_cbor::<GatewayL4Route>(&crate::api::to_cbor(&present).unwrap())
+                .unwrap(),
+            present
         );
     }
 
