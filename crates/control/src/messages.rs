@@ -1156,6 +1156,13 @@ pub struct HttpExternalIdentityImport {
 pub struct ExternalIdentityProviderRef {
     pub kind: ExternalIdentityProviderKind,
     pub ref_id: String,
+    /// Optional route-scoped OIDC redirect/callback base URL, projected by NSD
+    /// from route config. Semantically meaningful only when `kind == Oidc`.
+    /// When absent, consumers fall back to the provider-level
+    /// [`GatewayAuthProvider::redirect_base_url`]. This carries no credential
+    /// or secret material.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub redirect_base_url: Option<String>,
 }
 
 /// External identity mechanisms reserved by the contract.
@@ -3112,6 +3119,7 @@ tunnel = "ws"
                 providers: vec![ExternalIdentityProviderRef {
                     kind: ExternalIdentityProviderKind::Oidc,
                     ref_id: "idp-main".to_owned(),
+                    redirect_base_url: None,
                 }],
                 anonymous_bypass: true,
                 fail_closed: false,
@@ -3249,6 +3257,109 @@ tunnel = "ws"
         assert!(decoded.edge_limits.rate_limit_ref.is_none());
         assert!(decoded.transforms.request_rewrite_ref.is_none());
         assert!(decoded.audit.metadata.is_empty());
+    }
+
+    // The route OIDC redirect binding on `ExternalIdentityProviderRef` is
+    // additive: (a) an old wire body without the field decodes to `None` and
+    // keeps it off the wire, (b) an explicit binding round-trips and is
+    // preserved, and (c) a legacy provider-only config keeps its redirect
+    // authority on `GatewayAuthProvider.redirect_base_url` with no route
+    // binding present.
+
+    #[test]
+    fn identity_provider_ref_absent_redirect_binding_decodes_to_none() {
+        // (a) Old/serialized config with only kind + ref_id.
+        let decoded: ExternalIdentityProviderRef = serde_json::from_value(serde_json::json!({
+            "kind": "oidc",
+            "ref_id": "idp-main",
+        }))
+        .unwrap();
+        assert_eq!(decoded.redirect_base_url, None);
+
+        // Absent binding stays off the wire on re-serialization.
+        let json = serde_json::to_string(&decoded).unwrap();
+        assert!(
+            !json.contains("redirect_base_url"),
+            "absent route OIDC redirect binding must be omitted on the wire; got {json}"
+        );
+
+        // Same contract under CBOR.
+        let bytes = crate::api::to_cbor(&decoded).unwrap();
+        let via_cbor: ExternalIdentityProviderRef = crate::api::from_cbor(&bytes).unwrap();
+        assert_eq!(via_cbor, decoded);
+        assert_eq!(via_cbor.redirect_base_url, None);
+    }
+
+    #[test]
+    fn identity_provider_ref_explicit_redirect_binding_round_trips() {
+        // (b) Explicit binding present.
+        let provider = ExternalIdentityProviderRef {
+            kind: ExternalIdentityProviderKind::Oidc,
+            ref_id: "idp-main".to_owned(),
+            redirect_base_url: Some("https://route.example.test/callback".to_owned()),
+        };
+
+        // JSON: the field is emitted and preserved.
+        let json = serde_json::to_string(&provider).unwrap();
+        assert!(json.contains("\"redirect_base_url\":\"https://route.example.test/callback\""));
+        let via_json: ExternalIdentityProviderRef = serde_json::from_str(&json).unwrap();
+        assert_eq!(via_json, provider);
+
+        // CBOR: round-trips and preserves the binding.
+        let bytes = crate::api::to_cbor(&provider).unwrap();
+        let via_cbor: ExternalIdentityProviderRef = crate::api::from_cbor(&bytes).unwrap();
+        assert_eq!(via_cbor, provider);
+        assert_eq!(
+            via_cbor.redirect_base_url.as_deref(),
+            Some("https://route.example.test/callback")
+        );
+    }
+
+    #[test]
+    fn legacy_provider_redirect_base_url_without_route_binding_round_trips() {
+        // (c) Legacy/no-route-binding flow: redirect authority lives only on the
+        // provider-level `GatewayAuthProvider.redirect_base_url`, while the route
+        // identity ref carries no per-route OIDC redirect binding.
+        let auth = sample_gateway_auth_config();
+        assert_eq!(
+            auth.providers[0].redirect_base_url,
+            "https://gw.example.test"
+        );
+
+        let route = sample_gateway_http_route();
+        assert_eq!(route.identity_import.providers[0].redirect_base_url, None);
+
+        // JSON: provider-level redirect base is preserved; the route ref omits
+        // the optional binding entirely.
+        let auth_json = serde_json::to_string(&auth).unwrap();
+        let route_json = serde_json::to_string(&route).unwrap();
+        assert!(auth_json.contains("\"redirect_base_url\":\"https://gw.example.test\""));
+        assert!(
+            !route_json.contains("redirect_base_url"),
+            "route ref without a binding must omit redirect_base_url; got {route_json}"
+        );
+        assert_eq!(
+            serde_json::from_str::<GatewayAuthConfig>(&auth_json).unwrap(),
+            auth
+        );
+        assert_eq!(
+            serde_json::from_str::<GatewayHttpRoute>(&route_json).unwrap(),
+            route
+        );
+
+        // CBOR: both halves round-trip unchanged.
+        let auth_cbor = crate::api::to_cbor(&auth).unwrap();
+        let route_cbor = crate::api::to_cbor(&route).unwrap();
+        assert_eq!(
+            crate::api::from_cbor::<GatewayAuthConfig>(&auth_cbor).unwrap(),
+            auth
+        );
+        let decoded_route: GatewayHttpRoute = crate::api::from_cbor(&route_cbor).unwrap();
+        assert_eq!(decoded_route, route);
+        assert_eq!(
+            decoded_route.identity_import.providers[0].redirect_base_url,
+            None
+        );
     }
 
     fn http_source_ip_variants() -> Vec<(&'static str, HttpMiddlewarePolicy)> {
