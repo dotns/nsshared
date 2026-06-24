@@ -1188,6 +1188,49 @@ pub struct SignedSubjectHeaderPolicy {
     pub strip_inbound_headers: bool,
 }
 
+/// Source-IP admission policy applied to an HTTP public edge route.
+///
+/// Admission compares a connecting client's source address against two CIDR
+/// sets with a fixed precedence:
+///
+/// 1. **`deny_cidrs` win first.** If the source address matches any entry in
+///    `deny_cidrs` the request is rejected, regardless of `allow_cidrs`.
+/// 2. **`allow_cidrs` gate next.** When `allow_cidrs` is non-empty, only
+///    addresses matching at least one entry are admitted and every other
+///    address is rejected. An **empty `allow_cidrs` imposes no allowlist
+///    restriction** — any address that survived the deny check is admitted.
+///
+/// Both IPv4 and IPv6 CIDRs are valid and may be mixed within either set.
+/// IPv4-mapped IPv6 source addresses (`::ffff:a.b.c.d`) are canonicalized to
+/// their embedded IPv4 address before matching, so an IPv4 CIDR matches such a
+/// client deterministically while an IPv6 CIDR covering the mapped range does
+/// not. CIDRs are stored and transported in their textual form; host bits are
+/// preserved exactly as authored.
+///
+/// `fail_closed` selects the behaviour when admission cannot be evaluated
+/// (for example the source address is unavailable to the gateway): `true`
+/// rejects the request, `false` admits it.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize)]
+pub struct HttpSourceIpAdmissionPolicy {
+    /// CIDRs admitted after the deny check. Empty = no allowlist restriction.
+    #[serde(
+        default,
+        with = "serde_ipnet_vec",
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    pub allow_cidrs: Vec<IpNet>,
+    /// CIDRs rejected before `allow_cidrs` is consulted. Deny always wins.
+    #[serde(
+        default,
+        with = "serde_ipnet_vec",
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    pub deny_cidrs: Vec<IpNet>,
+    /// Reject (`true`) or admit (`false`) when admission cannot be evaluated.
+    #[serde(default)]
+    pub fail_closed: bool,
+}
+
 /// HTTP middleware references reserved by the public edge contract.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize)]
 pub struct HttpMiddlewarePolicy {
@@ -1197,6 +1240,13 @@ pub struct HttpMiddlewarePolicy {
     pub waf_ref: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ext_authz_ref: Option<String>,
+    /// Optional source-IP admission gate applied before upstream dispatch.
+    ///
+    /// Additive: producers that predate this field omit it, and it
+    /// deserializes as `None` and re-serializes to nothing, so older
+    /// producers and consumers round-trip unchanged during rollout.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_ip: Option<HttpSourceIpAdmissionPolicy>,
 }
 
 /// Edge rate, connection, and body-size limit references.
@@ -3078,6 +3128,7 @@ tunnel = "ws"
                 chain_ref: Some("http-chain-a".to_owned()),
                 waf_ref: Some("waf-a".to_owned()),
                 ext_authz_ref: Some("ext-authz-a".to_owned()),
+                source_ip: None,
             },
             edge_limits: EdgeLimitPolicy {
                 rate_limit_ref: Some("rate-a".to_owned()),
@@ -3198,6 +3249,152 @@ tunnel = "ws"
         assert!(decoded.edge_limits.rate_limit_ref.is_none());
         assert!(decoded.transforms.request_rewrite_ref.is_none());
         assert!(decoded.audit.metadata.is_empty());
+    }
+
+    fn http_source_ip_variants() -> Vec<(&'static str, HttpMiddlewarePolicy)> {
+        fn net(cidr: &str) -> IpNet {
+            cidr.parse().expect("valid CIDR")
+        }
+        fn gate(policy: HttpSourceIpAdmissionPolicy) -> HttpMiddlewarePolicy {
+            HttpMiddlewarePolicy {
+                source_ip: Some(policy),
+                ..Default::default()
+            }
+        }
+        vec![
+            // No source-IP gate at all — the additive default.
+            ("absent", HttpMiddlewarePolicy::default()),
+            // Allowlist present, deny empty.
+            (
+                "allow_only",
+                gate(HttpSourceIpAdmissionPolicy {
+                    allow_cidrs: vec![net("203.0.113.0/24")],
+                    deny_cidrs: Vec::new(),
+                    fail_closed: false,
+                }),
+            ),
+            // Deny present, empty allowlist imposes no allow restriction.
+            (
+                "deny_only",
+                gate(HttpSourceIpAdmissionPolicy {
+                    allow_cidrs: Vec::new(),
+                    deny_cidrs: vec![net("198.51.100.0/24")],
+                    fail_closed: false,
+                }),
+            ),
+            // Both sets present; deny wins over the overlapping allow range.
+            (
+                "deny_and_allow",
+                gate(HttpSourceIpAdmissionPolicy {
+                    allow_cidrs: vec![net("10.0.0.0/8")],
+                    deny_cidrs: vec![net("10.1.2.0/24")],
+                    fail_closed: false,
+                }),
+            ),
+            // IPv4 CIDRs across both sets.
+            (
+                "v4",
+                gate(HttpSourceIpAdmissionPolicy {
+                    allow_cidrs: vec![net("192.0.2.0/24"), net("203.0.113.128/25")],
+                    deny_cidrs: vec![net("192.0.2.42/32")],
+                    fail_closed: false,
+                }),
+            ),
+            // IPv6 CIDRs across both sets.
+            (
+                "v6",
+                gate(HttpSourceIpAdmissionPolicy {
+                    allow_cidrs: vec![net("2001:db8::/32"), net("fd00::/8")],
+                    deny_cidrs: vec![net("2001:db8:dead::/48")],
+                    fail_closed: true,
+                }),
+            ),
+            // Only the fail-closed switch toggled, no CIDRs.
+            (
+                "fail_closed",
+                gate(HttpSourceIpAdmissionPolicy {
+                    allow_cidrs: Vec::new(),
+                    deny_cidrs: Vec::new(),
+                    fail_closed: true,
+                }),
+            ),
+        ]
+    }
+
+    #[test]
+    fn http_source_ip_admission_round_trips_via_json() {
+        for (name, policy) in http_source_ip_variants() {
+            let json = serde_json::to_string(&policy).unwrap();
+            let decoded: HttpMiddlewarePolicy = serde_json::from_str(&json).unwrap();
+            assert_eq!(
+                decoded, policy,
+                "json round-trip mismatch for `{name}` variant"
+            );
+        }
+    }
+
+    #[test]
+    fn http_source_ip_admission_round_trips_via_cbor() {
+        for (name, policy) in http_source_ip_variants() {
+            let bytes = crate::api::to_cbor(&policy).unwrap();
+            let decoded: HttpMiddlewarePolicy = crate::api::from_cbor(&bytes).unwrap();
+            assert_eq!(
+                decoded, policy,
+                "cbor round-trip mismatch for `{name}` variant"
+            );
+        }
+    }
+
+    #[test]
+    fn http_source_ip_admission_serializes_expected_wire_shape() {
+        let policy = HttpMiddlewarePolicy {
+            source_ip: Some(HttpSourceIpAdmissionPolicy {
+                allow_cidrs: vec!["10.0.0.0/8".parse().unwrap()],
+                deny_cidrs: vec!["10.1.2.0/24".parse().unwrap()],
+                fail_closed: true,
+            }),
+            ..Default::default()
+        };
+        let json = serde_json::to_string(&policy).unwrap();
+        assert!(json.contains("\"source_ip\""));
+        assert!(json.contains("\"allow_cidrs\":[\"10.0.0.0/8\"]"));
+        assert!(json.contains("\"deny_cidrs\":[\"10.1.2.0/24\"]"));
+        assert!(json.contains("\"fail_closed\":true"));
+
+        // Empty CIDR sets are omitted from the wire form.
+        let deny_only = HttpSourceIpAdmissionPolicy {
+            allow_cidrs: Vec::new(),
+            deny_cidrs: vec!["198.51.100.0/24".parse().unwrap()],
+            fail_closed: false,
+        };
+        let json = serde_json::to_string(&deny_only).unwrap();
+        assert!(!json.contains("allow_cidrs"));
+        assert!(json.contains("\"deny_cidrs\""));
+    }
+
+    #[test]
+    fn http_middleware_policy_without_source_ip_round_trips_unchanged() {
+        // A producer that predates `source_ip` emits no such key.
+        let legacy_json = r#"{"chain_ref":"chain-a","waf_ref":"waf-b","ext_authz_ref":"authz-c"}"#;
+
+        let decoded: HttpMiddlewarePolicy = serde_json::from_str(legacy_json).unwrap();
+        assert_eq!(decoded.source_ip, None);
+        assert_eq!(decoded.chain_ref.as_deref(), Some("chain-a"));
+        assert_eq!(decoded.waf_ref.as_deref(), Some("waf-b"));
+        assert_eq!(decoded.ext_authz_ref.as_deref(), Some("authz-c"));
+
+        // Re-serializing omits `source_ip`, so the wire shape is byte-for-byte
+        // identical to what the legacy producer emitted.
+        let reserialized = serde_json::to_string(&decoded).unwrap();
+        assert_eq!(reserialized, legacy_json);
+        assert!(!reserialized.contains("source_ip"));
+
+        // The same holds across CBOR: a payload carrying no `source_ip` key
+        // decodes with the field defaulted to `None`.
+        let cbor = crate::api::to_cbor(&decoded).unwrap();
+        let from_cbor: HttpMiddlewarePolicy = crate::api::from_cbor(&cbor).unwrap();
+        assert_eq!(from_cbor, decoded);
+        assert_eq!(from_cbor.source_ip, None);
     }
 
     #[test]
