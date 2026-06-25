@@ -44,6 +44,63 @@ impl NetworkTuple {
     }
 }
 
+/// Ordered set of verified source subjects for one access attempt.
+///
+/// The first subject is the primary subject for logs and backward-compatible
+/// single-subject consumers. Additional subjects represent equivalent grants
+/// asserted by the same trusted boundary, such as Logto org or role subjects.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VerifiedSubjectSet {
+    subjects: Vec<String>,
+}
+
+impl VerifiedSubjectSet {
+    /// Build a subject set containing only the primary subject.
+    #[must_use]
+    pub fn new(primary_subject: impl Into<String>) -> Self {
+        Self {
+            subjects: vec![primary_subject.into()],
+        }
+    }
+
+    /// Build a subject set with the primary subject first.
+    #[must_use]
+    pub fn with_additional_subjects<I, S>(
+        primary_subject: impl Into<String>,
+        additional_subjects: I,
+    ) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        let mut subjects = vec![primary_subject.into()];
+        subjects.extend(additional_subjects.into_iter().map(Into::into));
+        Self { subjects }
+    }
+
+    /// Build a subject set from an already-ordered subject vector.
+    #[must_use]
+    pub fn from_ordered(subjects: Vec<String>) -> Option<Self> {
+        if subjects.is_empty() {
+            None
+        } else {
+            Some(Self { subjects })
+        }
+    }
+
+    /// Primary subject, always the first element.
+    #[must_use]
+    pub fn primary(&self) -> &str {
+        self.subjects[0].as_str()
+    }
+
+    /// Ordered subjects, primary first.
+    #[must_use]
+    pub fn subjects(&self) -> &[String] {
+        &self.subjects
+    }
+}
+
 /// Identity of the source side of an access attempt.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SourceIdentity {
@@ -55,13 +112,24 @@ pub enum SourceIdentity {
         subject: String,
         asserted_by: SourceAssertion,
     },
+    /// Trusted ordered source subject set asserted by the transport/auth boundary.
+    VerifiedSubjectSet {
+        realm: String,
+        subjects: VerifiedSubjectSet,
+        asserted_by: SourceAssertion,
+    },
 }
 
 impl SourceIdentity {
-    fn subject(&self) -> Option<&str> {
+    fn subject_view(&self) -> Option<SourceSubjectView<'_>> {
         match self {
             SourceIdentity::Unknown => None,
-            SourceIdentity::VerifiedSubject { subject, .. } => Some(subject.as_str()),
+            SourceIdentity::VerifiedSubject { subject, .. } => {
+                Some(SourceSubjectView::Single(subject.as_str()))
+            }
+            SourceIdentity::VerifiedSubjectSet { subjects, .. } => {
+                Some(SourceSubjectView::Set(subjects.subjects()))
+            }
         }
     }
 }
@@ -156,6 +224,47 @@ impl AccessContext {
         }
     }
 
+    /// Build a context with a verified ordered subject set.
+    #[must_use]
+    pub fn verified_subject_set(
+        subjects: VerifiedSubjectSet,
+        network: NetworkTuple,
+        asserted_by: SourceAssertion,
+        transport: TransportKind,
+    ) -> Self {
+        Self {
+            network,
+            source: SourceIdentity::VerifiedSubjectSet {
+                realm: "default".to_owned(),
+                subjects,
+                asserted_by,
+            },
+            target: TargetIdentity::default(),
+            transport,
+        }
+    }
+
+    /// Build a context with a primary subject and additional verified subjects.
+    #[must_use]
+    pub fn verified_subjects<I, S>(
+        primary_subject: impl Into<String>,
+        additional_subjects: I,
+        network: NetworkTuple,
+        asserted_by: SourceAssertion,
+        transport: TransportKind,
+    ) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        Self::verified_subject_set(
+            VerifiedSubjectSet::with_additional_subjects(primary_subject, additional_subjects),
+            network,
+            asserted_by,
+            transport,
+        )
+    }
+
     /// Structured source-anchor string for ACL decision logs. For zero-trust
     /// flows this is the verified end-to-end WireGuard peer public key (base64,
     /// same encoding as `bindings.wg_peer`), proving the subject decision was
@@ -164,7 +273,8 @@ impl AccessContext {
     pub fn source_anchor(&self) -> String {
         match &self.source {
             SourceIdentity::Unknown => "none".to_owned(),
-            SourceIdentity::VerifiedSubject { asserted_by, .. } => match asserted_by {
+            SourceIdentity::VerifiedSubject { asserted_by, .. }
+            | SourceIdentity::VerifiedSubjectSet { asserted_by, .. } => match asserted_by {
                 SourceAssertion::WgPeerKey { pubkey } => wg_peer_anchor(pubkey),
                 SourceAssertion::Terminate { binding } => binding.anchor.clone(),
                 SourceAssertion::External { idp } => format!("idp:{idp}"),
@@ -180,7 +290,8 @@ impl AccessContext {
     pub const fn source_class(&self) -> &'static str {
         match &self.source {
             SourceIdentity::Unknown => "unknown",
-            SourceIdentity::VerifiedSubject { asserted_by, .. } => match asserted_by {
+            SourceIdentity::VerifiedSubject { asserted_by, .. }
+            | SourceIdentity::VerifiedSubjectSet { asserted_by, .. } => match asserted_by {
                 SourceAssertion::WgPeerKey { .. } => "client-wg-key",
                 SourceAssertion::Terminate { .. } => "terminate-binding",
                 SourceAssertion::External { .. } => "external-idp",
@@ -196,6 +307,8 @@ pub struct AclDecision {
     pub allowed: bool,
     /// Index of the matched rule within the compiled rule list (if any).
     pub matched_rule_index: Option<usize>,
+    /// Subject from the verified subject set that matched the rule.
+    pub matched_subject: Option<String>,
     /// Human-readable explanation.
     pub reason: String,
 }
@@ -217,27 +330,71 @@ struct CompiledRule {
     proto: Option<Protocol>,
 }
 
+#[derive(Debug, Clone, Copy)]
+enum SourceSubjectView<'a> {
+    Single(&'a str),
+    Set(&'a [String]),
+}
+
+impl<'a> SourceSubjectView<'a> {
+    fn primary(self) -> &'a str {
+        match self {
+            SourceSubjectView::Single(subject) => subject,
+            SourceSubjectView::Set(subjects) => subjects[0].as_str(),
+        }
+    }
+
+    fn iter(self) -> SourceSubjectIter<'a> {
+        match self {
+            SourceSubjectView::Single(subject) => SourceSubjectIter::Single(Some(subject)),
+            SourceSubjectView::Set(subjects) => SourceSubjectIter::Set(subjects.iter()),
+        }
+    }
+}
+
+enum SourceSubjectIter<'a> {
+    Single(Option<&'a str>),
+    Set(std::slice::Iter<'a, String>),
+}
+
+impl<'a> Iterator for SourceSubjectIter<'a> {
+    type Item = &'a str;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            SourceSubjectIter::Single(subject) => subject.take(),
+            SourceSubjectIter::Set(subjects) => subjects.next().map(String::as_str),
+        }
+    }
+}
+
 impl CompiledRule {
-    fn matches(
+    fn matched_subject<'a>(
         &self,
-        subject: &str,
+        subjects: SourceSubjectView<'a>,
         groups: &BTreeMap<String, Vec<String>>,
         network: &NetworkTuple,
-    ) -> bool {
-        if !self.subject.iter().any(|m| m.matches(subject, groups)) {
-            return false;
-        }
+    ) -> Option<&'a str> {
+        let matched_subject = self
+            .subject
+            .iter()
+            .find_map(|matcher| matcher.matches(subjects.iter(), groups))?;
         if !self
             .dst
             .iter()
             .any(|m| m.matches(network.dst_ip, network.dst_port))
         {
-            return false;
+            return None;
         }
-        match self.proto {
+        let proto_matches = match self.proto {
             None => true,
             Some(Protocol::Both) => true,
             Some(proto) => proto == network.protocol,
+        };
+        if proto_matches {
+            Some(matched_subject)
+        } else {
+            None
         }
     }
 }
@@ -374,7 +531,7 @@ impl AclEngine {
         let proto = protocol_label(context.network.protocol);
         let _span = tracing::trace_span!("acl.eval", protocol = proto).entered();
 
-        let Some(subject) = context.source.subject() else {
+        let Some(subjects) = context.source.subject_view() else {
             warn!(
                 dst = %context.network.dst_ip,
                 port = context.network.dst_port,
@@ -392,14 +549,19 @@ impl AclEngine {
             return AclDecision {
                 allowed: false,
                 matched_rule_index: None,
+                matched_subject: None,
                 reason: "denied: unknown source subject".to_owned(),
             };
         };
+        let primary_subject = subjects.primary();
 
         for (idx, rule) in self.compiled_rules.iter().enumerate() {
-            if rule.matches(subject, &self.groups, &context.network) {
+            if let Some(matched_subject) =
+                rule.matched_subject(subjects, &self.groups, &context.network)
+            {
                 debug!(
-                    subject = %subject,
+                    subject = %primary_subject,
+                    matched_subject = %matched_subject,
                     dst = %context.network.dst_ip,
                     port = context.network.dst_port,
                     proto = ?context.network.protocol,
@@ -417,13 +579,14 @@ impl AclEngine {
                 return AclDecision {
                     allowed: true,
                     matched_rule_index: Some(idx),
+                    matched_subject: Some(matched_subject.to_owned()),
                     reason: format!("accepted by rule {idx}"),
                 };
             }
         }
 
         warn!(
-            subject = %subject,
+            subject = %primary_subject,
             dst = %context.network.dst_ip,
             port = context.network.dst_port,
             proto = ?context.network.protocol,
@@ -440,6 +603,7 @@ impl AclEngine {
         AclDecision {
             allowed: false,
             matched_rule_index: None,
+            matched_subject: None,
             reason: "denied: no matching accept rule".to_owned(),
         }
     }
@@ -647,6 +811,25 @@ mod tests {
         }
     }
 
+    fn ctx_set(
+        primary_subject: &str,
+        additional_subjects: &[&str],
+        dst: &str,
+        port: u16,
+        proto: Protocol,
+    ) -> AccessContext {
+        let network = NetworkTuple::new(None, dst.parse().unwrap(), port, proto);
+        AccessContext::verified_subjects(
+            primary_subject.to_owned(),
+            additional_subjects.iter().copied(),
+            network,
+            SourceAssertion::External {
+                idp: "test".to_owned(),
+            },
+            TransportKind::Https,
+        )
+    }
+
     // ── decision-log source anchoring ─────────────────────────────────────
 
     #[test]
@@ -702,6 +885,7 @@ mod tests {
         let d = engine.is_allowed(&ctx(Some("user:alice"), "192.168.1.1", 80, Protocol::Tcp));
         assert!(!d.allowed);
         assert!(d.matched_rule_index.is_none());
+        assert!(d.matched_subject.is_none());
     }
 
     #[test]
@@ -745,16 +929,81 @@ mod tests {
             .insert("group:eng".to_owned(), vec!["user:alice".to_owned()]);
         let engine = AclEngine::load(policy).unwrap();
 
-        assert!(
-            engine
-                .is_allowed(&ctx(Some("user:alice"), "192.168.1.5", 80, Protocol::Tcp))
-                .allowed
-        );
+        let alice = engine.is_allowed(&ctx(Some("user:alice"), "192.168.1.5", 80, Protocol::Tcp));
+        assert!(alice.allowed);
+        assert_eq!(alice.matched_subject.as_deref(), Some("user:alice"));
         assert!(
             !engine
                 .is_allowed(&ctx(Some("user:bob"), "192.168.1.5", 80, Protocol::Tcp))
                 .allowed
         );
+    }
+
+    #[test]
+    fn subject_set_role_rule_allows_and_reports_matched_subject() {
+        let role = "external:logto:realm:org:role:admin";
+        let engine = AclEngine::load(make_policy(
+            vec![accept_rule(&[role], &["192.168.1.0/24:443"], Some("tcp"))],
+            vec![],
+        ))
+        .unwrap();
+
+        let decision = engine.is_allowed(&ctx_set(
+            "external:logto:realm:org:user-1",
+            &["external:logto:realm:org", role],
+            "192.168.1.5",
+            443,
+            Protocol::Tcp,
+        ));
+
+        assert!(decision.allowed);
+        assert_eq!(decision.matched_rule_index, Some(0));
+        assert_eq!(decision.matched_subject.as_deref(), Some(role));
+    }
+
+    #[test]
+    fn subject_set_org_rule_allows_and_reports_org_subject() {
+        let org = "external:logto:realm:org";
+        let engine = AclEngine::load(make_policy(
+            vec![accept_rule(&[org], &["192.168.1.0/24:443"], Some("tcp"))],
+            vec![],
+        ))
+        .unwrap();
+
+        let decision = engine.is_allowed(&ctx_set(
+            "external:logto:realm:org:user-1",
+            &[org, "external:logto:realm:org:role:admin"],
+            "192.168.1.5",
+            443,
+            Protocol::Tcp,
+        ));
+
+        assert!(decision.allowed);
+        assert_eq!(decision.matched_subject.as_deref(), Some(org));
+    }
+
+    #[test]
+    fn subject_set_missing_role_denies_without_matched_subject() {
+        let engine = AclEngine::load(make_policy(
+            vec![accept_rule(
+                &["external:logto:realm:org:role:admin"],
+                &["192.168.1.0/24:443"],
+                Some("tcp"),
+            )],
+            vec![],
+        ))
+        .unwrap();
+
+        let decision = engine.is_allowed(&ctx_set(
+            "external:logto:realm:org:user-1",
+            &["external:logto:realm:org"],
+            "192.168.1.5",
+            443,
+            Protocol::Tcp,
+        ));
+
+        assert!(!decision.allowed);
+        assert!(decision.matched_subject.is_none());
     }
 
     // ── destination/protocol matching ─────────────────────────────────────
@@ -922,10 +1171,12 @@ mod tests {
         let d = engine.is_allowed(&ctx(Some("user:alice"), "1.2.3.4", 80, Protocol::Tcp));
         assert!(d.allowed);
         assert_eq!(d.matched_rule_index, Some(0));
+        assert_eq!(d.matched_subject.as_deref(), Some("user:alice"));
 
         let d2 = engine.is_allowed(&ctx(Some("user:bob"), "1.2.3.4", 9090, Protocol::Tcp));
         assert!(d2.allowed);
         assert_eq!(d2.matched_rule_index, Some(1));
+        assert_eq!(d2.matched_subject.as_deref(), Some("user:bob"));
     }
 
     // ── bindings and tests ────────────────────────────────────────────────

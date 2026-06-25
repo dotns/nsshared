@@ -16,15 +16,19 @@ pub(crate) enum SubjectMatcher {
 }
 
 impl SubjectMatcher {
-    pub(crate) fn matches(&self, subject: &str, groups: &BTreeMap<String, Vec<String>>) -> bool {
+    pub(crate) fn matches<'a>(
+        &self,
+        subjects: impl IntoIterator<Item = &'a str>,
+        groups: &BTreeMap<String, Vec<String>>,
+    ) -> Option<&'a str> {
         match self {
-            SubjectMatcher::AnyVerified => true,
-            SubjectMatcher::Subject(expected) => {
-                expected == subject
+            SubjectMatcher::AnyVerified => subjects.into_iter().next(),
+            SubjectMatcher::Subject(expected) => subjects.into_iter().find(|subject| {
+                expected == *subject
                     || groups
                         .get(expected)
-                        .is_some_and(|members| members.iter().any(|member| member == subject))
-            }
+                        .is_some_and(|members| members.iter().any(|member| member == *subject))
+            }),
         }
     }
 }
@@ -209,15 +213,45 @@ mod tests {
     #[test]
     fn subject_wildcard_matches_any_verified_subject() {
         let m = parse_subject("*").unwrap();
-        assert!(m.matches("user:alice", &BTreeMap::new()));
+        assert_eq!(
+            m.matches(std::iter::once("user:alice"), &BTreeMap::new()),
+            Some("user:alice")
+        );
     }
 
     #[test]
     fn subject_group_matches_expanded_member() {
         let m = parse_subject("group:eng").unwrap();
         let groups = BTreeMap::from([("group:eng".to_owned(), vec!["user:alice".to_owned()])]);
-        assert!(m.matches("user:alice", &groups));
-        assert!(!m.matches("user:bob", &groups));
+        assert_eq!(
+            m.matches(std::iter::once("user:alice"), &groups),
+            Some("user:alice")
+        );
+        assert_eq!(m.matches(std::iter::once("user:bob"), &groups), None);
+    }
+
+    #[test]
+    fn subject_exact_matches_member_of_subject_set() {
+        let m = parse_subject("external:logto:realm:org:role:admin").unwrap();
+        let subjects = [
+            "external:logto:realm:org:user-1",
+            "external:logto:realm:org",
+            "external:logto:realm:org:role:admin",
+        ];
+
+        assert_eq!(
+            m.matches(subjects, &BTreeMap::new()),
+            Some("external:logto:realm:org:role:admin")
+        );
+    }
+
+    #[test]
+    fn subject_set_matching_preserves_group_membership_map() {
+        let m = parse_subject("group:eng").unwrap();
+        let groups = BTreeMap::from([("group:eng".to_owned(), vec!["user:alice".to_owned()])]);
+        let subjects = ["user:alice", "external:logto:realm:org:role:admin"];
+
+        assert_eq!(m.matches(subjects, &groups), Some("user:alice"));
     }
 
     #[test]

@@ -66,6 +66,37 @@ pub fn encode_external_subject(realm: &str, organization_id: &str, sub: &str) ->
     )
 }
 
+/// Build the canonical public-edge external organization subject
+/// `external:logto:<realm>:<organization_id>`.
+///
+/// This tier intentionally stops at the organization segment. User subjects
+/// always carry one additional encoded `sub` segment, so segment count
+/// distinguishes org grants from user grants even when `sub` is empty.
+#[must_use]
+pub fn encode_external_org_subject(realm: &str, organization_id: &str) -> String {
+    format!(
+        "external:logto:{}:{}",
+        encode_subject_component(realm),
+        encode_subject_component(organization_id),
+    )
+}
+
+/// Build the canonical public-edge external organization-role subject
+/// `external:logto:<realm>:<organization_id>:role:<role_name>`.
+///
+/// `role` is a fixed literal segment. The role name itself is encoded as one
+/// component, so a crafted role name cannot shift the realm/org prefix or forge
+/// a different role boundary.
+#[must_use]
+pub fn encode_external_role_subject(realm: &str, organization_id: &str, role_name: &str) -> String {
+    format!(
+        "external:logto:{}:{}:role:{}",
+        encode_subject_component(realm),
+        encode_subject_component(organization_id),
+        encode_subject_component(role_name),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -152,5 +183,62 @@ mod tests {
     fn encoded_subject_passes_valid_subject() {
         let subject = encode_external_subject("realm-a", "org-1", "alice:smith");
         assert!(valid_subject(&subject));
+    }
+
+    #[test]
+    fn org_subject_ends_at_org_segment() {
+        let subject = encode_external_org_subject("realm:a", "org:b");
+        let segments: Vec<&str> = subject.split(':').collect();
+        assert_eq!(segments, ["external", "logto", "realm%3Aa", "org%3Ab"]);
+    }
+
+    #[test]
+    fn role_subject_has_fixed_role_segment() {
+        let subject = encode_external_role_subject("realm", "org", "admin:read");
+        let segments: Vec<&str> = subject.split(':').collect();
+        assert_eq!(
+            segments,
+            ["external", "logto", "realm", "org", "role", "admin%3Aread"]
+        );
+    }
+
+    #[test]
+    fn empty_sub_user_subject_cannot_collide_with_org_subject() {
+        let org_subject = encode_external_org_subject("realm", "org");
+        let user_subject = encode_external_subject("realm", "org", "");
+
+        assert_ne!(org_subject, user_subject);
+        assert_eq!(org_subject.split(':').count(), 4);
+        assert_eq!(user_subject.split(':').count(), 5);
+    }
+
+    #[test]
+    fn crafted_role_name_cannot_forge_cross_realm_or_org() {
+        let crafted = encode_external_role_subject("realm-a", "org-a", "realm-b:org-b:role:admin");
+        let genuine = encode_external_role_subject("realm-b", "org-b", "admin");
+
+        assert_ne!(crafted, genuine);
+        let segments: Vec<&str> = crafted.split(':').collect();
+        assert_eq!(
+            &segments[..5],
+            ["external", "logto", "realm-a", "org-a", "role"]
+        );
+        assert_eq!(
+            decode_subject_component(segments[5]).as_deref(),
+            Some("realm-b:org-b:role:admin")
+        );
+    }
+
+    #[test]
+    fn crafted_sub_cannot_collide_with_org_or_role_subjects() {
+        let crafted_user = encode_external_subject("realm", "org", "role:admin");
+        let role_subject = encode_external_role_subject("realm", "org", "admin");
+        let org_subject = encode_external_org_subject("realm", "org");
+
+        assert_ne!(crafted_user, role_subject);
+        assert_ne!(crafted_user, org_subject);
+        assert_eq!(crafted_user.split(':').count(), 5);
+        assert_eq!(role_subject.split(':').count(), 6);
+        assert_eq!(org_subject.split(':').count(), 4);
     }
 }

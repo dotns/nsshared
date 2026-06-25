@@ -23,13 +23,17 @@ pub mod subject;
 pub use deny_scope::{DenyScope, DenyScopeOutcome, DropReason, DroppedRule, apply_deny_scope};
 pub use engine::{
     AccessContext, AclDecision, AclEngine, AclTestFailure, NetworkTuple, SourceAssertion,
-    SourceIdentity, TargetIdentity, TerminateBinding, TransportKind, valid_subject, wg_peer_anchor,
+    SourceIdentity, TargetIdentity, TerminateBinding, TransportKind, VerifiedSubjectSet,
+    valid_subject, wg_peer_anchor,
 };
 pub use merge::{
     MergeStats, MergedPolicy, PolicyLayers, RemotePolicy, RuleProvenance, merge_layered,
 };
 pub use policy::{AclPolicy, PolicyLint};
-pub use subject::{encode_external_subject, encode_subject_component};
+pub use subject::{
+    encode_external_org_subject, encode_external_role_subject, encode_external_subject,
+    encode_subject_component,
+};
 
 use thiserror::Error;
 
