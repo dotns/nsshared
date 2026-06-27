@@ -35,7 +35,10 @@ use crate::{
     envelope::ControlEnvelope,
     transport::{
         ControlTransport, framing,
-        sse::{config_stream_path, endpoint_host, http_open_get_stream, map_status_to_envelope},
+        sse::{
+            config_stream_path, endpoint_host, http_open_get_stream, map_status_to_envelope,
+            wrap_http_stream_body,
+        },
     },
 };
 
@@ -254,8 +257,9 @@ impl ControlTransport for QuicTransport {
             let host = endpoint_host(endpoint);
             let path = config_stream_path(&envelope)?;
             let mut stream = self.connect(endpoint).await?;
-            http_open_get_stream(&mut stream, host, &path, bearer_token).await?;
-            Ok(stream)
+            let body_encoding =
+                http_open_get_stream(&mut stream, host, &path, bearer_token).await?;
+            Ok(wrap_http_stream_body(stream, body_encoding))
         })
     }
 
