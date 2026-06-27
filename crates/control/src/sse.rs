@@ -1098,6 +1098,43 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn config_stream_event_keeps_single_data_contract() {
+        let signer = SigningKey::generate(&mut OsRng);
+        let trust = config_event_trust(&signer);
+        let event = signed_config_sse_event(&signed_config_message_event(
+            &signer,
+            "m-1",
+            ControlMessage::Ping,
+        ));
+        let data = event
+            .lines()
+            .find_map(|line| line.strip_prefix("data: "))
+            .unwrap();
+        let mut framer = SseFramer::new(100, 4096);
+
+        let msg = framer
+            .parse_event(
+                &format!("event: config-envelope.v1\ndata: {data}"),
+                Some(&trust),
+                "m-1",
+            )
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(matches!(msg, ControlMessage::Ping));
+
+        let err = framer
+            .parse_event(
+                &format!("event: config-envelope.v1\ndata: {data}\ndata: {data}"),
+                Some(&trust),
+                "m-1",
+            )
+            .await
+            .unwrap_err();
+        assert!(matches!(err, Error::Auth(msg) if msg.contains("exactly one data")));
+    }
+
+    #[tokio::test]
     async fn config_stream_rejects_unsigned_raw_json() {
         let mut framer = SseFramer::new(100, 4096);
         let err = framer

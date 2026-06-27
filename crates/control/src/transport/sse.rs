@@ -296,6 +296,9 @@ struct ChunkedBodyStream {
     state: ChunkState,
 }
 
+const MAX_CHUNK_SIZE_LINE: usize = 1024;
+const MAX_CHUNK_TRAILERS: usize = framing::MAX_HTTP_HEADERS;
+
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 enum ChunkState {
     Size,
@@ -339,8 +342,20 @@ impl ChunkedBodyStream {
 
     fn decode_size_line(&mut self) -> io::Result<bool> {
         let Some(pos) = find_crlf(&self.raw) else {
+            if self.raw.len() > MAX_CHUNK_SIZE_LINE {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "HTTP chunk size line exceeds 1024 bytes",
+                ));
+            }
             return Ok(false);
         };
+        if pos > MAX_CHUNK_SIZE_LINE {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "HTTP chunk size line exceeds 1024 bytes",
+            ));
+        }
         let line = self.raw[..pos].to_vec();
         self.raw.drain(..pos + 2);
         let line = std::str::from_utf8(&line)
@@ -409,8 +424,20 @@ impl ChunkedBodyStream {
             return Ok(true);
         }
         let Some(pos) = find_sequence(&self.raw, b"\r\n\r\n") else {
+            if self.raw.len() > MAX_CHUNK_TRAILERS {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("HTTP chunk trailers exceed {MAX_CHUNK_TRAILERS} bytes"),
+                ));
+            }
             return Ok(false);
         };
+        if pos + 4 > MAX_CHUNK_TRAILERS {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("HTTP chunk trailers exceed {MAX_CHUNK_TRAILERS} bytes"),
+            ));
+        }
         self.raw.drain(..pos + 4);
         self.state = ChunkState::Done;
         Ok(true)
@@ -532,6 +559,12 @@ mod tests {
                 chunks: chunks.iter().map(|chunk| chunk.to_vec()).collect(),
             }
         }
+
+        fn from_vecs(chunks: Vec<Vec<u8>>) -> Self {
+            Self {
+                chunks: chunks.into_iter().collect(),
+            }
+        }
     }
 
     impl AsyncRead for ScriptedStream {
@@ -572,6 +605,14 @@ mod tests {
 
     async fn decode_chunked_body(chunks: &[&[u8]]) -> std::io::Result<Vec<u8>> {
         let stream = BoxStream::new(ScriptedStream::new(chunks));
+        let mut stream = ChunkedBodyStream::new(stream);
+        let mut body = Vec::new();
+        stream.read_to_end(&mut body).await?;
+        Ok(body)
+    }
+
+    async fn decode_chunked_body_owned(chunks: Vec<Vec<u8>>) -> std::io::Result<Vec<u8>> {
+        let stream = BoxStream::new(ScriptedStream::from_vecs(chunks));
         let mut stream = ChunkedBodyStream::new(stream);
         let mut body = Vec::new();
         stream.read_to_end(&mut body).await?;
@@ -813,6 +854,72 @@ mod tests {
 
         let err = decode_chunked_body(&[b"\r\n0\r\n\r\n"]).await.unwrap_err();
         assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+    }
+
+    #[tokio::test]
+    async fn chunked_body_stream_rejects_oversized_size_line_without_crlf() {
+        let line = vec![b'1'; MAX_CHUNK_SIZE_LINE + 1];
+        let err = decode_chunked_body_owned(vec![line]).await.unwrap_err();
+
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+    }
+
+    #[tokio::test]
+    async fn chunked_body_stream_rejects_oversized_trailers_without_terminator() {
+        let err = decode_chunked_body_owned(vec![
+            b"0\r\n".to_vec(),
+            vec![b'X'; 8192],
+            vec![b'Y'; 8192],
+            vec![b'Z'; MAX_CHUNK_TRAILERS - 16384 + 1],
+        ])
+        .await
+        .unwrap_err();
+
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+    }
+
+    #[tokio::test]
+    async fn chunked_body_stream_handles_empty_body() {
+        let body = decode_chunked_body(&[b"0\r\n\r\n"]).await.unwrap();
+
+        assert!(body.is_empty());
+    }
+
+    #[tokio::test]
+    async fn chunked_body_stream_reports_unexpected_eof_mid_size_or_data() {
+        let err = decode_chunked_body(&[b"3"]).await.unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::UnexpectedEof);
+
+        let err = decode_chunked_body(&[b"3\r\nab"]).await.unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::UnexpectedEof);
+    }
+
+    #[tokio::test]
+    async fn chunked_body_stream_rejects_invalid_data_terminator() {
+        let err = decode_chunked_body(&[b"3\r\nabcXX0\r\n\r\n"])
+            .await
+            .unwrap_err();
+
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+    }
+
+    #[tokio::test]
+    async fn chunked_body_stream_rejects_overflow_chunk_size() {
+        let err = decode_chunked_body(&[b"ffffffffffffffffffffffffffffffff\r\n"])
+            .await
+            .unwrap_err();
+
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+    }
+
+    #[test]
+    fn stream_body_encoding_detects_mixed_case_chunked_token_in_multi_value_header() {
+        let headers = "HTTP/1.1 200 OK\r\nTransfer-Encoding: gzip, ChUnKeD\r\n\r\n";
+
+        assert_eq!(
+            stream_body_encoding(headers),
+            HttpStreamBodyEncoding::Chunked
+        );
     }
 
     #[tokio::test]
