@@ -1955,6 +1955,15 @@ pub enum ControlMessage {
     GatewayClientCaBundle(GatewayClientCaBundle),
     /// Server → Client: direct-P2P candidate update for one peer.
     PeerCandidates(PeerCandidatesUpdate),
+    /// Server → Client: the realm's current policy version (TASK-049). NSD
+    /// stamps it on every projection; the node tracks the last-seen value and
+    /// reports it on heartbeat. Treat `version` as an opaque monotonic counter
+    /// (a rollback bumps it forward, history is append-only), not a content
+    /// ordering. See nsd `docs/api/policy-version-sse-event.md`.
+    PolicyVersion {
+        /// Monotonic per-realm policy version; `0` = none recorded yet.
+        version: u64,
+    },
     /// Catch-all for `type` tags introduced by a newer NSD.
     ///
     /// Forward-compatibility contract: an unrecognized tag decodes to this
@@ -1999,6 +2008,7 @@ impl ControlMessage {
             ControlMessage::GatewayCertificateBundle(_) => "gateway_certificate_bundle.v1",
             ControlMessage::GatewayClientCaBundle(_) => "gateway_client_ca_bundle.v1",
             ControlMessage::PeerCandidates(_) => "peer_candidates",
+            ControlMessage::PolicyVersion { .. } => "policy_version",
             ControlMessage::Unknown => "unknown",
         }
     }
@@ -2606,6 +2616,23 @@ tunnel = "ws"
     fn control_message_unknown_never_serializes() {
         serde_json::to_string(&ControlMessage::Unknown)
             .expect_err("the decode-only Unknown variant must refuse to serialize");
+    }
+
+    // TASK-049 (PLAN-095): the `policy_version` SSE event (snake_case `type` tag)
+    // decodes into the typed variant the consumer matches on.
+    #[test]
+    fn policy_version_event_decodes_to_typed_variant() {
+        let decoded: ControlMessage =
+            serde_json::from_value(serde_json::json!({"type": "policy_version", "version": 7}))
+                .expect("deserialize policy_version");
+        match decoded {
+            ControlMessage::PolicyVersion { version } => assert_eq!(version, 7),
+            other => panic!("expected PolicyVersion, got {other:?}"),
+        }
+        assert_eq!(
+            ControlMessage::PolicyVersion { version: 7 }.event_type(),
+            "policy_version"
+        );
     }
 
     // ── RoutingConfig ─────────────────────────────────────────────────────────

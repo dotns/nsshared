@@ -1335,6 +1335,18 @@ impl ControlPlane {
                     return Ok(true);
                 }
             }
+            ControlMessage::PolicyVersion { version } => {
+                // TASK-049 (PLAN-095): pure no-op on this control plane. The
+                // policy_version consumer is wired in nsgw only; NSN/NSC consumer
+                // wiring is a deferred follow-up. Decode-and-ignore (no channel
+                // send, no state change, no NSN behavior). In practice this arm is
+                // unreachable until NSN/NSC advertise `policy_version.v1`, which a
+                // gated NSD requires before it will emit the event.
+                info!(
+                    version,
+                    "ignored policy_version (consumer not wired on this control plane)"
+                );
+            }
             ControlMessage::Unknown => {
                 // Forward-compat decode fallback. The stream layer already
                 // skips these before dispatch; ignore defensively here too.

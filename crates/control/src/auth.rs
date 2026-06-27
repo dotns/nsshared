@@ -1189,6 +1189,11 @@ impl HeartbeatClient {
         let payload = envapi::HeartbeatRequest {
             uptime_secs,
             local_ips,
+            // TASK-049 (PLAN-095): this shared AuthClient heartbeat is the NSN/NSC
+            // path; that consumer is a deferred follow-up, so it does not yet track
+            // a last-seen policy version. `None` keeps the heartbeat bytes
+            // byte-identical to the pre-TASK-049 wire (skip_serializing_if).
+            policy_version: None,
         };
         let payload_cbor = envapi::to_cbor(&payload)
             .map_err(|e| Error::Auth(format!("heartbeat cbor encode: {e}")))?;

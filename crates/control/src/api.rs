@@ -153,6 +153,12 @@ pub struct AuthResponse {
 pub struct HeartbeatRequest {
     pub uptime_secs: u64,
     pub local_ips: Vec<String>,
+    /// Last-seen realm policy version (TASK-049). `None` until a `policy_version`
+    /// event has been received; omitted from the wire when `None`
+    /// (`skip_serializing_if`) so an older NSD that ignores it sees byte-identical
+    /// heartbeat bytes. See nsd `docs/api/policy-version-sse-event.md`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub policy_version: Option<u64>,
 }
 
 /// Response payload for `api = "machine.heartbeat"`. Empty on success.
@@ -497,6 +503,45 @@ mod tests {
         assert!(decoded.r#type.is_none());
     }
 
+    /// TASK-049 (PLAN-095): `HeartbeatRequest.policy_version` is byte-additive.
+    /// When unseen (`None`) the CBOR is byte-identical to the pre-TASK-049 wire (a
+    /// struct without the field), so an older NSD sees the exact same heartbeat
+    /// bytes. When set, the field is present, round-trips, and a legacy payload
+    /// that omits it decodes to `None`.
+    #[test]
+    fn heartbeat_policy_version_is_byte_additive() {
+        #[derive(Serialize)]
+        struct LegacyHeartbeat {
+            uptime_secs: u64,
+            local_ips: Vec<String>,
+        }
+        let legacy = LegacyHeartbeat {
+            uptime_secs: 3600,
+            local_ips: vec!["10.0.0.1".to_owned()],
+        };
+        let unseen = HeartbeatRequest {
+            uptime_secs: 3600,
+            local_ips: vec!["10.0.0.1".to_owned()],
+            policy_version: None,
+        };
+        // Omitted-when-None ⇒ byte-identical to the legacy (fieldless) wire.
+        assert_eq!(to_cbor(&legacy).unwrap(), to_cbor(&unseen).unwrap());
+
+        let with_pv = HeartbeatRequest {
+            uptime_secs: 3600,
+            local_ips: vec!["10.0.0.1".to_owned()],
+            policy_version: Some(7),
+        };
+        let bytes = to_cbor(&with_pv).unwrap();
+        assert_ne!(bytes, to_cbor(&unseen).unwrap());
+        let decoded: HeartbeatRequest = from_cbor(&bytes).unwrap();
+        assert_eq!(decoded.policy_version, Some(7));
+
+        // A legacy payload (no field) decodes to None (serde default).
+        let decoded_legacy: HeartbeatRequest = from_cbor(&to_cbor(&legacy).unwrap()).unwrap();
+        assert_eq!(decoded_legacy.policy_version, None);
+    }
+
     #[test]
     fn register_request_auth_key_none_is_omitted() {
         // auth_key: None should be encoded as absent so the server can
@@ -787,11 +832,13 @@ mod tests {
         let req = HeartbeatRequest {
             uptime_secs: 3600,
             local_ips: vec!["10.0.0.1".into(), "192.168.1.2".into()],
+            policy_version: None,
         };
         let bytes = to_cbor(&req).unwrap();
         let decoded: HeartbeatRequest = from_cbor(&bytes).unwrap();
         assert_eq!(req.uptime_secs, decoded.uptime_secs);
         assert_eq!(req.local_ips, decoded.local_ips);
+        assert_eq!(decoded.policy_version, None);
     }
 
     #[test]

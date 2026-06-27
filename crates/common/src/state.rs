@@ -32,6 +32,12 @@ pub const PUBLIC_EDGE_SCOPE_GATEWAY_L4_MAP: &str = "gateway_l4_map.v1";
 /// NSC application UDP route capability token.
 pub const CAPABILITY_NSC_APPLICATION_UDP_V1: &str = "nsc_application_udp.v1";
 
+/// Capability advertising that the agent's control-message parser understands the
+/// `policy_version` SSE event (TASK-049). NSD only emits `policy_version` to a
+/// machine that advertises this token, so a node must advertise it to receive the
+/// event. See nsd `docs/api/policy-version-sse-event.md`.
+pub const CAPABILITY_POLICY_VERSION_V1: &str = "policy_version.v1";
+
 #[derive(Debug, Error)]
 pub enum StateError {
     #[error("I/O error reading/writing state file: {0}")]
