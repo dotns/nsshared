@@ -1,6 +1,6 @@
 # ns-shared - Plan Index
 
-> Updated: 2026-06-17
+> Updated: 2026-06-27
 
 ## Usage
 
@@ -38,3 +38,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**PLAN-007 Canonical internal DNS helpers**](PLAN-007.md) `2026-06-17`
 - [x] [**PLAN-008 WG GatewayEgress control contract**](PLAN-008.md) `2026-06-17`
 - [x] [**PLAN-009 Multi-endpoint control-transport fallback**](PLAN-009.md) `implementing`
+- [x] [**PLAN-010 Reproducible ns-shared QA lockfile**](PLAN-010.md) `2026-06-27`

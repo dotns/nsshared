@@ -1,6 +1,6 @@
 # ns-shared - Task List
 
-> Updated: 2026-06-17
+> Updated: 2026-06-27
 
 ## Usage
 
@@ -46,3 +46,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**CTRL-012 Add nsd_default_mode primary-by-transport selector**](CTRL-012.md) `P2`
 - [x] [**CTRL-013 Distinct-host control-transport fallback (return winning endpoint)**](CTRL-013.md) `P3`
 - [x] [**CTRL-014 nsc pre-control discovery + registration over the fallback list**](CTRL-014.md) `P1`
+- [x] [**HYG-001 Commit lockfile for reproducible QA**](HYG-001.md) `P1`

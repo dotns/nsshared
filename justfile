@@ -11,7 +11,7 @@ default:
 qa: fmt-check lint test deny shear typos
 
 check:
-    cargo check --workspace --all-targets
+    cargo check --workspace --all-targets --locked
 
 fmt:
     cargo fmt --all
@@ -20,16 +20,16 @@ fmt-check:
     cargo fmt --all -- --check
 
 lint:
-    cargo clippy --workspace --all-targets -- -D warnings
+    cargo clippy --workspace --all-targets --locked -- -D warnings
 
 test:
-    cargo nextest run --workspace
+    cargo nextest run --workspace --locked
 
 deny:
-    cargo deny check
+    cargo deny --locked check
 
 shear:
-    cargo shear
+    cargo shear --locked
 
 typos:
     typos
