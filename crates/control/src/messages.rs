@@ -663,6 +663,23 @@ pub struct RouteEntry {
     pub virtual_port: Option<u16>,
 }
 
+impl RouteEntry {
+    /// Effective overlay port a consumer dials for this route.
+    ///
+    /// For a producer NSN that advertises `nsn_virtual_listener.v1`, NSD assigns
+    /// an overlay [`Self::virtual_port`] on the NSN's WG IP — the NSN's
+    /// `ServiceRouter` listens there and proxies to the backend service. The
+    /// consumer side (NSC dial, NSGW public edge, NSGW WSS-relay
+    /// terminate-admission) must dial this overlay port, and every access
+    /// decision is keyed on it — the backend [`Self::port`] must never leak into
+    /// the dial target or ACL. When the producer is not capable, `virtual_port`
+    /// is `None` and the dial falls back to the declared service `port`.
+    #[must_use]
+    pub fn effective_dial_port(&self) -> u16 {
+        self.virtual_port.unwrap_or(self.port)
+    }
+}
+
 /// Routing configuration pushed by NSD.
 ///
 /// Consumed by NSGW (HTTP reverse-proxy routing) and NSC (local DNS).
@@ -2771,6 +2788,29 @@ tunnel = "ws"
         assert_eq!(decoded.target_vip, Some(Ipv4Addr::new(10, 0, 0, 2)));
         assert_eq!(decoded.nsn_wg_ip, Some(Ipv4Addr::new(10, 0, 0, 2)));
         assert_eq!(decoded.virtual_port, Some(10_000));
+    }
+
+    #[test]
+    fn effective_dial_port_prefers_virtual_port_else_service_port() {
+        let mut route = RouteEntry {
+            domain: "web.n.ns".into(),
+            site: "site".into(),
+            service: "web".into(),
+            port: 80,
+            protocol: RouteProtocol::Tcp,
+            backend: ServiceBackendKind::NsnBacked,
+            target_vip: None,
+            nsn_wg_ip: Some(Ipv4Addr::new(10, 0, 0, 2)),
+            virtual_port: Some(10_000),
+        };
+        // Capable producer: dial the overlay port.
+        assert_eq!(route.effective_dial_port(), 10_000);
+        // Non-capable producer (pre-rollout / downgraded): fall back to `port`.
+        route.virtual_port = None;
+        assert_eq!(route.effective_dial_port(), 80);
+        // Degenerate overlay (overlay port == backend port) is still valid.
+        route.virtual_port = Some(80);
+        assert_eq!(route.effective_dial_port(), 80);
     }
 
     #[test]
