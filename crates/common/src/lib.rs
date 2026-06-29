@@ -36,9 +36,10 @@ pub use services::{
 };
 pub use state::{
     AuthMethod, CAPABILITY_CAPTURE_ROUTES_V1, CAPABILITY_GATEWAY_PUBLIC_EDGE_V1,
-    CAPABILITY_NSC_APPLICATION_UDP_V1, CAPABILITY_POLICY_VERSION_V1, MachineIdentity, MachineState,
-    NsdInfo, NsdTransportKeyset, NsdType, PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_CONFIG,
-    PUBLIC_EDGE_SCOPE_GATEWAY_L4_MAP, RealmRegistration, StateError,
+    CAPABILITY_NSC_APPLICATION_UDP_V1, CAPABILITY_NSN_VIRTUAL_LISTENER_V1,
+    CAPABILITY_POLICY_VERSION_V1, MachineIdentity, MachineState, NsdInfo, NsdTransportKeyset,
+    NsdType, PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_CONFIG, PUBLIC_EDGE_SCOPE_GATEWAY_L4_MAP,
+    RealmRegistration, StateError,
 };
 
 /// Shared error type for common configuration.
