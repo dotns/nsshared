@@ -186,7 +186,37 @@ pub struct PortMapping {
     /// Real service port behind the proxy.
     pub target_port: u16,
     /// Transport protocol for both the listener and the upstream connection.
+    ///
+    /// Virtual-listener producers should emit concrete listener protocols; a
+    /// broad service declaration such as `both` is expanded by the producer.
     pub protocol: Protocol,
+    /// Owning NSN machine id for this mapping.
+    ///
+    /// This is the target machine dimension of the uniqueness key
+    /// `(machine_id, listen_port, protocol)`. Legacy payloads decode to an
+    /// empty string; new producers must populate it.
+    #[serde(default)]
+    pub machine_id: String,
+    /// Service name as reported by the owning NSN.
+    ///
+    /// Together with `machine_id`, this derives `fqid` via
+    /// `common::service_fqdn(service, machine_id)`. S2 synthesis must keep
+    /// all three fields consistent.
+    #[serde(default)]
+    pub service: String,
+    /// Canonical service FQDN derived from `service` and `machine_id`.
+    ///
+    /// This self-describing identity supports attribution and audit without
+    /// rejoining against service inventory.
+    #[serde(default)]
+    pub fqid: String,
+    /// Monotonic producer revision for this mapping.
+    ///
+    /// `0` means legacy/default decode. New producers must populate a non-zero
+    /// monotonic revision; S2 decides whether it comes from `services.updated_at`
+    /// or a formal generation source.
+    #[serde(default)]
+    pub revision: u64,
 }
 
 /// A single subnet-level DNAT rule.
@@ -2288,6 +2318,10 @@ mod tests {
                 target_host: "127.0.0.1".into(),
                 target_port: 80,
                 protocol: Protocol::Tcp,
+                machine_id: "machine-a".into(),
+                service: "web".into(),
+                fqid: common::service_fqdn("web", "machine-a"),
+                revision: 42,
             }],
         };
         let json = serde_json::to_string(&orig).unwrap();
@@ -2298,6 +2332,13 @@ mod tests {
         assert_eq!(decoded.port_mappings[0].target_host, "127.0.0.1");
         assert_eq!(decoded.port_mappings[0].target_port, 80);
         assert_eq!(decoded.port_mappings[0].protocol, Protocol::Tcp);
+        assert_eq!(decoded.port_mappings[0].machine_id, "machine-a");
+        assert_eq!(decoded.port_mappings[0].service, "web");
+        assert_eq!(
+            decoded.port_mappings[0].fqid,
+            common::service_fqdn("web", "machine-a")
+        );
+        assert_eq!(decoded.port_mappings[0].revision, 42);
     }
 
     #[test]
@@ -2308,6 +2349,21 @@ mod tests {
         let decoded: ProxyConfig = serde_json::from_str(legacy).unwrap();
         assert_eq!(decoded.chain_id, "legacy");
         assert!(decoded.port_mappings.is_empty());
+    }
+
+    #[test]
+    fn port_mapping_accepts_legacy_identity_defaults() {
+        let legacy =
+            r#"{"listen_port":10000,"target_host":"127.0.0.1","target_port":80,"protocol":"tcp"}"#;
+        let decoded: PortMapping = serde_json::from_str(legacy).unwrap();
+        assert_eq!(decoded.listen_port, 10_000);
+        assert_eq!(decoded.target_host, "127.0.0.1");
+        assert_eq!(decoded.target_port, 80);
+        assert_eq!(decoded.protocol, Protocol::Tcp);
+        assert!(decoded.machine_id.is_empty());
+        assert!(decoded.service.is_empty());
+        assert!(decoded.fqid.is_empty());
+        assert_eq!(decoded.revision, 0);
     }
 
     // ── ServiceReport ─────────────────────────────────────────────────────────

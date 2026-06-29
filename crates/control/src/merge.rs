@@ -62,7 +62,7 @@ pub fn merge_proxy_configs(configs: &[ProxyConfig]) -> Option<ProxyConfig> {
     let base = configs.first()?;
     let mut seen_ids: HashSet<String> = HashSet::new();
     let mut rules: Vec<SubnetRule> = Vec::new();
-    let mut seen_listen: HashSet<(u16, Protocol)> = HashSet::new();
+    let mut seen_listen: HashSet<(String, u16, Protocol)> = HashSet::new();
     let mut port_mappings: Vec<PortMapping> = Vec::new();
 
     for cfg in configs {
@@ -72,10 +72,14 @@ pub fn merge_proxy_configs(configs: &[ProxyConfig]) -> Option<ProxyConfig> {
             }
         }
         for mapping in &cfg.port_mappings {
-            // Deduplicate by (listen_port, protocol) — the listener is the
-            // collision key, mirroring the `resource_id` dedup policy used
-            // for rules so first-config-wins under multi-NSD overlap.
-            if seen_listen.insert((mapping.listen_port, mapping.protocol)) {
+            // Deduplicate by the virtual-listener identity key, mirroring the
+            // `resource_id` dedup policy used for rules so first-config-wins
+            // under multi-NSD overlap.
+            if seen_listen.insert((
+                mapping.machine_id.clone(),
+                mapping.listen_port,
+                mapping.protocol,
+            )) {
                 port_mappings.push(mapping.clone());
             }
         }
@@ -379,7 +383,7 @@ mod tests {
     use acl::{AclPolicy, policy::AclAction, policy::AclRule};
 
     use crate::messages::{
-        AclConfig, PeerConfig, ProxyConfig, RewriteTarget, SubnetRule, WgConfig,
+        AclConfig, PeerConfig, PortMapping, ProxyConfig, RewriteTarget, SubnetRule, WgConfig,
     };
     use common::Protocol;
 
@@ -420,6 +424,19 @@ mod tests {
             chain_id: chain_id.to_string(),
             rules,
             port_mappings: vec![],
+        }
+    }
+
+    fn port_mapping(machine_id: &str, service: &str, listen_port: u16) -> PortMapping {
+        PortMapping {
+            listen_port,
+            target_host: "127.0.0.1".to_owned(),
+            target_port: 80,
+            protocol: Protocol::Tcp,
+            machine_id: machine_id.to_owned(),
+            service: service.to_owned(),
+            fqid: common::service_fqdn(service, machine_id),
+            revision: 42,
         }
     }
 
@@ -473,6 +490,35 @@ mod tests {
         let merged = merge_proxy_configs(&[c1, c2]).unwrap();
         assert_eq!(merged.chain_id, "chain-1");
         assert_eq!(merged.rules.len(), 3);
+    }
+
+    #[test]
+    fn proxy_merge_deduplicates_port_mappings_by_identity_key() {
+        let mut c1 = proxy_cfg("chain-1", vec![]);
+        c1.port_mappings = vec![port_mapping("machine-a", "web", 10_000)];
+        let mut c2 = proxy_cfg("chain-2", vec![]);
+        let mut duplicate = port_mapping("machine-a", "web", 10_000);
+        duplicate.target_port = 8080;
+        c2.port_mappings = vec![duplicate];
+
+        let merged = merge_proxy_configs(&[c1, c2]).unwrap();
+
+        assert_eq!(merged.port_mappings.len(), 1);
+        assert_eq!(merged.port_mappings[0].target_port, 80);
+    }
+
+    #[test]
+    fn proxy_merge_keeps_same_listener_for_different_machines() {
+        let mut c1 = proxy_cfg("chain-1", vec![]);
+        c1.port_mappings = vec![port_mapping("machine-a", "web", 10_000)];
+        let mut c2 = proxy_cfg("chain-2", vec![]);
+        c2.port_mappings = vec![port_mapping("machine-b", "web", 10_000)];
+
+        let merged = merge_proxy_configs(&[c1, c2]).unwrap();
+
+        assert_eq!(merged.port_mappings.len(), 2);
+        assert_eq!(merged.port_mappings[0].machine_id, "machine-a");
+        assert_eq!(merged.port_mappings[1].machine_id, "machine-b");
     }
 
     // ── NsdAclSlot ────────────────────────────────────────────────────────────
