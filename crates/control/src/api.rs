@@ -302,6 +302,10 @@ pub struct GatewayReportRequest {
     /// WireGuard-mode NSC peers.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub nsc_connections: Option<u32>,
+    /// Gateway-local intent for ordinary NSN-backed service terminate.
+    /// Older gateways omit it; NSD treats `None` as enabled.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub nsn_service_terminate_enabled: Option<bool>,
     /// Public `host:port` of the gateway's zero-trust WireGuard relay listener
     /// (the separate relay UDP port, not the main `wg_endpoint`). Present only
     /// when relay is enabled. DNS-resolved by NSD at write time. This is the
@@ -655,6 +659,7 @@ mod tests {
             wg_tunnel_ip: Some(Ipv4Addr::new(10, 0, 0, 1)),
             nsgw_version: Some("1.2.3".into()),
             nsc_connections: Some(7),
+            nsn_service_terminate_enabled: Some(false),
             wg_relay_endpoint: Some("1.2.3.4:51999".into()),
             envoy_http_public_port: Some(8443),
             public_ingress_internal_http_port: Some(8080),
@@ -683,6 +688,7 @@ mod tests {
         assert_eq!(decoded.wg_tunnel_ip, Some(Ipv4Addr::new(10, 0, 0, 1)));
         assert_eq!(decoded.nsgw_version.as_deref(), Some("1.2.3"));
         assert_eq!(decoded.nsc_connections, Some(7));
+        assert_eq!(decoded.nsn_service_terminate_enabled, Some(false));
         assert_eq!(decoded.wg_relay_endpoint.as_deref(), Some("1.2.3.4:51999"));
         assert_eq!(decoded.envoy_http_public_port, Some(8443));
         assert_eq!(decoded.public_ingress_internal_http_port, Some(8080));
@@ -732,6 +738,7 @@ mod tests {
         let decoded: GatewayReportRequest = from_cbor(&bytes).unwrap();
         assert!(decoded.nsgw_version.is_none());
         assert!(decoded.nsc_connections.is_none());
+        assert!(decoded.nsn_service_terminate_enabled.is_none());
         assert!(decoded.wg_relay_endpoint.is_none());
         assert!(decoded.envoy_http_public_port.is_none());
         assert!(decoded.public_ingress_internal_http_port.is_none());
@@ -768,6 +775,7 @@ mod tests {
             wg_tunnel_ip: None,
             nsgw_version: Some("1.2.3".into()),
             nsc_connections: Some(5),
+            nsn_service_terminate_enabled: Some(false),
             wg_relay_endpoint: None,
             envoy_http_public_port: Some(8443),
             public_ingress_internal_http_port: Some(8080),
