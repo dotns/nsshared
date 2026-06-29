@@ -541,6 +541,10 @@ const fn default_true() -> bool {
     true
 }
 
+fn is_true(value: &bool) -> bool {
+    *value
+}
+
 fn is_default<T>(value: &T) -> bool
 where
     T: Default + PartialEq,
@@ -643,6 +647,13 @@ pub struct RoutingConfig {
     /// empty.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub capture_routes: Vec<CaptureRoute>,
+    /// Gateway-local ordinary NSN service terminate admission.
+    ///
+    /// This intentionally does not filter routes or ACL entries: public-edge
+    /// L7, GatewayEgress, and GatewayExit consume the same shared route/ACL
+    /// surfaces and must stay projected when ordinary terminate is disabled.
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
+    pub nsn_service_terminate_admission_enabled: bool,
 }
 
 /// A route-capture policy entry for NSC-side packet capture.
@@ -2655,6 +2666,7 @@ tunnel = "ws"
                 },
             ],
             capture_routes: Vec::new(),
+            nsn_service_terminate_admission_enabled: true,
         };
         let json = serde_json::to_string(&orig).unwrap();
         let decoded: RoutingConfig = serde_json::from_str(&json).unwrap();
@@ -2675,7 +2687,9 @@ tunnel = "ws"
         );
         assert!(!json.contains("\"backend\""));
         assert!(decoded.capture_routes.is_empty());
+        assert!(decoded.nsn_service_terminate_admission_enabled);
         assert!(!json.contains("capture_routes"));
+        assert!(!json.contains("nsn_service_terminate_admission_enabled"));
     }
 
     #[test]
@@ -2819,15 +2833,38 @@ tunnel = "ws"
         let orig = RoutingConfig {
             routes: vec![],
             capture_routes: Vec::new(),
+            nsn_service_terminate_admission_enabled: true,
         };
         let json = serde_json::to_string(&orig).unwrap();
         let decoded: RoutingConfig = serde_json::from_str(&json).unwrap();
         assert!(decoded.routes.is_empty());
         assert!(decoded.capture_routes.is_empty());
+        assert!(decoded.nsn_service_terminate_admission_enabled);
         assert!(
             !json.contains("capture_routes"),
             "empty capture routes must stay off the wire; got {json}"
         );
+        assert!(
+            !json.contains("nsn_service_terminate_admission_enabled"),
+            "default terminate admission must stay off the wire; got {json}"
+        );
+    }
+
+    #[test]
+    fn routing_config_terminate_admission_defaults_true_and_false_round_trips() {
+        let legacy = r#"{"routes":[]}"#;
+        let decoded: RoutingConfig = serde_json::from_str(legacy).unwrap();
+        assert!(decoded.nsn_service_terminate_admission_enabled);
+
+        let disabled = RoutingConfig {
+            routes: vec![],
+            capture_routes: Vec::new(),
+            nsn_service_terminate_admission_enabled: false,
+        };
+        let json = serde_json::to_string(&disabled).unwrap();
+        assert!(json.contains(r#""nsn_service_terminate_admission_enabled":false"#));
+        let decoded: RoutingConfig = serde_json::from_str(&json).unwrap();
+        assert!(!decoded.nsn_service_terminate_admission_enabled);
     }
 
     #[test]
@@ -2836,6 +2873,7 @@ tunnel = "ws"
         let cfg = RoutingConfig {
             routes: vec![],
             capture_routes: vec![route.clone()],
+            nsn_service_terminate_admission_enabled: true,
         };
 
         let bytes = crate::api::to_cbor(&cfg).unwrap();
@@ -2913,6 +2951,7 @@ tunnel = "ws"
         let current = RoutingConfig {
             routes: routes.clone(),
             capture_routes: Vec::new(),
+            nsn_service_terminate_admission_enabled: true,
         };
         let legacy = LegacyRoutingConfig { routes };
 
@@ -2926,6 +2965,7 @@ tunnel = "ws"
         let decoded: RoutingConfig = crate::api::from_cbor(&legacy_bytes).unwrap();
         assert_eq!(decoded.routes.len(), 1);
         assert!(decoded.capture_routes.is_empty());
+        assert!(decoded.nsn_service_terminate_admission_enabled);
     }
 
     #[test]
@@ -3073,6 +3113,7 @@ tunnel = "ws"
                 virtual_port: None,
             }],
             capture_routes: Vec::new(),
+            nsn_service_terminate_admission_enabled: true,
         });
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains("\"type\":\"routing_config\""));
