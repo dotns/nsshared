@@ -33,6 +33,10 @@ pub const PUBLIC_EDGE_SCOPE_GATEWAY_L4_MAP: &str = "gateway_l4_map.v1";
 pub const CAPABILITY_NSC_APPLICATION_UDP_V1: &str = "nsc_application_udp.v1";
 
 /// NSN virtual listener capability token.
+///
+/// Current NSD projections use a flag-day virtual-listener cutover and no
+/// longer gate `virtual_port` on this token. NSN may still advertise it as a
+/// harmless runtime capability marker.
 pub const CAPABILITY_NSN_VIRTUAL_LISTENER_V1: &str = "nsn_virtual_listener.v1";
 
 /// Capability advertising that the agent's control-message parser understands the

@@ -659,12 +659,13 @@ pub struct RouteEntry {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub nsn_wg_ip: Option<Ipv4Addr>,
     /// NSD-assigned overlay listen port on NSN's WG IP, realized by the NSN
-    /// virtual listener (`nsn_virtual_listener.v1`).
+    /// virtual listener.
     ///
     /// NSN's `ServiceRouter` listens on this port — the NSN-side
     /// `PortMapping.listen_port` carries the same value — and proxies to the
-    /// actual service (e.g. `10.0.0.2:10000` → `127.0.0.1:80`). `None` when the
-    /// producer NSN does not advertise the capability.
+    /// actual service (e.g. `10.0.0.2:10000` -> `127.0.0.1:80`). Current NSD
+    /// projections populate this for NSN-backed service routes; `None` remains
+    /// valid for legacy/pre-D1 payloads and non-NSN-backed route families.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub virtual_port: Option<u16>,
 }
@@ -672,14 +673,13 @@ pub struct RouteEntry {
 impl RouteEntry {
     /// Effective overlay port a consumer dials for this route.
     ///
-    /// For a producer NSN that advertises `nsn_virtual_listener.v1`, NSD assigns
-    /// an overlay [`Self::virtual_port`] on the NSN's WG IP — the NSN's
-    /// `ServiceRouter` listens there and proxies to the backend service. The
-    /// consumer side (NSC dial, NSGW public edge, NSGW WSS-relay
-    /// terminate-admission) must dial this overlay port, and every access
-    /// decision is keyed on it — the backend [`Self::port`] must never leak into
-    /// the dial target or ACL. When the producer is not capable, `virtual_port`
-    /// is `None` and the dial falls back to the declared service `port`.
+    /// For current NSN-backed service routes, NSD assigns an overlay
+    /// [`Self::virtual_port`] on the NSN's WG IP; the NSN's `ServiceRouter`
+    /// listens there and proxies to the backend service. The consumer side (NSC
+    /// dial, NSGW public edge, NSGW WSS-relay terminate-admission) must dial
+    /// this overlay port, and every access decision is keyed on it. Legacy
+    /// payloads and route families without a virtual port still fall back to the
+    /// declared service [`Self::port`].
     #[must_use]
     pub fn effective_dial_port(&self) -> u16 {
         self.virtual_port.unwrap_or(self.port)
@@ -2401,6 +2401,7 @@ mod tests {
                 protocol: Protocol::Tcp,
                 host: "192.168.1.10".into(),
                 port: 80,
+                virtual_port: None,
                 enabled: true,
                 description: Some("Main web server".into()),
                 domain: None,
@@ -2415,6 +2416,7 @@ mod tests {
                 protocol: Protocol::Udp,
                 host: "192.168.1.1".into(),
                 port: 53,
+                virtual_port: None,
                 enabled: true,
                 description: None,
                 domain: None,
@@ -2448,6 +2450,7 @@ mod tests {
                 protocol: Protocol::Udp,
                 host: "192.168.1.1".into(),
                 port: 53,
+                virtual_port: None,
                 enabled: true,
                 description: None,
                 domain: None,
@@ -2546,6 +2549,7 @@ port = 22
             protocol: Protocol::Http,
             host: "127.0.0.1".into(),
             port: 17777,
+            virtual_port: None,
             enabled: true,
             description: None,
             domain: Some("local-http.test.n.ns".into()),
@@ -2568,6 +2572,7 @@ port = 22
             protocol: Protocol::Tcp,
             host: "10.0.0.1".into(),
             port: 22,
+            virtual_port: None,
             enabled: true,
             description: None,
             domain: None,
@@ -2617,6 +2622,7 @@ tunnel = "ws"
             protocol: Protocol::Tcp,
             host: "10.0.0.1".into(),
             port: 443,
+            virtual_port: None,
             enabled: true,
             description: None,
             domain: None,
@@ -2810,9 +2816,9 @@ tunnel = "ws"
             nsn_wg_ip: Some(Ipv4Addr::new(10, 0, 0, 2)),
             virtual_port: Some(10_000),
         };
-        // Capable producer: dial the overlay port.
+        // Current NSD projection: dial the overlay port.
         assert_eq!(route.effective_dial_port(), 10_000);
-        // Non-capable producer (pre-rollout / downgraded): fall back to `port`.
+        // Legacy/no-virtual-port payload: fall back to `port`.
         route.virtual_port = None;
         assert_eq!(route.effective_dial_port(), 80);
         // Degenerate overlay (overlay port == backend port) is still valid.
