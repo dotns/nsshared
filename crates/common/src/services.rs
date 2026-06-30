@@ -153,6 +153,14 @@ pub struct ServiceDef {
     pub host: String,
     /// Target port.
     pub port: u16,
+    /// Optional user-pinned overlay (virtual) port.
+    ///
+    /// When set, NSD pins this as the service's overlay `virtual_port` instead
+    /// of defaulting to `port` / allocating from the pool. Must be unique per
+    /// machine. `None` lets NSD choose (default = `port`, pool-fallback on a
+    /// same-port conflict).
+    #[serde(default)]
+    pub virtual_port: Option<u16>,
     /// Domain name used for Layer-7 routing.
     ///
     /// Required when `protocol` is `http` or `https`.  NSN matches the

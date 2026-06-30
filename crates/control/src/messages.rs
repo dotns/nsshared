@@ -384,6 +384,9 @@ pub struct ServiceInfo {
     pub protocol: Protocol,
     pub host: String,
     pub port: u16,
+    /// Optional user-pinned overlay port (mirrors `common::ServiceDef::virtual_port`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub virtual_port: Option<u16>,
     pub enabled: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
@@ -428,6 +431,7 @@ impl From<&ServicesConfig> for ServiceReport {
                     protocol: def.protocol,
                     host: def.host.clone(),
                     port: def.port,
+                    virtual_port: def.virtual_port,
                     enabled: def.enabled,
                     description: def.description.clone(),
                     domain: def.domain.clone(),
