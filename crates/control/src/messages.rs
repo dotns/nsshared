@@ -654,11 +654,13 @@ pub struct RouteEntry {
     /// consumers fall back to legacy routing in that case.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub nsn_wg_ip: Option<Ipv4Addr>,
-    /// NSD-assigned virtual port on NSN's WG IP (D1).
+    /// NSD-assigned overlay listen port on NSN's WG IP, realized by the NSN
+    /// virtual listener (`nsn_virtual_listener.v1`).
     ///
-    /// NSN's `ServiceRouter` listens on this port and proxies to the actual
-    /// service (e.g. `10.0.0.2:10000` → `127.0.0.1:80`). `None` on pre-D1
-    /// payloads.
+    /// NSN's `ServiceRouter` listens on this port — the NSN-side
+    /// `PortMapping.listen_port` carries the same value — and proxies to the
+    /// actual service (e.g. `10.0.0.2:10000` → `127.0.0.1:80`). `None` when the
+    /// producer NSN does not advertise the capability.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub virtual_port: Option<u16>,
 }
@@ -1407,8 +1409,9 @@ pub struct GatewayL4Route {
     pub backend: PublicEdgeBackendKind,
     pub service: String,
     pub site: String,
-    /// Required public listener port allocated by NSD from `virtual_port`.
-    pub virtual_port: u16,
+    /// Required public listener port — NSD allocates it from the per-machine
+    /// `service_virtual_ports` pool; always equal to `identity.public_port`.
+    pub public_port: u16,
     #[serde(default)]
     pub l4: L4Policy,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -3135,7 +3138,7 @@ tunnel = "ws"
                 backend: PublicEdgeBackendKind::NsnBacked,
                 service: "web".to_owned(),
                 site: "site-a".to_owned(),
-                virtual_port: 20_000,
+                public_port: 20_000,
                 l4: L4Policy::default(),
                 certificate_ref: None,
             }],
@@ -3764,7 +3767,7 @@ tunnel = "ws"
             backend: PublicEdgeBackendKind::NsnBacked,
             service: "tcp-web".to_owned(),
             site: "site-a".to_owned(),
-            virtual_port: 10_000,
+            public_port: 10_000,
             l4: L4Policy {
                 connection_limit_ref: Some("conn-l4".to_owned()),
                 session_limit_ref: None,
@@ -3782,7 +3785,7 @@ tunnel = "ws"
             backend: PublicEdgeBackendKind::NsnBacked,
             service: "dns".to_owned(),
             site: "site-a".to_owned(),
-            virtual_port: 10_000,
+            public_port: 10_000,
             l4: L4Policy {
                 connection_limit_ref: None,
                 session_limit_ref: Some("udp-session".to_owned()),
@@ -3800,7 +3803,6 @@ tunnel = "ws"
         let json = serde_json::to_string(&orig).unwrap();
         assert!(json.contains("\"protocol\":\"tcp\""));
         assert!(json.contains("\"protocol\":\"udp\""));
-        assert!(json.contains("\"virtual_port\":10000"));
         assert!(json.contains("\"public_port\":10000"));
         assert!(json.contains("\"nsgw_internal_port\":20000"));
         assert!(json.contains("\"nsgw_internal_port\":20001"));
@@ -3821,7 +3823,7 @@ tunnel = "ws"
             backend: PublicEdgeBackendKind::NsnBacked,
             service: "tcp-web".to_owned(),
             site: "site-a".to_owned(),
-            virtual_port: 10_000,
+            public_port: 10_000,
             l4: L4Policy::default(),
             certificate_ref: None,
         };
