@@ -47,3 +47,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**CTRL-013 Distinct-host control-transport fallback (return winning endpoint)**](CTRL-013.md) `P3`
 - [x] [**CTRL-014 nsc pre-control discovery + registration over the fallback list**](CTRL-014.md) `P1`
 - [x] [**HYG-001 Commit lockfile for reproducible QA**](HYG-001.md) `P1`
+- [x] [**EGRESS-002 Carry GatewayEgress selected owner hint**](EGRESS-002.md) `P0`

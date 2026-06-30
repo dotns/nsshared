@@ -596,6 +596,8 @@ pub enum ServiceBackendKind {
     NsnBacked,
     GatewayEgress {
         service_ref: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        selected_gateway_id: Option<String>,
     },
     GatewayExit {
         profile_ref: String,
@@ -2917,6 +2919,7 @@ tunnel = "ws"
             protocol: RouteProtocol::Tcp,
             backend: ServiceBackendKind::GatewayEgress {
                 service_ref: "saas-api".into(),
+                selected_gateway_id: Some("gw-a".into()),
             },
             target_vip: Some(Ipv4Addr::new(100, 64, 0, 10)),
             nsn_wg_ip: None,
@@ -2936,6 +2939,29 @@ tunnel = "ws"
         let exit_bytes = crate::api::to_cbor(&exit).unwrap();
         let exit_decoded: RouteEntry = crate::api::from_cbor(&exit_bytes).unwrap();
         assert_eq!(exit_decoded, exit);
+    }
+
+    #[test]
+    fn gateway_egress_selected_gateway_id_is_backward_compatible() {
+        let legacy = r#"{"gateway_egress":{"service_ref":"edge/api"}}"#;
+        let decoded: ServiceBackendKind = serde_json::from_str(legacy).unwrap();
+        assert_eq!(
+            decoded,
+            ServiceBackendKind::GatewayEgress {
+                service_ref: "edge/api".to_owned(),
+                selected_gateway_id: None,
+            },
+        );
+
+        let without_owner = serde_json::to_string(&decoded).unwrap();
+        assert_eq!(without_owner, legacy);
+
+        let with_owner = ServiceBackendKind::GatewayEgress {
+            service_ref: "edge/api".to_owned(),
+            selected_gateway_id: Some("gw-b".to_owned()),
+        };
+        let json = serde_json::to_string(&with_owner).unwrap();
+        assert!(json.contains(r#""selected_gateway_id":"gw-b""#));
     }
 
     #[test]
