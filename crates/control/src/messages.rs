@@ -1413,8 +1413,9 @@ pub struct GatewayL4Route {
     pub backend: PublicEdgeBackendKind,
     pub service: String,
     pub site: String,
-    /// Required public listener port — NSD allocates it from the per-machine
-    /// `service_virtual_ports` pool; always equal to `identity.public_port`.
+    /// Required public listener port for the external L4 edge. It is independent
+    /// from NSN service `virtual_port` allocation and always equal to
+    /// `identity.public_port`.
     pub public_port: u16,
     #[serde(default)]
     pub l4: L4Policy,
