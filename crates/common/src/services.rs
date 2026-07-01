@@ -161,11 +161,14 @@ pub struct ServiceDef {
     /// same-port conflict).
     #[serde(default)]
     pub virtual_port: Option<u16>,
-    /// Domain name used for Layer-7 routing.
+    /// Domain for Layer-7 (Host/SNI) virtual-host routing.
     ///
-    /// Required when `protocol` is `http` or `https`.  NSN matches the
-    /// HTTP `Host` header (for `http`) or TLS SNI (for `https`) against this
-    /// value to select the correct backend service.  Ignored for `tcp`/`udp`.
+    /// Optional. When set, NSN selects an `http`/`https` service by matching the
+    /// HTTP `Host` header (`http`) or TLS SNI (`https`) against this value — used
+    /// to disambiguate multiple services that share a listener. NOT required: an
+    /// `http`/`https` service without a `domain` is still reachable by its
+    /// declared port / VIP (raw-TCP fallback, `resolve_layer7_by_port`). Ignored
+    /// for `tcp`/`udp`.
     #[serde(default)]
     pub domain: Option<String>,
     /// Optional free-form description (not used for matching).
