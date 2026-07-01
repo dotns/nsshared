@@ -1160,6 +1160,28 @@ pub struct PublicEdgeRouteIdentity {
     pub policy_revision: PublicEdgePolicyRevision,
 }
 
+/// Upstream TLS mode for public-edge HTTP routes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PublicEdgeUpstreamTlsMode {
+    Reencrypt,
+}
+
+/// Upstream certificate verification mode for public-edge HTTP routes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PublicEdgeUpstreamTlsVerification {
+    AcceptUntrusted,
+}
+
+/// Upstream TLS policy for public-edge HTTP routes.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct PublicEdgeUpstreamTlsPolicy {
+    pub mode: PublicEdgeUpstreamTlsMode,
+    pub verification: PublicEdgeUpstreamTlsVerification,
+    pub sni: String,
+}
+
 /// Transport-agnostic certificate reference carried by public edge snapshots.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct PublicEdgeCertificateRef {
@@ -1380,6 +1402,8 @@ pub struct GatewayHttpRoute {
     pub audit: EdgeAuditPolicy,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub certificate_ref: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub upstream_tls: Option<PublicEdgeUpstreamTlsPolicy>,
 }
 
 /// HTTP public edge routes pushed to capable gateways.
@@ -3365,6 +3389,7 @@ tunnel = "ws"
                 metadata: BTreeMap::from([("owner".to_owned(), "platform".to_owned())]),
             },
             certificate_ref: Some("cert-web".to_owned()),
+            upstream_tls: None,
         }
     }
 
@@ -3408,6 +3433,7 @@ tunnel = "ws"
         assert!(json.contains("\"transforms\""));
         assert!(json.contains("\"audit\""));
         assert!(json.contains("\"certificates\""));
+        assert!(!json.contains("upstream_tls"));
 
         let decoded: GatewayHttpConfig = serde_json::from_str(&json).unwrap();
         assert_eq!(decoded, orig);
@@ -3523,6 +3549,79 @@ tunnel = "ws"
             via_cbor.redirect_base_url.as_deref(),
             Some("https://route.example.test/callback")
         );
+    }
+
+    #[test]
+    fn gateway_http_route_upstream_tls_round_trips() {
+        let mut route = sample_gateway_http_route();
+        route.upstream_tls = Some(PublicEdgeUpstreamTlsPolicy {
+            mode: PublicEdgeUpstreamTlsMode::Reencrypt,
+            verification: PublicEdgeUpstreamTlsVerification::AcceptUntrusted,
+            sni: "web.example.test".to_owned(),
+        });
+
+        let json = serde_json::to_string(&route).unwrap();
+        assert!(json.contains("\"upstream_tls\""));
+        assert!(json.contains("\"mode\":\"reencrypt\""));
+        assert!(json.contains("\"verification\":\"accept_untrusted\""));
+        assert!(json.contains("\"sni\":\"web.example.test\""));
+
+        let decoded: GatewayHttpRoute = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded, route);
+    }
+
+    #[test]
+    fn gateway_http_route_legacy_payload_defaults_upstream_tls_to_none() {
+        #[derive(serde::Serialize)]
+        struct LegacyGatewayHttpRoute {
+            identity: PublicEdgeRouteIdentity,
+            host: String,
+            #[serde(default)]
+            backend: PublicEdgeBackendKind,
+            service: String,
+            site: String,
+            #[serde(default)]
+            identity_import: HttpExternalIdentityImport,
+            #[serde(default)]
+            signed_subject_headers: SignedSubjectHeaderPolicy,
+            #[serde(default)]
+            middleware: HttpMiddlewarePolicy,
+            #[serde(default)]
+            edge_limits: EdgeLimitPolicy,
+            #[serde(default)]
+            transforms: HttpTransformPolicy,
+            #[serde(default)]
+            audit: EdgeAuditPolicy,
+            #[serde(default, skip_serializing_if = "Option::is_none")]
+            certificate_ref: Option<String>,
+        }
+
+        let route = sample_gateway_http_route();
+        let legacy = LegacyGatewayHttpRoute {
+            identity: route.identity.clone(),
+            host: route.host.clone(),
+            backend: route.backend.clone(),
+            service: route.service.clone(),
+            site: route.site.clone(),
+            identity_import: route.identity_import.clone(),
+            signed_subject_headers: route.signed_subject_headers.clone(),
+            middleware: route.middleware.clone(),
+            edge_limits: route.edge_limits.clone(),
+            transforms: route.transforms.clone(),
+            audit: route.audit.clone(),
+            certificate_ref: route.certificate_ref.clone(),
+        };
+
+        let json = serde_json::to_string(&legacy).unwrap();
+        assert!(!json.contains("upstream_tls"));
+        let decoded: GatewayHttpRoute = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.upstream_tls, None);
+        assert_eq!(decoded.host, route.host);
+
+        let cbor = crate::api::to_cbor(&legacy).unwrap();
+        let decoded: GatewayHttpRoute = crate::api::from_cbor(&cbor).unwrap();
+        assert_eq!(decoded.upstream_tls, None);
+        assert_eq!(decoded.service, route.service);
     }
 
     #[test]

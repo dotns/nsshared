@@ -472,6 +472,7 @@ mod tests {
     use super::*;
     use common::{
         CAPABILITY_GATEWAY_PUBLIC_EDGE_V1, PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_CONFIG,
+        PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_UPSTREAM_TLS_ACCEPT_UNTRUSTED,
         PUBLIC_EDGE_SCOPE_GATEWAY_L4_MAP,
     };
 
@@ -667,6 +668,7 @@ mod tests {
             capabilities: vec![CAPABILITY_GATEWAY_PUBLIC_EDGE_V1.into()],
             public_ingress_scopes: vec![
                 PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_CONFIG.into(),
+                PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_UPSTREAM_TLS_ACCEPT_UNTRUSTED.into(),
                 PUBLIC_EDGE_SCOPE_GATEWAY_L4_MAP.into(),
             ],
             certificate_statuses: vec![GatewayCertificateStatus {
@@ -701,6 +703,7 @@ mod tests {
             decoded.public_ingress_scopes,
             vec![
                 PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_CONFIG,
+                PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_UPSTREAM_TLS_ACCEPT_UNTRUSTED,
                 PUBLIC_EDGE_SCOPE_GATEWAY_L4_MAP
             ]
         );
@@ -873,6 +876,7 @@ mod tests {
             capabilities: vec![CAPABILITY_GATEWAY_PUBLIC_EDGE_V1.into()],
             public_ingress_scopes: vec![
                 PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_CONFIG.into(),
+                PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_UPSTREAM_TLS_ACCEPT_UNTRUSTED.into(),
                 PUBLIC_EDGE_SCOPE_GATEWAY_L4_MAP.into(),
             ],
         };
@@ -886,6 +890,7 @@ mod tests {
             decoded.public_ingress_scopes,
             vec![
                 PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_CONFIG,
+                PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_UPSTREAM_TLS_ACCEPT_UNTRUSTED,
                 PUBLIC_EDGE_SCOPE_GATEWAY_L4_MAP
             ]
         );
@@ -995,6 +1000,7 @@ mod tests {
             capabilities: vec![CAPABILITY_GATEWAY_PUBLIC_EDGE_V1.into()],
             public_ingress_scopes: vec![
                 PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_CONFIG.into(),
+                PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_UPSTREAM_TLS_ACCEPT_UNTRUSTED.into(),
                 PUBLIC_EDGE_SCOPE_GATEWAY_L4_MAP.into(),
             ],
         };
@@ -1010,6 +1016,7 @@ mod tests {
             decoded.info.public_ingress_scopes,
             vec![
                 PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_CONFIG,
+                PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_UPSTREAM_TLS_ACCEPT_UNTRUSTED,
                 PUBLIC_EDGE_SCOPE_GATEWAY_L4_MAP
             ]
         );
