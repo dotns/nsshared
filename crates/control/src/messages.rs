@@ -2966,6 +2966,46 @@ tunnel = "ws"
     }
 
     #[test]
+    fn route_entry_with_aliases_decodes_for_pre_alias_readers() {
+        // A pre-alias consumer (struct without the field, serde's default
+        // unknown-field tolerance) must decode a payload that carries
+        // `aliases` — the additive rollout depends on it.
+        #[derive(Deserialize)]
+        struct PreAliasRouteEntry {
+            domain: String,
+            port: u16,
+            #[serde(default)]
+            virtual_port: Option<u16>,
+        }
+
+        let route = RouteEntry {
+            domain: "web.site-a.n.ns.io".into(),
+            site: "site-a".into(),
+            service: "web".into(),
+            port: 443,
+            protocol: RouteProtocol::Tcp,
+            backend: ServiceBackendKind::NsnBacked,
+            target_vip: None,
+            nsn_wg_ip: None,
+            virtual_port: Some(10_000),
+            aliases: vec!["shop.example.com".to_string()],
+        };
+
+        let json = serde_json::to_string(&route).unwrap();
+        assert!(json.contains("aliases"), "fixture must carry aliases");
+        let old_json: PreAliasRouteEntry = serde_json::from_str(&json).unwrap();
+        assert_eq!(old_json.domain, "web.site-a.n.ns.io");
+        assert_eq!(old_json.port, 443);
+        assert_eq!(old_json.virtual_port, Some(10_000));
+
+        let cbor = crate::api::to_cbor(&route).unwrap();
+        let old_cbor: PreAliasRouteEntry = crate::api::from_cbor(&cbor).unwrap();
+        assert_eq!(old_cbor.domain, "web.site-a.n.ns.io");
+        assert_eq!(old_cbor.port, 443);
+        assert_eq!(old_cbor.virtual_port, Some(10_000));
+    }
+
+    #[test]
     fn route_entry_udp_protocol_round_trips() {
         let route = RouteEntry {
             domain: "dns.n.ns".into(),
