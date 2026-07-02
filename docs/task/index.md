@@ -49,3 +49,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**HYG-001 Commit lockfile for reproducible QA**](HYG-001.md) `P1`
 - [x] [**EGRESS-002 Carry GatewayEgress selected owner hint**](EGRESS-002.md) `P0`
 - [x] [**EDGE-004 Add public edge upstream TLS policy contract**](EDGE-004.md) `P0`
+- [-] [**CTRL-015 Add RouteEntry.aliases wire field for custom service-domain aliases**](CTRL-015.md) `P1`

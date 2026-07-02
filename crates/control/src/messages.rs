@@ -670,6 +670,16 @@ pub struct RouteEntry {
     /// valid for legacy/pre-D1 payloads and non-NSN-backed route families.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub virtual_port: Option<u16>,
+    /// Additional user-declared virtual domain names that resolve to the same
+    /// service as [`Self::domain`] (the canonical FQID).
+    ///
+    /// NSD projects realm-unique custom domains (from `ServiceDef.domain`) here;
+    /// NSC maps each alias to the route's per-service VIP so a friendly name
+    /// reaches the service on its natural port. Empty for services without a
+    /// declared domain — the field then serializes away, keeping the wire shape
+    /// byte-identical for older payloads and envelope-pin flows.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub aliases: Vec<String>,
 }
 
 impl RouteEntry {
@@ -2137,6 +2147,7 @@ mod tests {
             target_vip: None,
             nsn_wg_ip: None,
             virtual_port: None,
+            aliases: Vec::new(),
         }
     }
 
@@ -2776,6 +2787,7 @@ tunnel = "ws"
                     target_vip: None,
                     nsn_wg_ip: None,
                     virtual_port: None,
+                    aliases: Vec::new(),
                 },
             ],
             capture_routes: Vec::new(),
@@ -2795,7 +2807,8 @@ tunnel = "ws"
             !json.contains("nsn_wg_ip")
                 && !json.contains("virtual_port")
                 && !json.contains("target_vip")
-                && !json.contains("protocol"),
+                && !json.contains("protocol")
+                && !json.contains("aliases"),
             "None additive fields must be omitted on the wire; got {json}"
         );
         assert!(!json.contains("\"backend\""));
@@ -2817,6 +2830,7 @@ tunnel = "ws"
             target_vip: Some(Ipv4Addr::new(10, 0, 0, 2)),
             nsn_wg_ip: Some(Ipv4Addr::new(10, 0, 0, 2)),
             virtual_port: Some(10_000),
+            aliases: Vec::new(),
         };
         let json = serde_json::to_string(&orig).unwrap();
         assert!(!json.contains("\"backend\""));
@@ -2831,6 +2845,42 @@ tunnel = "ws"
     }
 
     #[test]
+    fn route_entry_aliases_omitted_when_empty_else_round_trip() {
+        // Empty aliases must serialize away so the wire stays byte-identical
+        // for services without a declared domain (protects RoutingConfig
+        // fixtures and envelope-pin flows).
+        let bare_json = serde_json::to_string(&sample_route_entry()).unwrap();
+        assert!(
+            !bare_json.contains("aliases"),
+            "empty aliases must be omitted on the wire; got {bare_json}"
+        );
+
+        // Populated aliases round-trip and carry order.
+        let orig = RouteEntry {
+            domain: "web.site-a.n.ns.io".to_string(),
+            site: "site-a".to_string(),
+            service: "web".to_string(),
+            port: 443,
+            protocol: RouteProtocol::Tcp,
+            backend: ServiceBackendKind::NsnBacked,
+            target_vip: None,
+            nsn_wg_ip: None,
+            virtual_port: None,
+            aliases: vec![
+                "shop.example.com".to_string(),
+                "www.example.com".to_string(),
+            ],
+        };
+        let json = serde_json::to_string(&orig).unwrap();
+        assert!(
+            json.contains("\"aliases\":[\"shop.example.com\",\"www.example.com\"]"),
+            "populated aliases must serialize in order; got {json}"
+        );
+        let decoded: RouteEntry = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.aliases, vec!["shop.example.com", "www.example.com"]);
+    }
+
+    #[test]
     fn effective_dial_port_prefers_virtual_port_else_service_port() {
         let mut route = RouteEntry {
             domain: "web.n.ns".into(),
@@ -2842,6 +2892,7 @@ tunnel = "ws"
             target_vip: None,
             nsn_wg_ip: Some(Ipv4Addr::new(10, 0, 0, 2)),
             virtual_port: Some(10_000),
+            aliases: Vec::new(),
         };
         // Current NSD projection: dial the overlay port.
         assert_eq!(route.effective_dial_port(), 10_000);
@@ -2894,6 +2945,7 @@ tunnel = "ws"
             target_vip: None,
             nsn_wg_ip: None,
             virtual_port: None,
+            aliases: Vec::new(),
         };
         let legacy = LegacyRouteEntry {
             domain: "web.n.ns",
@@ -2925,6 +2977,7 @@ tunnel = "ws"
             target_vip: None,
             nsn_wg_ip: None,
             virtual_port: None,
+            aliases: Vec::new(),
         };
 
         let json = serde_json::to_string(&route).unwrap();
@@ -2948,6 +3001,7 @@ tunnel = "ws"
             target_vip: Some(Ipv4Addr::new(100, 64, 0, 10)),
             nsn_wg_ip: None,
             virtual_port: None,
+            aliases: Vec::new(),
         };
         let egress_bytes = crate::api::to_cbor(&egress).unwrap();
         let egress_decoded: RouteEntry = crate::api::from_cbor(&egress_bytes).unwrap();
@@ -3271,6 +3325,7 @@ tunnel = "ws"
                 target_vip: None,
                 nsn_wg_ip: None,
                 virtual_port: None,
+                aliases: Vec::new(),
             }],
             capture_routes: Vec::new(),
             nsn_service_terminate_admission_enabled: true,
