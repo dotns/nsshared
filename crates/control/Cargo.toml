@@ -36,6 +36,7 @@ webpki-roots = { workspace = true }
 ed25519-dalek = { workspace = true }
 rand_core    = { workspace = true }
 ring         = "0.17.14"
+socket2      = { workspace = true }
 
 [dev-dependencies]
 tempfile     = { workspace = true }

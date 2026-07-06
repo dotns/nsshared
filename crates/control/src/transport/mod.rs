@@ -11,6 +11,7 @@
 use std::io;
 use std::pin::Pin;
 use std::task::{Context, Poll};
+use std::time::Duration;
 
 use futures_util::future::BoxFuture;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
@@ -139,6 +140,43 @@ pub trait ControlTransport: Send + Sync {
     /// Short human-readable name for this transport (e.g. `"sse"`, `"noise"`,
     /// `"quic"`).
     fn name(&self) -> &str;
+}
+
+// -- Control-socket TCP keepalive ----------------------------------------------
+
+/// Idle time before the kernel sends the first TCP keepalive probe on a
+/// control socket.
+///
+/// Linux defaults (`tcp_keepalive_time` = 7200s) are useless at control-plane
+/// timescales. 30s idle + [`TCP_KEEPALIVE_RETRIES`] probes at
+/// [`TCP_KEEPALIVE_INTERVAL`] tears a dead path down after roughly
+/// 30 + 3 x 10 = 60s and fails pending writes on half-open sockets. The
+/// config-stream idle read deadline (`crate::sse`) remains the primary
+/// detector; this is the OS-level backstop that also covers the short-lived
+/// unary `call()` sockets.
+pub(crate) const TCP_KEEPALIVE_TIME: Duration = Duration::from_secs(30);
+
+/// Interval between keepalive probes once [`TCP_KEEPALIVE_TIME`] expires
+/// without traffic.
+pub(crate) const TCP_KEEPALIVE_INTERVAL: Duration = Duration::from_secs(10);
+
+/// Unacknowledged probes before the kernel declares the peer dead and fails
+/// the socket. Applied where the platform supports it; the deployment target
+/// is Linux.
+pub(crate) const TCP_KEEPALIVE_RETRIES: u32 = 3;
+
+/// Enable TCP keepalive on a freshly connected control socket.
+///
+/// Called by the TCP transports right after `TcpStream::connect` succeeds,
+/// before any TLS / Noise handshake. Failure is non-fatal: losing the kernel
+/// backstop must not fail an otherwise healthy connect, so call sites log
+/// and continue.
+pub(crate) fn set_control_tcp_keepalive(tcp: &tokio::net::TcpStream) -> io::Result<()> {
+    let keepalive = socket2::TcpKeepalive::new()
+        .with_time(TCP_KEEPALIVE_TIME)
+        .with_interval(TCP_KEEPALIVE_INTERVAL)
+        .with_retries(TCP_KEEPALIVE_RETRIES);
+    socket2::SockRef::from(tcp).set_tcp_keepalive(&keepalive)
 }
 
 // -- Metric instrumentation (CTRL-002) ----------------------------------------

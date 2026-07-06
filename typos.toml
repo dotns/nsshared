@@ -9,6 +9,10 @@
 # so real typos elsewhere still fail.
 extend-ignore-identifiers-re = [
     "P7IdLIpiTZiFaIoOSqbX[A-Za-z0-9]*",
+    # Bare hex commit ids (short or full) tokenize into fragments ("ba",
+    # "5e0") that the dictionary rewrites; ignore hex-only identifiers of
+    # commit-id length.
+    "\\b[0-9a-f]{7,40}\\b",
 ]
 
 [files]

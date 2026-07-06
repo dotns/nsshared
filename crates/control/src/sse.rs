@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use tokio::io::AsyncReadExt;
@@ -418,6 +418,18 @@ async fn post_services_report_via_call(
     Ok(())
 }
 
+/// Maximum time to wait for any bytes on the established config stream before
+/// treating the connection as dead.
+///
+/// The NSD server emits an SSE keepalive comment at least every 15s on an
+/// otherwise idle stream (`KEEPALIVE_INTERVAL` = 15s, per the server contract
+/// in `control-plane/02-transport-sse`), so a healthy stream always delivers
+/// bytes well inside this window. 45s = 3x the server interval: expiry
+/// requires three consecutive keepalives to be lost or late, so a half-open /
+/// black-holed control path is detected instead of pinning stale ACL state
+/// forever. An NSD-side interval change must revisit this constant.
+const CONFIG_STREAM_IDLE_TIMEOUT: Duration = Duration::from_secs(45);
+
 async fn next_message_from_stream(
     sse_stream: &mut Option<crate::transport::BoxStream>,
     framer: &mut SseFramer,
@@ -439,10 +451,16 @@ async fn next_message_from_stream(
             .ok_or_else(|| Error::Sse("not connected".to_string()))?;
 
         let mut chunk = [0u8; 4096];
-        let n = stream
-            .read(&mut chunk)
-            .await
-            .map_err(|e| Error::Sse(e.to_string()))?;
+        let n =
+            match tokio::time::timeout(CONFIG_STREAM_IDLE_TIMEOUT, stream.read(&mut chunk)).await {
+                Ok(read_result) => read_result.map_err(|e| Error::Sse(e.to_string()))?,
+                Err(_elapsed) => {
+                    *sse_stream = None;
+                    return Err(Error::Sse(
+                        "config stream idle: no bytes in 45s (server keepalive 15s)".to_string(),
+                    ));
+                }
+            };
 
         if n == 0 {
             *sse_stream = None;
@@ -636,6 +654,69 @@ mod tests {
                     |m| self.signer.sign(m).to_bytes(),
                 )
                 .map_err(Error::from)
+            })
+        }
+
+        fn name(&self) -> &str {
+            self.transport_name
+        }
+    }
+
+    /// Transport whose `config.stream` writes scripted chunks separated by
+    /// virtual-time delays, then either drops the server end (EOF) or holds
+    /// it open silently forever. Models an NSD that emits keepalive comments
+    /// and then black-holes, for the idle-deadline tests.
+    struct ScriptedStreamTransport {
+        transport_name: &'static str,
+        /// `(seconds to sleep before writing, bytes to write)` steps.
+        script: Vec<(u64, Vec<u8>)>,
+        /// Keep the server end open (silent) after the script instead of
+        /// dropping it, which would surface as EOF rather than idleness.
+        hold_open: bool,
+    }
+
+    impl ScriptedStreamTransport {
+        fn new(
+            transport_name: &'static str,
+            script: Vec<(u64, Vec<u8>)>,
+            hold_open: bool,
+        ) -> Arc<Self> {
+            Arc::new(Self {
+                transport_name,
+                script,
+                hold_open,
+            })
+        }
+    }
+
+    impl ControlTransport for ScriptedStreamTransport {
+        fn connect<'a>(&'a self, _endpoint: &'a str) -> BoxFuture<'a, Result<BoxStream, Error>> {
+            Box::pin(async move { Err(Error::Connect("legacy connect must not be used".into())) })
+        }
+
+        fn connect_stream<'a>(
+            &'a self,
+            _endpoint: &'a str,
+            _envelope: ControlEnvelope,
+            _bearer_token: Option<&'a str>,
+        ) -> BoxFuture<'a, Result<BoxStream, Error>> {
+            Box::pin(async move {
+                let (client, mut server) = duplex(1024);
+                let script = self.script.clone();
+                let hold_open = self.hold_open;
+                tokio::spawn(async move {
+                    for (delay_secs, bytes) in script {
+                        if delay_secs > 0 {
+                            tokio::time::sleep(std::time::Duration::from_secs(delay_secs)).await;
+                        }
+                        server.write_all(&bytes).await.unwrap();
+                        server.flush().await.unwrap();
+                    }
+                    if hold_open {
+                        std::future::pending::<()>().await;
+                    }
+                });
+                Ok(BoxStream::new(client))
             })
         }
 
@@ -1474,5 +1555,81 @@ mod tests {
             vec![Some("token-from-register".to_string())]
         );
         assert!(recorded.call_apis.is_empty());
+    }
+
+    // A stream that delivers one keepalive comment and then black-holes (no
+    // bytes, no EOF, no socket error) must trip the idle deadline: the read
+    // expires after 45s of virtual time with an error naming the deadline,
+    // and the client reports disconnected so the driver's reconnect and
+    // fail-closed chain can engage.
+    #[tokio::test(start_paused = true)]
+    async fn config_stream_black_hole_trips_idle_deadline_and_disconnects() {
+        let transport =
+            ScriptedStreamTransport::new("sse", vec![(0, b": keepalive\n\n".to_vec())], true);
+        let mut control = SseControl::new(transport, "nsd.test:443".into(), 100, 4096, None);
+        let payload = envapi::to_cbor(&envapi::ConfigStreamRequest::default()).unwrap();
+        control.set_token("token-from-register".to_string());
+        control
+            .connect(signed_envelope(envelope::api::CONFIG_STREAM, payload))
+            .await
+            .unwrap();
+        assert!(control.is_connected());
+
+        let start = tokio::time::Instant::now();
+        let err = control
+            .next_message()
+            .await
+            .expect_err("black-holed stream must expire instead of blocking forever");
+
+        assert!(
+            start.elapsed() >= std::time::Duration::from_secs(45),
+            "deadline must not fire before 45s of stream silence: {:?}",
+            start.elapsed()
+        );
+        assert!(
+            matches!(err, Error::Sse(ref msg) if msg.contains("idle") && msg.contains("45s")),
+            "error must name the idle deadline: {err:?}"
+        );
+        assert!(!control.is_connected());
+    }
+
+    // Keepalive comments at the server's 15s cadence must hold the stream
+    // open across at least three 45s deadline windows without erroring, and
+    // a real signed event arriving afterwards must still decode.
+    #[tokio::test(start_paused = true)]
+    async fn config_stream_keepalives_hold_stream_open_across_deadline_windows() {
+        let signer = SigningKey::generate(&mut OsRng);
+        let trust = config_event_trust(&signer);
+        let event = signed_config_sse_event(&signed_config_message_event(
+            &signer,
+            "m-1",
+            ControlMessage::Ping,
+        ));
+        let mut script: Vec<(u64, Vec<u8>)> =
+            (0..9).map(|_| (15, b": keepalive\n\n".to_vec())).collect();
+        script.push((15, event.into_bytes()));
+        let transport = ScriptedStreamTransport::new("quic", script, false);
+        let mut control =
+            NoiseControl::new(transport, "nsd.test:4002".into(), 100, 4096, Some(trust));
+        let payload = envapi::to_cbor(&envapi::ConfigStreamRequest::default()).unwrap();
+        control.set_token("token-from-register".to_string());
+        control
+            .connect(signed_envelope(envelope::api::CONFIG_STREAM, payload))
+            .await
+            .unwrap();
+
+        let start = tokio::time::Instant::now();
+        let msg = control
+            .next_message()
+            .await
+            .expect("15s keepalives must keep the stream inside the idle deadline");
+
+        assert!(matches!(msg, ControlMessage::Ping));
+        assert!(
+            start.elapsed() >= std::time::Duration::from_secs(135),
+            "stream must have stayed up across three 45s windows: {:?}",
+            start.elapsed()
+        );
+        assert!(control.is_connected());
     }
 }

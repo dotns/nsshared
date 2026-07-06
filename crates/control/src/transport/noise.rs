@@ -420,6 +420,10 @@ impl ControlTransport for NoiseTransport {
                 .await
                 .map_err(|e| Error::Connect(format!("TCP connect to {endpoint}: {e}")))?;
 
+            if let Err(e) = super::set_control_tcp_keepalive(&tcp) {
+                warn!(endpoint, error = %e, "failed to enable TCP keepalive on control socket");
+            }
+
             debug!(endpoint, "NoiseTransport: starting Noise IK handshake");
 
             // Build Noise IK initiator (NSN knows NSD's static public key).

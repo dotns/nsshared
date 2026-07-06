@@ -15,7 +15,7 @@ use rustls::pki_types::ServerName;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
 use tokio::net::TcpStream;
 use tokio_rustls::TlsConnector;
-use tracing::debug;
+use tracing::{debug, warn};
 
 use super::BoxStream;
 use crate::{
@@ -80,6 +80,10 @@ impl ControlTransport for SseTransport {
             let tcp = TcpStream::connect(endpoint)
                 .await
                 .map_err(|e| Error::Connect(format!("TCP connect to {endpoint}: {e}")))?;
+
+            if let Err(e) = super::set_control_tcp_keepalive(&tcp) {
+                warn!(endpoint, error = %e, "failed to enable TCP keepalive on control socket");
+            }
 
             // Extract the hostname for SNI (strip port if present).
             let host = endpoint
@@ -936,5 +940,26 @@ mod tests {
             .expect("missing bearer token must fail closed");
 
         assert!(matches!(err, Error::Auth(msg) if msg.contains("missing bearer token")));
+    }
+
+    // The keepalive settings applied at connect time must stick on a real
+    // socket: SO_KEEPALIVE enabled and the configured 30s idle time visible
+    // through the socket2 getters.
+    #[tokio::test]
+    async fn control_tcp_keepalive_reads_back_on_localhost_socket() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let client = TcpStream::connect(addr).await.unwrap();
+        let (_server, _) = listener.accept().await.unwrap();
+
+        crate::transport::set_control_tcp_keepalive(&client).unwrap();
+
+        let sock = socket2::SockRef::from(&client);
+        assert!(sock.keepalive().unwrap(), "SO_KEEPALIVE must be enabled");
+        assert_eq!(
+            sock.tcp_keepalive_time().unwrap(),
+            std::time::Duration::from_secs(30),
+            "tcp_keepalive_time must read back the configured idle time"
+        );
     }
 }

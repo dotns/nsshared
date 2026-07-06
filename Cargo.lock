@@ -297,6 +297,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "snow",
+ "socket2",
  "telemetry",
  "tempfile",
  "thiserror 2.0.18",

@@ -52,6 +52,9 @@ serde_bytes = "0.11"
 serde_json = "1"
 sha2 = "0.10"
 snow = "0.9"
+# TCP keepalive tuning on control sockets; `all` exposes the full
+# `TcpKeepalive` builder (interval/retries) and the getters used by tests.
+socket2 = { version = "0.6", features = ["all"] }
 tempfile = "3"
 thiserror = "2"
 tokio = { version = "1", features = ["full"] }

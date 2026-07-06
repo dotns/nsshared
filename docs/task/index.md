@@ -1,6 +1,6 @@
 # ns-shared - Task List
 
-> Updated: 2026-07-01
+> Updated: 2026-07-03
 
 ## Usage
 
@@ -50,3 +50,5 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**EGRESS-002 Carry GatewayEgress selected owner hint**](EGRESS-002.md) `P0`
 - [x] [**EDGE-004 Add public edge upstream TLS policy contract**](EDGE-004.md) `P0`
 - [-] [**CTRL-015 Add RouteEntry.aliases wire field for custom service-domain aliases**](CTRL-015.md) `P1`
+- [ ] [**CTRL-016 Add config-stream idle read deadline and control-socket TCP keepalive**](CTRL-016.md) `P1`
+- [ ] [**CTRL-017 Decide cross-repo stale-policy bound for control-plane loss**](CTRL-017.md) `P1`
