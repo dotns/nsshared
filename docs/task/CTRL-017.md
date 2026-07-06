@@ -1,716 +1,478 @@
-# CTRL-017 Policy-convergence observability: emit/echo completion, staleness budget, multi-NSD merge authority
+# CTRL-017 Policy-convergence observability (Tier-1 re-scope): heartbeat-age lag report + staleness budget + union documentation
 
-- **status**: proposed
+- **status**: review — DESIGN complete, gated on USER approval before implement
 - **priority**: P1
-- **owner**: unassigned (investigation delivered by campaign drrem-wsc-20260703)
+- **owner**: unassigned (design revised by campaign drrem-wsc-20260703)
 - **createdAt**: 2026-07-03
+- **revisedAt**: 2026-07-04
+- **revises**: original `proposed` CTRL-017 at `bkd/inqgedgs:docs/task/CTRL-017.md`
+  (investigation + proposal recommending **1A + 2A + 3A**). This file replaces
+  the **proposal**; the original's INVESTIGATE-phase evidence still stands and
+  is cited, not repeated.
 
-## Description
+## Executive summary
 
-Design-review finding DR-H4 (2026-07-03, high): the ACL plane has no
-"has this policy landed everywhere?" signal, and several paths let a node
-keep a stale ALLOW after a revocation. Three sub-claims: (a) mainline NSD
-never emits `policy_version` and NSN/NSC heartbeats report `None` (only
-NSGW echoes a real value); (b) the `last_good_max_age` stale-downgrade is
-default-off and has no NSGW analogue; (c) the multi-NSD merge is a union
-of allows, so revocation must land on every NSD.
+DR-H4 (design-review finding, 2026-07-03, high): the ACL plane has no
+"has this policy landed everywhere?" signal, and a revoked ALLOW can survive
+on a node that went dark before the revocation propagated.
 
-This file is the INVESTIGATE-phase record only: symptom verification with
-code evidence, the PLAN-095 gap, per-repo candidate change sets, the
-design decision space, and the open questions the proposal phase must
-answer. No option is selected here.
+The original proposal answered this with **1A** — port the mainline-nsd
+`policy_version` **emit**, ingest the heartbeat echo into a new
+`machines.reported_policy_version` column, wire an ns-shared echo cell, and
+advertise `policy_version.v1` from NSN — plus **2A** (staleness budget) and
+**3A** (union-of-allows as documented contract).
 
-Evidence baselines: ns-shared worktree `bkd/wylncln4` @ `7799f85`
-(== main merge-base); sibling live checkouts read-only at
-`/workspace/nsiod/{nsd,ns,nsgw,nsiod-docs}` (all on `main`,
-ns @ `a1f0fe9`).
+**USER decision: Tier 1 only.** Drop **1A / `policy_version` emit+echo**
+entirely. Rationale: `policy_version` is precise-but-expensive observability
+whose main payoff is multi-NSD "connected-but-lagging" detection; a cheaper
+**heartbeat-age** lag signal catches the dominant failure — *a node gone or
+partitioned since the policy changed* — with **no wire, DB, or nsio-proto
+change**; and neither 1A nor Tier-1 actually **closes** the union revocation
+hole (that is a separate Tier-3 deny-wins decision, deferred).
 
-## Symptom confirmation
+Revised target = **Tier-1 lag report + 2A + 3A**:
 
-### (a) Emit/echo loop is open everywhere except NSGW — CONFIRMED
+1. **Tier-1 convergence lag report** (nsd, read-only, EXISTING signals):
+   compare each realm's current `acl_policies.version` / `updated_at` against
+   each subscriber's `machines.last_heartbeat`. A node that has **not**
+   heartbeat since the ACL last changed is flagged *unobserved /
+   potentially-unconverged* (never silently "converged"). Explicitly **coarser**
+   than `policy_version`: it proves a node was *connected+alive after the
+   change*, not that it *applied* the new policy. That coarseness is the
+   accepted trade.
+2. **2A staleness budget** (kept): ratify the shipped NSN 24 h
+   (`86_400 s`) default; add an NSGW analogue — an age-bound **degraded**
+   marker + metric/alert that **serves stale rather than failing closed**
+   (proposed default); make `last_good_max_age_secs = 0` a startup error.
+3. **3A union-of-allows** (kept): document it as the multi-NSD contract; the
+   revocation hole becomes **partially observable** via the Tier-1 report but
+   is **not fixed** — the deny-wins tombstone fix (3D) is deferred to Tier-3.
 
-NSD emit side (mainline `nsd`):
+Blast radius collapses from **five written repos + a DB migration + a wire/
+proto bump** to **nsd (read-only report) + nsgw (degraded marker)**, plus a
+~3-line NSN startup guard in `ns`. **ns-shared is untouched** — the item that
+forced the whole live-tree path-dep rebuild cascade (the echo cell) is gone,
+and the PLAN-095 wire types stay dormant.
 
-- `nsd/crates/nsd-api/src/sse/filter.rs:138` —
-  `ControlMessage::PolicyVersion { .. } | ControlMessage::Unknown => Self::Unknown`
-  in `VariantKind::from_message` (:108). No dedicated `VariantKind` row
-  exists, so the event is never eligible in the connector/gateway variant
-  sets (:216-254) and nothing is ever fanned out.
-- Mainline NSD does maintain the per-realm counter — but only in the DB:
-  `nsd/crates/nsd-api/src/handlers/admin/acl/mod.rs:115`
-  (`bump_policy_version`, `acl_policies.version`, monotonic
-  `saturating_add(1)`); every successful admin ACL write calls it and then
-  `recompile_and_publish` (:138), which emits `acl_config` invalidations
-  (`sse/outbox.rs:498` `commit_acl_invalidation`, `:1062`
-  `fan_out_acl_invalidation`) but never a `policy_version` event.
-- NSD ingest side: the envelope heartbeat handler
-  `nsd/crates/nsd-api/src/envelope/handlers/machine_heartbeat.rs:21-24`
-  decodes `control::api::HeartbeatRequest` (which carries
-  `policy_version` since PLAN-095) and passes only `local_ips` to
-  `handlers/heartbeat/core.rs` `record_heartbeat`, which persists only
-  `machines.last_heartbeat` + `local_ips`. A reported version is decoded
-  and discarded; there is no `reported_policy_version` column anywhere in
-  mainline nsd (grep: zero hits).
+This is **DESIGN, gated on USER approval**. One sign-off remains (§6): the
+NSGW degrade behavior (serve-stale-with-alert vs fail-closed, with a
+recommended per-listener fail-closed opt-in for high-sensitivity public-edge
+listeners).
 
-NSN/NSC echo side (ns-shared + ns):
+---
 
-- The shared heartbeat sender hard-codes `None`:
-  `crates/control/src/auth.rs:1189-1196` (`heartbeat_envelope`,
-  `policy_version: None` with a PLAN-095 "deferred follow-up" comment).
-  The legacy JSON path (`auth.rs:1111` `post_heartbeat_legacy`) has no
-  such field at all. Send chain: `crates/control/src/lib.rs:652-655`
-  (SSE loop tick) and `:902` (WS loop) → `send_heartbeat` (`lib.rs:1015`)
-  → `HeartbeatClient::heartbeat` (`auth.rs:1048`).
-- The shared consumer arm is a decode-and-ignore no-op:
-  `crates/control/src/lib.rs:1338-1349` ("consumer not wired on this
-  control plane"). The arm is currently unreachable in practice because a
-  gated NSD emits only to machines that advertise `policy_version.v1`,
-  and neither NSN nor NSC does: `ns/crates/nsn/src/main.rs:63-66`
-  (`nsn_capabilities` = `[CAPABILITY_NSN_VIRTUAL_LISTENER_V1]`, applied
-  at :716/:768/:1058) and `ns/crates/nsc/src/main.rs:2056-2061`
-  (`client_capabilities` = `[CAPABILITY_NSC_APPLICATION_UDP_V1]`
-  + capture-routes, applied at :1330-1331/:1494). The constant itself
-  exists in the shared crate: `crates/common/src/state.rs:50`
-  (`CAPABILITY_POLICY_VERSION_V1 = "policy_version.v1"`).
+## 1. Delta from original (bkd/inqgedgs CTRL-017)
 
-NSGW contrast (loop fully wired, consumer half):
+### 1.1 DROPPED — all of axis-1 (1A `policy_version` emit/echo)
 
-- Capture: `nsgw/crates/nsgw-control/src/config_stream.rs:702-708`
-  (`ControlMessage::PolicyVersion` → `record_policy_version`), with
-  `:589` suppressing spurious activity refreshes.
-- Store: `nsgw/crates/nsgw-control/src/client.rs:351` (field), `:497`
-  (init 0), `:504` (`record_policy_version`), `:511`
-  (`last_policy_version`, 0 ⇒ `None` ⇒ omitted from the wire).
-- Echo: `nsgw/crates/nsgw-control/src/heartbeat.rs:260`
-  (`policy_version: self.last_policy_version()`).
-- Advertise: `nsgw/crates/nsgw-server/src/runtime/shared.rs:331`
-  (`CAPABILITY_POLICY_VERSION_V1`).
-- Matches `nsiod-docs/control-plane/06-config-event-model.md:314-331`
-  §Divergences ("`policy_version` is consumer-only on mainline").
+Every 1A leg is removed. None of the following is built:
 
-### (b) Staleness budget — PARTIALLY CONFIRMED; the "default-off" premise is stale for NSN
+| Dropped item | Original slice | Evidence of what would have changed |
+|---|---|---|
+| mainline-nsd `policy_version` **emit** (dedicated `VariantKind::PolicyVersion`, eligibility rows, event construction on the projection path, dedup-by-value, subscribe snapshot burst) | Slice 1 | `nsd/crates/nsd-api/src/sse/filter.rs:108-138`, `:216-254`; no-op arm stays at `filter.rs:138` |
+| heartbeat **ingest** of `policy_version` + new `machines.reported_policy_version` **column + DB migration** | Slice 1 | `nsd/.../envelope/handlers/machine_heartbeat.rs:21-24`; column never created (grep: zero hits — stays zero) |
+| ns-shared **echo cell** (`lib.rs:1338-1349` no-op arm → `Arc<AtomicU64>`, threaded through `HeartbeatClient`) | Slice 2 | `crates/control/src/lib.rs:1338-1349`, `crates/control/src/auth.rs:1189-1196` — the decode-and-ignore / `policy_version: None` stay as-is |
+| NSN **`CAPABILITY_POLICY_VERSION_V1` advertisement** | Slice 3 | `ns/crates/nsn/src/main.rs:63-66` unchanged |
+| **nsio-proto registration + `protocol_version` minor bump** | Q7 | not performed |
 
-- Library default is off: `crates/control/src/multi.rs:198`
-  (`last_good_max_age: None` in `new_with_recovery`; builder
-  `with_last_good_max_age` at :250, doc "Default: unlimited").
-  Enforcement lives in `crates/control/src/merge.rs:149-169`
-  (`NsdAclSlot::effective` — a `FetchFailed` slot serves the last-good
-  cache only while `elapsed <= max_age`, else `Degraded`) with the store
-  field at `merge.rs:199`.
-- BUT the only production consumer of `MultiControlPlane` (NSN) wires it
-  unconditionally: `ns/crates/nsn/src/main.rs:1315-1317`
-  `.with_last_good_max_age(Duration::from_secs(config.local_acl.last_good_max_age_secs))`,
-  where `LocalAclConfig.last_good_max_age_secs` defaults to **86_400 s
-  (24 h)** per PLAN-020 (`crates/common/src/lib.rs:349-350`, default fn
-  :367-369). This landed 2026-05-24 (ns `5e0ba32`) and predates the
-  review — in the shipped NSN binary the stale-downgrade is default-ON at
-  24 h. CLI override: `--acl-last-good-max-age-secs`
-  (ns main.rs:255-258, :451-452).
-- Config edge: `last_good_max_age_secs = 0` maps to `Duration::ZERO`
-  ⇒ instant degrade on the first `FetchFailed`; "unlimited" (`None`) is
-  not expressible from NSN config at all.
-- The budget clock does start on disconnect: `MultiControlPlane`
-  synthesizes `AclPayload::FetchFailed` on transport drop
-  (`crates/control/src/multi.rs:329-342`) and on terminal plane failure
-  (`:536-544`), so a partitioned NSD's slot enters the cache/degrade
-  path rather than pinning `Loaded` forever.
-- NSC: the claim does not apply — NSC uses a single `ControlPlane`
-  (no merge layer, no `NsdAclSlot`) and drops the ACL channel entirely
-  (`ns/crates/nsc/src/main.rs:1486` `_acl_rx`, :1492); there is no NSC
-  ACL consumer to bound.
-- NSGW analogue: CONFIRMED absent — zero `last_good_max_age` (or any ACL
-  age-bound) hits across nsgw crates. The gateway ACL/config consumers
-  (`nsgw-control/src/config_stream.rs`,
-  `nsgw-control/src/realm_config_snapshot.rs`) keep the last received
-  policy with no age bound and no degraded marker: unbounded staleness on
-  partition at the gateway pre-deny point.
+**Consequences of the drop (the point of Tier-1):**
 
-### (c) Union-of-allows merge — CONFIRMED
+- **ns-shared is untouched.** The echo cell was the only ns-shared write in
+  the original; removing it removes the live-tree path-dep landing rule that
+  forced a same-window rebuild + QA of ns, nsd, and nsgw. See §4.
+- **No DB migration** on nsd (the `reported_policy_version` column is gone).
+- **No wire change and no nsio-proto bump.** The PLAN-095 wire types remain
+  **defined but dormant**: `ControlMessage::PolicyVersion`
+  (`crates/control/src/messages.rs:2065`),
+  `HeartbeatRequest.policy_version: Option<u64>` (`crates/control/src/api.rs:156-161`,
+  serialized-away by `skip_serializing_if`), and
+  `CAPABILITY_POLICY_VERSION_V1` (`crates/common/src/state.rs:50`). Nothing
+  reads or emits them on the mainline path after this change; they are left in
+  place for a future Tier-2 without re-litigating PLAN-095.
+- **NSGW's existing `policy_version` consumer is left in place, not removed,
+  and simply never fed.** NSGW already captures/stores/echoes `policy_version`
+  (`nsgw/crates/nsgw-control/src/config_stream.rs:708`,
+  `client.rs:351/504/511`, `heartbeat.rs:260`) from PLAN-095. Because mainline
+  nsd never emits, that path stays dormant (`last_policy_version()` → `0` →
+  omitted). We do **not** touch it; ripping it out would be churn outside this
+  tier's scope.
 
-- `crates/control/src/merge.rs:240-284` (`NsdConfigStore::merged_acl`):
-  every NSD's effective policy contributes rules to a layered union
-  (`acl::merge_layered`); module contract at `merge.rs:9-18`. WgConfig
-  and ProxyConfig merges are unions too (`merge.rs:38-56`, `:61-93`).
-  Documented in
-  `nsiod-docs/control-plane/05-transport-selection-fallback.md:145-166`.
-- Revocation consequence: deleting an allow on NSD-A while NSD-B still
-  serves it keeps access alive until B also revokes. A partitioned B
-  serves its last-good cache for up to the staleness budget (24 h on NSN
-  by default; unbounded on NSGW); `ExplicitEmpty` contributes nothing but
-  never narrows the union (`merge.rs:152`, `:268-270`).
-- There is no quorum and no authority precedence: the only narrowing
-  layers are the operator-local `deny_scope` (`merge.rs:277-283`) and
-  the local ACL layer's front position (`multi.rs:237-246`), both
-  node-local and operator-authored, not per-NSD authority.
-- Credential-plane contrast (review context): client-CA distribution
-  carries a `generation` ack loop (`GatewayClientCaBundle.generation`,
-  `crates/control/src/messages.rs:2054-2057`); the ACL plane has no
-  equivalent landed-signal.
+### 1.2 CHANGED — the lag report is re-based on heartbeat age (the core substitution)
 
-## PLAN-095 status (emit-side plan)
+The original **also** proposed a lagging-subscriber report, but as a cheap
+add-on **riding on 1A's ingest**: per realm, compare `acl_policies.version`
+against each subscriber's `machines.reported_policy_version` (Q6, Slice 1).
 
-`PLAN-095` lives in **nsgw** (`nsgw/docs/plan/PLAN-095.md`, status
-completed 2026-06-27), not nsd. It delivered the **consumer half** only:
+Tier-1 keeps the report as the **primary and only** convergence surface and
+**re-bases it on an existing signal**: compare `acl_policies.updated_at`
+(when the version last changed) against `machines.last_heartbeat` (when the
+node was last demonstrably connected). This substitutes an *applied-version*
+comparison with a *node-liveness-since-change* comparison — strictly coarser,
+detailed in §2. This is the central design change of the re-scope.
 
-- Landed (verified in code): ns-shared wire types —
-  `ControlMessage::PolicyVersion` (`crates/control/src/messages.rs:2065`,
-  `event_type` :2113, decode test :2756-2770),
-  `HeartbeatRequest.policy_version: Option<u64>` byte-additive
-  (`crates/control/src/api.rs:156-161`, byte-parity test :511-547),
-  `CAPABILITY_POLICY_VERSION_V1` (`crates/common/src/state.rs:50`);
-  nsgw capture/store/echo/advertise (citations under (a) above); the two
-  compile-forced no-op arms (ns-shared `lib.rs:1338`, nsd
-  `filter.rs:138`).
-- Explicitly deferred by PLAN-095 (its "Out of scope" list — this is
-  exactly the DR-H4 gap): mainline nsd **emit** of `policy_version`; the
-  real `machines.reported_policy_version` **ingest/surface** on mainline
-  nsd; NSN/NSC consumer wiring (the lib.rs arm is only a compile stub);
-  `nsio-proto` registration + `protocol_version` minor bump;
-  per-served-realm gateway version visibility.
-- Emit-side reference implementation exists in `nsd-remote@origin/main`
-  (contract `docs/api/policy-version-sse-event.md`; capability-gated emit
-  in `crates/nsd-distribute/src/notifier.rs`; heartbeat ingest into
-  `machines.reported_policy_version`). nsd-remote is a migration repo:
-  usable as a porting reference, but must never be cited in as-built
-  docs.
-- Mainline nsd already has usable emit-side substrate: the per-realm
-  counter (`bump_policy_version`), the invalidation/outbox fan-out
-  (`sse/outbox.rs:498`, `:1062`), persisted machine capabilities
-  (`nsd-db/src/repo/machine.rs:244` `update_capabilities`), and a
-  capability-gating precedent in `sse/gating.rs:46-81` (public-edge
-  gates). Missing: a dedicated `VariantKind::PolicyVersion` + eligibility
-  row, event construction on ACL writes + on subscribe snapshot burst,
-  the heartbeat ingest column + persistence, and any convergence/lag
-  surface.
+### 1.3 KEPT — 2A and 3A (unchanged in intent)
 
-## Candidate change set per repo
+- **2A** (§3): NSN 24 h ratification, NSGW serve-stale degraded marker,
+  `= 0` startup error — unchanged from the original recommendation, **except**
+  that per-listener fail-closed is elevated from an answered sub-point to the
+  one remaining **open USER sign-off** (§6).
+- **3A** (§5): union-of-allows documented as the contract; 3B/3C/3D remain
+  out of scope; 3D (deny-wins tombstones) is named as the Tier-3 successor
+  that actually closes the hole. The "observable" qualifier is tightened to be
+  honest about what heartbeat-age can and cannot see (§5).
 
-ns-shared is the live path-dep root for ns/nsd/nsgw: any ns-shared change
-forces a same-window rebuild + QA of all three consumers; only
-wire/semantic changes force synchronized behavior landings.
+---
 
-- **nsd (emit + ingest)** — all additive:
-  - `crates/nsd-api/src/sse/filter.rs` `VariantKind::from_message`
-    (:108-138) + the eligibility sets (:216-254): dedicated
-    `PolicyVersion` variant kind, capability-gated
-    (`machines.capabilities` ∋ `policy_version.v1`, gating in
-    `sse/gating.rs`).
-  - Event construction: after `bump_policy_version` in
-    `handlers/admin/acl/mod.rs` `recompile_and_publish` (:138) /
-    the outbox path (`sse/outbox.rs:498`, `:1062`), plus the initial
-    snapshot burst on subscribe (`sse/publisher.rs` / `sse/handler.rs`).
-  - Ingest: `envelope/handlers/machine_heartbeat.rs:21-24` pass
-    `req.policy_version` into `handlers/heartbeat/core.rs`; new
-    `machines.reported_policy_version` column via the migration tool
-    (`nsd-db/src/repo/machine.rs`). DB migration required.
-  - Optional (decision 2B): lagging-subscriber report — admin surface
-    comparing `acl_policies.version` vs `machines.reported_policy_version`
-    per realm.
-- **ns-shared (echo + merge surface)**:
-  - Echo (additive behavior; wire bytes change only once a version has
-    been seen, `skip_serializing_if` keeps byte parity otherwise):
-    replace the no-op arm `crates/control/src/lib.rs:1338-1349` with a
-    per-plane last-seen cell (`Arc<AtomicU64>`, mirroring nsgw
-    `client.rs:351`), thread the cell into `HeartbeatClient`
-    (`auth.rs:170`, ctor :981, `heartbeat_client()` :1450) so
-    `heartbeat_envelope` (`auth.rs:1189-1196`) reports
-    `(v != 0).then_some(v)`. One cell per `ControlPlane` = naturally
-    per-NSD under `MultiControlPlane`.
-  - Staleness default (decision 2A): flip `multi.rs:198` `None` →
-    `Some(default)` — behavior change for library embedders (NSN is the
-    only current one, and it already overrides); alternatively leave the
-    library default and treat NSN's 24 h config default as the product
-    default. Config-level, not wire-affecting.
-  - Merge semantics (decision 3B/3C/3D only): `merge.rs` `merged_acl`
-    (+ possibly authority metadata on `AclConfig`/`AclPayload` in
-    `messages.rs`). Serde-additive encoding, but a **semantic cascade**
-    (all consumers must interpret the new layer in the same window) —
-    the only candidate item that is effectively wire-affecting.
-- **ns (NSN/NSC senders)** — all additive:
-  - NSN: add `CAPABILITY_POLICY_VERSION_V1` to `nsn_capabilities()`
-    (`crates/nsn/src/main.rs:63-66`).
-  - NSC: add it to `client_capabilities()`
-    (`crates/nsc/src/main.rs:2056-2061`) — see open question on whether
-    NSC should echo at all (it has no ACL consumer, main.rs:1486).
-  - No heartbeat-construction change in this repo: NSN/NSC heartbeats
-    are built entirely inside ns-shared (`auth.rs`).
-- **nsgw (staleness analogue, decision 2A)** — additive:
-  - Age-bound / degraded-marker for kept-last config in
-    `nsgw-control/src/config_stream.rs` and
-    `nsgw-control/src/realm_config_snapshot.rs`; under 2B this repo has
-    no code change (documentation instead).
-- **nsiod-docs** (implement/docs phase): update
-  `control-plane/06-config-event-model.md` §Divergences (:314-331) and
-  the event tables (:181, :254), `control-plane/05` §merge (:145-166) if
-  merge semantics change, `_zh` mirrors, and re-pin `_baseline.md`.
+## 2. Tier-1 convergence lag report (nsd, read-only)
 
-## Design decision space (enumerate only — proposal must choose)
+### 2.1 Existing signals — no schema, wire, or proto change
 
-1. **Emit + echo completion path**
-   - 1A. Full loop: port the nsd-remote emit (capability-gated) to
-     mainline nsd + ingest column + NSN/NSC capability advertisement +
-     ns-shared echo cell. Pros: convergence becomes observable fleet-wide
-     (NSN is the authoritative ACL decision point — the most valuable
-     echo); enables any lag/convergence reporting. Cons: 4 repos touched;
-     nsd needs a DB migration. Blast radius: additive everywhere; the
-     path-dep window covers ns/nsd/nsgw rebuilds anyway.
-   - 1B. NSD emit + ingest only (NSGW already echoes). Pros: smallest
-     code delta; immediate value for gateways. Cons: NSN/NSC stay
-     unobservable — the primary enforcement point still cannot be
-     monitored; DR-H4 only partially addressed.
-   - 1C. NSN/NSC echo without nsd emit — not viable alone: the gated NSD
-     never emits to them, the cell stays 0, heartbeats keep omitting the
-     field. Ordering constraint for any plan: emit (or at least the gate
-     + event) must land before echo produces values; the additive wire
-     types mean the two sides may land in either code order without
-     breakage, but observability starts only when both exist.
-2. **Staleness budget**
-   - 2A. Default-on budget everywhere: keep/ratify the NSN 24 h default
-     (`last_good_max_age_secs = 86_400`), optionally mirror it as the
-     ns-shared library default, and add an NSGW analogue (age-bound or
-     at minimum a `degraded` marker on stale snapshots). Pros: bounded
-     revocation latency on partition at every enforcement point;
-     symmetric story. Cons: a partition longer than the budget turns
-     into fail-closed/degraded (availability loss) — needs an explicit
-     product decision per point (gateway public edge degrading is
-     user-visible); NSGW needs a new mechanism.
-   - 2B. Documented acceptance + lag report: keep behavior as-is
-     (NSN 24 h, NSGW unbounded, NSC n/a), document the per-point
-     staleness budget table in control-plane/06, and add the NSD-side
-     lagging-subscriber report (requires the decision-1 ingest).
-     Pros: zero behavior risk; turns the gap into an operator-visible
-     signal. Cons: NSGW staleness remains unbounded; report is only as
-     good as heartbeat cadence (60 s, `lib.rs:387`).
-   - Premise corrections the proposal must incorporate either way: the
-     DR "default-off" claim is stale for NSN (on at 24 h since ns
-     `5e0ba32`); `0` currently means "instant degrade", not "off";
-     "unlimited" is not expressible from NSN config; the only budget
-     observability today is the node-local `/api/status` `acl.sources`
-     snapshot (`multi.rs:34-39`, `merge.rs:287-318`).
-3. **Multi-NSD merge semantics**
-   - 3A. Keep union-of-allows, document it as the contract, and lean on
-     decisions 1+2 for visibility. Pros: no behavior change; matches the
-     model that NSDs are independent authorities (multi-realm/tenant
-     fan-in, disjoint-ish rule sets — union exists precisely so one NSD
-     cannot silence another's realm); availability-friendly. Cons: the
-     DR risk stands — revocation requires all-NSD landing; a compromised
-     secondary keeps access alive.
-   - 3B. Authority precedence: map each realm to an authoritative NSD
-     (config or wire metadata); non-authoritative contributions for that
-     realm are advisory/dropped. Pros: single revocation point per
-     realm. Cons: needs a realm→NSD authority source of truth on every
-     node; semantic cascade through `merged_acl`; risks dropping
-     legitimate cross-realm grants; new failure mode when the authority
-     is the partitioned one.
-   - 3C. Quorum (k-of-n) on allows. Pros: tolerates one compromised
-     NSD. Cons: NSDs are not replicas — they serve different realms and
-     policies, so quorum over non-replicated sets is ill-defined;
-     large availability loss on partition; almost certainly the wrong
-     model for this topology.
-   - 3D. Deny-wins revocation overlay: revocations distributed as
-     explicit deny records that any NSD can carry and that override
-     union allows (tombstones). Pros: revocation lands via ANY connected
-     NSD, directly closing the stale-secondary hole. Cons: new wire +
-     engine semantics (deny entries in `AclPayload`/policy), tombstone
-     lifecycle/GC, and the authority question resurfaces for deny
-     records themselves.
+Verified present in mainline nsd (`/workspace/nsiod/nsd` @ `main`):
 
-## Cross-repo worktree set for an implement phase
+- **Current version + when it last changed, per realm.** `acl_policies`
+  carries `version BIGINT` and `updated_at TIMESTAMPTZ`
+  (`crates/nsd-db/migrations/0004_acl.sql`). Every ACL CRUD write calls
+  `bump_policy_version` (`crates/nsd-api/src/handlers/admin/acl/mod.rs:115`)
+  → `AclPolicyRepo::upsert`, which stamps `updated_at = CURRENT_TIMESTAMP` /
+  `now()` (`crates/nsd-db/src/repo/acl/policy.rs:74`, `:100`).
+  `AclPolicyRepo::get_current(realm)` (`policy.rs:128`) returns the row with
+  both `version` and `updated_at` populated (`:201-202`, `:214-215`). So
+  **`updated_at` is the "policy last changed at" timestamp `T_R` — already
+  persisted, no new column.**
+- **Per-subscriber last connectivity.** `record_heartbeat` sets
+  `machines.last_heartbeat = Utc::now()` on every heartbeat
+  (`crates/nsd-api/src/handlers/heartbeat/core.rs`). The `machines` row also
+  carries `realm`, `lifecycle`, `staled_at`, `capabilities`
+  (`crates/nsd-db/src/repo/machine.rs:125-126`).
+- **Per-realm subscriber enumeration.**
+  `MachineRepo::list_by_realm_including_inactive(realm)`
+  (`crates/nsd-db/src/repo/machine.rs:609`) returns every non-deleted machine
+  in the realm with `last_heartbeat` + `lifecycle`.
 
-- WRITTEN (max scope, 1A + 2A): `nsd` (emit + gate + ingest + migration
-  + optional lag surface), `ns-shared` (echo cell + tests; optional
-  library default flip), `ns` (two capability-list lines), `nsgw`
-  (staleness analogue), `nsiod-docs` (06/05 + `_zh` mirrors +
-  `_baseline.md` re-pin).
-- WRITTEN (min scope, 1B + 2B + 3A): `nsd` + `nsiod-docs` only;
-  `ns-shared`/`ns`/`nsgw` untouched.
-- REBUILD + QA ONLY: whenever ns-shared changes, `ns`, `nsd`, `nsgw`
-  must rebuild against the new path-dep in the same landing window even
-  if not written (live-tree landing rule).
-- `nsd-remote` / `ns-remote`: read-only porting references; never cited
-  in as-built docs, never part of the landing set.
+The report is therefore a **pure read** over columns that already exist.
 
-## Open questions for the proposal phase
+### 2.2 Semantics — the coarse convergence model
 
-1. Which combination of the decision space (1A/1B × 2A/2B × 3A–3D)?
-   The review's fix direction suggests 1A + (2A or 2B) + 3A-documented,
-   but feasibility of each leg is independent.
-2. Emit trigger set on mainline nsd: only ACL-write paths
-   (`bump_policy_version` callers), or stamped on every projection like
-   nsd-remote (idempotent, dedup by value), and does the subscribe-time
-   snapshot burst include it?
-3. Version scope vs topology: `HeartbeatRequest.policy_version` is a
-   single u64. Per-NSD heartbeats make it per-NSD naturally on NSN; is a
-   single home-realm value per NSD sufficient (NSGW deliberately scoped
-   it home-realm; multi-realm gateways were declared out of scope in
-   PLAN-095), and what does an NSN serving one realm from two NSDs
-   report to each?
-4. Staleness budget values and expressibility: ratify 86_400 s? make
-   "unlimited" expressible (today `0` = instant degrade — footgun)? what
-   does an NSGW degrade actually do at the public edge (fail-closed vs
-   serve-stale-with-alert)?
-5. Should NSC advertise/echo at all? It consumes no ACL
-   (`_acl_rx` dropped) — an NSC-reported version could imply enforcement
-   convergence that NSC does not perform. Report anyway for fleet
-   inventory, or exclude NSC and document why?
-6. Where does the convergence/lag surface live (admin API, metrics,
-   both) and what threshold marks a subscriber "lagging" given the 60 s
-   heartbeat cadence?
-7. Is the deferred `nsio-proto` `policy_version` registration +
-   `protocol_version` minor bump a prerequisite for the mainline emit
-   side, or can it trail?
-8. Does decision 2A's library-default flip (multi.rs:198) belong in
-   ns-shared, or should the default live only in NSN config
-   (`LocalAclConfig`) to keep the library policy-free?
+Evaluate at query time `now`. For realm `R`: `V_R = acl_policies.version`,
+`T_R = acl_policies.updated_at`, `policy_age(R) = now − T_R`. For machine `M`
+in `R`: `H_M = machines.last_heartbeat`, `hb_age(M) = now − H_M`.
 
-## Proposal
+Why heartbeat-age is a valid (coarse) convergence proxy: an ACL write fans an
+`acl_config` invalidation to every **currently-connected** subscriber
+(`recompile_and_publish` → `commit_acl_invalidation` / `fan_out_acl_invalidation`),
+and a **reconnect** delivers a fresh snapshot that already contains the new
+policy. So a heartbeat **after** `T_R` proves `M` was connected+alive after
+the change and therefore received the new policy — by push if it stayed
+connected, by snapshot if it reconnected.
 
-Recommended combination: **1A + 2A + 3A**, plus the NSD-side
-lagging-subscriber report described under 2B (decision-1's ingest makes
-it nearly free, and it is the piece that answers "has revocation X
-landed everywhere?" directly). This follows the review's fix direction
-on every axis, with one explicit deviation: NSC is excluded from the
-echo (question 5). The investigation's premise corrections are
-incorporated throughout (NSN's budget is already ON at 24 h; `0` means
-instant degrade; "unlimited" is not expressible today).
+Per-machine classification w.r.t. `R`'s current policy:
 
-### Axis 1 — emit/echo scope: 1A (full loop, NSC excluded)
+| State | Condition | Meaning |
+|---|---|---|
+| **observed** (coarse-converged) | `H_M ≥ T_R` | Connected+alive after the change ⇒ received the new policy. **Caveat:** does *not* prove it *fetched+compiled+applied* it — the exact gap `policy_version` would have closed. |
+| **settling** (benign) | `H_M < T_R` **and** `policy_age(R) ≤ grace` | Change is fresh; `M` simply has not hit its next heartbeat tick yet. Not alarming. |
+| **unobserved** (potentially-unconverged) | `H_M < T_R` **and** `policy_age(R) > grace` | Has **not** heartbeat since the change, past the point a healthy node would have ticked. **May still serve a revoked ALLOW from last-good cache.** Never reported as converged. |
 
-[recommend] Adopt 1A: port the capability-gated `policy_version` emit
-from the nsd-remote reference to mainline nsd, ingest the heartbeat
-echo into a new `machines.reported_policy_version` column, wire the
-ns-shared echo cell, and advertise `policy_version.v1` from NSN — but
-not from NSC.
+`unobserved` sub-labels (from `lifecycle` / `hb_age`): `never-reported`
+(`H_M` null), `dark` (`hb_age` large / `lifecycle = stale`), `flapping`
+(recent-ish but still `< T_R` — only transient or clock-skew).
 
-Rationale: NSN is the authoritative ACL decision point; 1B leaves the
-one node class that actually enforces policy unobservable, so DR-H4's
-core question would stay unanswerable where it matters most. 1C is not
-viable alone (a gated NSD never emits to non-advertisers, so the echo
-cell would stay 0 forever). Every 1A piece is additive — the wire types
-landed in PLAN-095 with byte-parity and decode tests — and the
-ns-shared echo cell forces the ns/nsd/nsgw rebuild window anyway, so
-1B's smaller footprint buys little. The NSC carve-out is justified
-under question 5.
+**Honest properties (state these in the docs, §5.1 runbook):**
 
-### Axis 2 — staleness budget: 2A (default-on budgets) + lag report
+- A healthy connected node keeps heartbeating, so it advances to `observed`
+  within one cadence of any change; past `grace`, only genuinely-dark nodes
+  remain `unobserved`. There is **no false "unobserved"** for a node that is
+  actually up.
+- The only **false "observed"** window is a node that reconnected (advancing
+  `H_M` past `T_R`) then died before applying — bounded by the fact that
+  fetch+apply is near-synchronous with the reconnect snapshot. This is the
+  residual Tier-1↔1A gap and is accepted.
+- Any ACL change resets `T_R`, so a revocation immediately re-arms the bar:
+  every not-yet-ticked node is `settling`, then after `grace` the still-dark
+  ones become `unobserved` — exactly the set that might still serve the
+  revoked grant.
 
-[recommend] Adopt 2A: ratify the shipped NSN default
-(`last_good_max_age_secs = 86_400`), keep the ns-shared library
-default at `None` (question 8), add an NSGW analogue as an age-bound
-degraded marker (default 86_400 s) that serves stale with an alert
-rather than failing closed, and document the per-point budget table in
-control-plane/06.
+### 2.3 Which machines count as subscribers
 
-Rationale: bounded revocation latency at every enforcement point is
-the review's intent, and NSN already ships it (the review's
-"default-off" premise is stale — ON at 24 h since ns `5e0ba32`), so 2A
-on NSN is ratification, not a behavior change. The NSGW analogue is
-new but marker-only: failing closed at the public edge would convert a
->24 h control partition into a data-plane outage for every served
-realm — a larger blast radius than the staleness it mitigates, while
-NSN's own budget still bounds authoritative enforcement. The residual
-risk (flows where NSGW is the only enforcement point keep stale ALLOW
-past the budget) is accepted explicitly and surfaced by the degraded
-marker; revisit fail-closed once the alert has operational history.
-On top of 2A, adopt 2B's lagging-subscriber report (question 6): the
-review posed 2A and 2B as alternatives, but with 1A's ingest landed
-the report is a small additive surface and the only artifact that
-answers the headline question, so take both.
+Tier-1 cannot cleanly tell ACL consumers from non-consumers — that
+distinction needed the `policy_version.v1` capability echo we dropped.
+`list_by_realm_including_inactive` returns **all** non-deleted realm machines.
+Recommended handling:
 
-### Axis 3 — merge semantics: 3A (union-of-allows as documented contract)
+- Report all realm machines; optionally exclude `machines.type` values known
+  to consume no ACL (the `type` column is already selected;
+  e.g. NSC drops its ACL channel — `ns/crates/nsc/src/main.rs:1486`).
+- Document that the observed/unobserved split is **heartbeat-based, not
+  apply-based**, and is conservative: it is a *superset* of "ACL consumers
+  that might be stale," so it never under-reports risk.
 
-[recommend] Adopt 3A: keep union-of-allows, document it as the
-multi-NSD contract in control-plane/05, and lean on decisions 1+2 for
-revocation visibility.
+### 2.4 Report shape — `GET /admin/v1/acl/convergence?realm=X` (ReadOnly)
 
-Rationale: the union exists because NSDs are independent authorities
-over different realms — one NSD must not be able to silence another's
-realm — and it is availability-friendly shipped behavior. 3C (quorum)
-is rejected: NSDs are not replicas, so k-of-n over non-replicated rule
-sets is ill-defined; the investigation already flags it as the wrong
-model. 3B (authority precedence) and 3D (deny-wins overlay) are
-out-of-scope alternatives needing their own design cycle: 3B requires
-a realm→NSD authority source of truth on every node plus a semantic
-cascade through `merged_acl` (the one effectively wire-affecting
-candidate), and 3D introduces new wire + engine semantics (deny
-records, tombstone lifecycle/GC) with the authority question
-resurfacing for the deny records themselves. Neither is needed to
-close DR-H4's observability gap; 3D is the most promising future
-direction for the revocation-must-land-everywhere hole and should be
-raised as a candidate finding for the next design cycle.
+Hangs off the existing admin ACL surface (`crates/nsd-api/src/handlers/admin/acl/mod.rs`;
+siblings under `/admin/v1/acl/*`). Illustrative body:
 
-### Answers to the open questions
+```json
+{
+  "realm": "acme",
+  "policy_version": 42,
+  "policy_changed_at": "2026-07-04T12:00:00Z",
+  "policy_age_secs": 3600,
+  "grace_secs": 180,
+  "heartbeat_cadence_secs": 60,
+  "subscribers": { "total": 10, "observed": 8, "settling": 0, "unobserved": 2 },
+  "unobserved": [
+    { "machine_id": "m-7f…", "lifecycle": "stale", "last_heartbeat": "2026-07-04T09:30:00Z",
+      "heartbeat_age_secs": 9000, "label": "dark",
+      "note": "no heartbeat since policy change; may serve revoked ALLOW from last-good cache" }
+  ],
+  "caveat": "convergence is heartbeat-based (connected-since-change), not policy-apply-based"
+}
+```
 
-1. **Combination** — [recommend] 1A + 2A + 3A, plus the 2B
-   lagging-subscriber report; per-axis justification above.
-2. **Emit trigger set** — [recommend] Port the nsd-remote trigger
-   model: stamp the current version on every ACL projection with
-   dedup-by-value suppression, and include the current version in the
-   subscribe-time snapshot burst, rather than hand-picking
-   `bump_policy_version` call sites. Projection-stamping is idempotent
-   and self-healing (a missed emit converges on the next projection or
-   reconnect), it is exactly what the reference implementation ships
-   (its rollback flow re-projects and re-emits), and the snapshot-burst
-   inclusion is what makes reconnect convergence observable without
-   waiting for the next ACL write.
-3. **Version scope vs topology** — [recommend] Keep the single `u64`
-   with per-NSD-connection scope: one echo cell per `ControlPlane`, so
-   an NSN attached to two NSDs reports to each NSD the last version
-   seen on that NSD's own connection. Version counters are per-NSD and
-   not comparable across NSDs (independent authorities), so each NSD
-   evaluates convergence against its own counter and the operator
-   aggregates per-NSD reports (question 6). Home-realm scoping stays
-   as PLAN-095 shipped it; per-served-realm gateway visibility remains
-   deferred.
-4. **Budget values / expressibility / NSGW degrade** — [recommend]
-   Ratify `86_400` s as the NSN product default; turn
-   `last_good_max_age_secs = 0` into a startup configuration error;
-   do not make "unlimited" expressible; give NSGW a config max-age
-   defaulting to `86_400` s whose expiry marks the snapshot degraded,
-   fires a metric + alert/log, and keeps serving stale. Details:
-   today `0` silently means "degrade on first `FetchFailed`" — a
-   footgun; rejecting it at startup with an explicit error forces a
-   deliberate positive value (an operator who truly wants
-   instant-degrade sets `1`). "Unlimited" is deliberately not
-   expressible because an unlimited knob reintroduces exactly the
-   unbounded-staleness hole DR-H4 flags; a large explicit value (e.g.
-   `2_592_000` = 30 d) is the escape hatch. NSN budget expiry keeps
-   its shipped meaning (slot → `Degraded`, its last-good cache leaves
-   the union: fail-closed for that NSD's grants, node-local). At the
-   NSGW public edge, fail-closed is explicitly rejected as the default
-   degrade behavior — it would turn a long control partition into a
-   full outage of every served realm; serve-stale-with-alert bounds
-   the risk operationally while NSN bounds it authoritatively.
-5. **NSC echo** — [recommend] Exclude NSC: do not add
-   `policy_version.v1` to `client_capabilities()`, and document the
-   exclusion in control-plane/06. This deliberately narrows the
-   review's "extend the echo to NSN/NSC": NSC consumes no ACL
-   (`_acl_rx` is dropped, ns `main.rs:1486`), so an NSC-reported
-   version would read as enforcement convergence that NSC does not
-   perform — polluting the exact signal this design exists to create
-   and letting the lag report falsely reassure (or cry wolf) on nodes
-   with no enforcement role. Revisit only if NSC gains an ACL
-   consumer.
-6. **Lag surface + threshold** — [recommend] Build both surfaces on
-   nsd: an admin API convergence report (per realm: current
-   `acl_policies.version`, each subscriber's
-   `reported_policy_version` + heartbeat age, and the lagging list;
-   under the existing admin ACL surface) as the primary operator
-   answer, plus metrics (per-realm lagging-subscriber count and max
-   lag age) for standing alerts. "Lagging" = an advertising subscriber
-   whose reported version is below current while the current version
-   has been outstanding longer than a 180 s grace — 3× the 60 s
-   heartbeat cadence, mirroring the 3×-keepalive convention from the
-   companion idle-deadline design; the grace is configurable and its
-   coupling to the cadence must be documented. Non-advertising
-   subscribers are listed separately as "unobservable", never as
-   converged; advertising subscribers that have never reported show as
-   "never reported" rather than silently passing.
-7. **nsio-proto registration + protocol_version bump** — [recommend]
-   Not a code prerequisite; land the registration in the `nsio-proto`
-   registry (an external coordination item, not one of this campaign's
-   worktrees) in the same window as the nsd emit slice. Per the
-   reference contract (Constitution §25), a new SSE event type must be
-   registered in `nsio-proto` with a `protocol_version` MINOR bump;
-   the change is purely additive so the envelope major and old clients
-   are unaffected, and capability gating means nothing is emitted to
-   non-advertisers regardless of registry state — hence code may merge
-   first. The bump does gate (a) any NSD advertisement of the event in
-   `/api/v1/info` (mirroring the reference precedent) and (b) the
-   nsiod-docs as-built re-pin declaring `policy_version` a mainline
-   protocol member (slice 5 waits for it).
-8. **Library default flip** — [recommend] No flip: `multi.rs:198`
-   stays `None`; the product default lives only in NSN's
-   `LocalAclConfig` (already `86_400` via PLAN-020). This keeps the
-   ns-shared library policy-free, avoids a silent behavior change for
-   future embedders, keeps one source of truth for the shipped
-   default, and shrinks the ns-shared diff to the echo cell alone.
-   Document "embedders should set a budget" on
-   `with_last_good_max_age` instead.
+### 2.5 Metric shape — nsd `/metrics` (existing `prometheus_client`)
 
-### Phased implementation plan
+nsd already exposes `Metrics` (`crates/nsd-api/src/metrics.rs`,
+`state.rs:182`) at `/metrics` (`lib.rs:91`, encoder at
+`handlers/metrics.rs:19`). Add per-realm gauges:
 
-Worktree set (written): **nsd, ns-shared, ns, nsgw, nsiod-docs** —
-five repos. `nsio-proto` is an external coordination item alongside
-slice 1, not a campaign worktree. Because ns-shared is the live
-path-dep root, the slice-2 write forces a same-window rebuild + QA of
-ns, nsd, and nsgw even though their own slices are small; schedule
-slices 1–4 into one landing window to pay that cost once.
-`nsd-remote`/`ns-remote` stay read-only porting references and are
-never cited in as-built docs.
+- `nsd_acl_policy_version{realm}` — current `V_R`.
+- `nsd_acl_policy_age_seconds{realm}` — `policy_age(R)`.
+- `nsd_acl_convergence_unobserved_subscribers{realm}` — count in `unobserved`.
+- `nsd_acl_convergence_max_unobserved_age_seconds{realm}` — max `hb_age` over
+  `unobserved` (0 when none), for standing alerts.
+- *(optional)* `nsd_acl_convergence_subscribers{realm,state}` — full
+  observed/settling/unobserved breakdown.
 
-- **Slice 1 — nsd: emit + gate + ingest + convergence surface**
-  (additive; one tool-generated DB migration; no wire change — the
-  event type already exists in ns-shared). Files:
-  `crates/nsd-api/src/sse/filter.rs` — dedicated
-  `VariantKind::PolicyVersion` (:108-138) + eligibility rows
-  (:216-254), gated on `machines.capabilities` ∋ `policy_version.v1`
-  per the `sse/gating.rs:46-81` precedent; event construction on the
-  projection path (`handlers/admin/acl/mod.rs:138`
-  `recompile_and_publish`, `sse/outbox.rs:498`/`:1062`) plus the
-  subscribe snapshot burst (`sse/publisher.rs`/`sse/handler.rs`), with
-  dedup by value; ingest via
-  `envelope/handlers/machine_heartbeat.rs:21-24` →
-  `handlers/heartbeat/core.rs` → new
-  `machines.reported_policy_version` column
-  (`nsd-db/src/repo/machine.rs`; migration emitted by the migration
-  tool, additive nullable column); convergence report endpoint +
-  metrics per question 6.
-- **Slice 2 — ns-shared: echo cell** (additive; byte parity until a
-  version is seen). Files: `crates/control/src/lib.rs:1338-1349`
-  no-op arm → per-plane `Arc<AtomicU64>`; thread the cell through
-  `HeartbeatClient` (`auth.rs:170`, ctor :981, `heartbeat_client()`
-  :1450) so `heartbeat_envelope` (`auth.rs:1189-1196`) reports
-  `(v != 0).then_some(v)`. One cell per `ControlPlane` is naturally
-  per-NSD under `MultiControlPlane`. No `multi.rs:198` change
-  (question 8).
-- **Slice 3 — ns: NSN capability + config validation** (additive; no
-  wire). Files: `crates/nsn/src/main.rs:63-66` — add
-  `CAPABILITY_POLICY_VERSION_V1` to `nsn_capabilities()`; NSN startup
-  validation rejecting `last_good_max_age_secs = 0` where the config
-  is wired (`main.rs:1315-1317`; CLI `:255-258`/`:451-452`). NSC
-  untouched (question 5).
-- **Slice 4 — nsgw: staleness analogue** (additive; no wire). Files:
-  `nsgw-control/src/config_stream.rs`,
-  `nsgw-control/src/realm_config_snapshot.rs` — last-refresh
-  timestamp, max-age (default 86_400 s), degraded marker + metric +
-  alert/log on expiry; serving behavior unchanged.
-- **Slice 5 — nsiod-docs: contract + budgets + runbook** (docs only;
-  after the nsio-proto bump lands). Files:
-  `control-plane/06-config-event-model.md` §Divergences (:314-331) +
-  event tables (:181, :254) — `policy_version` becomes a mainline
-  emitted+echoed event, NSC exclusion documented;
-  `control-plane/05-transport-selection-fallback.md` §merge
-  (:145-166) — union-of-allows documented as the 3A contract, the
-  per-point staleness budget table (NSN 24 h fail-closed-per-slot;
-  NSGW 24 h serve-stale-with-alert; NSC n/a), and the "has revocation
-  X landed?" runbook; `_zh` mirrors; `_baseline.md` re-pin.
+### 2.6 Threshold
 
-Ordering constraints:
+- Heartbeat cadence = **60 s** (`crates/control/src/lib.rs:387`).
+- **`grace = 3 × cadence = 180 s`** (default, configurable). Absorbs the
+  post-change settling window (one missed tick is normal) with margin for
+  jitter/retry; mirrors the 3×-keepalive convention. The coupling to the
+  60 s cadence must be documented — if the cadence is retuned, `grace`
+  follows.
+- Alerting fires on `nsd_acl_convergence_unobserved_subscribers > 0` held for
+  longer than an operator SLO, and/or
+  `nsd_acl_convergence_max_unobserved_age_seconds` beyond a chosen bound.
 
-1. Slice 1 lands first: the heartbeat ingest (consumer of the echo)
-   must exist before echoes carry values, and the emit side
-   immediately lights up convergence for NSGW, which already
-   advertises and echoes.
-2. Slice 2 strictly before slice 3 — hard constraint: if NSN
-   advertises before the echo cell exists, a gated NSD emits to NSN
-   while NSN's heartbeat still omits the field, and the lag report
-   flags NSN as permanently lagging (false alarm).
-3. Slice 4 is independent and may land any time in the window.
-4. Slice 5 lands last, after the nsio-proto registration (question 7).
-5. The slice-2 ns-shared write triggers the same-window rebuild + QA
-   of ns/nsd/nsgw (live-tree landing rule) regardless of their own
-   slice content.
+---
 
-All slices are additive; none is wire-affecting in the
-byte-compatibility sense (PLAN-095 landed the wire types with byte
-parity and decode tests). The only wire-visible delta is behavioral:
-heartbeats start carrying `policy_version` once a version has been
-seen, which pre-change readers already tolerate.
+## 3. Staleness budget (2A — kept)
 
-### Acceptance criteria
+### 3.1 NSN — ratify, do not change behavior
 
-- **Slice 1, emit/gate:** an admin ACL write on realm R produces
-  exactly one `policy_version` event with the bumped value on a
-  subscriber advertising `policy_version.v1` and none on a
-  non-advertising subscriber; a reconnecting advertiser receives the
-  current version in the snapshot burst with no intervening write;
-  re-projection with an unchanged version emits nothing (dedup).
-- **Slice 1, ingest/surface:** an envelope heartbeat carrying
-  `policy_version: N` persists `machines.reported_policy_version = N`;
-  an absent field leaves it NULL; the convergence report lists a
-  subscriber as lagging only when it advertises, reports < current,
-  and the current version has been outstanding past the grace;
-  non-advertisers appear as "unobservable"; metrics agree with the
-  report.
-- **Slice 2, echo:** after the consumer arm records version N, the
-  next heartbeat envelope carries N; before any event is seen the
-  field is omitted and the encoding is byte-identical to pre-change
-  (extends the existing byte-parity test); under `MultiControlPlane`,
-  two planes echo their own versions independently.
-- **Slice 3:** NSN's registration advertises `policy_version.v1`
-  (visible in `machines.capabilities` on nsd);
-  `last_good_max_age_secs = 0` fails startup with an explicit error;
-  the 86_400 s default behavior is unchanged.
-- **Slice 4:** with the config stream cut and the snapshot age past
-  the budget, the degraded marker is set, the metric flips, and the
-  alert/log fires while data-plane traffic keeps serving from the
-  stale snapshot; reconnect with a fresh snapshot clears the marker.
-- **Slice 5:** the divergence table no longer lists `policy_version`
-  as consumer-only; the budget table and runbook exist; `_zh` mirrors
-  updated; `_baseline.md` re-pinned to the landed commits.
-- **End-to-end:** after revoking access to realm R on every NSD
-  serving R, the operator opens each such NSD's convergence report
-  and reads: realm R at version V, all advertising subscribers
-  reported ≥ V within grace ⇒ "landed everywhere observable", with
-  non-advertising nodes explicitly enumerated as unobservable
-  (upgrade-pending) rather than silently counted as converged. NSGW
-  landings are visible the same way (it already echoes); NSC is
-  documented as not applicable.
+The DR "default-off" premise is **stale**. NSN wires the budget
+unconditionally: `ns/crates/nsn/src/main.rs:1315-1316`
+`.with_last_good_max_age(Duration::from_secs(config.local_acl.last_good_max_age_secs))`,
+and `LocalAclConfig.last_good_max_age_secs` defaults to **86_400 s (24 h)**
+(`crates/common/src/lib.rs:336`, `:349-350`, `:367`, PLAN-020). Enforcement:
+a `FetchFailed` slot serves last-good only while `elapsed ≤ max_age`, else
+`Degraded` (`crates/control/src/merge.rs:149-169`); the budget clock starts on
+transport drop / terminal failure (`crates/control/src/multi.rs:329-342`,
+`:536-544`). So NSN already bounds revocation latency at 24 h — **2A on NSN is
+ratification, not a behavior change.** Keep the value; do not flip the
+library default (`multi.rs:198` stays `None`) so ns-shared stays policy-free
+and untouched.
 
-### Risks and mitigations
+### 3.2 NSN — reject `last_good_max_age_secs = 0` at startup
 
-- **False "all clear" from non-advertising nodes** (capability-gating
-  pitfall): old nodes never look lagging because they never advertise.
-  Mitigation: the report classifies them "unobservable", never
-  "converged", and the end-to-end answer enumerates them.
-- **False "lagging" from advertise-before-echo:** prevented by the
-  slice-2 → slice-3 ordering; the report additionally distinguishes
-  "never reported" from "reported stale" so an out-of-order rollout is
-  diagnosable at a glance.
-- **Heartbeat-cadence vs grace coupling:** the 180 s grace is 3× the
-  60 s cadence; a cadence change silently invalidates the threshold.
-  Mitigation: grace configurable, coupling documented next to the
-  cadence constant (same pattern as the idle-deadline/keepalive
-  coupling note in PLAN-011).
-- **Config footgun `0`:** anyone deliberately running `0` (instant
-  degrade) fails startup after slice 3. Mitigation: explicit error
-  message naming the replacement (`1` for instant-degrade semantics),
-  plus a changelog migration note; no silent remapping.
-- **NSGW serve-stale residual risk:** where the gateway is the sole
-  enforcement point for a flow, stale ALLOW persists past the budget
-  (alert-only). Accepted explicitly (question 4) because NSN's budget
-  bounds authoritative enforcement and edge fail-closed is the bigger
-  hazard; revisit fail-closed once the degraded alert has operational
-  history.
-- **nsd DB migration:** additive nullable column generated by the
-  migration tool; NULL-safe reads keep mixed fleets safe (old nodes
-  simply never populate it).
-- **A slice ships alone:** every slice degrades to the status quo,
-  not to breakage — slice 1 alone lights up NSGW convergence only;
-  slice 2 alone is dormant (NSN does not yet advertise); slice 4
-  alone is an independent observability win; the only forbidden
-  partial state is slice 3 without slice 2 (ordering rule above).
-- **ns-shared blast radius:** the echo cell is the only ns-shared
-  code change (merge/multi semantics untouched), but the write still
-  forces the full ns/nsd/nsgw rebuild + QA window — bundle the
-  slices into one landing window and run the consumer QA baseline
-  once.
+Today `0` maps to `Duration::ZERO` ⇒ instant degrade on the first
+`FetchFailed` — a silent footgun; "unlimited" is deliberately **not**
+expressible (an unlimited knob reintroduces the exact unbounded-staleness hole
+DR-H4 flags; the escape hatch is a large explicit value). Add a ~3-line
+startup guard in NSN, immediately before the wiring at
+`ns/crates/nsn/src/main.rs:1315`, rejecting `0` with a clear error (NSN
+already uses `.context(...)` / bail-style errors, e.g. `main.rs:3852`). This
+lives in **NSN startup (`ns`)**, not in `LocalAclConfig` (ns-shared), so
+ns-shared stays untouched and no cascade is triggered.
 
-## ActiveForm
+### 3.3 NSGW — new age-bound degraded marker (serves stale)
 
-Investigating policy-convergence observability (emit/echo/merge)
+CONFIRMED absent: zero `last_good_max_age` (or any ACL age-bound) across nsgw
+crates. The gateway keeps last-good realm config with no age bound
+(`RealmConfigBucket` — `nsgw/crates/nsgw-control/src/realm_config_snapshot.rs:381`;
+no timestamp field today), i.e. unbounded staleness on partition at the
+pre-deny point. Add, in `realm_config_snapshot.rs` + the refresh driver
+`config_stream.rs` (refresh site: `realm_config_snapshot.rs:729`
+"refreshed gateway realm config snapshot"):
 
-## Dependencies
+- a per-realm **last-refreshed-at** timestamp on the bucket/state;
+- a **`last_good_max_age`** (default **86_400 s**) checked at serve/refresh;
+- on expiry: mark the served snapshot **degraded**, increment a metric, fire
+  an alert/log — **and keep serving** (data plane not failed closed by
+  default). Use the existing nsgw `prometheus` pattern
+  (`IntGaugeVec`/`IntCounterVec`, e.g. `nsgw-wg/src/relay.rs:1579-1596`):
+  e.g. `nsgw_realm_config_degraded{realm}` gauge +
+  `nsgw_realm_config_age_seconds{realm}`.
 
-- **blocked by**: proposal-phase decision on the option space above.
-- **blocks**: the nsd emit/ingest slice, the ns capability slice, the
-  nsgw staleness-analogue slice, and the nsiod-docs divergence rewrite
-  that an approved proposal would cut.
-- **related**: nsgw PLAN-095 (consumer half, completed); ns-shared
-  PLAN-020 (layered union merge + last-good cache); nsd-remote TASK-049
-  (emit-side reference, migration repo).
+Serving behavior below the budget is unchanged. **The default degrade action
+is the open sign-off in §6.**
 
-## Notes
+---
 
-- 2026-07-03: investigation completed under campaign
-  drrem-wsc-20260703 (design-review finding DR-H4). Evidence-only; no
-  proposal decisions taken, no source edits anywhere.
-- Key premise correction vs the review text: the stale-downgrade is
-  default-ON (24 h) in the shipped NSN binary via
-  `LocalAclConfig.last_good_max_age_secs` (since ns `5e0ba32`,
-  2026-05-24); "default-off" is true only of the raw ns-shared library
-  default and of NSGW (no analogue at all).
-- 2026-07-03: proposal recorded (1A + 2A + 3A plus the NSD lag report;
-  NSC excluded from the echo; all 8 open questions answered); awaiting
-  human approval before any implement phase.
+## 4. Blast radius
+
+| Repo | Original (1A + 2A + 3A) | Revised (Tier-1 + 2A + 3A) |
+|---|---|---|
+| **nsd** | emit + gate + **ingest** + **DB migration** + report + metrics | **read-only lag report + metrics** — no emit, no ingest, no migration, no wire |
+| **ns-shared** | **echo cell** + `HeartbeatClient` threading → **forces live-tree rebuild cascade** | **UNTOUCHED** — no cascade; PLAN-095 wire types stay dormant |
+| **ns** (NSN/NSC) | NSN capability advertisement + `= 0` guard | **`= 0` startup guard only** (~3 lines; no ns-shared, no wire, no NSC change) |
+| **nsgw** | staleness degraded marker | staleness degraded marker (**unchanged**) |
+| **nsio-proto** | registration + `protocol_version` minor bump | **none** |
+| **nsiod-docs** | contract + budgets + runbook (+ re-pin `policy_version` as a protocol member) | contract + budgets + runbook (**reduced** — no protocol-member re-pin) |
+
+**Substantive landings: nsd + nsgw.** The `ns` touch is a ~3-line NSN startup
+guard that does not touch ns-shared and forces no rebuild of nsd/nsgw. The
+coordinator's "nsd + nsgw only" framing holds for the substantive work and for
+the defining reduction — **ns-shared is untouched, so the live-tree path-dep
+cascade is avoided**. There is no DB migration, no wire change, and no
+nsio-proto bump anywhere in this tier.
+
+---
+
+## 5. Multi-NSD merge (3A — kept, documented)
+
+Union-of-allows is the shipped contract: every NSD's effective policy
+contributes rules to a layered union (`crates/control/src/merge.rs:240-284`;
+`ExplicitEmpty` contributes nothing but never narrows — `merge.rs:152`,
+`:268-270`). It exists because NSDs are independent authorities over different
+realms — one NSD must not be able to silence another's realm — and it is
+availability-friendly. Document it as the 3A contract in
+`nsiod-docs/control-plane/05-transport-selection-fallback.md:145-166`.
+
+**Revocation hole — now partially observable, still not fixed.** Deleting an
+allow on NSD-A while NSD-B still serves it keeps access alive until B also
+revokes. Be precise about what Tier-1 sees:
+
+- **Node-liveness-since-change (per NSD): observable.** Each NSD's report
+  flags its own subscribers that have gone dark since its last ACL change —
+  the nodes that may still serve a stale grant from last-good cache. This is
+  the dominant, common failure and Tier-1 surfaces it directly.
+- **Cross-NSD version skew: observable only by correlation.** A secondary NSD
+  that never received the revoke shows a stale-but-internally-consistent
+  version; an operator must compare per-NSD reports to notice `V_A ≠ V_B` for
+  what should be the same revocation. Tier-1 does not do this correlation for
+  you.
+- **The union hole itself is not closed.** Revocation still requires landing
+  on every NSD. The true fix — **deny-wins revocation tombstones (3D)** that
+  any connected NSD can carry to override union allows — needs new wire +
+  engine semantics (deny entries in `AclPayload`, tombstone lifecycle/GC) and
+  is **deferred to a separate Tier-3 decision**. 3B (authority precedence) and
+  3C (quorum) remain rejected/out-of-scope for the reasons in the original
+  investigation.
+
+### 5.1 Docs deliverables (nsiod-docs, docs phase)
+
+- `control-plane/06-config-event-model.md`: `policy_version` stays documented
+  as **consumer-only / dormant on mainline** (unchanged §Divergences,
+  `:314-331`) — the emit is explicitly **not** landing in this tier.
+- `control-plane/05-transport-selection-fallback.md`: union-of-allows as the
+  3A contract; the per-point **staleness budget table** (NSN 24 h fail-closed
+  per-slot; NSGW 24 h serve-stale-with-alert [pending §6]; NSC n/a); the
+  **coarse-convergence semantics** (heartbeat-since-change ≠ policy-applied,
+  the Tier-1↔`policy_version` gap); and the **"has revocation X landed?"**
+  runbook keyed on the §2.4 report.
+- `_zh` mirrors; re-pin `_baseline.md`. No `nsio-proto` protocol-member re-pin
+  (nothing was registered).
+
+---
+
+## 6. Open decision — the one remaining USER sign-off
+
+**NSGW degrade behavior when the staleness budget (§3.3) expires.**
+
+- **Option A — serve-stale-with-alert (RECOMMENDED default).** On budget
+  expiry, mark degraded + metric + alert, **keep serving** the last-good
+  config. Rationale: failing closed at the public edge would convert a long
+  control-plane partition into a full data-plane outage of *every* served
+  realm — a larger blast radius than the staleness it mitigates — while NSN's
+  own 24 h budget still bounds authoritative enforcement. The residual risk
+  (flows where NSGW is the only enforcement point keep a stale ALLOW past the
+  budget) is accepted and made visible by the degraded marker.
+- **Option B — fail-closed.** Stop serving on expiry. Rejected as a global
+  default (turns partition into outage), but valid for specific
+  high-sensitivity listeners.
+- **RECOMMENDED middle: per-listener fail-closed opt-in.** Default
+  serve-stale-with-alert globally (Option A); add a per-listener
+  `fail_closed_on_stale` flag so high-sensitivity **public-edge** listeners
+  can opt into Option B. The per-listener config surface already exists
+  (`nsgw/crates/nsgw-server/src/config.rs` — distinct listeners incl. public
+  ingress, `:519-522`), so this is an additive config field, not a new
+  mechanism.
+
+**Requested sign-off:** approve **serve-stale-with-alert default +
+per-listener fail-closed opt-in**, or choose global fail-closed / global
+serve-stale.
+
+Minor decisions (recommended defaults, not blocking): `grace = 180 s`
+(3×60 s), configurable; report enumerates
+`list_by_realm_including_inactive` with an optional `type` filter; keep the
+NSN `= 0` startup guard in this tier.
+
+---
+
+## 7. Phased implementation plan (on approval)
+
+Written repos: **nsd, nsgw** (substantive) + **ns** (3-line guard) +
+**nsiod-docs** (docs). ns-shared untouched → **no live-tree rebuild
+cascade**; the three code repos can land independently. `nsd-remote` /
+`ns-remote` stay read-only references, never cited in as-built docs.
+
+- **Slice 1 — nsd: convergence lag report + metrics** (read-only; no
+  migration, no wire). New `GET /admin/v1/acl/convergence?realm=X` (ReadOnly)
+  on `crates/nsd-api/src/handlers/admin/acl/mod.rs`, reading
+  `AclPolicyRepo::get_current` (`updated_at` + `version`) and
+  `MachineRepo::list_by_realm_including_inactive` (`last_heartbeat`,
+  `lifecycle`, `type`); classification per §2.2; `grace` configurable
+  (default 180 s). Metrics per §2.5 on the existing `Metrics`/`/metrics`.
+- **Slice 2 — nsgw: staleness degraded marker** (additive; no wire). Per-realm
+  last-refreshed timestamp + `last_good_max_age` (default 86_400 s) on
+  `realm_config_snapshot.rs`; degraded marker + metric + alert/log on expiry;
+  serving unchanged. Public-edge per-listener `fail_closed_on_stale` field
+  **iff** §6 approves the opt-in.
+- **Slice 3 — ns: NSN `= 0` startup guard** (~3 lines; no ns-shared, no wire).
+  Reject `last_good_max_age_secs = 0` before `main.rs:1315`.
+- **Slice 4 — nsiod-docs** (docs; §5.1). Contract + budget table + coarse-
+  convergence semantics + revocation runbook; `_zh` mirrors; `_baseline.md`
+  re-pin.
+
+Ordering: slices 1–3 are independent (no shared wire/schema). Slice 4 lands
+last. No cross-repo landing-window constraint (ns-shared untouched).
+
+---
+
+## 8. Acceptance criteria
+
+1. **Lag report.** `GET /admin/v1/acl/convergence?realm=X` returns `version`,
+   `policy_changed_at`, `policy_age_secs`, `grace_secs`, per-state counts, and
+   an `unobserved` list. Given a just-bumped version: a machine with
+   `last_heartbeat < updated_at` older than `grace` appears in `unobserved`
+   (never `observed`); a machine with `last_heartbeat ≥ updated_at` appears in
+   `observed`; within `grace`, a not-yet-ticked machine is `settling`.
+2. **Metrics.** `/metrics` exposes the §2.5 gauges with correct per-realm
+   values; after every machine heartbeats past a change,
+   `nsd_acl_convergence_unobserved_subscribers{realm} = 0`.
+3. **No schema/wire/proto change (negative acceptance).** `git diff` touches
+   no `migrations*/`, no `crates/control/src/{messages,api}.rs`, no
+   `crates/common/src/state.rs`, no nsio-proto, and adds no
+   `reported_policy_version` column.
+4. **NSGW degraded marker.** With `last_good_max_age` configured, a control
+   partition exceeding the budget marks the served realm snapshot degraded,
+   increments the metric, fires an alert/log, and **continues serving**
+   (unless a listener opted into fail-closed per §6); below the budget, no
+   degraded marker.
+5. **NSN `= 0` guard.** NSN startup with `last_good_max_age_secs = 0` exits
+   with a clear config error; any `≥ 1` starts normally; the 86_400 default is
+   unchanged.
+6. **Docs.** control-plane/05 + 06 carry the union-of-allows contract, the
+   per-point staleness budget table, the coarse-convergence semantics
+   (incl. the Tier-1↔`policy_version` gap), and the "has revocation X landed?"
+   runbook; `_zh` mirrors updated.
+
+---
+
+## 9. Gate
+
+This is **DESIGN**, gated on **USER approval** before any implement phase.
+Approve the §6 sign-off (NSGW degrade behavior) and the Tier-1 re-scope, then
+the plan in §7 may proceed. Status: **review**.
