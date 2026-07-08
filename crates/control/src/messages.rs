@@ -630,6 +630,16 @@ impl RouteProtocol {
     }
 }
 
+/// Client-leg carrier for a terminate-mode NSN-backed route.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RouteTerminateTransport {
+    /// Native WireGuard client leg.
+    Wg,
+    /// Framed WebSocket client leg.
+    Wss,
+}
+
 /// A single route entry in a [`RoutingConfig`].
 ///
 /// Used by NSGW for HTTP reverse-proxy routing and by NSC for local DNS
@@ -680,6 +690,16 @@ pub struct RouteEntry {
     /// byte-identical for older payloads and envelope-pin flows.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub aliases: Vec<String>,
+    /// NSD-resolved link mode for this NSN-backed service route.
+    ///
+    /// Absent on legacy payloads, unresolvable edges, and route families that do
+    /// not represent an NSC-to-NSN service path.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resolved_link_mode: Option<LinkMode>,
+    /// Client-leg transport to use when [`Self::resolved_link_mode`] is
+    /// [`LinkMode::Terminate`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub terminate_client_transport: Option<RouteTerminateTransport>,
 }
 
 impl RouteEntry {
@@ -2148,6 +2168,8 @@ mod tests {
             nsn_wg_ip: None,
             virtual_port: None,
             aliases: Vec::new(),
+            resolved_link_mode: None,
+            terminate_client_transport: None,
         }
     }
 
@@ -2788,6 +2810,8 @@ tunnel = "ws"
                     nsn_wg_ip: None,
                     virtual_port: None,
                     aliases: Vec::new(),
+                    resolved_link_mode: None,
+                    terminate_client_transport: None,
                 },
             ],
             capture_routes: Vec::new(),
@@ -2803,12 +2827,16 @@ tunnel = "ws"
         assert_eq!(decoded.routes[1].port, 5432);
         assert!(decoded.routes[0].nsn_wg_ip.is_none());
         assert!(decoded.routes[0].virtual_port.is_none());
+        assert!(decoded.routes[0].resolved_link_mode.is_none());
+        assert!(decoded.routes[0].terminate_client_transport.is_none());
         assert!(
             !json.contains("nsn_wg_ip")
                 && !json.contains("virtual_port")
                 && !json.contains("target_vip")
                 && !json.contains("protocol")
-                && !json.contains("aliases"),
+                && !json.contains("aliases")
+                && !json.contains("resolved_link_mode")
+                && !json.contains("terminate_client_transport"),
             "None additive fields must be omitted on the wire; got {json}"
         );
         assert!(!json.contains("\"backend\""));
@@ -2831,6 +2859,8 @@ tunnel = "ws"
             nsn_wg_ip: Some(Ipv4Addr::new(10, 0, 0, 2)),
             virtual_port: Some(10_000),
             aliases: Vec::new(),
+            resolved_link_mode: None,
+            terminate_client_transport: None,
         };
         let json = serde_json::to_string(&orig).unwrap();
         assert!(!json.contains("\"backend\""));
@@ -2842,6 +2872,42 @@ tunnel = "ws"
         assert_eq!(decoded.target_vip, Some(Ipv4Addr::new(10, 0, 0, 2)));
         assert_eq!(decoded.nsn_wg_ip, Some(Ipv4Addr::new(10, 0, 0, 2)));
         assert_eq!(decoded.virtual_port, Some(10_000));
+    }
+
+    #[test]
+    fn route_entry_resolved_link_metadata_is_additive() {
+        let legacy = r#"{"domain":"a","site":"b","service":"c","port":1}"#;
+        let decoded: RouteEntry = serde_json::from_str(legacy).unwrap();
+        assert!(decoded.resolved_link_mode.is_none());
+        assert!(decoded.terminate_client_transport.is_none());
+
+        let mut route = sample_route_entry();
+        route.resolved_link_mode = Some(LinkMode::WssRelay);
+        let json = serde_json::to_string(&route).unwrap();
+        assert!(json.contains(r#""resolved_link_mode":"wss-relay""#));
+        assert!(!json.contains("terminate_client_transport"));
+        let decoded: RouteEntry = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.resolved_link_mode, Some(LinkMode::WssRelay));
+        assert!(decoded.terminate_client_transport.is_none());
+
+        let terminate = RouteEntry {
+            resolved_link_mode: Some(LinkMode::Terminate),
+            terminate_client_transport: Some(RouteTerminateTransport::Wss),
+            ..sample_route_entry()
+        };
+        let json = serde_json::to_string(&terminate).unwrap();
+        assert!(json.contains(r#""resolved_link_mode":"terminate""#));
+        assert!(json.contains(r#""terminate_client_transport":"wss""#));
+        let decoded: RouteEntry = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.resolved_link_mode, Some(LinkMode::Terminate));
+        assert_eq!(
+            decoded.terminate_client_transport,
+            Some(RouteTerminateTransport::Wss)
+        );
+
+        let cbor = crate::api::to_cbor(&terminate).unwrap();
+        let decoded: RouteEntry = crate::api::from_cbor(&cbor).unwrap();
+        assert_eq!(decoded, terminate);
     }
 
     #[test]
@@ -2870,6 +2936,8 @@ tunnel = "ws"
                 "shop.example.com".to_string(),
                 "www.example.com".to_string(),
             ],
+            resolved_link_mode: None,
+            terminate_client_transport: None,
         };
         let json = serde_json::to_string(&orig).unwrap();
         assert!(
@@ -2893,6 +2961,8 @@ tunnel = "ws"
             nsn_wg_ip: Some(Ipv4Addr::new(10, 0, 0, 2)),
             virtual_port: Some(10_000),
             aliases: Vec::new(),
+            resolved_link_mode: None,
+            terminate_client_transport: None,
         };
         // Current NSD projection: dial the overlay port.
         assert_eq!(route.effective_dial_port(), 10_000);
@@ -2915,6 +2985,8 @@ tunnel = "ws"
         assert!(decoded.target_vip.is_none());
         assert!(decoded.nsn_wg_ip.is_none());
         assert!(decoded.virtual_port.is_none());
+        assert!(decoded.resolved_link_mode.is_none());
+        assert!(decoded.terminate_client_transport.is_none());
     }
 
     #[test]
@@ -2946,6 +3018,8 @@ tunnel = "ws"
             nsn_wg_ip: None,
             virtual_port: None,
             aliases: Vec::new(),
+            resolved_link_mode: None,
+            terminate_client_transport: None,
         };
         let legacy = LegacyRouteEntry {
             domain: "web.n.ns",
@@ -2989,6 +3063,8 @@ tunnel = "ws"
             nsn_wg_ip: None,
             virtual_port: Some(10_000),
             aliases: vec!["shop.example.com".to_string()],
+            resolved_link_mode: None,
+            terminate_client_transport: None,
         };
 
         let json = serde_json::to_string(&route).unwrap();
@@ -3018,6 +3094,8 @@ tunnel = "ws"
             nsn_wg_ip: None,
             virtual_port: None,
             aliases: Vec::new(),
+            resolved_link_mode: None,
+            terminate_client_transport: None,
         };
 
         let json = serde_json::to_string(&route).unwrap();
@@ -3042,6 +3120,8 @@ tunnel = "ws"
             nsn_wg_ip: None,
             virtual_port: None,
             aliases: Vec::new(),
+            resolved_link_mode: None,
+            terminate_client_transport: None,
         };
         let egress_bytes = crate::api::to_cbor(&egress).unwrap();
         let egress_decoded: RouteEntry = crate::api::from_cbor(&egress_bytes).unwrap();
@@ -3366,6 +3446,8 @@ tunnel = "ws"
                 nsn_wg_ip: None,
                 virtual_port: None,
                 aliases: Vec::new(),
+                resolved_link_mode: None,
+                terminate_client_transport: None,
             }],
             capture_routes: Vec::new(),
             nsn_service_terminate_admission_enabled: true,
