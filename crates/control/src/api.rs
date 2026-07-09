@@ -346,10 +346,9 @@ pub struct GatewayReportResponse {}
 // ── gateway.usage_report ─────────────────────────────────────────────────────
 
 /// Data path a [`UsageRow`] was measured on. Carries the row's attribution
-/// confidence (nsgw `docs/plan/PLAN-098.md` §2.5): `Terminate` / `WssBridge`
-/// gateways see plaintext, so subject-level attribution is possible; `Relay` /
-/// `Egress` gateways see only ciphertext, so a per-realm 4-tuple aggregate is
-/// the ceiling and a subject must never be synthesized there.
+/// confidence (nsgw `docs/plan/PLAN-098.md` §2.5): `Terminate`, `WssRelay`,
+/// `GatewayEgress`, and `PublicEdge` may carry a proven subject; `WgRelay` and
+/// `GatewayExit` are realm aggregates and must never synthesize one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PathClass {
