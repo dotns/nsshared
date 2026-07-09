@@ -353,14 +353,27 @@ pub struct GatewayReportResponse {}
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PathClass {
-    /// wg-terminate: the gateway terminates the tunnel and sees plaintext.
+    /// terminate: the gateway terminates the WG tunnel (arriving over UDP or
+    /// WSS) and sees plaintext; a 1:1 terminate peer → subject-attributable.
     Terminate,
-    /// wg-relay / WSS relay: the gateway forwards ciphertext only.
-    Relay,
-    /// gateway-egress: outbound flow accounting.
-    Egress,
-    /// WSS opaque bridge: the client/backend pair identity is known.
-    WssBridge,
+    /// wg-relay: the gateway reflects WG ciphertext by public key. Relay peers
+    /// can be shared across clients, so a per-realm aggregate is the ceiling and
+    /// a subject must never be synthesized.
+    WgRelay,
+    /// wss-relay: the gateway forwards opaque WG-over-WSS frames on a 1:1
+    /// per-pair leg (`?nsc=<id>`) — the client machine subject is known even
+    /// though the payload is ciphertext (identity comes from the WSS auth).
+    WssRelay,
+    /// gateway-egress: the gateway egresses a declared service flow to a
+    /// backend/CIDR on the realm's behalf; flow identity → subject-attributable.
+    GatewayEgress,
+    /// gateway-exit: exit-node full-tunnel egress accounted by per-realm nft
+    /// byte counters; realm-aggregate.
+    GatewayExit,
+    /// public-edge: inbound public traffic terminated at the Envoy L7 edge (or
+    /// L4 TCP/UDP ingress). L7 carries the edge-auth user/source subject; L4 is
+    /// realm-only.
+    PublicEdge,
 }
 
 /// Kind of billable subject a [`UsageSubject`] identifies.
@@ -1215,7 +1228,7 @@ mod tests {
             rows: vec![
                 UsageRow {
                     realm_id: "realm-a".into(),
-                    path_class: PathClass::WssBridge,
+                    path_class: PathClass::WssRelay,
                     subject: Some(UsageSubject {
                         kind: UsageSubjectKind::Machine,
                         subject_id: "m-123".into(),
@@ -1227,7 +1240,7 @@ mod tests {
                 },
                 UsageRow {
                     realm_id: "realm-b".into(),
-                    path_class: PathClass::Relay,
+                    path_class: PathClass::WgRelay,
                     subject: None,
                     rx_bytes: 4_096,
                     tx_bytes: 8_192,
@@ -1240,7 +1253,7 @@ mod tests {
         let decoded: GatewayUsageReportRequest = from_cbor(&bytes).unwrap();
         assert_eq!(decoded, req);
         assert_eq!(decoded.rows.len(), 2);
-        assert_eq!(decoded.rows[0].path_class, PathClass::WssBridge);
+        assert_eq!(decoded.rows[0].path_class, PathClass::WssRelay);
         assert_eq!(
             decoded.rows[0].subject,
             Some(UsageSubject {
@@ -1267,9 +1280,11 @@ mod tests {
         // The enum wire values are locked as snake_case strings.
         for (variant, wire) in [
             (PathClass::Terminate, "terminate"),
-            (PathClass::Relay, "relay"),
-            (PathClass::Egress, "egress"),
-            (PathClass::WssBridge, "wss_bridge"),
+            (PathClass::WgRelay, "wg_relay"),
+            (PathClass::WssRelay, "wss_relay"),
+            (PathClass::GatewayEgress, "gateway_egress"),
+            (PathClass::GatewayExit, "gateway_exit"),
+            (PathClass::PublicEdge, "public_edge"),
         ] {
             let s: String = from_cbor(&to_cbor(&variant).unwrap()).unwrap();
             assert_eq!(s, wire);
@@ -1298,13 +1313,13 @@ mod tests {
 
         let legacy = LegacyUsageRow {
             realm_id: "realm-a".into(),
-            path_class: PathClass::Egress,
+            path_class: PathClass::GatewayEgress,
             rx_bytes: 10,
             tx_bytes: 20,
         };
         let full = UsageRow {
             realm_id: "realm-a".into(),
-            path_class: PathClass::Egress,
+            path_class: PathClass::GatewayEgress,
             subject: None,
             rx_bytes: 10,
             tx_bytes: 20,
