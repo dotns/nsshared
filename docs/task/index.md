@@ -52,3 +52,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [-] [**CTRL-015 Add RouteEntry.aliases wire field for custom service-domain aliases**](CTRL-015.md) `P1`
 - [ ] [**CTRL-016 Add config-stream idle read deadline and control-socket TCP keepalive**](CTRL-016.md) `P1`
 - [ ] [**CTRL-017 Decide cross-repo stale-policy bound for control-plane loss**](CTRL-017.md) `P1`
+- [x] [**USAGE-001 Define gateway.usage_report wire contract**](USAGE-001.md) `P1`

@@ -343,6 +343,105 @@ pub struct GatewayReportRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct GatewayReportResponse {}
 
+// ── gateway.usage_report ─────────────────────────────────────────────────────
+
+/// Data path a [`UsageRow`] was measured on. Carries the row's attribution
+/// confidence (nsgw `docs/plan/PLAN-098.md` §2.5): `Terminate` / `WssBridge`
+/// gateways see plaintext, so subject-level attribution is possible; `Relay` /
+/// `Egress` gateways see only ciphertext, so a per-realm 4-tuple aggregate is
+/// the ceiling and a subject must never be synthesized there.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PathClass {
+    /// wg-terminate: the gateway terminates the tunnel and sees plaintext.
+    Terminate,
+    /// wg-relay / WSS relay: the gateway forwards ciphertext only.
+    Relay,
+    /// gateway-egress: outbound flow accounting.
+    Egress,
+    /// WSS opaque bridge: the client/backend pair identity is known.
+    WssBridge,
+}
+
+/// Kind of billable subject a [`UsageSubject`] identifies.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UsageSubjectKind {
+    /// A registered machine (NSN / NSC), keyed by its machine id.
+    Machine,
+    /// An end user, resolved by nsd on `(realm, user_id)`.
+    User,
+}
+
+/// Subject a [`UsageRow`] is attributable to. Present only on subject-aware
+/// paths (§2.5); never synthesized from shared backend / NSN peer counters.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UsageSubject {
+    /// Whether `subject_id` names a machine or a user.
+    pub kind: UsageSubjectKind,
+    /// Machine id or user id, interpreted per `kind`.
+    pub subject_id: String,
+}
+
+/// One per-realm (optionally per-subject) usage aggregate for a report window.
+///
+/// Bytes are the primary billed signal; connection counts are optional
+/// secondary telemetry (capacity / observability) and are never billed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UsageRow {
+    /// Verified realm this traffic belongs to. Always present.
+    pub realm_id: String,
+    /// Data path the bytes were measured on — carries attribution confidence.
+    pub path_class: PathClass,
+    /// Billable subject, present only on subject-attributable paths (§2.5).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subject: Option<UsageSubject>,
+    /// Bytes received by the gateway on this path in the window. PRIMARY billed.
+    pub rx_bytes: u64,
+    /// Bytes sent by the gateway on this path in the window. PRIMARY billed.
+    pub tx_bytes: u64,
+    /// Optional: connections opened in the window (secondary telemetry).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub connections_opened: Option<u32>,
+    /// Optional: peak concurrent connections in the window (secondary telemetry).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub connections_peak: Option<u32>,
+}
+
+/// Request payload for `api = "gateway.usage_report"` (PLAN-098).
+///
+/// Windowed per-realm byte counters reported by NSGW for billing. The envelope
+/// already carries the authenticated `machine_id` and signature; `gateway_id`
+/// is self-reported and only cross-checked against `machine_id` by nsd — dedup
+/// and attribution key on the authenticated identity. The idempotency key is
+/// `(machine_id, report_seq)` and nsd acks a watermark (§2.6).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GatewayUsageReportRequest {
+    /// Stable gateway identifier. Cross-checked against the authenticated
+    /// `machine_id`; not trusted as a billing key on its own.
+    pub gateway_id: String,
+    /// Window start, Unix seconds (inclusive).
+    pub window_start_unix: u64,
+    /// Window end, Unix seconds (exclusive).
+    pub window_end_unix: u64,
+    /// Monotonic per-gateway sequence; dedup key is `(machine_id, report_seq)`.
+    pub report_seq: u64,
+    /// Per-realm (optionally per-subject) usage aggregates for this window.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub rows: Vec<UsageRow>,
+}
+
+/// Response payload for `api = "gateway.usage_report"` (PLAN-098).
+///
+/// Carries the ack watermark: nsd has durably accepted every report up to and
+/// including `accepted_through_seq` for this gateway, so nsgw can advance its
+/// persisted `report_seq` cursor (§2.6).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GatewayUsageReportResponse {
+    /// Highest contiguous `report_seq` durably accepted for this gateway.
+    pub accepted_through_seq: u64,
+}
+
 // ── gateway.realm_config_snapshot ────────────────────────────────────────────
 
 /// Empty request for `api = "gateway.realm_config_snapshot"`.
@@ -1104,5 +1203,119 @@ mod tests {
         let decoded: ExitNodeSelectionRequest = from_cbor(&bytes).unwrap();
 
         assert_eq!(decoded, req);
+    }
+
+    #[test]
+    fn gateway_usage_report_request_roundtrip() {
+        let req = GatewayUsageReportRequest {
+            gateway_id: "gw-1".into(),
+            window_start_unix: 1_787_000_000,
+            window_end_unix: 1_787_000_060,
+            report_seq: 42,
+            rows: vec![
+                UsageRow {
+                    realm_id: "realm-a".into(),
+                    path_class: PathClass::WssBridge,
+                    subject: Some(UsageSubject {
+                        kind: UsageSubjectKind::Machine,
+                        subject_id: "m-123".into(),
+                    }),
+                    rx_bytes: 1_000,
+                    tx_bytes: 2_000,
+                    connections_opened: Some(3),
+                    connections_peak: Some(2),
+                },
+                UsageRow {
+                    realm_id: "realm-b".into(),
+                    path_class: PathClass::Relay,
+                    subject: None,
+                    rx_bytes: 4_096,
+                    tx_bytes: 8_192,
+                    connections_opened: None,
+                    connections_peak: None,
+                },
+            ],
+        };
+        let bytes = to_cbor(&req).unwrap();
+        let decoded: GatewayUsageReportRequest = from_cbor(&bytes).unwrap();
+        assert_eq!(decoded, req);
+        assert_eq!(decoded.rows.len(), 2);
+        assert_eq!(decoded.rows[0].path_class, PathClass::WssBridge);
+        assert_eq!(
+            decoded.rows[0].subject,
+            Some(UsageSubject {
+                kind: UsageSubjectKind::Machine,
+                subject_id: "m-123".into(),
+            })
+        );
+        assert_eq!(decoded.rows[1].subject, None);
+        assert_eq!(decoded.rows[1].connections_opened, None);
+    }
+
+    #[test]
+    fn gateway_usage_report_response_roundtrip() {
+        let resp = GatewayUsageReportResponse {
+            accepted_through_seq: 99,
+        };
+        let bytes = to_cbor(&resp).unwrap();
+        let decoded: GatewayUsageReportResponse = from_cbor(&bytes).unwrap();
+        assert_eq!(decoded, resp);
+    }
+
+    #[test]
+    fn usage_path_class_and_subject_kind_serialize_snake_case() {
+        // The enum wire values are locked as snake_case strings.
+        for (variant, wire) in [
+            (PathClass::Terminate, "terminate"),
+            (PathClass::Relay, "relay"),
+            (PathClass::Egress, "egress"),
+            (PathClass::WssBridge, "wss_bridge"),
+        ] {
+            let s: String = from_cbor(&to_cbor(&variant).unwrap()).unwrap();
+            assert_eq!(s, wire);
+        }
+        for (variant, wire) in [
+            (UsageSubjectKind::Machine, "machine"),
+            (UsageSubjectKind::User, "user"),
+        ] {
+            let s: String = from_cbor(&to_cbor(&variant).unwrap()).unwrap();
+            assert_eq!(s, wire);
+        }
+    }
+
+    #[test]
+    fn usage_row_omits_absent_optionals_on_wire() {
+        // A row with no subject / no telemetry is byte-identical to a legacy row
+        // struct that never had those fields, and the legacy bytes decode back
+        // with the additive fields absent.
+        #[derive(Serialize)]
+        struct LegacyUsageRow {
+            realm_id: String,
+            path_class: PathClass,
+            rx_bytes: u64,
+            tx_bytes: u64,
+        }
+
+        let legacy = LegacyUsageRow {
+            realm_id: "realm-a".into(),
+            path_class: PathClass::Egress,
+            rx_bytes: 10,
+            tx_bytes: 20,
+        };
+        let full = UsageRow {
+            realm_id: "realm-a".into(),
+            path_class: PathClass::Egress,
+            subject: None,
+            rx_bytes: 10,
+            tx_bytes: 20,
+            connections_opened: None,
+            connections_peak: None,
+        };
+        assert_eq!(to_cbor(&legacy).unwrap(), to_cbor(&full).unwrap());
+
+        let decoded: UsageRow = from_cbor(&to_cbor(&legacy).unwrap()).unwrap();
+        assert!(decoded.subject.is_none());
+        assert!(decoded.connections_opened.is_none());
+        assert!(decoded.connections_peak.is_none());
     }
 }

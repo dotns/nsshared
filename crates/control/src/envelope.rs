@@ -48,6 +48,10 @@ pub mod api {
     /// the envelope path. Must stay byte-equal to NSD's INGEST-004 local
     /// constant — adversarial gate C.
     pub const GATEWAY_REPORT: &str = "gateway.report";
+    /// PLAN-098 S1: NSGW → NSD per-realm traffic metering for billing. Carries
+    /// windowed byte counters (`gateway.usage_report`); dedup key is
+    /// `(machine_id, report_seq)`.
+    pub const GATEWAY_USAGE_REPORT: &str = "gateway.usage_report";
     pub const GATEWAY_REALM_CONFIG_SNAPSHOT: &str = "gateway.realm_config_snapshot";
     pub const CONFIG_STREAM: &str = "config.stream";
 }

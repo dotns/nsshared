@@ -209,6 +209,7 @@ fn api_label(api: &str) -> &'static str {
         api::PEER_CANDIDATES_REPORT => "peer_candidates.report",
         api::CONFIG_STREAM => "config.stream",
         api::GATEWAY_REPORT => "gateway.report",
+        api::GATEWAY_USAGE_REPORT => "gateway.usage_report",
         api::GATEWAY_REALM_CONFIG_SNAPSHOT => "gateway.realm_config_snapshot",
         _ => "unknown",
     }
