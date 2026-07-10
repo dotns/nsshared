@@ -1432,6 +1432,14 @@ pub struct GatewayHttpRoute {
     pub audit: EdgeAuditPolicy,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub certificate_ref: Option<String>,
+    /// Optional authority sent only to the upstream HTTP virtual host.
+    ///
+    /// Public listener selection, certificates, authentication, and ACLs
+    /// continue to use [`Self::host`]. When upstream TLS is enabled, producers
+    /// derive [`PublicEdgeUpstreamTlsPolicy::sni`] from this value when present,
+    /// otherwise from [`Self::host`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub upstream_authority: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub upstream_tls: Option<PublicEdgeUpstreamTlsPolicy>,
 }
@@ -3566,6 +3574,7 @@ tunnel = "ws"
                 metadata: BTreeMap::from([("owner".to_owned(), "platform".to_owned())]),
             },
             certificate_ref: Some("cert-web".to_owned()),
+            upstream_authority: None,
             upstream_tls: None,
         }
     }
@@ -3610,6 +3619,7 @@ tunnel = "ws"
         assert!(json.contains("\"transforms\""));
         assert!(json.contains("\"audit\""));
         assert!(json.contains("\"certificates\""));
+        assert!(!json.contains("upstream_authority"));
         assert!(!json.contains("upstream_tls"));
 
         let decoded: GatewayHttpConfig = serde_json::from_str(&json).unwrap();
@@ -3748,6 +3758,24 @@ tunnel = "ws"
     }
 
     #[test]
+    fn gateway_http_route_upstream_authority_round_trips() {
+        let mut route = sample_gateway_http_route();
+        route.upstream_authority = Some("backend.example.test".to_owned());
+
+        let json = serde_json::to_string(&route).unwrap();
+        assert!(json.contains("\"upstream_authority\":\"backend.example.test\""));
+        let decoded: GatewayHttpRoute = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded, route);
+
+        let cbor = crate::api::to_cbor(&route).unwrap();
+        let decoded: GatewayHttpRoute = crate::api::from_cbor(&cbor).unwrap();
+        assert_eq!(
+            decoded.upstream_authority.as_deref(),
+            Some("backend.example.test"),
+        );
+    }
+
+    #[test]
     fn gateway_http_route_legacy_payload_defaults_upstream_tls_to_none() {
         #[derive(serde::Serialize)]
         struct LegacyGatewayHttpRoute {
@@ -3790,13 +3818,16 @@ tunnel = "ws"
         };
 
         let json = serde_json::to_string(&legacy).unwrap();
+        assert!(!json.contains("upstream_authority"));
         assert!(!json.contains("upstream_tls"));
         let decoded: GatewayHttpRoute = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.upstream_authority, None);
         assert_eq!(decoded.upstream_tls, None);
         assert_eq!(decoded.host, route.host);
 
         let cbor = crate::api::to_cbor(&legacy).unwrap();
         let decoded: GatewayHttpRoute = crate::api::from_cbor(&cbor).unwrap();
+        assert_eq!(decoded.upstream_authority, None);
         assert_eq!(decoded.upstream_tls, None);
         assert_eq!(decoded.service, route.service);
     }

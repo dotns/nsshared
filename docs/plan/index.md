@@ -1,6 +1,6 @@
 # ns-shared - Plan Index
 
-> Updated: 2026-07-03
+> Updated: 2026-07-10
 
 ## Usage
 
@@ -40,3 +40,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**PLAN-009 Multi-endpoint control-transport fallback**](PLAN-009.md) `implementing`
 - [x] [**PLAN-010 Reproducible ns-shared QA lockfile**](PLAN-010.md) `2026-06-27`
 - [ ] [**PLAN-011 Control-stream stale-policy detection**](PLAN-011.md) `2026-07-03`
+- [x] [**PLAN-012 Public-edge upstream authority wire contract**](PLAN-012.md) `2026-07-10`

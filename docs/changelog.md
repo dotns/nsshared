@@ -1,3 +1,14 @@
+## 2026-07-10 [feat]
+
+Added the public-edge upstream authority wire contract.
+
+- Added an optional `GatewayHttpRoute.upstream_authority` field that affects
+  only the upstream HTTP virtual host.
+- Kept public listener, certificate, authentication, OIDC, and ACL identity on
+  `GatewayHttpRoute.host`; upstream TLS SNI is derived from the explicit
+  authority when present.
+- Added JSON/CBOR round-trip and legacy-decode compatibility coverage.
+
 ## 2026-07-01 15:29 [feat]
 
 Added the public-edge upstream TLS re-encryption wire contract.
