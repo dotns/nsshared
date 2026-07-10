@@ -10,6 +10,12 @@
 
 `control` contains the control-plane client. Its crate-level source docs describe machine registration/authentication, server-sent event control streams, control-envelope handling, control message types, retry and merge helpers, multi-NSD support, and Noise/QUIC/SSE transport modules.
 
+The public-edge `GatewayHttpRoute` contract carries an optional
+`upstream_authority`. It is omitted when absent for legacy JSON/CBOR
+compatibility. `host` remains the public listener, certificate, authentication,
+OIDC, and ACL identity; producers derive upstream TLS SNI from the explicit
+authority when present and otherwise from `host`.
+
 `telemetry` contains telemetry initialization and metric helpers. Its crate-level source docs describe OpenTelemetry metrics backed by a Prometheus exporter, subsystem metric structs, label contracts, global meter helpers, supervised task spawning, and per-subsystem OTel facades.
 
 `tunnel-ws` contains the pure WebSocket proxy transport. Its crate-level source docs describe logical stream multiplexing over WebSocket connections to NSIO relay endpoints, TLS connector helpers, opaque relay URL helpers, access-control integration, connection events, and relay error types.
