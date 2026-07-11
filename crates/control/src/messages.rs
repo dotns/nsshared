@@ -1085,6 +1085,11 @@ pub struct GatewayExitNftPairing {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub excluded_cidrs: Vec<IpNet>,
     pub source: IpNet,
+    /// Originating NSC connector machine id that owns `source`, threaded to
+    /// per-machine GatewayExit usage attribution. Empty on pre-cascade
+    /// projections, in which case the usage subject is omitted.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub nsc_machine_id: String,
     pub selection_generation: u64,
 }
 
@@ -4951,6 +4956,7 @@ tunnel = "ws"
                 gateway_id: "gw-a".to_owned(),
                 profile_ref: "corp-exit".to_owned(),
                 source: "10.255.0.2/32".parse().unwrap(),
+                nsc_machine_id: "m-connector-a".to_owned(),
                 destination_cidrs: vec!["198.51.100.0/24".parse().unwrap()],
                 excluded_cidrs: vec!["198.51.100.64/26".parse().unwrap()],
                 selection_generation: 9,
@@ -4965,9 +4971,22 @@ tunnel = "ws"
         assert!(json.contains("\"destination_cidrs\":[\"198.51.100.0/24\"]"));
         assert!(json.contains("\"excluded_cidrs\":[\"198.51.100.64/26\"]"));
         assert!(json.contains("\"selection_generation\":9"));
+        assert!(json.contains("\"nsc_machine_id\":\"m-connector-a\""));
 
         let decoded: GatewayExitNftConfig = serde_json::from_str(&json).unwrap();
         assert_eq!(decoded, cfg);
+    }
+
+    #[test]
+    fn gateway_exit_nft_pairing_defaults_missing_nsc_machine_id() {
+        // Pre-cascade NSD projections omit nsc_machine_id; it must deserialize to
+        // an empty string (wire-compatible), which downstream maps to no subject.
+        let json = "{\"realm_id\":\"realm-a\",\"gateway_id\":\"gw-a\",\
+             \"profile_ref\":\"corp-exit\",\"source\":\"10.255.0.2/32\",\
+             \"selection_generation\":9}";
+        let decoded: GatewayExitNftPairing = serde_json::from_str(json).unwrap();
+        assert_eq!(decoded.nsc_machine_id, "");
+        assert_eq!(decoded.source, "10.255.0.2/32".parse::<IpNet>().unwrap());
     }
 
     #[test]
@@ -4978,6 +4997,7 @@ tunnel = "ws"
                 gateway_id: "gw-a".to_owned(),
                 profile_ref: "corp-exit".to_owned(),
                 source: "10.255.0.2/32".parse().unwrap(),
+                nsc_machine_id: "m-connector-a".to_owned(),
                 destination_cidrs: vec![
                     "0.0.0.0/1".parse().unwrap(),
                     "128.0.0.0/1".parse().unwrap(),
