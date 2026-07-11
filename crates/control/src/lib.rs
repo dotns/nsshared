@@ -98,6 +98,13 @@ pub enum Error {
     /// so callers can fast-forward past it instead of staying wedged.
     #[error("version conflict (server epoch {current_epoch:?})")]
     VersionConflict { current_epoch: Option<u64> },
+    /// Server accepted no write because the per-machine candidate-report floor
+    /// is still active. Additive fields are optional for older servers.
+    #[error("rate limited (server epoch {current_epoch:?}, retry after {retry_after:?})")]
+    RateLimited {
+        current_epoch: Option<u64>,
+        retry_after: Option<Duration>,
+    },
     #[error("timeout")]
     Timeout,
     /// Cold-boot retry harness exhausted its attempt budget without success.
@@ -135,6 +142,24 @@ pub(crate) fn recognized_conflict_error_from_body(body: &[u8]) -> Option<Error> 
         "key_namespace_overlap" => Some(Error::KeyNamespaceOverlap),
         "replay" => Some(Error::Replay),
         _ => None,
+    }
+}
+
+pub(crate) fn rate_limit_error_from_body(body: &[u8]) -> Error {
+    #[derive(serde::Deserialize)]
+    struct RateLimitBody {
+        #[serde(default)]
+        current_epoch: Option<u64>,
+        #[serde(default)]
+        retry_after_ms: Option<u64>,
+    }
+
+    let parsed = serde_json::from_slice::<RateLimitBody>(body).ok();
+    Error::RateLimited {
+        current_epoch: parsed.as_ref().and_then(|body| body.current_epoch),
+        retry_after: parsed
+            .and_then(|body| body.retry_after_ms)
+            .map(Duration::from_millis),
     }
 }
 

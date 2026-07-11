@@ -25,6 +25,7 @@ pub mod labels;
 pub mod meter;
 pub mod metrics;
 pub mod nat_otel;
+pub mod p2p_otel;
 pub mod proxy_otel;
 pub mod spawn;
 pub mod tunnel_otel;

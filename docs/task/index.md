@@ -1,6 +1,6 @@
 # ns-shared - Task List
 
-> Updated: 2026-07-10
+> Updated: 2026-07-11
 
 ## Usage
 
@@ -54,3 +54,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [ ] [**CTRL-017 Decide cross-repo stale-policy bound for control-plane loss**](CTRL-017.md) `P1`
 - [x] [**USAGE-001 Define gateway.usage_report wire contract**](USAGE-001.md) `P1`
 - [x] [**EDGE-005 Add route-level upstream authority wire contract**](EDGE-005.md) `P0`
+- [x] [**CTRL-018 Surface candidate-report rate limits and metrics**](CTRL-018.md) `P1`

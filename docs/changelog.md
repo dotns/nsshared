@@ -1,3 +1,18 @@
+## 2026-07-11 [feat]
+
+Added shared control and telemetry support for reliable direct-P2P candidate
+reporting.
+
+- HTTP 429 responses now map to a typed `RateLimited` error with optional
+  `current_epoch` and `retry_after_ms` data. The shared unary status mapper
+  covers SSE, Noise, and QUIC, while older or malformed response bodies remain
+  compatible with absent optional fields.
+- Added bounded-cardinality, no-label instruments for active candidates,
+  confirmed misses, age expirations, inconclusive gather cycles, and
+  acknowledged empty reports.
+- Verification passed with `just qa` and `cargo test --doc --workspace
+  --locked`.
+
 ## 2026-07-10 [feat]
 
 Added the public-edge upstream authority wire contract.

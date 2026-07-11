@@ -153,7 +153,7 @@ impl ControlTransport for SseTransport {
 
 /// Map an HTTP status + CBOR body into a `ControlEnvelope` result.
 ///
-/// Shared by SSE `call()` and the plain-HTTP unit tests.
+/// Shared by SSE, Noise, and QUIC unary `call()` implementations.
 pub(crate) fn map_status_to_envelope(status: u16, body: &[u8]) -> Result<ControlEnvelope, Error> {
     match status {
         200 => ControlEnvelope::from_cbor(body).map_err(Error::from),
@@ -162,6 +162,7 @@ pub(crate) fn map_status_to_envelope(status: u16, body: &[u8]) -> Result<Control
             "signed-envelope endpoint",
         )),
         409 => Err(crate::conflict_error_from_body(body)),
+        429 => Err(crate::rate_limit_error_from_body(body)),
         408 => Err(Error::Timeout),
         s => Err(Error::ServerError(format!(
             "HTTP {s}: response body redacted ({} bytes)",
@@ -654,6 +655,33 @@ mod tests {
         assert!(matches!(
             map_status_to_envelope(409, b"not json").unwrap_err(),
             Error::Replay
+        ));
+    }
+
+    #[test]
+    fn rate_limit_status_surfaces_typed_optional_retry_fields() {
+        let with_fields = br#"{"error":"rate_limited","current_epoch":42,"retry_after_ms":187}"#;
+        assert!(matches!(
+            map_status_to_envelope(429, with_fields).unwrap_err(),
+            Error::RateLimited {
+                current_epoch: Some(42),
+                retry_after: Some(delay),
+            } if delay == std::time::Duration::from_millis(187)
+        ));
+
+        assert!(matches!(
+            map_status_to_envelope(429, br#"{"error":"rate_limited"}"#).unwrap_err(),
+            Error::RateLimited {
+                current_epoch: None,
+                retry_after: None,
+            }
+        ));
+        assert!(matches!(
+            map_status_to_envelope(429, b"legacy empty body").unwrap_err(),
+            Error::RateLimited {
+                current_epoch: None,
+                retry_after: None,
+            }
         ));
     }
 
