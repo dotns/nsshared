@@ -8,6 +8,8 @@ use common::{
 };
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 
+use crate::api::ControlStreamSession;
+
 /// WireGuard configuration received from the control plane.
 ///
 /// The private key is **not** included — clients use their local `peer_key`
@@ -943,6 +945,32 @@ pub struct GatewayInfo {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct GatewayConfig {
     pub gateways: Vec<GatewayInfo>,
+    /// Atomic, per-scope authoritative WgRelay identity roster.
+    ///
+    /// Absence is legacy or unproven and must never be interpreted as an
+    /// authoritative empty roster.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wg_relay_roster: Option<WgRelayIdentityRoster>,
+}
+
+/// Authoritative WgRelay identities and causal readiness lease for one scope.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct WgRelayIdentityRoster {
+    /// Exact config-stream session to which this roster belongs.
+    pub session: ControlStreamSession,
+    /// Durable causal configuration generation for the complete projection.
+    pub config_version: u64,
+    /// Absolute signed wall-clock barrier before direct confirmation is safe.
+    pub confirm_not_before_unix_secs: u64,
+    /// Absolute signed wall-clock expiry for this roster.
+    pub expires_at_unix_secs: u64,
+    /// Exact relay socket identities for this scope.
+    pub endpoints: Vec<SocketAddr>,
+    /// Durable attestation that the active forwarder fleet enforces leases.
+    ///
+    /// Omission by an older producer is deliberately fail-closed.
+    #[serde(default)]
+    pub fleet_lease_enforced: bool,
 }
 
 // ── gateway WireGuard relay config ───────────────────────────────────────────
@@ -1008,6 +1036,25 @@ pub struct GatewayWgRelayPair {
 #[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize, Serialize)]
 pub struct GatewayWgRelayConfig {
     pub relay_pairs: Vec<GatewayWgRelayPair>,
+    /// Per-realm causal forwarding lease for this exact table.
+    ///
+    /// Absence is legacy or unproven and must not authorize forwarding in a
+    /// lease-enforcing consumer.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub forwarding_lease: Option<WgRelayForwardingLease>,
+}
+
+/// Session- and generation-bound forwarding lease for one realm snapshot.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+pub struct WgRelayForwardingLease {
+    /// Exact config-stream session that authorized the snapshot poll.
+    pub session: ControlStreamSession,
+    /// Durable causal generation shared by every WgRelay event in the snapshot.
+    pub generation: u64,
+    /// Absolute signed wall-clock barrier before this table may forward.
+    pub activate_not_before_unix_secs: u64,
+    /// Absolute signed wall-clock expiry for this table.
+    pub expires_at_unix_secs: u64,
 }
 
 // ── gateway WebSocket relay config ──────────────────────────────────────────
@@ -4779,6 +4826,7 @@ tunnel = "ws"
                 addressing: GatewayWgRelayAddressing::ReceiverIndex,
                 listen_port: None,
             }],
+            forwarding_lease: None,
         };
 
         let json = serde_json::to_string(&cfg).unwrap();
@@ -4808,6 +4856,7 @@ tunnel = "ws"
                 addressing: GatewayWgRelayAddressing::ReceiverIndex,
                 listen_port: None,
             }],
+            forwarding_lease: None,
         };
 
         let json = serde_json::to_string(&cfg).unwrap();
@@ -4821,6 +4870,7 @@ tunnel = "ws"
     fn control_message_gateway_wg_relay_round_trips() {
         let msg = ControlMessage::GatewayWgRelay(GatewayWgRelayConfig {
             relay_pairs: Vec::new(),
+            forwarding_lease: None,
         });
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains("\"type\":\"gateway_wg_relay\""));
@@ -4828,6 +4878,175 @@ tunnel = "ws"
 
         let decoded: ControlMessage = serde_json::from_str(&json).unwrap();
         assert!(matches!(decoded, ControlMessage::GatewayWgRelay(_)));
+    }
+
+    #[test]
+    fn wg_relay_roster_and_forwarding_lease_round_trip_json_and_cbor() {
+        use std::num::NonZeroU32;
+
+        let session =
+            crate::api::ControlStreamSession::from_parts([5; 16], NonZeroU32::new(7).unwrap())
+                .unwrap();
+        let roster = WgRelayIdentityRoster {
+            session,
+            config_version: 41,
+            confirm_not_before_unix_secs: 1_787_000_300,
+            expires_at_unix_secs: 1_787_000_600,
+            endpoints: vec!["203.0.113.7:51821".parse().unwrap()],
+            fleet_lease_enforced: true,
+        };
+        let lease = WgRelayForwardingLease {
+            session,
+            generation: 41,
+            activate_not_before_unix_secs: 1_787_000_300,
+            expires_at_unix_secs: 1_787_000_600,
+        };
+
+        let roster_json = serde_json::to_string(&roster).unwrap();
+        assert_eq!(
+            serde_json::from_str::<WgRelayIdentityRoster>(&roster_json).unwrap(),
+            roster
+        );
+        let roster_cbor = crate::api::to_cbor(&roster).unwrap();
+        assert_eq!(
+            crate::api::from_cbor::<WgRelayIdentityRoster>(&roster_cbor).unwrap(),
+            roster
+        );
+
+        let lease_json = serde_json::to_string(&lease).unwrap();
+        assert_eq!(
+            serde_json::from_str::<WgRelayForwardingLease>(&lease_json).unwrap(),
+            lease
+        );
+        let lease_cbor = crate::api::to_cbor(&lease).unwrap();
+        assert_eq!(
+            crate::api::from_cbor::<WgRelayForwardingLease>(&lease_cbor).unwrap(),
+            lease
+        );
+    }
+
+    #[test]
+    fn wg_relay_wire_compat_matrix_is_additive_and_fail_closed_when_absent() {
+        #[derive(Debug, Serialize, Deserialize)]
+        struct LegacyGatewayConfig {
+            gateways: Vec<GatewayInfo>,
+        }
+
+        #[derive(Debug, Serialize, Deserialize)]
+        struct LegacyGatewayWgRelayConfig {
+            relay_pairs: Vec<GatewayWgRelayPair>,
+        }
+
+        #[derive(Debug, Serialize)]
+        struct RosterWithoutFleetGate {
+            session: crate::api::ControlStreamSession,
+            config_version: u64,
+            confirm_not_before_unix_secs: u64,
+            expires_at_unix_secs: u64,
+            endpoints: Vec<SocketAddr>,
+        }
+
+        let legacy_gateway = LegacyGatewayConfig {
+            gateways: Vec::new(),
+        };
+        let new_gateway_without_roster = GatewayConfig {
+            gateways: Vec::new(),
+            wg_relay_roster: None,
+        };
+        assert_eq!(
+            crate::api::to_cbor(&legacy_gateway).unwrap(),
+            crate::api::to_cbor(&new_gateway_without_roster).unwrap()
+        );
+        assert_eq!(
+            serde_json::to_string(&legacy_gateway).unwrap(),
+            serde_json::to_string(&new_gateway_without_roster).unwrap()
+        );
+        let decoded: GatewayConfig =
+            crate::api::from_cbor(&crate::api::to_cbor(&legacy_gateway).unwrap()).unwrap();
+        assert!(decoded.wg_relay_roster.is_none());
+        let decoded: GatewayConfig =
+            serde_json::from_str(&serde_json::to_string(&legacy_gateway).unwrap()).unwrap();
+        assert!(decoded.wg_relay_roster.is_none());
+
+        let legacy_relay = LegacyGatewayWgRelayConfig {
+            relay_pairs: Vec::new(),
+        };
+        let new_relay_without_lease = GatewayWgRelayConfig {
+            relay_pairs: Vec::new(),
+            forwarding_lease: None,
+        };
+        assert_eq!(
+            crate::api::to_cbor(&legacy_relay).unwrap(),
+            crate::api::to_cbor(&new_relay_without_lease).unwrap()
+        );
+        assert_eq!(
+            serde_json::to_string(&legacy_relay).unwrap(),
+            serde_json::to_string(&new_relay_without_lease).unwrap()
+        );
+        let decoded: GatewayWgRelayConfig =
+            crate::api::from_cbor(&crate::api::to_cbor(&legacy_relay).unwrap()).unwrap();
+        assert!(decoded.forwarding_lease.is_none());
+        let decoded: GatewayWgRelayConfig =
+            serde_json::from_str(&serde_json::to_string(&legacy_relay).unwrap()).unwrap();
+        assert!(decoded.forwarding_lease.is_none());
+
+        let session = crate::api::ControlStreamSession::new();
+        let roster_without_gate = RosterWithoutFleetGate {
+            session,
+            config_version: 11,
+            confirm_not_before_unix_secs: 100,
+            expires_at_unix_secs: 200,
+            endpoints: Vec::new(),
+        };
+        let decoded: WgRelayIdentityRoster =
+            crate::api::from_cbor(&crate::api::to_cbor(&roster_without_gate).unwrap()).unwrap();
+        assert!(!decoded.fleet_lease_enforced);
+        let decoded: WgRelayIdentityRoster =
+            serde_json::from_str(&serde_json::to_string(&roster_without_gate).unwrap()).unwrap();
+        assert!(!decoded.fleet_lease_enforced);
+
+        let new_gateway = GatewayConfig {
+            gateways: Vec::new(),
+            wg_relay_roster: Some(decoded),
+        };
+        let new_gateway_cbor = crate::api::to_cbor(&new_gateway).unwrap();
+        assert!(
+            crate::api::from_cbor::<GatewayConfig>(&new_gateway_cbor)
+                .unwrap()
+                .wg_relay_roster
+                .is_some()
+        );
+        let new_gateway_json = serde_json::to_string(&new_gateway).unwrap();
+        assert!(
+            serde_json::from_str::<GatewayConfig>(&new_gateway_json)
+                .unwrap()
+                .wg_relay_roster
+                .is_some()
+        );
+        let _: LegacyGatewayConfig = crate::api::from_cbor(&new_gateway_cbor).unwrap();
+        let _: LegacyGatewayConfig = serde_json::from_str(&new_gateway_json).unwrap();
+
+        let new_relay = GatewayWgRelayConfig {
+            relay_pairs: Vec::new(),
+            forwarding_lease: Some(WgRelayForwardingLease {
+                session,
+                generation: 11,
+                activate_not_before_unix_secs: 100,
+                expires_at_unix_secs: 200,
+            }),
+        };
+        let new_relay_cbor = crate::api::to_cbor(&new_relay).unwrap();
+        assert_eq!(
+            crate::api::from_cbor::<GatewayWgRelayConfig>(&new_relay_cbor).unwrap(),
+            new_relay
+        );
+        let new_relay_json = serde_json::to_string(&new_relay).unwrap();
+        assert_eq!(
+            serde_json::from_str::<GatewayWgRelayConfig>(&new_relay_json).unwrap(),
+            new_relay
+        );
+        let _: LegacyGatewayWgRelayConfig = crate::api::from_cbor(&new_relay_cbor).unwrap();
+        let _: LegacyGatewayWgRelayConfig = serde_json::from_str(&new_relay_json).unwrap();
     }
 
     #[test]

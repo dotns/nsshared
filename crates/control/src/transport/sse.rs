@@ -184,7 +184,10 @@ pub(crate) fn config_stream_path(envelope: &ControlEnvelope) -> Result<String, E
     }
     let request: api::ConfigStreamRequest = api::from_cbor(envelope.payload.as_ref())
         .map_err(|e| Error::Auth(format!("config.stream request cbor decode: {e}")))?;
-    if request.capabilities.is_empty() && request.public_ingress_scopes.is_empty() {
+    if request.capabilities.is_empty()
+        && request.public_ingress_scopes.is_empty()
+        && request.stream_session.is_none()
+    {
         return Ok("/api/v1/config/stream".to_owned());
     }
     let request = URL_SAFE_NO_PAD.encode(envelope.to_cbor()?);
@@ -716,6 +719,7 @@ mod tests {
                 common::CAPABILITY_NSC_APPLICATION_UDP_V1.to_owned(),
             ],
             public_ingress_scopes: Vec::new(),
+            stream_session: None,
         };
         let envelope = signed_config_stream_envelope(&request);
 
@@ -736,6 +740,28 @@ mod tests {
                 common::CAPABILITY_NSC_APPLICATION_UDP_V1.to_owned(),
             ]
         );
+    }
+
+    #[test]
+    fn config_stream_path_encodes_session_only_signed_request_query() {
+        let session = crate::api::ControlStreamSession::new();
+        let request = ConfigStreamRequest {
+            capabilities: Vec::new(),
+            public_ingress_scopes: Vec::new(),
+            stream_session: Some(session),
+        };
+        let envelope = signed_config_stream_envelope(&request);
+
+        let path = config_stream_path(&envelope).unwrap();
+        let encoded = path
+            .strip_prefix("/api/v1/config/stream?request=")
+            .expect("session-only request must use the signed query");
+        let decoded = URL_SAFE_NO_PAD.decode(encoded).unwrap();
+        let decoded = ControlEnvelope::from_cbor(&decoded).unwrap();
+        assert!(decoded.verify_request(decoded.ts).is_ok());
+        let decoded_request: ConfigStreamRequest =
+            crate::api::from_cbor(decoded.payload.as_ref()).unwrap();
+        assert_eq!(decoded_request.stream_session, Some(session));
     }
 
     #[tokio::test]

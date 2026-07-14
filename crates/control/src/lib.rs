@@ -30,6 +30,12 @@ pub mod sse;
 pub mod transport;
 pub mod types;
 
+pub use api::ControlStreamSession;
+pub use envelope::{
+    MAX_CLOCK_SKEW_SECS, MAX_HEALTHY_WG_RELAY_RENEWAL_SECS, MAX_WG_RELAY_LEASE_SECS,
+    WG_RELAY_CLOCK_MARGIN_SECS, WG_RELAY_DEADLINE_GUARD_SECS, WgRelayLeaseDeadlineError,
+    WgRelayLeaseDeadlines, translate_wg_relay_lease_deadlines,
+};
 pub use types::ConnectorType;
 
 use std::fmt;
@@ -38,11 +44,12 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use common::{ConnectorConfig, ControlCenterConfig};
+use futures_util::future::BoxFuture;
 use secrecy::{ExposeSecret, SecretString};
 use tokio::sync::mpsc;
 use tracing::{error, info, warn};
 
-use auth::{AuthClient, AuthEndpointTrust};
+use auth::{AuthClient, AuthEndpointTrust, VerifiedEnvelopePayload};
 use envelope::ControlEnvelope;
 use envelope::api as envelope_api;
 use messages::{
@@ -120,6 +127,11 @@ pub enum Error {
     /// attempts or driving the operation; the helper returned promptly.
     #[error("cancelled")]
     Cancelled,
+    /// The restart-unique control-stream attempt counter reached `u32::MAX`.
+    /// Wrapping or minting a replacement boot nonce in-process would allow a
+    /// stale response to match, so the session-bound contract fails closed.
+    #[error("control stream attempt counter exhausted")]
+    ControlStreamAttemptCounterExhausted,
 }
 
 pub(crate) fn conflict_error_from_body(body: &[u8]) -> Error {
@@ -279,6 +291,18 @@ impl NsdScope {
     }
 }
 
+/// Scope- and session-specific control-stream connection status.
+///
+/// `None` is reserved for legacy or otherwise unproven producers. New
+/// [`ControlPlane`] instances always emit the exact logical attempt session so
+/// a delayed prior-attempt close cannot affect the current attempt.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ControlPlaneStatus {
+    pub scope: NsdScope,
+    pub connected: bool,
+    pub stream_session: Option<ControlStreamSession>,
+}
+
 /// WSS relay bearer token scoped to the NSD that issued it.
 #[derive(Clone)]
 pub struct ScopedToken {
@@ -321,11 +345,24 @@ impl fmt::Debug for ScopedToken {
 pub struct ScopedGatewayConfig {
     pub scope: NsdScope,
     pub config: GatewayConfig,
+    /// Authenticated signed-envelope wall-clock timestamp.
+    pub signed_at_unix_secs: u64,
+    /// Monotonic anchor captured when the signed event entered verification.
+    /// Queue delay must never replace or advance this value.
+    pub received_at: Instant,
 }
 
 impl ScopedGatewayConfig {
-    pub fn new(scope: NsdScope, config: GatewayConfig) -> Self {
-        Self { scope, config }
+    pub fn from_verified(
+        scope: NsdScope,
+        verified: VerifiedEnvelopePayload<GatewayConfig>,
+    ) -> Self {
+        Self {
+            scope,
+            config: verified.payload,
+            signed_at_unix_secs: verified.signed_at_unix_secs,
+            received_at: verified.received_at,
+        }
     }
 }
 
@@ -338,12 +375,16 @@ pub struct ControlPlane {
     wg_config_tx: mpsc::Sender<WgConfig>,
     proxy_config_tx: mpsc::Sender<ProxyConfig>,
     acl_config_tx: mpsc::Sender<AclConfig>,
-    gateway_config_tx: mpsc::Sender<GatewayConfig>,
+    gateway_config_tx: mpsc::Sender<VerifiedEnvelopePayload<GatewayConfig>>,
     routing_config_tx: mpsc::Sender<RoutingConfig>,
     dns_config_tx: mpsc::Sender<DnsConfig>,
     peer_candidates_tx: mpsc::Sender<PeerCandidatesUpdate>,
     token_refresh_tx: mpsc::Sender<String>,
     config_stream_request: api::ConfigStreamRequest,
+    /// Restart-unique identity retained across endpoint fallbacks.
+    stream_session: ControlStreamSession,
+    /// Whether the first logical outer connection attempt has started.
+    stream_attempt_started: bool,
     /// Pluggable signed-envelope transport for control calls and streams.
     transport: Arc<dyn transport::ControlTransport>,
     /// Periodic heartbeat client for this single NSD. Owned by the same task
@@ -355,11 +396,8 @@ pub struct ControlPlane {
     machine_recovery: Option<MachineRecoveryConfig>,
     recovery_circuit: MachineRecoveryCircuit,
     nsd_id: Option<String>,
-    /// Optional connection-status sender. Emits `true` on successful SSE
-    /// connect and `false` when the SSE loop breaks out due to an error.
-    /// Lets the supervisor (e.g. `MultiControlPlane`) detect transport drops
-    /// instead of only knowing about message arrivals.
-    status_tx: Option<mpsc::Sender<bool>>,
+    /// Optional scope/session-specific connection-status sender.
+    status_tx: Option<mpsc::Sender<ControlPlaneStatus>>,
 }
 
 impl ControlPlane {
@@ -393,6 +431,7 @@ impl ControlPlane {
         };
         let heartbeat_client = auth_client.heartbeat_client();
         let recovery_circuit = MachineRecoveryCircuit::new(MachineRecoveryPolicy::default());
+        let stream_session = ControlStreamSession::new();
 
         let plane = Self {
             config,
@@ -407,6 +446,8 @@ impl ControlPlane {
             peer_candidates_tx,
             token_refresh_tx,
             config_stream_request: api::ConfigStreamRequest::default(),
+            stream_session,
+            stream_attempt_started: false,
             transport,
             heartbeat_client,
             heartbeat_interval: Duration::from_secs(60),
@@ -429,11 +470,57 @@ impl ControlPlane {
         ))
     }
 
-    /// Attach a connection-status sender. The plane will emit `true` when the
-    /// SSE/Noise transport is (re-)connected and `false` when it drops.
-    /// Callers use this to reflect liveness without waiting for a config push.
-    pub fn set_status_tx(&mut self, tx: mpsc::Sender<bool>) {
+    /// Attach a scope/session-specific connection-status sender.
+    pub fn set_status_tx(&mut self, tx: mpsc::Sender<ControlPlaneStatus>) {
         self.status_tx = Some(tx);
+    }
+
+    /// Begin one logical outer connection attempt.
+    ///
+    /// All transport endpoint fallbacks reuse the returned session. Calling
+    /// this again advances the checked counter once for the next reconnect.
+    fn begin_stream_attempt(&mut self) -> Result<ControlStreamSession, Error> {
+        if self.stream_attempt_started {
+            self.stream_session = self
+                .stream_session
+                .checked_next_attempt()
+                .ok_or(Error::ControlStreamAttemptCounterExhausted)?;
+        } else {
+            self.stream_attempt_started = true;
+        }
+        self.config_stream_request.stream_session = Some(self.stream_session);
+        Ok(self.stream_session)
+    }
+
+    fn stream_status(
+        &self,
+        connected: bool,
+        stream_session: Option<ControlStreamSession>,
+    ) -> ControlPlaneStatus {
+        let nsd_id = self
+            .nsd_id
+            .clone()
+            .or_else(|| {
+                self.control_endpoint_sequence()
+                    .first()
+                    .map(|endpoint| endpoint.id().to_string())
+            })
+            .unwrap_or_else(|| "unknown".to_string());
+        ControlPlaneStatus {
+            scope: NsdScope::new(nsd_id, self.auth_client.state.realm.clone()),
+            connected,
+            stream_session,
+        }
+    }
+
+    async fn send_stream_status(
+        &self,
+        connected: bool,
+        stream_session: Option<ControlStreamSession>,
+    ) {
+        if let Some(ref tx) = self.status_tx {
+            let _ = tx.send(self.stream_status(connected, stream_session)).await;
+        }
     }
 
     pub fn set_config_stream_capabilities(&mut self, capabilities: Vec<String>) {
@@ -473,12 +560,11 @@ impl ControlPlane {
         );
 
         loop {
+            let stream_session = self.begin_stream_attempt()?;
             let mut connected = match self.connect_active_endpoint().await {
                 Ok(connected) => {
                     backoff_secs = 1;
-                    if let Some(ref tx) = self.status_tx {
-                        let _ = tx.send(true).await;
-                    }
+                    self.send_stream_status(true, Some(stream_session)).await;
                     connected
                 }
                 Err(e) => {
@@ -487,9 +573,7 @@ impl ControlPlane {
                         backoff = backoff_secs,
                         "all control endpoints failed, retrying"
                     );
-                    if let Some(ref tx) = self.status_tx {
-                        let _ = tx.send(false).await;
-                    }
+                    self.send_stream_status(false, Some(stream_session)).await;
                     tokio::time::sleep(Duration::from_secs(backoff_secs)).await;
                     backoff_secs = (backoff_secs * 2).min(60);
                     continue;
@@ -498,21 +582,36 @@ impl ControlPlane {
 
             match self
                 .drive_connected_stream(&mut connected.token, &mut connected.stream, &mut heartbeat)
-                .await?
+                .await
             {
-                LiveStreamExit::Shutdown => return Ok(()),
-                LiveStreamExit::Disconnected => {
-                    if let Some(ref tx) = self.status_tx {
-                        let _ = tx.send(false).await;
-                    }
+                Ok(LiveStreamExit::Shutdown) => {
+                    self.send_stream_status(false, Some(stream_session)).await;
+                    return Ok(());
+                }
+                Ok(LiveStreamExit::Disconnected) => {
+                    self.send_stream_status(false, Some(stream_session)).await;
                     tokio::time::sleep(Duration::from_secs(backoff_secs)).await;
                     backoff_secs = (backoff_secs * 2).min(60);
+                }
+                Err(error) => {
+                    self.send_stream_status(false, Some(stream_session)).await;
+                    return Err(error);
                 }
             }
         }
     }
 
     async fn connect_active_endpoint(&mut self) -> Result<ConnectedControlStream, Error> {
+        self.connect_active_endpoint_with(|plane, endpoint| {
+            Box::pin(plane.try_connect_endpoint(endpoint))
+        })
+        .await
+    }
+
+    async fn connect_active_endpoint_with<T, F>(&mut self, mut connect: F) -> Result<T, Error>
+    where
+        F: for<'a> FnMut(&'a mut Self, ControlEndpoint) -> BoxFuture<'a, Result<T, Error>>,
+    {
         let endpoints = self.control_endpoint_sequence();
         if endpoints.is_empty() {
             return Err(Error::Connect(
@@ -525,7 +624,7 @@ impl ControlPlane {
         for endpoint in endpoints {
             let id = endpoint.id().to_string();
             let url = endpoint.url().to_string();
-            match tokio::time::timeout(timeout, self.try_connect_endpoint(endpoint)).await {
+            match tokio::time::timeout(timeout, connect(self, endpoint)).await {
                 Ok(Ok(connected)) => return Ok(connected),
                 Ok(Err(e)) => {
                     warn!(
@@ -649,7 +748,7 @@ impl ControlPlane {
                     match msg {
                         Ok(msg) => {
                             let old_token = token.clone();
-                            let event_type = msg.event_type();
+                            let event_type = msg.payload.event_type();
                             let dispatch_start = std::time::Instant::now();
                             let shutdown = self.dispatch_message(msg, token).await;
                             let outcome = match &shutdown {
@@ -715,6 +814,12 @@ impl ControlPlane {
     fn control_endpoint_sequence(&self) -> Vec<ControlEndpoint> {
         let explicit_centers = !self.config.control_centers.is_empty();
         let mut centers = self.config.effective_control_centers();
+        if !explicit_centers
+            && centers.len() == 1
+            && let Some(nsd_id) = &self.nsd_id
+        {
+            centers[0].id.clone_from(nsd_id);
+        }
         // PLAN-009: an explicit `nsd_default_mode` names the primary endpoint by
         // transport, overriding list / priority order before the per-endpoint
         // fallback loop consumes the sequence.
@@ -741,6 +846,7 @@ impl ControlPlane {
         config.server_url = endpoint.config.url.clone();
         config.control_centers.clear();
         config.control_mode = endpoint.mode.clone();
+        config.nsd_default_mode = None;
         config.realm = endpoint.config.realm.clone();
         config.noise_bootstrap_pubkey = endpoint.config.noise_bootstrap_pubkey.clone();
         config.quic_bootstrap_cert_sha256 = endpoint.config.quic_bootstrap_cert_sha256.clone();
@@ -810,6 +916,7 @@ impl ControlPlane {
         );
 
         loop {
+            let stream_session = self.begin_stream_attempt()?;
             let mut stream = make_stream();
             stream.set_token(token.clone());
 
@@ -864,15 +971,11 @@ impl ControlPlane {
                 Ok(()) => {
                     info!("connected to SSE config stream");
                     backoff_secs = 1;
-                    if let Some(ref tx) = self.status_tx {
-                        let _ = tx.send(true).await;
-                    }
+                    self.send_stream_status(true, Some(stream_session)).await;
                 }
                 Err(e) => {
                     warn!(error = %e, backoff = backoff_secs, "SSE connect failed, retrying");
-                    if let Some(ref tx) = self.status_tx {
-                        let _ = tx.send(false).await;
-                    }
+                    self.send_stream_status(false, Some(stream_session)).await;
                     tokio::time::sleep(Duration::from_secs(backoff_secs)).await;
                     backoff_secs = (backoff_secs * 2).min(60);
                     continue;
@@ -889,7 +992,7 @@ impl ControlPlane {
                                 // Measure receive→dispatch latency per control message,
                                 // labeled by bounded event_type. Low-rate event stream,
                                 // so this is well off any hot path.
-                                let event_type = msg.event_type();
+                                let event_type = msg.payload.event_type();
                                 let dispatch_start = std::time::Instant::now();
                                 let shutdown = self.dispatch_message(msg, &mut token).await;
                                 let outcome = match &shutdown {
@@ -901,8 +1004,16 @@ impl ControlPlane {
                                     outcome,
                                     dispatch_start.elapsed().as_secs_f64(),
                                 );
-                                if shutdown? {
-                                    return Ok(());
+                                match shutdown {
+                                    Ok(true) => {
+                                        self.send_stream_status(false, Some(stream_session)).await;
+                                        return Ok(());
+                                    }
+                                    Ok(false) => {}
+                                    Err(error) => {
+                                        self.send_stream_status(false, Some(stream_session)).await;
+                                        return Err(error);
+                                    }
                                 }
                                 if token != old_token {
                                     stream.set_token(token.clone());
@@ -914,9 +1025,7 @@ impl ControlPlane {
                                     backoff = backoff_secs,
                                     "SSE error, reconnecting"
                                 );
-                                if let Some(ref tx) = self.status_tx {
-                                    let _ = tx.send(false).await;
-                                }
+                                self.send_stream_status(false, Some(stream_session)).await;
                                 break;
                             }
                         }
@@ -929,9 +1038,7 @@ impl ControlPlane {
                             Err(Error::MachineUnknown(url)) => {
                                 match self.recover_machine_unknown("heartbeat", &url).await {
                                     Ok(true) => {
-                                        if let Some(ref tx) = self.status_tx {
-                                            let _ = tx.send(false).await;
-                                        }
+                                        self.send_stream_status(false, Some(stream_session)).await;
                                         break;
                                     }
                                     Ok(false) => {
@@ -1184,9 +1291,14 @@ impl ControlPlane {
     /// for forwarding the new value to the active [`ControlStream`].
     async fn dispatch_message(
         &self,
-        msg: ControlMessage,
+        verified: VerifiedEnvelopePayload<ControlMessage>,
         token: &mut String,
     ) -> Result<bool, Error> {
+        let VerifiedEnvelopePayload {
+            payload: msg,
+            signed_at_unix_secs,
+            received_at,
+        } = verified;
         match msg {
             ControlMessage::WgConfig(cfg) => {
                 info!("received wg_config");
@@ -1268,7 +1380,16 @@ impl ControlPlane {
             }
             ControlMessage::GatewayConfig(cfg) => {
                 info!(gateways = cfg.gateways.len(), "received gateway_config");
-                if self.gateway_config_tx.send(cfg).await.is_err() {
+                if self
+                    .gateway_config_tx
+                    .send(VerifiedEnvelopePayload {
+                        payload: cfg,
+                        signed_at_unix_secs,
+                        received_at,
+                    })
+                    .await
+                    .is_err()
+                {
                     info!("gateway_config receiver dropped, shutting down");
                     return Ok(true);
                 }
@@ -1387,7 +1508,7 @@ pub type ControlPlaneInit = (
     mpsc::Receiver<WgConfig>,
     mpsc::Receiver<ProxyConfig>,
     mpsc::Receiver<AclConfig>,
-    mpsc::Receiver<GatewayConfig>,
+    mpsc::Receiver<VerifiedEnvelopePayload<GatewayConfig>>,
     mpsc::Receiver<RoutingConfig>,
     mpsc::Receiver<DnsConfig>,
     mpsc::Receiver<PeerCandidatesUpdate>,
@@ -1887,9 +2008,11 @@ mod post_services_reauth_tests {
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
     use async_trait::async_trait;
+    use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
     use common::{
         CAPABILITY_CAPTURE_ROUTES_V1, ConnectorConfig, ControlCenterConfig, MachineState,
     };
+    use futures_util::future::BoxFuture;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
 
@@ -1898,6 +2021,53 @@ mod post_services_reauth_tests {
     use crate::Error;
     use crate::envelope::ControlEnvelope;
     use crate::messages::ServiceReport;
+
+    #[derive(Clone)]
+    struct RecordedStreamAttempt {
+        mode: &'static str,
+        endpoint: String,
+        envelope: ControlEnvelope,
+    }
+
+    struct RecordingFallbackTransport {
+        mode: &'static str,
+        attempts: Arc<Mutex<Vec<RecordedStreamAttempt>>>,
+    }
+
+    impl crate::transport::ControlTransport for RecordingFallbackTransport {
+        fn connect<'a>(
+            &'a self,
+            _endpoint: &'a str,
+        ) -> BoxFuture<'a, Result<crate::transport::BoxStream, Error>> {
+            Box::pin(async { Err(Error::Connect("scripted endpoint fallback".to_string())) })
+        }
+
+        fn connect_stream<'a>(
+            &'a self,
+            endpoint: &'a str,
+            envelope: ControlEnvelope,
+            _bearer_token: Option<&'a str>,
+        ) -> BoxFuture<'a, Result<crate::transport::BoxStream, Error>> {
+            let attempts = Arc::clone(&self.attempts);
+            let mode = self.mode;
+            let endpoint = endpoint.to_string();
+            Box::pin(async move {
+                attempts
+                    .lock()
+                    .expect("attempt log poisoned")
+                    .push(RecordedStreamAttempt {
+                        mode,
+                        endpoint,
+                        envelope,
+                    });
+                Err(Error::Connect("scripted endpoint fallback".to_string()))
+            })
+        }
+
+        fn name(&self) -> &str {
+            self.mode
+        }
+    }
 
     /// Tiny scripted HTTP mock: accepts N connections, replays one canned
     /// response per connection, returns nothing. Mirrors the shape used by
@@ -2081,6 +2251,9 @@ mod post_services_reauth_tests {
             common::CAPABILITY_NSC_APPLICATION_UDP_V1.to_owned(),
             CAPABILITY_CAPTURE_ROUTES_V1.to_owned(),
         ]);
+        let session = plane
+            .begin_stream_attempt()
+            .expect("first stream attempt must have a session");
 
         let envelope = plane
             .config_stream_envelope()
@@ -2095,6 +2268,201 @@ mod post_services_reauth_tests {
             ]
         );
         assert!(request.public_ingress_scopes.is_empty());
+        assert_eq!(request.stream_session, Some(session));
+    }
+
+    #[tokio::test]
+    async fn logical_reconnect_advances_session_once_and_exhaustion_fails_closed() {
+        let mut config = (*dummy_config("http://legacy.test:3001".to_string())).clone();
+        config.control_centers = vec![
+            control_center("sse", "http://sse.test:3001", 1, None, None, vec![]),
+            control_center(
+                "noise",
+                "noise://noise.test:4001",
+                2,
+                Some("aa".repeat(32)),
+                None,
+                vec![],
+            ),
+            control_center(
+                "quic",
+                "quic://quic.test:4002",
+                3,
+                None,
+                Some("bb".repeat(32)),
+                vec![],
+            ),
+        ];
+        let mut plane = plane_for_config(Arc::new(config)).await;
+
+        let first = plane.begin_stream_attempt().expect("first logical attempt");
+        let attempts = Arc::new(Mutex::new(Vec::new()));
+        let attempt_log = Arc::clone(&attempts);
+        let error = plane
+            .connect_active_endpoint_with::<(), _>(move |plane, endpoint| {
+                let attempts = Arc::clone(&attempt_log);
+                Box::pin(async move {
+                    let mode = match endpoint.mode.as_str() {
+                        "sse" => "sse",
+                        "noise" => "noise",
+                        "quic" => "quic",
+                        other => panic!("unexpected endpoint mode {other}"),
+                    };
+                    let transport: Arc<dyn crate::transport::ControlTransport> =
+                        Arc::new(RecordingFallbackTransport { mode, attempts });
+                    let mut stream = plane.make_control_stream(transport, &endpoint);
+                    stream.set_token("control-token".to_string());
+                    stream
+                        .connect(
+                            plane
+                                .config_stream_envelope()
+                                .expect("fallback request envelope"),
+                        )
+                        .await?;
+                    Ok(())
+                })
+            })
+            .await
+            .expect_err("every scripted endpoint must fail after recording its request");
+        assert!(error.to_string().contains("all control endpoints failed"));
+
+        let attempts = attempts.lock().expect("attempt log poisoned").clone();
+        assert_eq!(attempts.len(), 3);
+        assert_eq!(
+            attempts
+                .iter()
+                .map(|attempt| attempt.mode)
+                .collect::<Vec<_>>(),
+            vec!["sse", "noise", "quic"]
+        );
+        assert_eq!(
+            attempts
+                .iter()
+                .map(|attempt| attempt.endpoint.as_str())
+                .collect::<Vec<_>>(),
+            vec!["sse.test:3001", "noise.test:4001", "quic.test:4002"]
+        );
+        for attempt in attempts {
+            let path = crate::transport::sse::config_stream_path(&attempt.envelope)
+                .expect("transport request path");
+            let encoded = path
+                .strip_prefix("/api/v1/config/stream?request=")
+                .expect("session-only fallback must carry the signed request");
+            let signed_bytes = URL_SAFE_NO_PAD
+                .decode(encoded)
+                .expect("signed request base64url");
+            let signed_envelope =
+                ControlEnvelope::from_cbor(&signed_bytes).expect("signed fallback envelope");
+            signed_envelope
+                .verify_request(signed_envelope.ts)
+                .expect("fallback request signature");
+            let request: crate::api::ConfigStreamRequest =
+                crate::api::from_cbor(signed_envelope.payload.as_ref())
+                    .expect("decode fallback request");
+            assert_eq!(request.stream_session, Some(first));
+        }
+
+        let second = plane
+            .begin_stream_attempt()
+            .expect("second logical attempt");
+        assert_eq!(second.boot_nonce, first.boot_nonce);
+        assert_eq!(
+            second.attempt_counter.get(),
+            first.attempt_counter.get() + 1
+        );
+
+        plane.stream_session = crate::api::ControlStreamSession::from_parts(
+            [7; 16],
+            std::num::NonZeroU32::new(u32::MAX).unwrap(),
+        )
+        .unwrap();
+        plane.stream_attempt_started = true;
+        assert!(matches!(
+            plane.begin_stream_attempt(),
+            Err(Error::ControlStreamAttemptCounterExhausted)
+        ));
+    }
+
+    #[tokio::test]
+    async fn queued_gateway_config_deadlines_stay_anchored_at_verification_receipt() {
+        let state = registered_state().await;
+        let auth = AuthClient::new("http://127.0.0.1:3001", state);
+        let (plane, _wg, _proxy, _acl, mut gateway_rx, _rt, _dns, _peer, _tok_rx) =
+            ControlPlane::new(
+                dummy_config("http://127.0.0.1:3001".to_string()),
+                empty_report(),
+                auth,
+            )
+            .expect("control plane");
+        let signed_at_unix_secs = 10_000;
+        let received_at = std::time::Instant::now();
+        let session = crate::ControlStreamSession::new();
+        let config = crate::messages::GatewayConfig {
+            gateways: Vec::new(),
+            wg_relay_roster: Some(crate::messages::WgRelayIdentityRoster {
+                session,
+                config_version: 7,
+                confirm_not_before_unix_secs: signed_at_unix_secs,
+                expires_at_unix_secs: signed_at_unix_secs + crate::MAX_WG_RELAY_LEASE_SECS,
+                endpoints: Vec::new(),
+                fleet_lease_enforced: true,
+            }),
+        };
+        let mut token = "token".to_string();
+
+        plane
+            .dispatch_message(
+                crate::auth::VerifiedEnvelopePayload {
+                    payload: crate::messages::ControlMessage::GatewayConfig(config),
+                    signed_at_unix_secs,
+                    received_at,
+                },
+                &mut token,
+            )
+            .await
+            .expect("dispatch verified gateway config");
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        let verified = gateway_rx.recv().await.expect("queued gateway config");
+        let scoped = crate::ScopedGatewayConfig::from_verified(
+            crate::NsdScope::new("nsd-a", "realm-a"),
+            verified,
+        );
+        let roster = scoped
+            .config
+            .wg_relay_roster
+            .as_ref()
+            .expect("verified roster");
+
+        let deadlines = crate::translate_wg_relay_lease_deadlines(
+            scoped.signed_at_unix_secs,
+            roster.confirm_not_before_unix_secs,
+            roster.expires_at_unix_secs,
+            scoped.received_at,
+        )
+        .expect("translate from the retained receipt anchor");
+        let simulated_dequeue_at = received_at + std::time::Duration::from_secs(30);
+        let wrongly_dequeue_anchored = crate::translate_wg_relay_lease_deadlines(
+            scoped.signed_at_unix_secs,
+            roster.confirm_not_before_unix_secs,
+            roster.expires_at_unix_secs,
+            simulated_dequeue_at,
+        )
+        .expect("comparison translation");
+
+        assert_eq!(scoped.received_at, received_at);
+        assert_eq!(
+            deadlines.expires_at,
+            received_at
+                + std::time::Duration::from_secs(
+                    crate::MAX_WG_RELAY_LEASE_SECS - crate::WG_RELAY_DEADLINE_GUARD_SECS,
+                )
+        );
+        assert_eq!(
+            wrongly_dequeue_anchored
+                .expires_at
+                .duration_since(deadlines.expires_at),
+            std::time::Duration::from_secs(30)
+        );
     }
 
     fn register_response(machine_id: &str) -> String {
@@ -2118,7 +2486,10 @@ mod post_services_reauth_tests {
             Ok(())
         }
 
-        async fn next_message(&mut self) -> Result<crate::messages::ControlMessage, Error> {
+        async fn next_message(
+            &mut self,
+        ) -> Result<crate::auth::VerifiedEnvelopePayload<crate::messages::ControlMessage>, Error>
+        {
             std::future::pending().await
         }
 
@@ -2141,7 +2512,10 @@ mod post_services_reauth_tests {
             Ok(())
         }
 
-        async fn next_message(&mut self) -> Result<crate::messages::ControlMessage, Error> {
+        async fn next_message(
+            &mut self,
+        ) -> Result<crate::auth::VerifiedEnvelopePayload<crate::messages::ControlMessage>, Error>
+        {
             self.polls.fetch_add(1, Ordering::SeqCst);
             std::future::pending().await
         }
@@ -2161,7 +2535,10 @@ mod post_services_reauth_tests {
             Ok(())
         }
 
-        async fn next_message(&mut self) -> Result<crate::messages::ControlMessage, Error> {
+        async fn next_message(
+            &mut self,
+        ) -> Result<crate::auth::VerifiedEnvelopePayload<crate::messages::ControlMessage>, Error>
+        {
             Err(Error::Sse("scripted disconnect".to_string()))
         }
 
@@ -2278,6 +2655,17 @@ mod post_services_reauth_tests {
         assert_eq!(endpoints[0].id(), "default");
         assert_eq!(endpoints[0].url(), "http://legacy.test:3001");
         assert_eq!(endpoints[0].mode, "noise");
+    }
+
+    #[tokio::test]
+    async fn fixed_scope_id_replaces_the_derived_default_endpoint_id() {
+        let mut plane = plane_for_config(dummy_config("https://nsd-b.example".to_string())).await;
+        plane.set_nsd_id("nsd-b".to_string());
+
+        let endpoints = plane.control_endpoint_sequence();
+
+        assert_eq!(endpoints.len(), 1);
+        assert_eq!(endpoints[0].id(), "nsd-b");
     }
 
     #[tokio::test]
@@ -2609,9 +2997,11 @@ mod post_services_reauth_tests {
             .expect("stream should report connected")
             .expect("status channel should stay open");
         assert!(
-            connected,
+            connected.connected,
             "stream open must mark the control plane connected"
         );
+        assert_eq!(connected.scope.nsd_id, "default");
+        assert!(connected.stream_session.is_some());
 
         let paths = tokio::time::timeout(std::time::Duration::from_secs(1), server)
             .await

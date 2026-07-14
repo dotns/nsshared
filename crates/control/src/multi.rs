@@ -21,7 +21,8 @@ use crate::messages::{
     ServiceReport, WgConfig,
 };
 use crate::{
-    ControlPlane, Error, MachineRecoveryConfig, NsdScope, ScopedGatewayConfig, ScopedToken,
+    ControlPlane, ControlPlaneStatus, Error, MachineRecoveryConfig, NsdScope, ScopedGatewayConfig,
+    ScopedToken, control_mode_from_url,
 };
 
 /// **Deprecated** — kept for one release; see
@@ -64,8 +65,30 @@ pub struct ControlPlaneInfo {
 /// Status update emitted when a control-plane connection comes up or drops.
 #[derive(Debug, Clone)]
 pub struct ControlPlaneStatusEvent {
+    /// Retained compatibility alias for `scope.nsd_id`.
     pub id: String,
+    pub scope: NsdScope,
     pub connected: bool,
+    /// Exact logical attempt affected by this status.
+    /// `None` is legacy or otherwise unproven.
+    pub stream_session: Option<crate::ControlStreamSession>,
+}
+
+/// Build a child connector that can reach only its selected fixed scope.
+fn fixed_scope_connector_config(
+    base: &ConnectorConfig,
+    selected: &ControlCenterConfig,
+) -> ConnectorConfig {
+    let mut config = base.clone();
+    config.server_url = selected.url.clone();
+    config.control_centers.clear();
+    config.control_mode = control_mode_from_url(&selected.url).to_string();
+    config.nsd_default_mode = None;
+    config.realm = selected.realm.clone();
+    config.noise_bootstrap_pubkey = selected.noise_bootstrap_pubkey.clone();
+    config.quic_bootstrap_cert_sha256 = selected.quic_bootstrap_cert_sha256.clone();
+    config.nsd_envelope_key_pins = selected.nsd_envelope_key_pins.clone();
+    config
 }
 
 // ── MultiControlPlane ─────────────────────────────────────────────────────────
@@ -283,10 +306,7 @@ impl MultiControlPlane {
                 services_report,
                 machine_recovery,
             } = entry;
-            // Build a per-NSD config by overriding server_url.
-            let mut nsd_config = (*self.base_config).clone();
-            nsd_config.server_url = cc.url.clone();
-            let nsd_config = Arc::new(nsd_config);
+            let nsd_config = Arc::new(fixed_scope_connector_config(&self.base_config, &cc));
             let id = cc.id.clone();
             let scope = NsdScope::new(id.clone(), auth_client.state.realm.clone());
 
@@ -309,24 +329,23 @@ impl MultiControlPlane {
                 plane.set_machine_recovery(recovery);
             }
 
-            // Wire a per-plane status channel. The ControlPlane emits `true` on
-            // connect and `false` on transport error; we translate that into
-            // `ControlPlaneStatusEvent { id, connected }` for the supervisor.
-            let (plane_status_tx, mut plane_status_rx) = mpsc::channel::<bool>(8);
+            // Wire the exact scope/session transport status through to the
+            // supervisor. Config arrival is not a connection signal.
+            let (plane_status_tx, mut plane_status_rx) = mpsc::channel::<ControlPlaneStatus>(8);
             plane.set_status_tx(plane_status_tx);
             {
                 let status_tx = status_tx.clone();
                 let update_tx = update_tx.clone();
-                let nsd_id = id.clone();
                 tokio::spawn(async move {
-                    while let Some(connected) = plane_status_rx.recv().await {
+                    while let Some(status) = plane_status_rx.recv().await {
+                        let nsd_id = status.scope.nsd_id.clone();
                         // Control-plane drop → synthesize a `FetchFailed` ACL
                         // payload for this NSD so the merger falls back to the
                         // last-good cache, or degrades fail-closed when no
                         // cache exists. Without this the slot would keep its
                         // stale `Loaded` policy forever after the SSE stream
                         // errored (PLAN-020 fail-closed synthesis).
-                        if !connected
+                        if !status.connected
                             && update_tx
                                 .send(NsdUpdate::Acl(
                                     nsd_id.clone(),
@@ -342,8 +361,10 @@ impl MultiControlPlane {
                         }
                         if status_tx
                             .send(ControlPlaneStatusEvent {
-                                id: nsd_id.clone(),
-                                connected,
+                                id: nsd_id,
+                                scope: status.scope,
+                                connected: status.connected,
+                                stream_session: status.stream_session,
                             })
                             .await
                             .is_err()
@@ -357,17 +378,10 @@ impl MultiControlPlane {
             // Forward wg_config updates.
             {
                 let tx = update_tx.clone();
-                let status_tx = status_tx.clone();
                 let nsd_id = id.clone();
                 tokio::spawn(async move {
                     let mut rx = wg_rx;
                     while let Some(cfg) = rx.recv().await {
-                        let _ = status_tx
-                            .send(ControlPlaneStatusEvent {
-                                id: nsd_id.clone(),
-                                connected: true,
-                            })
-                            .await;
                         if tx.send(NsdUpdate::Wg(nsd_id.clone(), cfg)).await.is_err() {
                             break;
                         }
@@ -378,17 +392,10 @@ impl MultiControlPlane {
             // Forward proxy_config updates.
             {
                 let tx = update_tx.clone();
-                let status_tx = status_tx.clone();
                 let nsd_id = id.clone();
                 tokio::spawn(async move {
                     let mut rx = proxy_rx;
                     while let Some(cfg) = rx.recv().await {
-                        let _ = status_tx
-                            .send(ControlPlaneStatusEvent {
-                                id: nsd_id.clone(),
-                                connected: true,
-                            })
-                            .await;
                         if tx
                             .send(NsdUpdate::Proxy(nsd_id.clone(), cfg))
                             .await
@@ -403,17 +410,10 @@ impl MultiControlPlane {
             // Forward acl_config updates.
             {
                 let tx = update_tx.clone();
-                let status_tx = status_tx.clone();
                 let nsd_id = id.clone();
                 tokio::spawn(async move {
                     let mut rx = acl_rx;
                     while let Some(cfg) = rx.recv().await {
-                        let _ = status_tx
-                            .send(ControlPlaneStatusEvent {
-                                id: nsd_id.clone(),
-                                connected: true,
-                            })
-                            .await;
                         if tx.send(NsdUpdate::Acl(nsd_id.clone(), cfg)).await.is_err() {
                             break;
                         }
@@ -424,20 +424,12 @@ impl MultiControlPlane {
             // Forward gateway_config updates.
             {
                 let tx = update_tx.clone();
-                let status_tx = status_tx.clone();
-                let nsd_id = id.clone();
                 let scope = scope.clone();
                 tokio::spawn(async move {
                     let mut rx = gateway_rx;
                     while let Some(cfg) = rx.recv().await {
-                        let _ = status_tx
-                            .send(ControlPlaneStatusEvent {
-                                id: nsd_id.clone(),
-                                connected: true,
-                            })
-                            .await;
                         if tx
-                            .send(NsdUpdate::Gateway(ScopedGatewayConfig::new(
+                            .send(NsdUpdate::Gateway(ScopedGatewayConfig::from_verified(
                                 scope.clone(),
                                 cfg,
                             )))
@@ -698,6 +690,16 @@ impl MultiControlPlane {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
+    use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+    use common::MachineState;
+    use common::envelope_pins::ed25519_pubkey_to_okp_thumbprint;
+    use ed25519_dalek::{Signer, SigningKey};
+    use rand_core::OsRng;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::TcpListener;
+
     use super::*;
 
     fn make_config(server_url: &str) -> Arc<ConnectorConfig> {
@@ -737,5 +739,192 @@ mod tests {
         let base = make_config("http://localhost");
         let (mcp, _, _, _, _, _, _, _, _, _) = MultiControlPlane::new(vec![], base);
         assert_eq!(mcp.nsd_count(), 0);
+    }
+
+    #[tokio::test]
+    async fn fixed_scope_connector_config_cannot_fall_back_to_a_sibling() {
+        let listener_a = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let listener_b = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url_a = format!("http://{}", listener_a.local_addr().unwrap());
+        let url_b = format!("http://{}", listener_b.local_addr().unwrap());
+        let signer = SigningKey::generate(&mut OsRng);
+        let pin = ed25519_pubkey_to_okp_thumbprint(&signer.verifying_key().to_bytes()).unwrap();
+
+        let mut base = (*make_config("http://legacy.example")).clone();
+        base.control_centers = vec![
+            ControlCenterConfig {
+                id: "nsd-a".to_string(),
+                url: url_a,
+                realm: Some("realm-a".to_string()),
+                noise_bootstrap_pubkey: None,
+                quic_bootstrap_cert_sha256: None,
+                nsd_envelope_key_pins: vec!["pin-a".to_string()],
+                priority: 1,
+            },
+            ControlCenterConfig {
+                id: "nsd-b".to_string(),
+                url: url_b.clone(),
+                realm: Some("realm-b".to_string()),
+                noise_bootstrap_pubkey: None,
+                quic_bootstrap_cert_sha256: None,
+                nsd_envelope_key_pins: vec![pin.clone()],
+                priority: 2,
+            },
+        ];
+        base.nsd_default_mode = Some("sse".to_string());
+        base.realm = Some("shared-realm".to_string());
+        base.noise_bootstrap_pubkey = Some("aa".repeat(32));
+        base.quic_bootstrap_cert_sha256 = Some("cc".repeat(32));
+        base.nsd_envelope_key_pins = vec!["shared-pin".to_string()];
+
+        let selected = base.control_centers[1].clone();
+        let confined = fixed_scope_connector_config(&base, &selected);
+
+        assert_eq!(confined.server_url, selected.url);
+        assert_eq!(confined.control_mode, "sse");
+        assert!(confined.control_centers.is_empty());
+        assert_eq!(confined.nsd_default_mode, None);
+        assert_eq!(confined.realm, Some("realm-b".to_string()));
+        assert_eq!(confined.quic_bootstrap_cert_sha256, None);
+        assert_eq!(confined.noise_bootstrap_pubkey, None);
+        assert_eq!(confined.nsd_envelope_key_pins, vec![pin.clone()]);
+        assert_eq!(confined.effective_control_centers().len(), 1);
+
+        let state_dir = tempfile::tempdir().unwrap();
+        let mut state = MachineState::load_or_create_for_realm(state_dir.path(), "realm-b")
+            .await
+            .unwrap();
+        state
+            .set_registered(
+                "machine-b".to_string(),
+                &"aa".repeat(32),
+                "127.0.0.1:51820",
+                None,
+            )
+            .unwrap();
+        let auth = AuthClient::new(&url_b, state).with_envelope_trust(
+            "nsd-b",
+            "realm-b",
+            state_dir.path(),
+            vec![pin],
+            None,
+        );
+        let services_report = crate::messages::ServiceReport {
+            services: HashMap::new(),
+            strict_mode: false,
+            system_info: None,
+        };
+        let (
+            mut plane,
+            _wg_rx,
+            _proxy_rx,
+            _acl_rx,
+            mut gateway_rx,
+            _routing_rx,
+            _dns_rx,
+            _peer_rx,
+            _token_rx,
+        ) = ControlPlane::new(Arc::new(confined), services_report, auth).unwrap();
+        plane.set_nsd_id("nsd-b".to_string());
+        let session = plane.begin_stream_attempt().unwrap();
+        let endpoints = plane.control_endpoint_sequence();
+        assert_eq!(endpoints.len(), 1);
+        assert_eq!(endpoints[0].id(), "nsd-b");
+        assert_eq!(endpoints[0].url(), url_b);
+
+        let event_payload = crate::api::to_cbor(&crate::api::ConfigStreamEventPayloadV1 {
+            v: 1,
+            message: crate::messages::ControlMessage::GatewayConfig(
+                crate::messages::GatewayConfig {
+                    gateways: vec![crate::messages::GatewayInfo {
+                        id: "gateway-b".to_string(),
+                        wg_endpoint: "192.0.2.10:51820".to_string(),
+                        wss_endpoint: "ws://192.0.2.10:9443".to_string(),
+                        tunnel_ip: None,
+                        wg_relay_endpoint: Some("192.0.2.10:51821".to_string()),
+                    }],
+                    wg_relay_roster: None,
+                },
+            ),
+        })
+        .unwrap();
+        let event_envelope = crate::envelope::ControlEnvelope::sign_response(
+            crate::envelope::api::CONFIG_STREAM,
+            Some("machine-b".to_string()),
+            signer.verifying_key().to_bytes(),
+            event_payload,
+            |message| signer.sign(message).to_bytes(),
+        )
+        .unwrap();
+        let signed_at_unix_secs = event_envelope.ts;
+        let event = format!(
+            "event: config-envelope.v1\ndata: {}\n\n",
+            URL_SAFE_NO_PAD.encode(event_envelope.to_cbor().unwrap())
+        );
+        let server_b = tokio::spawn(async move {
+            let (mut socket, _) = listener_b.accept().await.unwrap();
+            let mut request = Vec::new();
+            let mut byte = [0_u8; 1];
+            while !request.ends_with(b"\r\n\r\n") {
+                socket.read_exact(&mut byte).await.unwrap();
+                request.push(byte[0]);
+            }
+            socket
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n",
+                )
+                .await
+                .unwrap();
+            socket.write_all(event.as_bytes()).await.unwrap();
+            socket.shutdown().await.unwrap();
+
+            String::from_utf8(request).unwrap()
+        });
+
+        let transport = Arc::clone(&plane.transport);
+        let mut stream = plane.make_control_stream(transport, &endpoints[0]);
+        stream.set_token("scope-b-control-token".to_string());
+        stream
+            .connect(plane.config_stream_envelope().unwrap())
+            .await
+            .unwrap();
+        let verified_message = stream.next_message().await.unwrap();
+        let received_at = verified_message.received_at;
+        let mut token = "scope-b-control-token".to_string();
+        plane
+            .dispatch_message(verified_message, &mut token)
+            .await
+            .unwrap();
+        let verified_config = gateway_rx.recv().await.unwrap();
+        let published =
+            ScopedGatewayConfig::from_verified(NsdScope::new("nsd-b", "realm-b"), verified_config);
+
+        assert_eq!(published.scope.nsd_id, "nsd-b");
+        assert_eq!(published.scope.realm, "realm-b");
+        assert_eq!(published.config.gateways[0].id, "gateway-b");
+        assert_eq!(published.signed_at_unix_secs, signed_at_unix_secs);
+        assert_eq!(published.received_at, received_at);
+        assert!(
+            tokio::time::timeout(std::time::Duration::from_millis(50), listener_a.accept())
+                .await
+                .is_err(),
+            "the B-scoped child must never connect to sibling A"
+        );
+
+        let request = server_b.await.unwrap();
+        let request_line = request.lines().next().unwrap();
+        let path = request_line.split_whitespace().nth(1).unwrap();
+        let encoded = path
+            .strip_prefix("/api/v1/config/stream?request=")
+            .expect("session-bearing fixed-scope request");
+        let request_envelope =
+            crate::envelope::ControlEnvelope::from_cbor(&URL_SAFE_NO_PAD.decode(encoded).unwrap())
+                .unwrap();
+        request_envelope
+            .verify_request(request_envelope.ts)
+            .unwrap();
+        let request: crate::api::ConfigStreamRequest =
+            crate::api::from_cbor(request_envelope.payload.as_ref()).unwrap();
+        assert_eq!(request.stream_session, Some(session));
     }
 }

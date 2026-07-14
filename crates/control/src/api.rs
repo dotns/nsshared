@@ -16,9 +16,11 @@
 #![allow(missing_docs)]
 
 use std::net::{Ipv4Addr, SocketAddr};
+use std::num::NonZeroU32;
 
 use common::{IpNet, NsdInfo, SystemInfo};
-use serde::{Deserialize, Serialize};
+use rand_core::{OsRng, RngCore};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::messages::{
     ControlMessage, ExitNodeDnsPolicy, ExitNodeFallbackPolicy, GatewayCertificateStatus,
@@ -231,6 +233,108 @@ pub struct ExitNodeSelectionResponse {
 
 // ── config.stream ────────────────────────────────────────────────────────────
 
+/// Restart-unique identity for one logical control-stream connection attempt.
+///
+/// A process generates one random, non-zero `boot_nonce` and starts at attempt
+/// one. Endpoint fallbacks reuse the same value; an outer reconnect advances
+/// the checked counter. Counter exhaustion must fail closed rather than wrap.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ControlStreamSession {
+    /// Random process boot identity. The all-zero value is invalid.
+    pub boot_nonce: [u8; 16],
+    /// Checked, non-zero logical connection-attempt number.
+    pub attempt_counter: NonZeroU32,
+}
+
+#[allow(
+    clippy::new_without_default,
+    reason = "Default must not silently mint a new process session identity"
+)]
+impl ControlStreamSession {
+    /// Generate a new restart-unique session at attempt one.
+    #[must_use]
+    pub fn new() -> Self {
+        let mut boot_nonce = [0u8; 16];
+        while boot_nonce == [0; 16] {
+            OsRng.fill_bytes(&mut boot_nonce);
+        }
+        Self {
+            boot_nonce,
+            attempt_counter: NonZeroU32::MIN,
+        }
+    }
+
+    /// Construct a session from validated wire parts.
+    #[must_use]
+    pub fn from_parts(boot_nonce: [u8; 16], attempt_counter: NonZeroU32) -> Option<Self> {
+        (boot_nonce != [0; 16]).then_some(Self {
+            boot_nonce,
+            attempt_counter,
+        })
+    }
+
+    /// Return the next logical attempt, preserving the boot nonce.
+    ///
+    /// Returns `None` at `u32::MAX`; callers must then disable the session-
+    /// bound contract rather than wrap or mint a replacement nonce in-process.
+    #[must_use]
+    pub fn checked_next_attempt(self) -> Option<Self> {
+        let attempt_counter = self
+            .attempt_counter
+            .get()
+            .checked_add(1)
+            .and_then(NonZeroU32::new)?;
+        Some(Self {
+            boot_nonce: self.boot_nonce,
+            attempt_counter,
+        })
+    }
+}
+
+impl Serialize for ControlStreamSession {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        if self.boot_nonce == [0; 16] {
+            return Err(serde::ser::Error::custom(
+                "control stream boot nonce must be non-zero",
+            ));
+        }
+
+        #[derive(Serialize)]
+        struct WireSession {
+            #[serde(with = "serde_bytes_array_16")]
+            boot_nonce: [u8; 16],
+            attempt_counter: NonZeroU32,
+        }
+
+        WireSession {
+            boot_nonce: self.boot_nonce,
+            attempt_counter: self.attempt_counter,
+        }
+        .serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for ControlStreamSession {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct WireSession {
+            #[serde(with = "serde_bytes_array_16")]
+            boot_nonce: [u8; 16],
+            attempt_counter: NonZeroU32,
+        }
+
+        let wire = WireSession::deserialize(deserializer)?;
+        Self::from_parts(wire.boot_nonce, wire.attempt_counter)
+            .ok_or_else(|| serde::de::Error::custom("control stream boot nonce must be non-zero"))
+    }
+}
+
 /// Request payload for `api = "config.stream"`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ConfigStreamRequest {
@@ -240,6 +344,9 @@ pub struct ConfigStreamRequest {
     /// Public ingress route scopes requested by this stream subscriber.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub public_ingress_scopes: Vec<String>,
+    /// Restart-unique identity for this logical stream attempt.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stream_session: Option<ControlStreamSession>,
 }
 
 /// Signed pushed-event payload for `api = "config.stream"`.
@@ -456,9 +563,13 @@ pub struct GatewayUsageReportResponse {
 
 // ── gateway.realm_config_snapshot ────────────────────────────────────────────
 
-/// Empty request for `api = "gateway.realm_config_snapshot"`.
+/// Request for `api = "gateway.realm_config_snapshot"`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct GatewayRealmConfigSnapshotRequest {}
+pub struct GatewayRealmConfigSnapshotRequest {
+    /// Exact active config-stream session authorizing this independent poll.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stream_session: Option<ControlStreamSession>,
+}
 
 /// One realm's signed config-stream snapshot bodies for
 /// `api = "gateway.realm_config_snapshot"`.
@@ -990,6 +1101,7 @@ mod tests {
                 PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_UPSTREAM_TLS_ACCEPT_UNTRUSTED.into(),
                 PUBLIC_EDGE_SCOPE_GATEWAY_L4_MAP.into(),
             ],
+            stream_session: None,
         };
         let bytes = to_cbor(&capable).unwrap();
         let decoded: ConfigStreamRequest = from_cbor(&bytes).unwrap();
@@ -1005,6 +1117,148 @@ mod tests {
                 PUBLIC_EDGE_SCOPE_GATEWAY_L4_MAP
             ]
         );
+    }
+
+    #[test]
+    fn control_stream_session_round_trips_and_checks_nonzero_attempts() {
+        use std::num::NonZeroU32;
+
+        let first = ControlStreamSession::new();
+        assert_ne!(first.boot_nonce, [0; 16]);
+        assert_eq!(first.attempt_counter, NonZeroU32::MIN);
+
+        let second = first.checked_next_attempt().unwrap();
+        assert_eq!(second.boot_nonce, first.boot_nonce);
+        assert_eq!(second.attempt_counter.get(), 2);
+
+        let exhausted =
+            ControlStreamSession::from_parts([7; 16], NonZeroU32::new(u32::MAX).unwrap()).unwrap();
+        assert!(exhausted.checked_next_attempt().is_none());
+
+        let cbor = to_cbor(&second).unwrap();
+        assert_eq!(from_cbor::<ControlStreamSession>(&cbor).unwrap(), second);
+        let json = serde_json::to_string(&second).unwrap();
+        assert_eq!(
+            serde_json::from_str::<ControlStreamSession>(&json).unwrap(),
+            second
+        );
+
+        let mut zero_nonce = serde_json::to_value(second).unwrap();
+        zero_nonce["boot_nonce"] = serde_json::to_value([0u8; 16]).unwrap();
+        assert!(serde_json::from_value::<ControlStreamSession>(zero_nonce).is_err());
+
+        let mut zero_attempt = serde_json::to_value(second).unwrap();
+        zero_attempt["attempt_counter"] = serde_json::json!(0);
+        assert!(serde_json::from_value::<ControlStreamSession>(zero_attempt).is_err());
+
+        #[derive(Serialize)]
+        struct UncheckedSession {
+            #[serde(with = "serde_bytes_array_16")]
+            boot_nonce: [u8; 16],
+            attempt_counter: u32,
+        }
+
+        let zero_nonce = to_cbor(&UncheckedSession {
+            boot_nonce: [0; 16],
+            attempt_counter: 1,
+        })
+        .unwrap();
+        assert!(from_cbor::<ControlStreamSession>(&zero_nonce).is_err());
+        let zero_attempt = to_cbor(&UncheckedSession {
+            boot_nonce: [1; 16],
+            attempt_counter: 0,
+        })
+        .unwrap();
+        assert!(from_cbor::<ControlStreamSession>(&zero_attempt).is_err());
+    }
+
+    #[test]
+    fn stream_session_request_fields_are_additive_in_json_and_cbor() {
+        #[derive(Debug, Serialize, Deserialize)]
+        struct LegacyConfigStreamRequest {
+            #[serde(default, skip_serializing_if = "Vec::is_empty")]
+            capabilities: Vec<String>,
+            #[serde(default, skip_serializing_if = "Vec::is_empty")]
+            public_ingress_scopes: Vec<String>,
+        }
+
+        #[derive(Debug, Default, Serialize, Deserialize)]
+        struct LegacySnapshotRequest {}
+
+        let legacy_stream = LegacyConfigStreamRequest {
+            capabilities: Vec::new(),
+            public_ingress_scopes: Vec::new(),
+        };
+        assert_eq!(
+            to_cbor(&legacy_stream).unwrap(),
+            to_cbor(&ConfigStreamRequest::default()).unwrap()
+        );
+        let decoded: ConfigStreamRequest = from_cbor(&to_cbor(&legacy_stream).unwrap()).unwrap();
+        assert!(decoded.stream_session.is_none());
+        let decoded: ConfigStreamRequest =
+            serde_json::from_str(&serde_json::to_string(&legacy_stream).unwrap()).unwrap();
+        assert!(decoded.stream_session.is_none());
+
+        let session =
+            ControlStreamSession::from_parts([9; 16], std::num::NonZeroU32::new(3).unwrap())
+                .unwrap();
+        let new_stream = ConfigStreamRequest {
+            capabilities: Vec::new(),
+            public_ingress_scopes: Vec::new(),
+            stream_session: Some(session),
+        };
+        let new_stream_cbor = to_cbor(&new_stream).unwrap();
+        assert_eq!(
+            from_cbor::<ConfigStreamRequest>(&new_stream_cbor)
+                .unwrap()
+                .stream_session,
+            Some(session)
+        );
+        let new_stream_json = serde_json::to_string(&new_stream).unwrap();
+        assert_eq!(
+            serde_json::from_str::<ConfigStreamRequest>(&new_stream_json)
+                .unwrap()
+                .stream_session,
+            Some(session)
+        );
+        let legacy_decoded: LegacyConfigStreamRequest = from_cbor(&new_stream_cbor).unwrap();
+        assert!(legacy_decoded.capabilities.is_empty());
+        let legacy_decoded: LegacyConfigStreamRequest =
+            serde_json::from_str(&new_stream_json).unwrap();
+        assert!(legacy_decoded.public_ingress_scopes.is_empty());
+
+        let legacy_snapshot = LegacySnapshotRequest::default();
+        assert_eq!(
+            to_cbor(&legacy_snapshot).unwrap(),
+            to_cbor(&GatewayRealmConfigSnapshotRequest::default()).unwrap()
+        );
+        let decoded: GatewayRealmConfigSnapshotRequest =
+            from_cbor(&to_cbor(&legacy_snapshot).unwrap()).unwrap();
+        assert!(decoded.stream_session.is_none());
+        let decoded: GatewayRealmConfigSnapshotRequest =
+            serde_json::from_str(&serde_json::to_string(&legacy_snapshot).unwrap()).unwrap();
+        assert!(decoded.stream_session.is_none());
+
+        let new_snapshot = GatewayRealmConfigSnapshotRequest {
+            stream_session: Some(session),
+        };
+        let cbor = to_cbor(&new_snapshot).unwrap();
+        assert_eq!(
+            from_cbor::<GatewayRealmConfigSnapshotRequest>(&cbor)
+                .unwrap()
+                .stream_session,
+            Some(session)
+        );
+        let _: LegacySnapshotRequest = from_cbor(&cbor).unwrap();
+
+        let json = serde_json::to_string(&new_snapshot).unwrap();
+        assert_eq!(
+            serde_json::from_str::<GatewayRealmConfigSnapshotRequest>(&json)
+                .unwrap()
+                .stream_session,
+            Some(session)
+        );
+        let _: LegacySnapshotRequest = serde_json::from_str(&json).unwrap();
     }
 
     #[test]

@@ -14,7 +14,7 @@ use rand_core::{OsRng, RngCore};
 use serde::{Deserialize, Serialize};
 use serde_bytes::ByteBuf;
 use sha2::{Digest, Sha256};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 
 /// Wire-format version of the envelope. Bumped on breaking changes.
@@ -28,6 +28,111 @@ pub const DOMAIN_RESPONSE: &[u8] = b"nsio-ctrl-v1-resp\0";
 
 /// Maximum accepted clock skew between peers, in seconds.
 pub const MAX_CLOCK_SKEW_SECS: u64 = 60;
+
+/// Maximum lifetime of a WgRelay roster or forwarding lease (`L`).
+pub const MAX_WG_RELAY_LEASE_SECS: u64 = 300;
+
+/// Extra conservative margin added to the authenticated clock-skew bound (`M`).
+pub const WG_RELAY_CLOCK_MARGIN_SECS: u64 = 5;
+
+/// Skew-plus-margin guard used for monotonic deadline translation (`Q = K + M`).
+pub const WG_RELAY_DEADLINE_GUARD_SECS: u64 = MAX_CLOCK_SKEW_SECS + WG_RELAY_CLOCK_MARGIN_SECS;
+
+/// Maximum period between healthy WgRelay lease renewals (`R`).
+///
+/// The fixed causal overlap budget is `R + 2Q < L`:
+/// `20 + 2 * (60 + 5) < 300`.
+pub const MAX_HEALTHY_WG_RELAY_RENEWAL_SECS: u64 = 20;
+
+/// Monotonic deadlines derived once from an authenticated WgRelay lease.
+///
+/// Consumers must compare only these instants after acceptance; they must not
+/// revisit wall clock or independently reproduce the causal guard formula.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[must_use]
+pub struct WgRelayLeaseDeadlines {
+    /// Earliest monotonic instant at which the roster or forwarding table may
+    /// become active.
+    pub not_before: Instant,
+    /// Monotonic instant at which the roster or forwarding table expires.
+    pub expires_at: Instant,
+}
+
+/// Fail-closed reasons returned by [`translate_wg_relay_lease_deadlines`].
+#[derive(Clone, Copy, Debug, Error, PartialEq, Eq)]
+pub enum WgRelayLeaseDeadlineError {
+    #[error("WgRelay lease expiry is not after its authenticated signed timestamp")]
+    ExpiryNotAfterSignedAt,
+    #[error("WgRelay lease exceeds the shared maximum lifetime")]
+    LeaseTooLong,
+    #[error("WgRelay not-before barrier exceeds the shared maximum lifetime")]
+    NotBeforeTooFar,
+    #[error("WgRelay monotonic deadline arithmetic overflowed")]
+    MonotonicOverflow,
+    #[error("WgRelay guarded not-before deadline does not precede expiry")]
+    NoUsableWindow,
+}
+
+/// Translate authenticated absolute WgRelay lease times into monotonic
+/// deadlines using the fixed PLAN-114 causal guard.
+///
+/// Given authenticated signed timestamp `s`, not-before `b`, expiry `e`, and
+/// the monotonic receipt anchor `m`, this enforces `0 < e - s <= L`, bounds a
+/// future `b - s` by `L`, then computes:
+///
+/// - `expires_at = m + (e - s).saturating_sub(Q)`
+/// - `not_before = m + max(0, b - s) + Q`
+///
+/// The result is accepted only when `not_before < expires_at`. All arithmetic
+/// that can overflow is checked; any invalid or unrepresentable deadline fails
+/// closed.
+///
+/// # Errors
+///
+/// Returns [`WgRelayLeaseDeadlineError`] for a non-positive or overlong lease,
+/// an overlong future barrier, monotonic arithmetic overflow, or an empty
+/// guarded activation window.
+pub fn translate_wg_relay_lease_deadlines(
+    signed_at_unix_secs: u64,
+    not_before_unix_secs: u64,
+    expires_at_unix_secs: u64,
+    received_at: Instant,
+) -> Result<WgRelayLeaseDeadlines, WgRelayLeaseDeadlineError> {
+    let lease_secs = expires_at_unix_secs
+        .checked_sub(signed_at_unix_secs)
+        .filter(|duration| *duration > 0)
+        .ok_or(WgRelayLeaseDeadlineError::ExpiryNotAfterSignedAt)?;
+    if lease_secs > MAX_WG_RELAY_LEASE_SECS {
+        return Err(WgRelayLeaseDeadlineError::LeaseTooLong);
+    }
+
+    let future_not_before_secs = not_before_unix_secs.saturating_sub(signed_at_unix_secs);
+    if future_not_before_secs > MAX_WG_RELAY_LEASE_SECS {
+        return Err(WgRelayLeaseDeadlineError::NotBeforeTooFar);
+    }
+
+    let expiry_offset =
+        Duration::from_secs(lease_secs.saturating_sub(WG_RELAY_DEADLINE_GUARD_SECS));
+    let not_before_offset_secs = future_not_before_secs
+        .checked_add(WG_RELAY_DEADLINE_GUARD_SECS)
+        .ok_or(WgRelayLeaseDeadlineError::MonotonicOverflow)?;
+    let not_before_offset = Duration::from_secs(not_before_offset_secs);
+
+    let expires_at = received_at
+        .checked_add(expiry_offset)
+        .ok_or(WgRelayLeaseDeadlineError::MonotonicOverflow)?;
+    let not_before = received_at
+        .checked_add(not_before_offset)
+        .ok_or(WgRelayLeaseDeadlineError::MonotonicOverflow)?;
+    if not_before >= expires_at {
+        return Err(WgRelayLeaseDeadlineError::NoUsableWindow);
+    }
+
+    Ok(WgRelayLeaseDeadlines {
+        not_before,
+        expires_at,
+    })
+}
 
 /// Replay cache window. Envelopes older than this are rejected outright.
 pub const REPLAY_WINDOW_SECS: u64 = 120;
@@ -208,11 +313,12 @@ impl ControlEnvelope {
     /// Verify a response envelope. `expected_nsd_key` is the pinned NSD
     /// pubkey from registration (or `--nsd-pubkey`); it must match the
     /// envelope's `machine_key_pub` field.
-    pub fn verify_response(&self, now: u64, expected_nsd_key: &[u8; 32]) -> Result<(), Error> {
+    pub fn verify_response(&self, now: u64, expected_nsd_key: &[u8; 32]) -> Result<u64, Error> {
         if &self.machine_key_pub != expected_nsd_key {
             return Err(Error::InvalidSignature);
         }
-        self.verify_with_domain(DOMAIN_RESPONSE, now)
+        self.verify_with_domain(DOMAIN_RESPONSE, now)?;
+        Ok(self.ts)
     }
 
     fn verify_with_domain(&self, domain: &[u8], now: u64) -> Result<(), Error> {
@@ -426,6 +532,166 @@ mod tests {
     }
 
     #[test]
+    fn wg_relay_lease_constants_preserve_causal_overlap_budget() {
+        assert_eq!(MAX_WG_RELAY_LEASE_SECS, 300);
+        assert_eq!(MAX_CLOCK_SKEW_SECS, 60);
+        assert_eq!(WG_RELAY_CLOCK_MARGIN_SECS, 5);
+        assert_eq!(WG_RELAY_DEADLINE_GUARD_SECS, 65);
+        assert_eq!(MAX_HEALTHY_WG_RELAY_RENEWAL_SECS, 20);
+        assert_eq!(
+            WG_RELAY_DEADLINE_GUARD_SECS,
+            MAX_CLOCK_SKEW_SECS + WG_RELAY_CLOCK_MARGIN_SECS
+        );
+        let renewal = std::hint::black_box(MAX_HEALTHY_WG_RELAY_RENEWAL_SECS);
+        let guard = std::hint::black_box(WG_RELAY_DEADLINE_GUARD_SECS);
+        let lease = std::hint::black_box(MAX_WG_RELAY_LEASE_SECS);
+        assert!(renewal + 2 * guard < lease);
+        assert!(renewal > 0);
+        assert!(MAX_CLOCK_SKEW_SECS < lease);
+    }
+
+    #[test]
+    fn wg_relay_deadline_translation_accepts_max_lease_and_applies_guard() {
+        let signed_at = 10_000;
+        let received_at = std::time::Instant::now();
+
+        let deadlines = translate_wg_relay_lease_deadlines(
+            signed_at,
+            signed_at,
+            signed_at + MAX_WG_RELAY_LEASE_SECS,
+            received_at,
+        )
+        .expect("the exact maximum lease must remain valid");
+
+        assert_eq!(
+            deadlines.not_before,
+            received_at + std::time::Duration::from_secs(WG_RELAY_DEADLINE_GUARD_SECS)
+        );
+        assert_eq!(
+            deadlines.expires_at,
+            received_at
+                + std::time::Duration::from_secs(
+                    MAX_WG_RELAY_LEASE_SECS - WG_RELAY_DEADLINE_GUARD_SECS,
+                )
+        );
+    }
+
+    #[test]
+    fn wg_relay_deadline_translation_rejects_overlong_lease() {
+        let signed_at = 10_000;
+        let error = translate_wg_relay_lease_deadlines(
+            signed_at,
+            signed_at,
+            signed_at + MAX_WG_RELAY_LEASE_SECS + 1,
+            std::time::Instant::now(),
+        )
+        .expect_err("a lease longer than L must fail closed");
+
+        assert!(matches!(error, WgRelayLeaseDeadlineError::LeaseTooLong));
+    }
+
+    #[test]
+    fn wg_relay_deadline_translation_rejects_nonpositive_expiry_interval() {
+        let signed_at = 10_000;
+        for expires_at in [signed_at, signed_at - 1] {
+            let error = translate_wg_relay_lease_deadlines(
+                signed_at,
+                signed_at,
+                expires_at,
+                std::time::Instant::now(),
+            )
+            .expect_err("zero or negative expiry interval must fail closed");
+
+            assert!(matches!(
+                error,
+                WgRelayLeaseDeadlineError::ExpiryNotAfterSignedAt
+            ));
+        }
+    }
+
+    #[test]
+    fn wg_relay_deadline_translation_bounds_future_not_before() {
+        let signed_at = 10_000;
+        let error = translate_wg_relay_lease_deadlines(
+            signed_at,
+            signed_at + MAX_WG_RELAY_LEASE_SECS + 1,
+            signed_at + MAX_WG_RELAY_LEASE_SECS,
+            std::time::Instant::now(),
+        )
+        .expect_err("a future barrier beyond L must fail closed");
+
+        assert!(matches!(error, WgRelayLeaseDeadlineError::NotBeforeTooFar));
+    }
+
+    #[test]
+    fn wg_relay_deadline_translation_treats_past_barrier_as_zero_duration() {
+        let signed_at = 10_000;
+        let received_at = std::time::Instant::now();
+        let deadlines = translate_wg_relay_lease_deadlines(
+            signed_at,
+            signed_at - 1,
+            signed_at + MAX_WG_RELAY_LEASE_SECS,
+            received_at,
+        )
+        .expect("PLAN-114 permits an already-past barrier");
+
+        assert_eq!(
+            deadlines.not_before,
+            received_at + std::time::Duration::from_secs(WG_RELAY_DEADLINE_GUARD_SECS)
+        );
+    }
+
+    #[test]
+    fn wg_relay_deadline_translation_requires_strict_usable_ordering() {
+        let signed_at = 10_000;
+        let error = translate_wg_relay_lease_deadlines(
+            signed_at,
+            signed_at + 170,
+            signed_at + MAX_WG_RELAY_LEASE_SECS,
+            std::time::Instant::now(),
+        )
+        .expect_err("equal guarded activation and expiry must fail closed");
+
+        assert!(matches!(error, WgRelayLeaseDeadlineError::NoUsableWindow));
+    }
+
+    #[test]
+    fn wg_relay_deadline_translation_rejects_monotonic_overflow() {
+        let now = std::time::Instant::now();
+        let mut low = 0_u64;
+        let mut high = u64::MAX;
+        while low < high {
+            let distance = high - low;
+            let midpoint = low + distance / 2 + distance % 2;
+            if now
+                .checked_add(std::time::Duration::from_secs(midpoint))
+                .is_some()
+            {
+                low = midpoint;
+            } else {
+                high = midpoint - 1;
+            }
+        }
+        let near_instant_limit = now
+            .checked_add(std::time::Duration::from_secs(low))
+            .expect("binary search retains a representable Instant");
+        let signed_at = 10_000;
+
+        let error = translate_wg_relay_lease_deadlines(
+            signed_at,
+            signed_at,
+            signed_at + MAX_WG_RELAY_LEASE_SECS,
+            near_instant_limit,
+        )
+        .expect_err("Instant overflow must fail closed");
+
+        assert!(matches!(
+            error,
+            WgRelayLeaseDeadlineError::MonotonicOverflow
+        ));
+    }
+
+    #[test]
     fn rejects_clock_skew() {
         let sk = keypair();
         let pk = sk.verifying_key().to_bytes();
@@ -531,7 +797,8 @@ mod tests {
             sign_with(&nsd_sk),
         )
         .unwrap();
-        env.verify_response(now_secs().unwrap(), &nsd_pk).unwrap();
+        let signed_at = env.verify_response(now_secs().unwrap(), &nsd_pk).unwrap();
+        assert_eq!(signed_at, env.ts);
     }
 
     #[test]

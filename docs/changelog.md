@@ -1,3 +1,22 @@
+## 2026-07-13 [feat]
+
+Added the causal scoped WgRelay roster and forwarding-lease contract.
+
+- Added restart-unique checked control-stream sessions to config-stream and
+  realm-snapshot requests, with one session shared across endpoint fallbacks.
+- Added optional per-scope rosters, optional per-realm forwarding leases, and a
+  default-false durable fleet-cutover attestation.
+- Exposed authenticated envelope timestamps from config-event and unary
+  verification together with receipt-time monotonic anchors, preserving both
+  through scoped gateway delivery.
+- Exported the fixed causal lease timing constants and one checked monotonic
+  deadline translator that rejects invalid bounds, ordering, and overflow.
+- Added scope/session-specific transport status and endpoint-confined
+  `MultiControlPlane` children without synthetic config-arrival success.
+- Added JSON/CBOR round-trip, omission-default, old/new compatibility, session,
+  signed-timestamp, timing-bound, queued-anchor, three-transport fallback, and
+  real A/B endpoint-confinement coverage.
+
 ## 2026-07-11 [feat]
 
 Added shared control support for reliable direct-P2P candidate reporting.

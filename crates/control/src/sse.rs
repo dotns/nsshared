@@ -7,8 +7,8 @@ use tracing::{debug, instrument, warn};
 use crate::{
     Error, api as envapi,
     auth::{
-        ConfigStreamReplayCache, NsdEnvelopeTrustConfig, verify_config_stream_event,
-        verify_pinned_envelope_response,
+        ConfigStreamReplayCache, NsdEnvelopeTrustConfig, VerifiedEnvelopePayload,
+        verify_config_stream_event, verify_pinned_envelope_response,
     },
     envelope::ControlEnvelope,
     messages::ControlMessage,
@@ -97,7 +97,7 @@ impl SseFramer {
         &mut self,
         envelope_trust: Option<&NsdEnvelopeTrustConfig>,
         expected_machine_id: &str,
-    ) -> Result<Option<ControlMessage>, Error> {
+    ) -> Result<Option<VerifiedEnvelopePayload<ControlMessage>>, Error> {
         while let Some(pos) = self.buffer.find("\n\n") {
             let event = self.buffer[..pos].to_string();
             self.buffer.drain(..pos + 2);
@@ -116,7 +116,7 @@ impl SseFramer {
         event: &str,
         envelope_trust: Option<&NsdEnvelopeTrustConfig>,
         expected_machine_id: &str,
-    ) -> Result<Option<ControlMessage>, Error> {
+    ) -> Result<Option<VerifiedEnvelopePayload<ControlMessage>>, Error> {
         let mut event_name = None;
         let mut data = None;
         for line in event.lines() {
@@ -168,26 +168,26 @@ impl SseFramer {
             return Ok(None);
         }
 
-        let payload = verify_config_stream_event(
+        let verified = verify_config_stream_event(
             data,
             envelope_trust,
             expected_machine_id,
             &mut self.replay_cache,
         )
         .await?;
-        let msg = payload.message;
-        if matches!(msg, ControlMessage::Unknown) {
+        let verified = verified.map(|payload| payload.message);
+        if matches!(&verified.payload, ControlMessage::Unknown) {
             // Verified event from a newer NSD with a variant this build does
             // not know. Already warn-logged (with the wire tag) by
             // `verify_config_stream_event`; skip it and keep the stream up.
             return Ok(None);
         }
         debug!(
-            event_type = msg.event_type(),
+            event_type = verified.payload.event_type(),
             size = data.len(),
             "received verified SSE event"
         );
-        Ok(Some(msg))
+        Ok(Some(verified))
     }
 }
 
@@ -207,7 +207,7 @@ pub trait ControlStream: Send {
     /// encrypted tunnel. Each returned `config-envelope.v1` event is then
     /// verified with the pinned NSD envelope key before payload dispatch.
     async fn connect(&mut self, envelope: ControlEnvelope) -> Result<(), Error>;
-    async fn next_message(&mut self) -> Result<ControlMessage, Error>;
+    async fn next_message(&mut self) -> Result<VerifiedEnvelopePayload<ControlMessage>, Error>;
     fn set_token(&mut self, token: String);
 }
 
@@ -304,7 +304,7 @@ impl ControlStream for SseControl {
     /// `max_message_size` or arrive faster than `max_events_per_sec` are
     /// dropped with a WARN log.
     #[instrument(skip(self))]
-    async fn next_message(&mut self) -> Result<ControlMessage, Error> {
+    async fn next_message(&mut self) -> Result<VerifiedEnvelopePayload<ControlMessage>, Error> {
         next_message_from_stream(
             &mut self.sse_stream,
             &mut self.framer,
@@ -392,7 +392,7 @@ impl ControlStream for NoiseControl {
         Ok(())
     }
 
-    async fn next_message(&mut self) -> Result<ControlMessage, Error> {
+    async fn next_message(&mut self) -> Result<VerifiedEnvelopePayload<ControlMessage>, Error> {
         next_message_from_stream(
             &mut self.sse_stream,
             &mut self.framer,
@@ -412,8 +412,8 @@ async fn post_services_report_via_call(
     envelope_trust: Option<&NsdEnvelopeTrustConfig>,
 ) -> Result<(), Error> {
     let response = crate::transport::instrumented_call(transport, endpoint, envelope).await?;
-    verify_pinned_envelope_response(&response, envelope_trust).await?;
-    let _: envapi::ServicesReportResponse = envapi::from_cbor(response.payload.as_ref())
+    let verified_response = verify_pinned_envelope_response(&response, envelope_trust).await?;
+    let _: envapi::ServicesReportResponse = envapi::from_cbor(verified_response.payload)
         .map_err(|e| Error::Sse(format!("services.report cbor decode: {e}")))?;
     Ok(())
 }
@@ -435,7 +435,7 @@ async fn next_message_from_stream(
     framer: &mut SseFramer,
     envelope_trust: Option<&NsdEnvelopeTrustConfig>,
     expected_machine_id: Option<&str>,
-) -> Result<ControlMessage, Error> {
+) -> Result<VerifiedEnvelopePayload<ControlMessage>, Error> {
     let expected_machine_id = expected_machine_id
         .ok_or_else(|| Error::Auth("config.stream expected machine_id not set".to_string()))?;
     loop {
@@ -991,7 +991,7 @@ mod tests {
             .unwrap()
             .unwrap();
         drop(guard);
-        assert!(matches!(msg, ControlMessage::TokenRefresh { .. }));
+        assert!(matches!(msg.payload, ControlMessage::TokenRefresh { .. }));
         let logs = captured.contents();
 
         if !logs.is_empty() {
@@ -1175,7 +1175,7 @@ mod tests {
             .unwrap()
             .unwrap();
 
-        assert!(matches!(msg, ControlMessage::Ping));
+        assert!(matches!(msg.payload, ControlMessage::Ping));
     }
 
     #[tokio::test]
@@ -1202,7 +1202,7 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        assert!(matches!(msg, ControlMessage::Ping));
+        assert!(matches!(msg.payload, ControlMessage::Ping));
 
         let err = framer
             .parse_event(
@@ -1340,7 +1340,7 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        assert!(matches!(first, ControlMessage::Ping));
+        assert!(matches!(first.payload, ControlMessage::Ping));
         let err = framer
             .parse_event(&event, Some(&trust), "m-1")
             .await
@@ -1446,7 +1446,7 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        assert!(matches!(msg, ControlMessage::Ping));
+        assert!(matches!(msg.payload, ControlMessage::Ping));
     }
 
     // A snapshot burst mixing one unknown variant with known ones must still
@@ -1487,7 +1487,7 @@ mod tests {
                 .next_message()
                 .await
                 .expect("known events around an unknown variant must still deliver");
-            assert!(matches!(msg, ControlMessage::Ping));
+            assert!(matches!(msg.payload, ControlMessage::Ping));
         }
     }
 
@@ -1540,7 +1540,7 @@ mod tests {
 
         for _ in 0..25 {
             let msg = control.next_message().await.unwrap();
-            assert!(matches!(msg, ControlMessage::Ping));
+            assert!(matches!(msg.payload, ControlMessage::Ping));
         }
         let err = control
             .next_message()
@@ -1624,7 +1624,7 @@ mod tests {
             .await
             .expect("15s keepalives must keep the stream inside the idle deadline");
 
-        assert!(matches!(msg, ControlMessage::Ping));
+        assert!(matches!(msg.payload, ControlMessage::Ping));
         assert!(
             start.elapsed() >= std::time::Duration::from_secs(135),
             "stream must have stayed up across three 45s windows: {:?}",

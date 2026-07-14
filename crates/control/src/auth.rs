@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use common::envelope_pins::{
@@ -28,6 +28,32 @@ use crate::envelope::{self, ControlEnvelope, api as envapi_ids};
 use crate::messages::{ControlMessage, LinkMode};
 use crate::transport::{ControlTransport, framing, sse::endpoint_host};
 use crate::types::ConnectorType;
+
+/// Authenticated payload paired with its signed envelope time and monotonic
+/// verification-receipt anchor.
+///
+/// This is process-local metadata, not a wire type. Lease consumers must retain
+/// `received_at` through queueing and use it as the anchor for the shared
+/// monotonic deadline translation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[must_use]
+pub struct VerifiedEnvelopePayload<T> {
+    pub payload: T,
+    pub signed_at_unix_secs: u64,
+    pub received_at: Instant,
+}
+
+impl<T> VerifiedEnvelopePayload<T> {
+    /// Transform the authenticated payload without losing its signed timestamp
+    /// or receipt-time monotonic anchor.
+    pub fn map<U>(self, map: impl FnOnce(T) -> U) -> VerifiedEnvelopePayload<U> {
+        VerifiedEnvelopePayload {
+            payload: map(self.payload),
+            signed_at_unix_secs: self.signed_at_unix_secs,
+            received_at: self.received_at,
+        }
+    }
+}
 
 /// Client-side replay cache for signed `config.stream` events.
 #[derive(Debug, Default)]
@@ -656,10 +682,21 @@ fn record_pin_rejection(
     );
 }
 
-pub(crate) async fn verify_pinned_envelope_response(
-    resp: &ControlEnvelope,
+/// Verify a pinned unary response and expose its authenticated payload bytes
+/// together with the signed envelope timestamp.
+pub async fn verify_pinned_envelope_response<'a>(
+    resp: &'a ControlEnvelope,
     trust: Option<&NsdEnvelopeTrustConfig>,
-) -> Result<(), Error> {
+) -> Result<VerifiedEnvelopePayload<&'a [u8]>, Error> {
+    let received_at = Instant::now();
+    verify_pinned_envelope_response_at(resp, trust, received_at).await
+}
+
+async fn verify_pinned_envelope_response_at<'a>(
+    resp: &'a ControlEnvelope,
+    trust: Option<&NsdEnvelopeTrustConfig>,
+    received_at: Instant,
+) -> Result<VerifiedEnvelopePayload<&'a [u8]>, Error> {
     let Some(trust) = trust else {
         return Err(Error::Auth(
             "NSD envelope key pin not configured".to_string(),
@@ -679,8 +716,12 @@ pub(crate) async fn verify_pinned_envelope_response(
             .await
             .map_err(|e| Error::Auth(format!("touch NSD envelope TOFU pins failed: {e}")))?;
     }
-    resp.verify_response(now_secs(), &resp.machine_key_pub)?;
-    Ok(())
+    let signed_at_unix_secs = resp.verify_response(now_secs(), &resp.machine_key_pub)?;
+    Ok(VerifiedEnvelopePayload {
+        payload: resp.payload.as_ref(),
+        signed_at_unix_secs,
+        received_at,
+    })
 }
 
 /// Verify and decode a signed `config.stream` SSE event data field.
@@ -689,12 +730,20 @@ pub async fn verify_config_stream_event(
     trust: Option<&NsdEnvelopeTrustConfig>,
     expected_machine_id: &str,
     replay_cache: &mut ConfigStreamReplayCache,
-) -> Result<envapi::ConfigStreamEventPayloadV1, Error> {
+) -> Result<VerifiedEnvelopePayload<envapi::ConfigStreamEventPayloadV1>, Error> {
+    let received_at = Instant::now();
     let envelope_bytes = URL_SAFE_NO_PAD
         .decode(data.trim())
         .map_err(|e| Error::Auth(format!("malformed config.stream event base64url: {e}")))?;
     let envelope = ControlEnvelope::from_cbor(&envelope_bytes)?;
-    verify_config_stream_envelope(&envelope, trust, expected_machine_id, replay_cache).await
+    verify_config_stream_envelope_at(
+        &envelope,
+        trust,
+        expected_machine_id,
+        replay_cache,
+        received_at,
+    )
+    .await
 }
 
 /// Verify and decode a signed `config.stream` event envelope.
@@ -703,13 +752,32 @@ pub async fn verify_config_stream_envelope(
     trust: Option<&NsdEnvelopeTrustConfig>,
     expected_machine_id: &str,
     replay_cache: &mut ConfigStreamReplayCache,
-) -> Result<envapi::ConfigStreamEventPayloadV1, Error> {
+) -> Result<VerifiedEnvelopePayload<envapi::ConfigStreamEventPayloadV1>, Error> {
+    let received_at = Instant::now();
+    verify_config_stream_envelope_at(
+        envelope,
+        trust,
+        expected_machine_id,
+        replay_cache,
+        received_at,
+    )
+    .await
+}
+
+async fn verify_config_stream_envelope_at(
+    envelope: &ControlEnvelope,
+    trust: Option<&NsdEnvelopeTrustConfig>,
+    expected_machine_id: &str,
+    replay_cache: &mut ConfigStreamReplayCache,
+    received_at: Instant,
+) -> Result<VerifiedEnvelopePayload<envapi::ConfigStreamEventPayloadV1>, Error> {
     let Some(trust) = trust else {
         return Err(Error::Auth(
             "NSD envelope key pin not configured".to_string(),
         ));
     };
-    verify_pinned_envelope_response(envelope, Some(trust)).await?;
+    let verified_envelope =
+        verify_pinned_envelope_response_at(envelope, Some(trust), received_at).await?;
     if envelope.api != envapi_ids::CONFIG_STREAM {
         return Err(Error::Auth(format!(
             "config.stream event api mismatch: {}",
@@ -749,7 +817,11 @@ pub async fn verify_config_stream_envelope(
             "skipping unknown config.stream control message variant from a newer NSD"
         );
     }
-    Ok(payload)
+    Ok(VerifiedEnvelopePayload {
+        payload,
+        signed_at_unix_secs: verified_envelope.signed_at_unix_secs,
+        received_at: verified_envelope.received_at,
+    })
 }
 
 async fn trusted_envelope_pins(
@@ -1212,7 +1284,8 @@ impl HeartbeatClient {
             Err(Error::Unauthorized(_)) => return Err(Error::Unauthorized(self.base_url.clone())),
             Err(e) => return Err(e),
         };
-        verify_pinned_envelope_response(&resp, self.envelope_trust.as_ref()).await?;
+        let _verified_response =
+            verify_pinned_envelope_response(&resp, self.envelope_trust.as_ref()).await?;
         Ok(())
     }
 }
@@ -1619,8 +1692,9 @@ impl AuthClient {
             |m| self.state.sign(m),
         )?;
         let resp_env = crate::transport::instrumented_call(transport, &self.endpoint, env).await?;
-        verify_pinned_envelope_response(&resp_env, self.envelope_trust.as_ref()).await?;
-        let resp: envapi::RegisterResponse = envapi::from_cbor(resp_env.payload.as_ref())
+        let verified_response =
+            verify_pinned_envelope_response(&resp_env, self.envelope_trust.as_ref()).await?;
+        let resp: envapi::RegisterResponse = envapi::from_cbor(verified_response.payload)
             .map_err(|e| Error::Auth(format!("register cbor decode: {e}")))?;
         self.apply_registration(RegisterResponse {
             machine_id: resp.machine_id,
@@ -1733,8 +1807,9 @@ impl AuthClient {
         )?;
         let resp_env =
             crate::transport::instrumented_call(transport.as_ref(), &self.endpoint, env).await?;
-        verify_pinned_envelope_response(&resp_env, self.envelope_trust.as_ref()).await?;
-        let resp: envapi::AuthResponse = envapi::from_cbor(resp_env.payload.as_ref())
+        let verified_response =
+            verify_pinned_envelope_response(&resp_env, self.envelope_trust.as_ref()).await?;
+        let resp: envapi::AuthResponse = envapi::from_cbor(verified_response.payload)
             .map_err(|e| Error::Auth(format!("machine.auth cbor decode: {e}")))?;
         if let Some(verifier) = self.jwt_verifier.as_ref() {
             verifier.verify_token(&resp.token).await?;
@@ -1825,8 +1900,9 @@ pub async fn discover_via_envelope(
         sign,
     )?;
     let resp_env = crate::transport::instrumented_call(transport, endpoint, env).await?;
-    verify_pinned_envelope_response(&resp_env, Some(envelope_trust)).await?;
-    envapi::from_cbor(resp_env.payload.as_ref())
+    let verified_response =
+        verify_pinned_envelope_response(&resp_env, Some(envelope_trust)).await?;
+    envapi::from_cbor(verified_response.payload)
         .map_err(|e| Error::Connect(format!("info.get cbor decode: {e}")))
 }
 
@@ -2439,6 +2515,71 @@ mod tests {
         .unwrap();
         assert_eq!(info_resp.info.realm, "default");
         assert_eq!(info_resp.info.envelope_versions, vec![1]);
+    }
+
+    #[tokio::test]
+    async fn unary_response_verification_exposes_authenticated_signed_timestamp() {
+        let signer = SigningKey::generate(&mut OsRng);
+        let pin = envelope_pin_for_key(&signer);
+        let envelope = ControlEnvelope::sign_response(
+            envapi_ids::GATEWAY_REALM_CONFIG_SNAPSHOT,
+            Some("gateway-1".to_owned()),
+            signer.verifying_key().to_bytes(),
+            envapi::to_cbor(&envapi::GatewayRealmConfigSnapshotResponse { realms: Vec::new() })
+                .unwrap(),
+            |message| signer.sign(message).to_bytes(),
+        )
+        .unwrap();
+        let expected_signed_at = envelope.ts;
+
+        let before_verification = std::time::Instant::now();
+        let verified =
+            verify_pinned_envelope_response(&envelope, Some(&envelope_trust_with_pins(vec![pin])))
+                .await
+                .unwrap();
+        let after_verification = std::time::Instant::now();
+
+        assert_eq!(verified.signed_at_unix_secs, expected_signed_at);
+        assert_eq!(verified.payload, envelope.payload.as_ref());
+        assert!(verified.received_at >= before_verification);
+        assert!(verified.received_at <= after_verification);
+    }
+
+    #[tokio::test]
+    async fn config_event_verification_exposes_authenticated_signed_timestamp() {
+        let signer = SigningKey::generate(&mut OsRng);
+        let pin = envelope_pin_for_key(&signer);
+        let payload = envapi::to_cbor(&envapi::ConfigStreamEventPayloadV1 {
+            v: 1,
+            message: ControlMessage::Ping,
+        })
+        .unwrap();
+        let envelope = ControlEnvelope::sign_response(
+            envapi_ids::CONFIG_STREAM,
+            Some("machine-1".to_owned()),
+            signer.verifying_key().to_bytes(),
+            payload,
+            |message| signer.sign(message).to_bytes(),
+        )
+        .unwrap();
+        let expected_signed_at = envelope.ts;
+
+        let data = URL_SAFE_NO_PAD.encode(envelope.to_cbor().unwrap());
+        let before_verification = std::time::Instant::now();
+        let verified = verify_config_stream_event(
+            &data,
+            Some(&envelope_trust_with_pins(vec![pin])),
+            "machine-1",
+            &mut ConfigStreamReplayCache::new(),
+        )
+        .await
+        .unwrap();
+        let after_verification = std::time::Instant::now();
+
+        assert_eq!(verified.signed_at_unix_secs, expected_signed_at);
+        assert!(matches!(verified.payload.message, ControlMessage::Ping));
+        assert!(verified.received_at >= before_verification);
+        assert!(verified.received_at <= after_verification);
     }
 
     #[test]

@@ -1,6 +1,6 @@
 # ns-shared - Task List
 
-> Updated: 2026-07-11
+> Updated: 2026-07-13
 
 ## Usage
 
@@ -55,3 +55,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**USAGE-001 Define gateway.usage_report wire contract**](USAGE-001.md) `P1`
 - [x] [**EDGE-005 Add route-level upstream authority wire contract**](EDGE-005.md) `P0`
 - [x] [**CTRL-018 Surface typed candidate-report rate limits**](CTRL-018.md) `P1`
+- [x] [**CTRL-019 Define causal scoped WG relay roster and lease contract**](CTRL-019.md) `P0`
