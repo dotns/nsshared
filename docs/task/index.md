@@ -59,4 +59,4 @@ Each task is a single line linking to its detail file. All detailed information 
 
 ### V1 WgRelay activation compatibility (ns PLAN-121)
 
-- [ ] [**LNK-001 Activate non-future V1 WgRelay leases immediately**](LNK-001.md) `P0`
+- [-] [**LNK-001 Activate non-future V1 WgRelay leases immediately**](LNK-001.md) `P0`
