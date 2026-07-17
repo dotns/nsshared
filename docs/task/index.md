@@ -1,6 +1,6 @@
 # ns-shared - Task List
 
-> Updated: 2026-07-13
+> Updated: 2026-07-17
 
 ## Usage
 
@@ -56,3 +56,7 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**EDGE-005 Add route-level upstream authority wire contract**](EDGE-005.md) `P0`
 - [x] [**CTRL-018 Surface typed candidate-report rate limits**](CTRL-018.md) `P1`
 - [x] [**CTRL-019 Define causal scoped WG relay roster and lease contract**](CTRL-019.md) `P0`
+
+### V1 WgRelay activation compatibility (ns PLAN-121)
+
+- [ ] [**LNK-001 Activate non-future V1 WgRelay leases immediately**](LNK-001.md) `P0`
