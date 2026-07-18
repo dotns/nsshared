@@ -88,9 +88,11 @@ pub enum WgRelayLeaseDeadlineError {
 /// - `not_before = m + (b - s) + Q` when `b > s` — a legacy future barrier
 ///   from an old producer keeps the guarded calculation
 ///
-/// The result is accepted only when `not_before < expires_at`. All arithmetic
-/// that can overflow is checked; any invalid or unrepresentable deadline fails
-/// closed.
+/// The result is accepted only when `not_before < expires_at`. Under a
+/// non-future barrier this admits signed intervals as short as `Q + 1`
+/// seconds; the previous always-guarded translation needed more than `2Q`.
+/// All arithmetic that can overflow is checked; any invalid or
+/// unrepresentable deadline fails closed.
 ///
 /// # Errors
 ///
@@ -675,6 +677,24 @@ mod tests {
         );
         assert_eq!(
             deadlines.expires_at,
+            received_at + std::time::Duration::from_secs(235)
+        );
+
+        // The minimal future barrier (one second) is already legacy: the
+        // guard applies in full, pinning the branch boundary at `b == s`.
+        let minimal = translate_wg_relay_lease_deadlines(
+            signed_at,
+            signed_at + 1,
+            signed_at + MAX_WG_RELAY_LEASE_SECS,
+            received_at,
+        )
+        .expect("the minimal legacy future barrier must remain valid");
+        assert_eq!(
+            minimal.not_before,
+            received_at + std::time::Duration::from_secs(1 + WG_RELAY_DEADLINE_GUARD_SECS)
+        );
+        assert_eq!(
+            minimal.expires_at,
             received_at + std::time::Duration::from_secs(235)
         );
     }
