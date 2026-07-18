@@ -1,3 +1,22 @@
+## 2026-07-17 [feat]
+
+Activated non-future V1 WgRelay leases immediately at receipt.
+
+- `translate_wg_relay_lease_deadlines` now maps a not-before barrier at or
+  before the authenticated signed timestamp to activation exactly at the
+  monotonic receipt anchor, with no added guard.
+- A future barrier keeps the existing guarded calculation and bound for old
+  producer compatibility, and hard expiry stays receipt-anchored behind the
+  conservative guard (a 300-second lease still expires at receipt plus 235
+  seconds).
+- All typed failures remain, including `NoUsableWindow` for legacy
+  future-barrier leases and degenerate short leases; wire types, constants,
+  and function signatures are unchanged.
+- Consumer-local widening: a non-future lease now has a usable window once
+  its signed interval exceeds the 65-second guard, where the always-guarded
+  translation required more than twice the guard. Production leases keep the
+  fixed 300-second interval, so only the activation instant changes there.
+
 ## 2026-07-13 [feat]
 
 Added the causal scoped WgRelay roster and forwarding-lease contract.

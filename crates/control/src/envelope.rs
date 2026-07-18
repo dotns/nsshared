@@ -74,24 +74,31 @@ pub enum WgRelayLeaseDeadlineError {
 }
 
 /// Translate authenticated absolute WgRelay lease times into monotonic
-/// deadlines using the fixed PLAN-114 causal guard.
+/// deadlines, applying the fixed PLAN-114 causal guard only where wall-clock
+/// uncertainty still matters.
 ///
 /// Given authenticated signed timestamp `s`, not-before `b`, expiry `e`, and
 /// the monotonic receipt anchor `m`, this enforces `0 < e - s <= L`, bounds a
 /// future `b - s` by `L`, then computes:
 ///
 /// - `expires_at = m + (e - s).saturating_sub(Q)`
-/// - `not_before = m + max(0, b - s) + Q`
+/// - `not_before = m` when `b <= s` — a non-future barrier is already
+///   satisfied under the authenticated signed timestamp, so the lease
+///   activates immediately at receipt with no added guard
+/// - `not_before = m + (b - s) + Q` when `b > s` — a legacy future barrier
+///   from an old producer keeps the guarded calculation
 ///
-/// The result is accepted only when `not_before < expires_at`. All arithmetic
-/// that can overflow is checked; any invalid or unrepresentable deadline fails
-/// closed.
+/// The result is accepted only when `not_before < expires_at`. Under a
+/// non-future barrier this admits signed intervals as short as `Q + 1`
+/// seconds; the previous always-guarded translation needed more than `2Q`.
+/// All arithmetic that can overflow is checked; any invalid or
+/// unrepresentable deadline fails closed.
 ///
 /// # Errors
 ///
 /// Returns [`WgRelayLeaseDeadlineError`] for a non-positive or overlong lease,
 /// an overlong future barrier, monotonic arithmetic overflow, or an empty
-/// guarded activation window.
+/// activation window.
 pub fn translate_wg_relay_lease_deadlines(
     signed_at_unix_secs: u64,
     not_before_unix_secs: u64,
@@ -113,17 +120,21 @@ pub fn translate_wg_relay_lease_deadlines(
 
     let expiry_offset =
         Duration::from_secs(lease_secs.saturating_sub(WG_RELAY_DEADLINE_GUARD_SECS));
-    let not_before_offset_secs = future_not_before_secs
-        .checked_add(WG_RELAY_DEADLINE_GUARD_SECS)
-        .ok_or(WgRelayLeaseDeadlineError::MonotonicOverflow)?;
-    let not_before_offset = Duration::from_secs(not_before_offset_secs);
-
     let expires_at = received_at
         .checked_add(expiry_offset)
         .ok_or(WgRelayLeaseDeadlineError::MonotonicOverflow)?;
-    let not_before = received_at
-        .checked_add(not_before_offset)
-        .ok_or(WgRelayLeaseDeadlineError::MonotonicOverflow)?;
+    let not_before = if future_not_before_secs == 0 {
+        // The barrier is not after the authenticated signed timestamp, so it
+        // is already satisfied; activate at the receipt anchor with no guard.
+        received_at
+    } else {
+        let not_before_offset_secs = future_not_before_secs
+            .checked_add(WG_RELAY_DEADLINE_GUARD_SECS)
+            .ok_or(WgRelayLeaseDeadlineError::MonotonicOverflow)?;
+        received_at
+            .checked_add(Duration::from_secs(not_before_offset_secs))
+            .ok_or(WgRelayLeaseDeadlineError::MonotonicOverflow)?
+    };
     if not_before >= expires_at {
         return Err(WgRelayLeaseDeadlineError::NoUsableWindow);
     }
@@ -551,7 +562,7 @@ mod tests {
     }
 
     #[test]
-    fn wg_relay_deadline_translation_accepts_max_lease_and_applies_guard() {
+    fn wg_relay_deadline_translation_activates_equal_barrier_at_receipt() {
         let signed_at = 10_000;
         let received_at = std::time::Instant::now();
 
@@ -563,9 +574,13 @@ mod tests {
         )
         .expect("the exact maximum lease must remain valid");
 
+        // `b == s` is a non-future barrier: immediate activation, no guard.
+        assert_eq!(deadlines.not_before, received_at);
+        // A 300-second signed lease keeps the conservative receipt-anchored
+        // hard expiry of exactly 235 seconds (L - Q).
         assert_eq!(
-            deadlines.not_before,
-            received_at + std::time::Duration::from_secs(WG_RELAY_DEADLINE_GUARD_SECS)
+            deadlines.expires_at,
+            received_at + std::time::Duration::from_secs(235)
         );
         assert_eq!(
             deadlines.expires_at,
@@ -624,21 +639,99 @@ mod tests {
     }
 
     #[test]
-    fn wg_relay_deadline_translation_treats_past_barrier_as_zero_duration() {
+    fn wg_relay_deadline_translation_activates_past_barrier_at_receipt() {
+        let signed_at = 10_000;
+        let received_at = std::time::Instant::now();
+        // A stable generation timestamp may be far in the past; both a barely
+        // and a deeply past barrier activate immediately at receipt.
+        for not_before in [signed_at - 1, 1] {
+            let deadlines = translate_wg_relay_lease_deadlines(
+                signed_at,
+                not_before,
+                signed_at + MAX_WG_RELAY_LEASE_SECS,
+                received_at,
+            )
+            .expect("an already-past barrier must remain valid");
+
+            assert_eq!(deadlines.not_before, received_at);
+        }
+    }
+
+    #[test]
+    fn wg_relay_deadline_translation_guards_legacy_future_barrier() {
         let signed_at = 10_000;
         let received_at = std::time::Instant::now();
         let deadlines = translate_wg_relay_lease_deadlines(
             signed_at,
-            signed_at - 1,
+            signed_at + 100,
             signed_at + MAX_WG_RELAY_LEASE_SECS,
             received_at,
         )
-        .expect("PLAN-114 permits an already-past barrier");
+        .expect("a moderate legacy future barrier must remain valid");
 
+        // A legacy future barrier keeps the guarded calculation:
+        // barrier delta (100) plus the 65-second guard.
         assert_eq!(
             deadlines.not_before,
-            received_at + std::time::Duration::from_secs(WG_RELAY_DEADLINE_GUARD_SECS)
+            received_at + std::time::Duration::from_secs(165)
         );
+        assert_eq!(
+            deadlines.expires_at,
+            received_at + std::time::Duration::from_secs(235)
+        );
+
+        // The minimal future barrier (one second) is already legacy: the
+        // guard applies in full, pinning the branch boundary at `b == s`.
+        let minimal = translate_wg_relay_lease_deadlines(
+            signed_at,
+            signed_at + 1,
+            signed_at + MAX_WG_RELAY_LEASE_SECS,
+            received_at,
+        )
+        .expect("the minimal legacy future barrier must remain valid");
+        assert_eq!(
+            minimal.not_before,
+            received_at + std::time::Duration::from_secs(1 + WG_RELAY_DEADLINE_GUARD_SECS)
+        );
+        assert_eq!(
+            minimal.expires_at,
+            received_at + std::time::Duration::from_secs(235)
+        );
+    }
+
+    #[test]
+    fn wg_relay_deadline_translation_quarantines_legacy_first_lease() {
+        // An old producer's first lease carries `b = s + L`, `e = s + L`;
+        // the guarded activation never precedes expiry, so consumers keep
+        // quarantining it until a later renewal shrinks the barrier.
+        let signed_at = 10_000;
+        let error = translate_wg_relay_lease_deadlines(
+            signed_at,
+            signed_at + MAX_WG_RELAY_LEASE_SECS,
+            signed_at + MAX_WG_RELAY_LEASE_SECS,
+            std::time::Instant::now(),
+        )
+        .expect_err("the legacy first-lease shape must still fail closed");
+
+        assert!(matches!(error, WgRelayLeaseDeadlineError::NoUsableWindow));
+    }
+
+    #[test]
+    fn wg_relay_deadline_translation_rejects_degenerate_short_lease() {
+        // Even with immediate activation, a lease no longer than the expiry
+        // guard leaves an empty window and must fail closed.
+        let signed_at = 10_000;
+        for lease_secs in [1, WG_RELAY_DEADLINE_GUARD_SECS] {
+            let error = translate_wg_relay_lease_deadlines(
+                signed_at,
+                signed_at,
+                signed_at + lease_secs,
+                std::time::Instant::now(),
+            )
+            .expect_err("a lease inside the expiry guard must fail closed");
+
+            assert!(matches!(error, WgRelayLeaseDeadlineError::NoUsableWindow));
+        }
     }
 
     #[test]
@@ -655,15 +748,15 @@ mod tests {
         assert!(matches!(error, WgRelayLeaseDeadlineError::NoUsableWindow));
     }
 
-    #[test]
-    fn wg_relay_deadline_translation_rejects_monotonic_overflow() {
-        let now = std::time::Instant::now();
+    // Largest whole-second duration still addable to `from` without
+    // overflowing the platform `Instant` representation.
+    fn max_addable_secs(from: std::time::Instant) -> u64 {
         let mut low = 0_u64;
         let mut high = u64::MAX;
         while low < high {
             let distance = high - low;
             let midpoint = low + distance / 2 + distance % 2;
-            if now
+            if from
                 .checked_add(std::time::Duration::from_secs(midpoint))
                 .is_some()
             {
@@ -672,8 +765,14 @@ mod tests {
                 high = midpoint - 1;
             }
         }
+        low
+    }
+
+    #[test]
+    fn wg_relay_deadline_translation_rejects_monotonic_overflow() {
+        let now = std::time::Instant::now();
         let near_instant_limit = now
-            .checked_add(std::time::Duration::from_secs(low))
+            .checked_add(std::time::Duration::from_secs(max_addable_secs(now)))
             .expect("binary search retains a representable Instant");
         let signed_at = 10_000;
 
@@ -684,6 +783,32 @@ mod tests {
             near_instant_limit,
         )
         .expect_err("Instant overflow must fail closed");
+
+        assert!(matches!(
+            error,
+            WgRelayLeaseDeadlineError::MonotonicOverflow
+        ));
+    }
+
+    #[test]
+    fn wg_relay_deadline_translation_rejects_legacy_barrier_overflow() {
+        // Anchor so the guarded expiry stays representable while the larger
+        // legacy guarded activation offset overflows the Instant range.
+        let now = std::time::Instant::now();
+        let received_at = now
+            .checked_add(std::time::Duration::from_secs(
+                max_addable_secs(now) - MAX_WG_RELAY_LEASE_SECS,
+            ))
+            .expect("an anchor below the Instant limit is representable");
+        let signed_at = 10_000;
+
+        let error = translate_wg_relay_lease_deadlines(
+            signed_at,
+            signed_at + MAX_WG_RELAY_LEASE_SECS,
+            signed_at + MAX_WG_RELAY_LEASE_SECS,
+            received_at,
+        )
+        .expect_err("legacy barrier Instant overflow must fail closed");
 
         assert!(matches!(
             error,
