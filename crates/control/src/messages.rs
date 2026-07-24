@@ -4740,6 +4740,14 @@ tunnel = "ws"
             _ => panic!("wrong variant"),
         }
 
+        let legacy = json.replace(",\"not_after\":4102444800", "");
+        let ControlMessage::GatewayClientCaBundle(legacy) =
+            serde_json::from_str::<ControlMessage>(&legacy).unwrap()
+        else {
+            panic!("wrong legacy variant");
+        };
+        assert_eq!(legacy.not_after, 0);
+
         // CA material is public certificate data; Debug carries it unredacted.
         assert!(format!("{bundle:?}").contains("new-ca"));
     }
@@ -4870,14 +4878,6 @@ tunnel = "ws"
             }
             _ => panic!("wrong variant"),
         }
-
-        let legacy = json.replace(",\"not_after\":4102444800", "");
-        let ControlMessage::GatewayClientCaBundle(legacy) =
-            serde_json::from_str::<ControlMessage>(&legacy).unwrap()
-        else {
-            panic!("wrong legacy variant");
-        };
-        assert_eq!(legacy.not_after, 0);
     }
 
     #[test]
