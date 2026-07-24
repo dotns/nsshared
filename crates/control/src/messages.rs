@@ -1461,6 +1461,43 @@ pub struct EdgeAuditPolicy {
     pub metadata: BTreeMap<String, String>,
 }
 
+/// Required client-CA material for one client-mTLS route method.
+///
+/// The generation is a lower-bound fence over the complete effective trust
+/// bundle. It carries no CA bytes or certificate identity material.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct PublicEdgeClientCaDependency {
+    /// Realm-scoped trust bundle reference already present in the route's auth
+    /// closure.
+    pub trust_ref: String,
+    /// Minimum installed and ACKed trust-bundle generation.
+    pub required_generation: u64,
+}
+
+/// Causal auth state required before an HTTP route may be exposed.
+///
+/// This is an additive, sanitized dependency description. Concrete verifier
+/// material continues to travel only in the exact-machine auth projection.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct PublicEdgeAuthDependency {
+    /// Realm that owns the route and its auth configuration.
+    pub realm_id: String,
+    /// Minimum accepted realm auth-config generation.
+    pub required_auth_generation: u64,
+    /// Client-CA bundles required by client-mTLS methods on the route.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub client_ca: Vec<PublicEdgeClientCaDependency>,
+}
+
+/// Required managed server-certificate material for an HTTPS route.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct PublicEdgeCertificateDependency {
+    /// Certificate reference already present in [`GatewayHttpRoute::certificate_ref`].
+    pub cert_id: String,
+    /// Minimum installed and ACKed certificate generation.
+    pub required_generation: u64,
+}
+
 /// A single HTTP public edge host route.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct GatewayHttpRoute {
@@ -1484,6 +1521,13 @@ pub struct GatewayHttpRoute {
     pub audit: EdgeAuditPolicy,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub certificate_ref: Option<String>,
+    /// Sanitized auth state that must be ready before this route is exposed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auth_dependency: Option<PublicEdgeAuthDependency>,
+    /// Managed server-certificate state that must be ready before this route is
+    /// exposed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub certificate_dependency: Option<PublicEdgeCertificateDependency>,
     /// Optional authority sent only to the upstream HTTP virtual host.
     ///
     /// Public listener selection, certificates, authentication, and ACLs
@@ -3626,6 +3670,8 @@ tunnel = "ws"
                 metadata: BTreeMap::from([("owner".to_owned(), "platform".to_owned())]),
             },
             certificate_ref: Some("cert-web".to_owned()),
+            auth_dependency: None,
+            certificate_dependency: None,
             upstream_authority: None,
             upstream_tls: None,
         }
@@ -3882,6 +3928,56 @@ tunnel = "ws"
         assert_eq!(decoded.upstream_authority, None);
         assert_eq!(decoded.upstream_tls, None);
         assert_eq!(decoded.service, route.service);
+    }
+
+    #[test]
+    fn gateway_http_route_dependencies_round_trip_without_secret_material() {
+        let mut route = sample_gateway_http_route();
+        route.auth_dependency = Some(PublicEdgeAuthDependency {
+            realm_id: "realm-a".to_owned(),
+            required_auth_generation: 12,
+            client_ca: vec![PublicEdgeClientCaDependency {
+                trust_ref: "realm-a:client-ca:partners".to_owned(),
+                required_generation: 7,
+            }],
+        });
+        route.certificate_dependency = Some(PublicEdgeCertificateDependency {
+            cert_id: "cert-web".to_owned(),
+            required_generation: 9,
+        });
+
+        let json = serde_json::to_string(&route).unwrap();
+        assert!(json.contains("\"required_auth_generation\":12"));
+        assert!(json.contains("\"required_generation\":7"));
+        assert!(json.contains("\"required_generation\":9"));
+        assert!(!json.contains("private_key"));
+        assert!(!json.contains("verifier_hash"));
+        assert_eq!(
+            serde_json::from_str::<GatewayHttpRoute>(&json).unwrap(),
+            route
+        );
+
+        let cbor = crate::api::to_cbor(&route).unwrap();
+        assert_eq!(
+            crate::api::from_cbor::<GatewayHttpRoute>(&cbor).unwrap(),
+            route
+        );
+    }
+
+    #[test]
+    fn gateway_http_route_absent_dependencies_are_wire_stable() {
+        let route = sample_gateway_http_route();
+        let json = serde_json::to_string(&route).unwrap();
+        assert!(!json.contains("auth_dependency"));
+        assert!(!json.contains("certificate_dependency"));
+
+        let decoded: GatewayHttpRoute = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.auth_dependency, None);
+        assert_eq!(decoded.certificate_dependency, None);
+        let cbor = crate::api::to_cbor(&route).unwrap();
+        let decoded: GatewayHttpRoute = crate::api::from_cbor(&cbor).unwrap();
+        assert_eq!(decoded.auth_dependency, None);
+        assert_eq!(decoded.certificate_dependency, None);
     }
 
     #[test]

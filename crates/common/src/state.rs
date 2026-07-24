@@ -30,6 +30,9 @@ pub const PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_CONFIG: &str = "gateway_http_config.v1"
 pub const PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_UPSTREAM_TLS_ACCEPT_UNTRUSTED: &str =
     "gateway_http_upstream_tls_accept_untrusted.v1";
 
+/// Public edge HTTP state-driven auth and certificate activation fence.
+pub const PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_STATE_FENCE: &str = "gateway_http_state_fence.v1";
+
 /// Public edge TCP/UDP listener-map snapshot scope token.
 pub const PUBLIC_EDGE_SCOPE_GATEWAY_L4_MAP: &str = "gateway_l4_map.v1";
 
@@ -184,6 +187,7 @@ mod nsd_info_tests {
             capabilities: vec![CAPABILITY_GATEWAY_PUBLIC_EDGE_V1.into()],
             public_ingress_scopes: vec![
                 PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_CONFIG.into(),
+                PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_STATE_FENCE.into(),
                 PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_UPSTREAM_TLS_ACCEPT_UNTRUSTED.into(),
                 PUBLIC_EDGE_SCOPE_GATEWAY_L4_MAP.into(),
             ],
@@ -192,7 +196,7 @@ mod nsd_info_tests {
         let json = serde_json::to_string(&info).unwrap();
         assert!(json.contains("\"capabilities\":[\"gateway_public_edge.v1\"]"));
         assert!(json.contains(
-            "\"public_ingress_scopes\":[\"gateway_http_config.v1\",\"gateway_http_upstream_tls_accept_untrusted.v1\",\"gateway_l4_map.v1\"]"
+            "\"public_ingress_scopes\":[\"gateway_http_config.v1\",\"gateway_http_state_fence.v1\",\"gateway_http_upstream_tls_accept_untrusted.v1\",\"gateway_l4_map.v1\"]"
         ));
         let decoded: NsdInfo = serde_json::from_str(&json).unwrap();
         assert_eq!(
@@ -203,6 +207,7 @@ mod nsd_info_tests {
             decoded.public_ingress_scopes,
             vec![
                 PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_CONFIG,
+                PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_STATE_FENCE,
                 PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_UPSTREAM_TLS_ACCEPT_UNTRUSTED,
                 PUBLIC_EDGE_SCOPE_GATEWAY_L4_MAP
             ]
