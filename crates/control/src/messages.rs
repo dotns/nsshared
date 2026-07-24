@@ -1618,6 +1618,13 @@ pub struct GatewayAuthConfig {
     /// unchanged.
     #[serde(default, skip_serializing_if = "GatewayAuthCredentials::is_empty")]
     pub credentials: GatewayAuthCredentials,
+    /// Additive (PLAN-113): machine-JWT authorities (trust-material identity)
+    /// decoupled from consumer bindings. Empty for realms without machine-JWT
+    /// authorities and skipped on the wire, so existing configs serialize
+    /// byte-for-byte unchanged. Consumer bindings live on
+    /// [`GatewayAuthCredentials::jwt_bindings`].
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub jwt_authorities: Vec<GatewayAuthJwtAuthority>,
 }
 
 /// One public-edge auth consumer (stable identity) owned by a realm.
@@ -1665,6 +1672,12 @@ pub struct GatewayAuthCredentials {
     /// Inbound webhook HMAC verifier credentials (type only; custody deferred).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub webhook_hmac: Vec<GatewayAuthWebhookHmac>,
+    /// Additive (PLAN-113): machine-JWT consumer bindings that resolve a
+    /// verified claim to a realm consumer under a [`GatewayAuthJwtAuthority`].
+    /// Empty and skipped on the wire so existing configs serialize
+    /// byte-for-byte unchanged.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub jwt_bindings: Vec<GatewayAuthJwtConsumerBinding>,
 }
 
 impl GatewayAuthCredentials {
@@ -1677,6 +1690,7 @@ impl GatewayAuthCredentials {
             && self.mtls_bindings.is_empty()
             && self.jwt_issuers.is_empty()
             && self.webhook_hmac.is_empty()
+            && self.jwt_bindings.is_empty()
     }
 }
 
@@ -1838,6 +1852,94 @@ pub struct GatewayAuthJwtIssuer {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<u64>,
     /// Optional scopes granted by this issuer.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub scopes: Vec<String>,
+}
+
+/// Public key source for a [`GatewayAuthJwtAuthority`] (PLAN-113).
+///
+/// Internally tagged on `kind` (snake_case). This names **where** NSGW obtains
+/// the authority's *public* JWKS; it carries public metadata only. No variant
+/// may ever carry secret material — client secrets, access/refresh tokens,
+/// private keys, or management credentials never belong in this contract, so a
+/// derived `Debug` of any variant stays safe to log.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum GatewayAuthJwtKeySource {
+    /// Resolve the JWKS endpoint via OIDC discovery on the authority `issuer`.
+    OidcDiscovery,
+    /// Fetch the JWKS from a fixed, administrator-supplied HTTPS endpoint.
+    JwksUri {
+        /// Fixed HTTPS JWKS endpoint.
+        uri: String,
+    },
+    /// Use an inline public JWKS document verbatim; no network fetch.
+    Inline {
+        /// Public JWKS document (JSON).
+        jwks: String,
+    },
+}
+
+/// Machine-JWT authority: trust-material identity separated from consumer
+/// binding (PLAN-113).
+///
+/// An authority names an exact `issuer`, a public [`GatewayAuthJwtKeySource`],
+/// and the audiences shared by every route referencing it. A route's bearer
+/// `ref_id` names an `authority_ref`; the request's verified claim is then
+/// resolved to a consumer through a [`GatewayAuthJwtConsumerBinding`].
+///
+/// This type carries **public metadata only** — issuer identity, a public key
+/// source reference, and accepted audiences. No secret material (client
+/// secrets, access/refresh tokens, private keys, or management credentials)
+/// may ever be added to it. `Debug` is derived precisely because every field
+/// is public; adding a secret-bearing field here would leak through that
+/// derived `Debug`, so such extensions are forbidden.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct GatewayAuthJwtAuthority {
+    /// Stable authority reference scoped by the parent
+    /// [`GatewayAuthConfig::realm_id`]; named by a route's bearer `ref_id`.
+    pub authority_ref: String,
+    /// Exact token issuer (`iss`).
+    pub issuer: String,
+    /// Where NSGW obtains this authority's public JWKS.
+    pub key_source: GatewayAuthJwtKeySource,
+    /// Accepted token audiences, shared by every route referencing the
+    /// authority.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub audiences: Vec<String>,
+    /// Whether the authority is active.
+    pub enabled: bool,
+}
+
+/// Machine-JWT consumer binding: resolves a verified claim to a realm consumer
+/// under a [`GatewayAuthJwtAuthority`] (PLAN-113).
+///
+/// Multiple bindings may reference one authority so that several M2M
+/// applications sharing an issuer/JWKS resolve to independent consumers, ACL
+/// subjects, expiry, and audit credential ids.
+///
+/// This type carries **public metadata only** — a claim name/value match and
+/// the authority/consumer it resolves. No secret material may ever be added to
+/// it; `Debug` is derived precisely because every field is public, and a
+/// secret-bearing extension would leak through that derived `Debug`.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct GatewayAuthJwtConsumerBinding {
+    /// Stable credential id used in audit logs.
+    pub credential_id: String,
+    /// Authority whose verified claims this binding resolves.
+    pub authority_ref: String,
+    /// Consumer reference this binding resolves to.
+    pub consumer_ref: String,
+    /// Claim name whose value is matched (for example `sub`).
+    pub claim_name: String,
+    /// Exact claim value that resolves the request to `consumer_ref`.
+    pub claim_value: String,
+    /// Whether the binding is active.
+    pub enabled: bool,
+    /// Optional expiry as a Unix timestamp in seconds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<u64>,
+    /// Optional scopes granted by this binding.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub scopes: Vec<String>,
 }
@@ -4460,6 +4562,7 @@ tunnel = "ws"
             },
             consumers: Vec::new(),
             credentials: GatewayAuthCredentials::default(),
+            jwt_authorities: Vec::new(),
         }
     }
 
@@ -4541,7 +4644,67 @@ tunnel = "ws"
                 expires_at: None,
                 scopes: Vec::new(),
             }],
+            // Legacy PLAN-089 credentials fixture: no PLAN-113 JWT bindings.
+            jwt_bindings: Vec::new(),
         };
+        config
+    }
+
+    /// PLAN-113 fixture: the legacy credentials payload plus decoupled JWT
+    /// authorities and consumer bindings. Two M2M applications share one
+    /// authority (`logto-public-api`) as distinct consumers, and all three
+    /// key-source variants are exercised.
+    fn sample_gateway_auth_config_with_jwt_authorities() -> GatewayAuthConfig {
+        let mut config = sample_gateway_auth_config_with_credentials();
+        config.jwt_authorities = vec![
+            GatewayAuthJwtAuthority {
+                authority_ref: "logto-public-api".to_owned(),
+                issuer: "https://logto.example.test/oidc".to_owned(),
+                key_source: GatewayAuthJwtKeySource::OidcDiscovery,
+                audiences: vec!["https://api.example.test".to_owned()],
+                enabled: true,
+            },
+            GatewayAuthJwtAuthority {
+                authority_ref: "partner-fixed".to_owned(),
+                issuer: "https://partner.example.test/".to_owned(),
+                key_source: GatewayAuthJwtKeySource::JwksUri {
+                    uri: "https://partner.example.test/.well-known/jwks.json".to_owned(),
+                },
+                audiences: Vec::new(),
+                enabled: true,
+            },
+            GatewayAuthJwtAuthority {
+                authority_ref: "offline-inline".to_owned(),
+                issuer: "https://inline.example.test/".to_owned(),
+                key_source: GatewayAuthJwtKeySource::Inline {
+                    jwks: "{\"keys\":[]}".to_owned(),
+                },
+                audiences: vec!["https://api.example.test".to_owned()],
+                enabled: false,
+            },
+        ];
+        config.credentials.jwt_bindings = vec![
+            GatewayAuthJwtConsumerBinding {
+                credential_id: "logto-orders-worker".to_owned(),
+                authority_ref: "logto-public-api".to_owned(),
+                consumer_ref: "orders-worker".to_owned(),
+                claim_name: "sub".to_owned(),
+                claim_value: "logto-m2m-app-orders".to_owned(),
+                enabled: true,
+                expires_at: Some(1_790_000_000),
+                scopes: vec!["orders:read".to_owned()],
+            },
+            GatewayAuthJwtConsumerBinding {
+                credential_id: "logto-billing-worker".to_owned(),
+                authority_ref: "logto-public-api".to_owned(),
+                consumer_ref: "billing-worker".to_owned(),
+                claim_name: "sub".to_owned(),
+                claim_value: "logto-m2m-app-billing".to_owned(),
+                enabled: true,
+                expires_at: None,
+                scopes: Vec::new(),
+            },
+        ];
         config
     }
 
@@ -4666,6 +4829,197 @@ tunnel = "ws"
         assert!(!json.contains("credentials"));
         assert!(!json.contains("api_keys"));
         assert!(!json.contains("webhook_hmac"));
+    }
+
+    #[test]
+    fn jwt_authority_legacy_json_without_new_fields_deserializes_empty() {
+        // (a) A pre-PLAN-113 producer emits neither `jwt_authorities` nor
+        // `jwt_bindings`; a new reader must fill both with empty collections.
+        let legacy_json = r#"{
+            "realm_id": "bops",
+            "generation": 5,
+            "default_provider_ref": "logto-main",
+            "cookie_keys": {
+                "current": {
+                    "ref": "cookie-key-main",
+                    "version": 11,
+                    "expires_at": 1787020000,
+                    "value": "current-cookie-key"
+                }
+            }
+        }"#;
+
+        let decoded: GatewayAuthConfig = serde_json::from_str(legacy_json).unwrap();
+        assert_eq!(decoded.realm_id, "bops");
+        assert_eq!(decoded.generation, 5);
+        assert!(decoded.jwt_authorities.is_empty());
+        assert!(decoded.credentials.jwt_bindings.is_empty());
+        // The rest of the additive PLAN-089 surface also defaults empty.
+        assert!(decoded.credentials.is_empty());
+        assert!(decoded.consumers.is_empty());
+    }
+
+    #[test]
+    fn jwt_authority_and_binding_round_trip() {
+        // (b) A payload carrying the new decoupled authorities/bindings
+        // round-trips through JSON and CBOR unchanged.
+        let config = sample_gateway_auth_config_with_jwt_authorities();
+        let msg = ControlMessage::GatewayAuthConfig(config.clone());
+
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("\"jwt_authorities\""));
+        assert!(json.contains("\"jwt_bindings\""));
+        // Internally-tagged key source: all three variants on the wire.
+        assert!(json.contains("\"kind\":\"oidc_discovery\""));
+        assert!(json.contains("\"kind\":\"jwks_uri\""));
+        assert!(json.contains("\"kind\":\"inline\""));
+        assert!(json.contains("\"uri\":\"https://partner.example.test/.well-known/jwks.json\""));
+        assert!(json.contains("\"authority_ref\":\"logto-public-api\""));
+        // Two M2M apps share one authority as distinct consumers.
+        assert!(json.contains("\"claim_value\":\"logto-m2m-app-orders\""));
+        assert!(json.contains("\"claim_value\":\"logto-m2m-app-billing\""));
+
+        let decoded: ControlMessage = serde_json::from_str(&json).unwrap();
+        match decoded {
+            ControlMessage::GatewayAuthConfig(decoded) => assert_eq!(decoded, config),
+            _ => panic!("wrong variant"),
+        }
+
+        let cbor = crate::api::to_cbor(&config).unwrap();
+        assert_eq!(
+            crate::api::from_cbor::<GatewayAuthConfig>(&cbor).unwrap(),
+            config
+        );
+    }
+
+    #[test]
+    fn jwt_authority_empty_collections_stay_byte_identical() {
+        // (c) With the new collections empty, the wire bytes match the
+        // pre-PLAN-113 encoding in both directions: a new writer emits no new
+        // keys (an old reader recognizes every byte), and a new reader
+        // round-trips the legacy bytes unchanged. Cover the OIDC-only config
+        // and the richer PLAN-089 credentials config.
+        for config in [
+            sample_gateway_auth_config(),
+            sample_gateway_auth_config_with_credentials(),
+        ] {
+            assert!(config.jwt_authorities.is_empty());
+            assert!(config.credentials.jwt_bindings.is_empty());
+
+            // New writer, empty new fields -> no new keys on the wire.
+            let json = serde_json::to_string(&config).unwrap();
+            assert!(
+                !json.contains("jwt_authorities"),
+                "empty jwt_authorities must not serialize: {json}"
+            );
+            assert!(
+                !json.contains("jwt_bindings"),
+                "empty jwt_bindings must not serialize: {json}"
+            );
+
+            // New reader round-trips the legacy bytes unchanged (JSON + CBOR).
+            assert_eq!(
+                serde_json::from_str::<GatewayAuthConfig>(&json).unwrap(),
+                config
+            );
+            let cbor = crate::api::to_cbor(&config).unwrap();
+            assert_eq!(
+                crate::api::from_cbor::<GatewayAuthConfig>(&cbor).unwrap(),
+                config
+            );
+            // Re-encoding the decoded value reproduces identical bytes.
+            let decoded: GatewayAuthConfig = serde_json::from_str(&json).unwrap();
+            assert_eq!(serde_json::to_string(&decoded).unwrap(), json);
+        }
+    }
+
+    #[test]
+    fn jwt_authority_structs_have_no_deny_unknown_fields() {
+        // (d) None of the touched/new structs may carry `deny_unknown_fields`,
+        // or an unknown key (an old payload, or a future additive field) would
+        // fail to parse. Every one of them must tolerate an unknown key.
+        let authority: GatewayAuthJwtAuthority = serde_json::from_str(
+            r#"{
+                "authority_ref": "a",
+                "issuer": "https://i.example.test/",
+                "key_source": {"kind": "oidc_discovery"},
+                "enabled": true,
+                "future_field": "ignored"
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(authority.authority_ref, "a");
+        assert!(authority.audiences.is_empty());
+
+        let binding: GatewayAuthJwtConsumerBinding = serde_json::from_str(
+            r#"{
+                "credential_id": "c",
+                "authority_ref": "a",
+                "consumer_ref": "svc",
+                "claim_name": "sub",
+                "claim_value": "app",
+                "enabled": true,
+                "future_field": "ignored"
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(binding.consumer_ref, "svc");
+        assert!(binding.expires_at.is_none());
+        assert!(binding.scopes.is_empty());
+
+        // Internally-tagged key source tolerates an unknown sibling field.
+        let source: GatewayAuthJwtKeySource = serde_json::from_str(
+            r#"{"kind": "jwks_uri", "uri": "https://j.example.test/jwks", "future": 1}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            source,
+            GatewayAuthJwtKeySource::JwksUri {
+                uri: "https://j.example.test/jwks".to_owned(),
+            }
+        );
+
+        // The extended container structs tolerate unknown keys too.
+        let creds: GatewayAuthCredentials =
+            serde_json::from_str(r#"{"future_field": true}"#).unwrap();
+        assert!(creds.is_empty());
+        let config: GatewayAuthConfig = serde_json::from_str(
+            r#"{
+                "realm_id": "bops",
+                "generation": 1,
+                "default_provider_ref": "logto-main",
+                "cookie_keys": {"current": {"ref": "k", "version": 1, "expires_at": 1, "value": "v"}},
+                "future_field": "ignored"
+            }"#,
+        )
+        .unwrap();
+        assert!(config.jwt_authorities.is_empty());
+    }
+
+    #[test]
+    fn jwt_authority_and_binding_debug_is_public_metadata() {
+        // Requirement 6: both new types carry public metadata only, so their
+        // derived `Debug` is safe and complete. Pin that every public field is
+        // rendered unredacted — a future secret-bearing field would surface
+        // here, which the type docs forbid adding.
+        let config = sample_gateway_auth_config_with_jwt_authorities();
+
+        let authority = &config.jwt_authorities[0];
+        let authority_debug = format!("{authority:?}");
+        assert!(authority_debug.contains("logto-public-api"));
+        assert!(authority_debug.contains("https://logto.example.test/oidc"));
+        assert!(authority_debug.contains("OidcDiscovery"));
+
+        let binding = &config.credentials.jwt_bindings[0];
+        let binding_debug = format!("{binding:?}");
+        assert!(binding_debug.contains("logto-orders-worker"));
+        assert!(binding_debug.contains("orders-worker"));
+        assert!(binding_debug.contains("logto-m2m-app-orders"));
+
+        // Public-only: nothing is redacted (contrast the secret-bearing
+        // credential types, whose `Debug` prints `<redacted>`).
+        assert!(!authority_debug.contains("<redacted>"));
+        assert!(!binding_debug.contains("<redacted>"));
     }
 
     #[test]
