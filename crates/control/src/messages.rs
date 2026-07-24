@@ -2029,6 +2029,10 @@ pub struct GatewayClientCaBundle {
     /// Active + previous client-CA certificates concatenated as PEM. Both
     /// validate during a rotation overlap.
     pub ca_pem: String,
+    /// Effective bundle expiry as a Unix timestamp in seconds. Zero preserves
+    /// compatibility with producers that predate local expiry enforcement.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub not_after: u64,
     /// Monotonic per `(realm, trust_ref)` generation used by consumers to reject
     /// stale material.
     pub generation: u64,
@@ -3937,7 +3941,7 @@ tunnel = "ws"
             realm_id: "realm-a".to_owned(),
             required_auth_generation: 12,
             client_ca: vec![PublicEdgeClientCaDependency {
-                trust_ref: "realm-a:client-ca:partners".to_owned(),
+                trust_ref: "realm:realm-a:client-ca:partners".to_owned(),
                 required_generation: 7,
             }],
         });
@@ -4712,6 +4716,7 @@ tunnel = "ws"
             ca_pem: "-----BEGIN CERTIFICATE-----\nnew-ca\n-----END CERTIFICATE-----\n\
                      -----BEGIN CERTIFICATE-----\nold-ca\n-----END CERTIFICATE-----"
                 .to_owned(),
+            not_after: 4_102_444_800,
             generation: 4,
         };
 
@@ -4723,6 +4728,7 @@ tunnel = "ws"
         // Active + previous CA both travel so they overlap during rotation.
         assert!(json.contains("new-ca"));
         assert!(json.contains("old-ca"));
+        assert!(json.contains("\"not_after\":4102444800"));
         assert_eq!(msg.event_type(), "gateway_client_ca_bundle.v1");
 
         let decoded: ControlMessage = serde_json::from_str(&json).unwrap();
@@ -4864,6 +4870,14 @@ tunnel = "ws"
             }
             _ => panic!("wrong variant"),
         }
+
+        let legacy = json.replace(",\"not_after\":4102444800", "");
+        let ControlMessage::GatewayClientCaBundle(legacy) =
+            serde_json::from_str::<ControlMessage>(&legacy).unwrap()
+        else {
+            panic!("wrong legacy variant");
+        };
+        assert_eq!(legacy.not_after, 0);
     }
 
     #[test]
