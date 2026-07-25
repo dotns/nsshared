@@ -42,4 +42,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [ ] [**PLAN-011 Control-stream stale-policy detection**](PLAN-011.md) `2026-07-03`
 - [x] [**PLAN-012 Public-edge upstream authority wire contract**](PLAN-012.md) `2026-07-10`
 - [x] [**PLAN-013 Causal scoped WG relay wire contract**](PLAN-013.md) `2026-07-13`
-- [-] [**PLAN-014 Structured framed-WSS tunnel task lifecycle**](PLAN-014.md) `2026-07-25`
+- [x] [**PLAN-014 Structured framed-WSS tunnel task lifecycle**](PLAN-014.md) `2026-07-25`

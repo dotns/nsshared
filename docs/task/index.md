@@ -60,4 +60,4 @@ Each task is a single line linking to its detail file. All detailed information 
 ### V1 WgRelay activation compatibility (ns PLAN-121)
 
 - [x] [**LNK-001 Activate non-future V1 WgRelay leases immediately**](LNK-001.md) `P0`
-- [-] [**WSS-001 Own and join framed tunnel child tasks**](WSS-001.md) `P1`
+- [x] [**WSS-001 Own and join framed tunnel child tasks**](WSS-001.md) `P1`

@@ -1,8 +1,9 @@
 # PLAN-014 Structured framed-WSS tunnel task lifecycle
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-07-25 12:26
 - **approvedAt**: 2026-07-25 12:26
+- **completedAt**: 2026-07-25 13:13
 - **relatedTask**: WSS-001
 
 ## Context
@@ -60,3 +61,6 @@ WSS pump, or auto/UDP selection behavior changes.
 
 - 2026-07-25 12:26: Explicitly approved as the minimal coordinated amendment
   required to close the remaining PLAN-122 lifecycle finding.
+- 2026-07-25 13:13: Completed in `ea55748` (tree `26ff55b7`). Exact-tree
+  workspace QA passed, the coordinated NS tree passed its repository QA, and
+  the final fresh independent re-gate returned P0=0, P1=0, P2=0.
