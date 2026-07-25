@@ -1,3 +1,17 @@
+## 2026-07-25 [fix]
+
+Made framed WebSocket tunnel child-task ownership structural.
+
+- One tunnel-local task set now owns the WebSocket writer and every framed
+  TCP/UDP relay.
+- Added cooperative shutdown that aborts and joins all owned children before
+  the tunnel runner returns; parent cancellation still aborts the complete set
+  through structured drop ownership.
+- Close lifecycle events now use a drop guard, so cancellation cannot leave
+  an opened stream recorded without a matching close.
+- Added a real WebSocket-to-TCP regression proving active backend EOF and
+  lifecycle closure on cooperative shutdown.
+
 ## 2026-07-17 [feat]
 
 Activated non-future V1 WgRelay leases immediately at receipt.

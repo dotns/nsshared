@@ -31,6 +31,7 @@ use thiserror::Error;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::{TcpStream, UdpSocket};
 use tokio::sync::mpsc;
+use tokio::task::JoinSet;
 use tokio_tungstenite::{
     Connector, MaybeTlsStream, WebSocketStream, connect_async_tls_with_config,
     tungstenite::{Message, client::IntoClientRequest, http::HeaderValue},
@@ -218,6 +219,32 @@ pub enum WssConnectionEventKind {
     Open,
     /// The proxied stream was closed (relay task exited).
     Close,
+}
+
+struct WssConnectionCloseGuard {
+    tx: mpsc::Sender<WssConnectionEvent>,
+    stream_id: u32,
+    gateway_id: String,
+    protocol: String,
+    target: SocketAddr,
+}
+
+impl Drop for WssConnectionCloseGuard {
+    fn drop(&mut self) {
+        if let Err(error) = self.tx.try_send(WssConnectionEvent {
+            stream_id: self.stream_id,
+            gateway_id: self.gateway_id.clone(),
+            protocol: self.protocol.clone(),
+            target: self.target,
+            kind: WssConnectionEventKind::Close,
+        }) {
+            warn!(
+                stream_id = self.stream_id,
+                error = %error,
+                "failed to emit WSS Close event; monitoring state may drift"
+            );
+        }
+    }
 }
 
 /// Extract the gateway ID (hostname) from a WebSocket relay URL.
@@ -720,6 +747,19 @@ struct StreamHandle {
     data_tx: mpsc::Sender<Vec<u8>>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TunnelTaskKind {
+    Writer,
+    Relay,
+}
+
+/// Writer and relay tasks owned by one [`WsTunnel::run`] invocation.
+///
+/// `JoinSet::shutdown` provides bounded structured teardown on normal exit,
+/// while `JoinSet::drop` aborts every child when the parent future itself is
+/// cancelled. No tunnel child can detach from the connection lifecycle.
+type TunnelTasks = JoinSet<TunnelTaskKind>;
+
 // ── WsTunnel ───────────────────────────────────────────────────────────────
 
 type WsStream = WebSocketStream<MaybeTlsStream<TcpStream>>;
@@ -819,10 +859,21 @@ impl WsTunnel {
 
     /// Run the relay loop until the WebSocket closes or an error occurs.
     ///
-    /// Splits the connection into a read half and a write half.  Incoming
-    /// frames are dispatched to per-stream relay tasks; relay tasks send
-    /// outgoing frames through a shared write channel.
+    /// Splits the connection into a read half and a write half. Incoming
+    /// frames are dispatched to owned per-stream relay futures; relay futures
+    /// send outgoing frames through a shared write channel. Cancelling this
+    /// runner aborts every child through its owned task set.
     pub async fn run(self) -> Result<(), Error> {
+        self.run_until(std::future::pending()).await
+    }
+
+    /// Run the relay loop until the WebSocket closes, an error occurs, or
+    /// `shutdown` fires.
+    ///
+    /// Unlike cancelling the outer future, the cooperative shutdown path
+    /// aborts and joins the writer plus every active relay before returning.
+    /// `JoinSet` drop remains the fail-safe when an owner itself is aborted.
+    pub async fn run_until(self, shutdown: impl Future<Output = ()> + Send) -> Result<(), Error> {
         let (mut ws_sink, mut ws_stream) = self.ws.split();
         let services = Arc::clone(&self.services);
         let acl = Arc::clone(&self.acl);
@@ -830,64 +881,90 @@ impl WsTunnel {
         let event_tx = self.event_tx;
         let resolver = self.resolver;
 
-        // Dedicated write task -- allows relay tasks to send without locking.
+        // The writer is owned by the same JoinSet as every relay, so it cannot
+        // detach from this connection's lifecycle.
         let (write_tx, mut write_rx) = mpsc::channel::<Message>(256);
-        let write_task = tokio::spawn(async move {
+        let mut tasks = TunnelTasks::new();
+        let _writer_abort = tasks.spawn(async move {
             while let Some(msg) = write_rx.recv().await {
                 if ws_sink.send(msg).await.is_err() {
-                    break;
+                    return TunnelTaskKind::Writer;
                 }
             }
             let _ = ws_sink.close().await;
+            TunnelTaskKind::Writer
         });
 
         let streams: Arc<DashMap<u32, StreamHandle>> = Arc::new(DashMap::new());
+        tokio::pin!(shutdown);
 
-        loop {
-            match ws_stream.next().await {
-                Some(Ok(Message::Binary(data))) => {
-                    let frame = match WsFrame::decode(&data) {
-                        Ok(f) => f,
-                        Err(e) => {
-                            warn!("failed to decode WSS frame: {e}");
-                            continue;
-                        }
-                    };
-                    dispatch_frame(
-                        frame,
-                        &streams,
-                        &write_tx,
-                        &services,
-                        &acl,
-                        &gateway_id,
-                        &event_tx,
-                        resolver.as_ref(),
-                    )
-                    .await;
+        let result = loop {
+            tokio::select! {
+                biased;
+
+                () = &mut shutdown => {
+                    break Ok(());
                 }
-                Some(Ok(Message::Ping(payload))) => {
-                    if write_tx.send(Message::Pong(payload)).await.is_err() {
-                        break;
+
+                joined = tasks.join_next() => {
+                    match joined {
+                        Some(Ok(TunnelTaskKind::Writer)) | None => {
+                            break Err(Error::RelayWriteClosed);
+                        }
+                        Some(Ok(TunnelTaskKind::Relay)) => {}
+                        Some(Err(error)) => {
+                            warn!(%error, "owned WSS tunnel child task failed");
+                        }
                     }
                 }
-                Some(Ok(Message::Close(_))) => {
-                    info!("WSS relay closed by server");
-                    break;
-                }
-                Some(Ok(_)) => {}
-                Some(Err(e)) => {
-                    write_task.abort();
-                    return Err(Error::WebSocket(e.to_string()));
-                }
-                None => {
-                    info!("WSS relay stream ended");
-                    break;
+
+                incoming = ws_stream.next() => {
+                    match incoming {
+                        Some(Ok(Message::Binary(data))) => {
+                            let frame = match WsFrame::decode(&data) {
+                                Ok(f) => f,
+                                Err(e) => {
+                                    warn!("failed to decode WSS frame: {e}");
+                                    continue;
+                                }
+                            };
+                            dispatch_frame(
+                                frame,
+                                &streams,
+                                &mut tasks,
+                                &write_tx,
+                                &services,
+                                &acl,
+                                &gateway_id,
+                                &event_tx,
+                                resolver.as_ref(),
+                            )
+                            .await;
+                        }
+                        Some(Ok(Message::Ping(payload))) => {
+                            if write_tx.send(Message::Pong(payload)).await.is_err() {
+                                break Err(Error::RelayWriteClosed);
+                            }
+                        }
+                        Some(Ok(Message::Close(_))) => {
+                            info!("WSS relay closed by server");
+                            break Ok(());
+                        }
+                        Some(Ok(_)) => {}
+                        Some(Err(e)) => {
+                            break Err(Error::WebSocket(e.to_string()));
+                        }
+                        None => {
+                            info!("WSS relay stream ended");
+                            break Ok(());
+                        }
+                    }
                 }
             }
-        }
+        };
 
-        write_task.abort();
-        Ok(())
+        tasks.shutdown().await;
+        result
     }
 }
 
@@ -1036,6 +1113,7 @@ fn record_udp_local_to_ws_bytes(service_name: &str, n: u64) {
 async fn dispatch_frame(
     frame: WsFrame,
     streams: &Arc<DashMap<u32, StreamHandle>>,
+    tasks: &mut TunnelTasks,
     write_tx: &mpsc::Sender<Message>,
     services: &ServicesConfig,
     acl: &Arc<ArcSwapOption<AclEngine>>,
@@ -1162,9 +1240,15 @@ async fn dispatch_frame(
 
             let tx = write_tx.clone();
             let registry = Arc::clone(streams);
-            let event_tx_close = event_tx.clone();
-            let gateway_id_close = gateway_id.to_string();
-            tokio::spawn(async move {
+            let close_guard = event_tx.as_ref().map(|event_tx| WssConnectionCloseGuard {
+                tx: event_tx.clone(),
+                stream_id,
+                gateway_id: gateway_id.to_string(),
+                protocol: proto_str,
+                target,
+            });
+            let _relay_abort = tasks.spawn(async move {
+                let _close_guard = close_guard;
                 let result = match protocol {
                     Protocol::Udp => {
                         relay_udp(stream_id, target, data_rx, tx.clone(), service_name).await
@@ -1182,22 +1266,7 @@ async fn dispatch_frame(
                     let _ = tx.send(Message::Binary(close.encode())).await;
                 }
                 registry.remove(&stream_id);
-                // Emit Close event after relay task exits.
-                if let Some(ref etx) = event_tx_close
-                    && let Err(e) = etx.try_send(WssConnectionEvent {
-                        stream_id,
-                        gateway_id: gateway_id_close,
-                        protocol: proto_str,
-                        target,
-                        kind: WssConnectionEventKind::Close,
-                    })
-                {
-                    warn!(
-                        %stream_id,
-                        error = %e,
-                        "failed to emit WSS Close event; monitoring state may drift"
-                    );
-                }
+                TunnelTaskKind::Relay
             });
         }
 
@@ -2081,6 +2150,7 @@ strict = false
         let before = metrics_text();
         let (write_tx, mut write_rx) = mpsc::channel::<Message>(8);
         let streams = Arc::new(DashMap::new());
+        let mut tasks = TunnelTasks::new();
         let services = Arc::new(make_strict_services("192.168.1.10", 80, Protocol::Tcp));
 
         dispatch_frame(
@@ -2094,6 +2164,7 @@ strict = false
                 payload: vec![],
             },
             &streams,
+            &mut tasks,
             &write_tx,
             &services,
             &allow_all_acl(),
@@ -2148,6 +2219,7 @@ strict = false
         let before = metrics_text();
         let (write_tx, mut write_rx) = mpsc::channel::<Message>(8);
         let streams = Arc::new(DashMap::new());
+        let mut tasks = TunnelTasks::new();
         let (data_tx, _data_rx) = mpsc::channel::<Vec<u8>>(8);
         streams.insert(3_005, StreamHandle { data_tx });
         let resolver: Arc<dyn WssTargetResolver> = Arc::new(StubResolver {
@@ -2167,6 +2239,7 @@ strict = false
                 payload: vec![],
             },
             &streams,
+            &mut tasks,
             &write_tx,
             &permissive_services(),
             &allow_all_acl(),
@@ -2380,6 +2453,7 @@ strict = false
         use tokio_tungstenite::tungstenite::Message;
         let (write_tx, mut write_rx) = tokio::sync::mpsc::channel::<Message>(8);
         let streams = Arc::new(DashMap::new());
+        let mut tasks = TunnelTasks::new();
 
         // Strict services that only allow 192.168.1.10:80/tcp; ACL is allow-all
         // so services is the sole gating factor for this test.
@@ -2398,6 +2472,7 @@ strict = false
         dispatch_frame(
             open_frame,
             &streams,
+            &mut tasks,
             &write_tx,
             &services,
             &allow_all_acl(),
@@ -2427,6 +2502,7 @@ strict = false
         use tokio_tungstenite::tungstenite::Message;
         let (write_tx, mut write_rx) = tokio::sync::mpsc::channel::<Message>(8);
         let streams = Arc::new(DashMap::new());
+        let mut tasks = TunnelTasks::new();
         let (data_tx, mut data_rx) = tokio::sync::mpsc::channel::<Vec<u8>>(8);
         streams.insert(9, StreamHandle { data_tx });
 
@@ -2443,6 +2519,7 @@ strict = false
         dispatch_frame(
             open_frame,
             &streams,
+            &mut tasks,
             &write_tx,
             &permissive_services(),
             &allow_all_acl(),
@@ -2468,6 +2545,7 @@ strict = false
                 payload: b"still-original".to_vec(),
             },
             &streams,
+            &mut tasks,
             &write_tx,
             &permissive_services(),
             &allow_all_acl(),
@@ -2485,6 +2563,7 @@ strict = false
         use tokio_tungstenite::tungstenite::Message;
         let (write_tx, mut write_rx) = tokio::sync::mpsc::channel::<Message>(8);
         let streams = Arc::new(DashMap::new());
+        let mut tasks = TunnelTasks::new();
         for id in 0..MAX_CONCURRENT_STREAMS as u32 {
             let (data_tx, _data_rx) = tokio::sync::mpsc::channel::<Vec<u8>>(1);
             streams.insert(id, StreamHandle { data_tx });
@@ -2503,6 +2582,7 @@ strict = false
         dispatch_frame(
             open_frame,
             &streams,
+            &mut tasks,
             &write_tx,
             &permissive_services(),
             &allow_all_acl(),
@@ -2530,6 +2610,7 @@ strict = false
         use tokio_tungstenite::tungstenite::Message;
         let (write_tx, mut write_rx) = tokio::sync::mpsc::channel::<Message>(8);
         let streams = Arc::new(DashMap::new());
+        let mut tasks = TunnelTasks::new();
 
         let services = Arc::new(make_strict_services("192.168.1.10", 80, Protocol::Tcp));
 
@@ -2546,6 +2627,7 @@ strict = false
         dispatch_frame(
             open_frame,
             &streams,
+            &mut tasks,
             &write_tx,
             &services,
             &allow_all_acl(),
@@ -2677,6 +2759,7 @@ strict = false
 
         let (write_tx, mut write_rx) = mpsc::channel::<Message>(16);
         let streams = Arc::new(DashMap::new());
+        let mut tasks = TunnelTasks::new();
 
         let open_frame = WsFrame {
             stream_id: 100,
@@ -2691,6 +2774,7 @@ strict = false
         dispatch_frame(
             open_frame,
             &streams,
+            &mut tasks,
             &write_tx,
             // Strict services + no ACL would deny — proves the resolver
             // path bypasses the legacy gate as designed.
@@ -2719,6 +2803,7 @@ strict = false
                 payload: b"ping".to_vec(),
             },
             &streams,
+            &mut tasks,
             &write_tx,
             &permissive_services(),
             &no_acl(),
@@ -2744,6 +2829,102 @@ strict = false
         assert_eq!(decoded.payload, b"ping");
     }
 
+    #[tokio::test]
+    async fn cooperative_tunnel_shutdown_joins_active_backend_stream() {
+        shared_test_registry();
+        let backend_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let backend = backend_listener.local_addr().unwrap();
+        let (backend_open_tx, backend_open_rx) = tokio::sync::oneshot::channel();
+        let (backend_closed_tx, backend_closed_rx) = tokio::sync::oneshot::channel();
+        let backend_task = tokio::spawn(async move {
+            let (mut stream, _) = backend_listener.accept().await.unwrap();
+            let _ = backend_open_tx.send(());
+            let mut byte = [0u8; 1];
+            let read = stream.read(&mut byte).await.unwrap();
+            let _ = backend_closed_tx.send(read);
+        });
+
+        let ws_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let ws_addr = ws_listener.local_addr().unwrap();
+        let ws_server = tokio::spawn(async move {
+            let (tcp, _) = ws_listener.accept().await.unwrap();
+            let mut ws = tokio_tungstenite::accept_async(tcp).await.unwrap();
+            let open = WsFrame {
+                stream_id: 300,
+                command: FrameCommand::Open {
+                    target_ip: IpAddr::V4(Ipv4Addr::new(10, 0, 0, 3)),
+                    target_port: backend.port(),
+                    protocol: Protocol::Tcp,
+                },
+                payload: vec![],
+            };
+            ws.send(Message::Binary(open.encode())).await.unwrap();
+            while ws.next().await.is_some() {}
+        });
+
+        let resolver: Arc<dyn WssTargetResolver> = Arc::new(StubResolver {
+            port: backend.port(),
+            backend,
+            service_name: "owned-stream",
+        });
+        let (event_tx, mut event_rx) = mpsc::channel(4);
+        let url = format!("ws://{ws_addr}/relay");
+        let tunnel = WsTunnel::connect(
+            &url,
+            "test-token",
+            Arc::new(permissive_services()),
+            no_acl(),
+            None,
+        )
+        .await
+        .unwrap()
+        .with_resolver(resolver)
+        .with_event_sender(event_tx);
+        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
+        let runner = tokio::spawn(tunnel.run_until(async move {
+            let _ = shutdown_rx.await;
+        }));
+
+        tokio::time::timeout(Duration::from_secs(2), backend_open_rx)
+            .await
+            .expect("relay must connect to the backend")
+            .expect("backend open signal must be sent");
+        let open = event_rx.recv().await.expect("Open event must be emitted");
+        assert_eq!(open.stream_id, 300);
+        assert_eq!(open.kind, WssConnectionEventKind::Open);
+
+        shutdown_tx.send(()).expect("runner must own shutdown");
+        let result = tokio::time::timeout(Duration::from_secs(2), runner)
+            .await
+            .expect("cooperative tunnel shutdown must finish")
+            .expect("tunnel runner must not panic");
+        assert!(result.is_ok(), "cooperative shutdown must exit cleanly");
+        let close = event_rx
+            .recv()
+            .await
+            .expect("Close event must be emitted on cancellation");
+        assert_eq!(close.stream_id, 300);
+        assert_eq!(close.kind, WssConnectionEventKind::Close);
+
+        let read = tokio::time::timeout(Duration::from_secs(2), backend_closed_rx)
+            .await
+            .expect("owned relay socket must close with its tunnel")
+            .expect("backend close signal must be sent");
+        assert_eq!(
+            read, 0,
+            "backend must observe EOF after tunnel cancellation"
+        );
+
+        tokio::time::timeout(Duration::from_secs(2), backend_task)
+            .await
+            .expect("backend task must finish")
+            .expect("backend task must not panic");
+        tokio::time::timeout(Duration::from_secs(2), ws_server)
+            .await
+            .expect("WebSocket server must observe tunnel shutdown")
+            .expect("WebSocket server must not panic");
+    }
+
     /// When the resolver returns `None` (e.g. mid-reload of services
     /// config), dispatch must emit a Close frame and NOT register a
     /// stream — fail-closed contract.
@@ -2753,6 +2934,7 @@ strict = false
         let resolver: Arc<dyn WssTargetResolver> = Arc::new(DenyAllResolver);
         let (write_tx, mut write_rx) = mpsc::channel::<Message>(16);
         let streams = Arc::new(DashMap::new());
+        let mut tasks = TunnelTasks::new();
 
         let open_frame = WsFrame {
             stream_id: 200,
@@ -2767,6 +2949,7 @@ strict = false
         dispatch_frame(
             open_frame,
             &streams,
+            &mut tasks,
             &write_tx,
             // Strict services with allow-all ACL would normally permit
             // (192.168.x.x); proves the resolver's None vetoes regardless.

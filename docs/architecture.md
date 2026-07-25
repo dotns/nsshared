@@ -18,7 +18,13 @@ authority when present and otherwise from `host`.
 
 `telemetry` contains telemetry initialization and metric helpers. Its crate-level source docs describe OpenTelemetry metrics backed by a Prometheus exporter, subsystem metric structs, label contracts, global meter helpers, supervised task spawning, and per-subsystem OTel facades.
 
-`tunnel-ws` contains the pure WebSocket proxy transport. Its crate-level source docs describe logical stream multiplexing over WebSocket connections to NSIO relay endpoints, TLS connector helpers, opaque relay URL helpers, access-control integration, connection events, and relay error types.
+`tunnel-ws` contains the pure WebSocket proxy transport. Its crate-level source
+docs describe logical stream multiplexing over WebSocket connections to NSIO
+relay endpoints, TLS connector helpers, opaque relay URL helpers,
+access-control integration, connection events, and relay error types. Each
+framed tunnel owns its writer and per-stream relays in one task set;
+cooperative shutdown aborts and joins the complete set before returning, and
+parent cancellation aborts the set through structured drop ownership.
 
 ## Consumers
 
