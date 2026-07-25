@@ -52,6 +52,8 @@ pub const OPAQUE_WSS_RELAY_MODE: &str = "wss-relay";
 /// Client-side opaque WebSocket stream.
 pub type OpaqueWsStream = WebSocketStream<MaybeTlsStream<TcpStream>>;
 
+const COOPERATIVE_CLOSE_TIMEOUT: Duration = Duration::from_secs(1);
+
 // ── TLS connector helper ──────────────────────────────────────────────────
 
 /// Build a rustls-backed [`Connector`] that trusts the Mozilla WebPKI roots
@@ -749,16 +751,22 @@ struct StreamHandle {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum TunnelTaskKind {
-    Writer,
     Relay,
 }
 
-/// Writer and relay tasks owned by one [`WsTunnel::run`] invocation.
+/// Per-stream relay tasks owned by one [`WsTunnel::run`] invocation.
 ///
 /// `JoinSet::shutdown` provides bounded structured teardown on normal exit,
 /// while `JoinSet::drop` aborts every child when the parent future itself is
 /// cancelled. No tunnel child can detach from the connection lifecycle.
 type TunnelTasks = JoinSet<TunnelTaskKind>;
+
+/// The single writer task owned by one [`WsTunnel::run`] invocation.
+///
+/// Keeping it in its own `JoinSet` preserves abort-on-drop ownership while
+/// allowing cooperative shutdown to stop every relay sender, request an
+/// orderly Close, and boundedly join the writer.
+type TunnelWriter = JoinSet<Result<(), String>>;
 
 // ── WsTunnel ───────────────────────────────────────────────────────────────
 
@@ -871,7 +879,8 @@ impl WsTunnel {
     /// `shutdown` fires.
     ///
     /// Unlike cancelling the outer future, the cooperative shutdown path
-    /// aborts and joins the writer plus every active relay before returning.
+    /// aborts and joins every active relay, then boundedly closes and joins the
+    /// writer before returning.
     /// `JoinSet` drop remains the fail-safe when an owner itself is aborted.
     pub async fn run_until(self, shutdown: impl Future<Output = ()> + Send) -> Result<(), Error> {
         let (mut ws_sink, mut ws_stream) = self.ws.split();
@@ -881,19 +890,32 @@ impl WsTunnel {
         let event_tx = self.event_tx;
         let resolver = self.resolver;
 
-        // The writer is owned by the same JoinSet as every relay, so it cannot
-        // detach from this connection's lifecycle.
         let (write_tx, mut write_rx) = mpsc::channel::<Message>(256);
-        let mut tasks = TunnelTasks::new();
-        let _writer_abort = tasks.spawn(async move {
-            while let Some(msg) = write_rx.recv().await {
-                if ws_sink.send(msg).await.is_err() {
-                    return TunnelTaskKind::Writer;
+        let (writer_shutdown_tx, mut writer_shutdown_rx) = tokio::sync::oneshot::channel();
+        let mut writer = TunnelWriter::new();
+        writer.spawn(async move {
+            loop {
+                tokio::select! {
+                    biased;
+
+                    _ = &mut writer_shutdown_rx => {
+                        return ws_sink.close().await.map_err(|error| error.to_string());
+                    }
+
+                    message = write_rx.recv() => {
+                        let Some(message) = message else {
+                            return ws_sink.close().await.map_err(|error| error.to_string());
+                        };
+                        ws_sink
+                            .send(message)
+                            .await
+                            .map_err(|error| error.to_string())?;
+                    }
                 }
             }
-            let _ = ws_sink.close().await;
-            TunnelTaskKind::Writer
         });
+        let mut tasks = TunnelTasks::new();
+        let mut writer_running = true;
 
         let streams: Arc<DashMap<u32, StreamHandle>> = Arc::new(DashMap::new());
         tokio::pin!(shutdown);
@@ -906,12 +928,24 @@ impl WsTunnel {
                     break Ok(());
                 }
 
-                joined = tasks.join_next() => {
+                joined = writer.join_next(), if writer_running => {
+                    writer_running = false;
                     match joined {
-                        Some(Ok(TunnelTaskKind::Writer)) | None => {
-                            break Err(Error::RelayWriteClosed);
+                        Some(Ok(Err(error))) => {
+                            warn!(%error, "owned WSS tunnel writer failed");
                         }
+                        Some(Ok(Ok(()))) | None => {}
+                        Some(Err(error)) => {
+                            warn!(%error, "owned WSS tunnel writer task failed");
+                        }
+                    }
+                    break Err(Error::RelayWriteClosed);
+                }
+
+                joined = tasks.join_next(), if !tasks.is_empty() => {
+                    match joined {
                         Some(Ok(TunnelTaskKind::Relay)) => {}
+                        None => {}
                         Some(Err(error)) => {
                             warn!(%error, "owned WSS tunnel child task failed");
                         }
@@ -964,7 +998,36 @@ impl WsTunnel {
         };
 
         tasks.shutdown().await;
-        result
+        let _ = writer_shutdown_tx.send(());
+        drop(write_tx);
+
+        let close_result = if writer_running {
+            match tokio::time::timeout(COOPERATIVE_CLOSE_TIMEOUT, writer.join_next()).await {
+                Ok(Some(Ok(Ok(())))) | Ok(None) => Ok(()),
+                Ok(Some(Ok(Err(error)))) => {
+                    warn!(%error, "orderly WSS tunnel Close failed");
+                    Err(Error::WebSocket(error))
+                }
+                Ok(Some(Err(error))) => {
+                    warn!(%error, "owned WSS tunnel writer task failed during Close");
+                    Err(Error::WebSocket(error.to_string()))
+                }
+                Err(_) => {
+                    warn!("orderly WSS tunnel Close exceeded its bounded deadline");
+                    Err(Error::WebSocket(
+                        "orderly Close exceeded its bounded deadline".to_string(),
+                    ))
+                }
+            }
+        } else {
+            Ok(())
+        };
+        writer.shutdown().await;
+
+        match result {
+            Err(error) => Err(error),
+            Ok(()) => close_result,
+        }
     }
 }
 
@@ -2846,6 +2909,7 @@ strict = false
 
         let ws_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let ws_addr = ws_listener.local_addr().unwrap();
+        let (ws_close_tx, ws_close_rx) = tokio::sync::oneshot::channel();
         let ws_server = tokio::spawn(async move {
             let (tcp, _) = ws_listener.accept().await.unwrap();
             let mut ws = tokio_tungstenite::accept_async(tcp).await.unwrap();
@@ -2859,7 +2923,19 @@ strict = false
                 payload: vec![],
             };
             ws.send(Message::Binary(open.encode())).await.unwrap();
-            while ws.next().await.is_some() {}
+            loop {
+                match ws.next().await {
+                    Some(Ok(Message::Close(_))) => {
+                        let _ = ws_close_tx.send(());
+                        break;
+                    }
+                    Some(Ok(_)) => {}
+                    Some(Err(error)) => {
+                        panic!("WebSocket failed before an orderly Close frame: {error}");
+                    }
+                    None => panic!("WebSocket ended without an orderly Close frame"),
+                }
+            }
         });
 
         let resolver: Arc<dyn WssTargetResolver> = Arc::new(StubResolver {
@@ -2914,6 +2990,10 @@ strict = false
             read, 0,
             "backend must observe EOF after tunnel cancellation"
         );
+        tokio::time::timeout(Duration::from_secs(2), ws_close_rx)
+            .await
+            .expect("gateway must observe an orderly WebSocket Close frame")
+            .expect("gateway Close-frame signal must be sent");
 
         tokio::time::timeout(Duration::from_secs(2), backend_task)
             .await
