@@ -1,6 +1,6 @@
 # ns-shared - Task List
 
-> Updated: 2026-07-25
+> Updated: 2026-07-28
 
 ## Usage
 
@@ -61,3 +61,7 @@ Each task is a single line linking to its detail file. All detailed information 
 
 - [x] [**LNK-001 Activate non-future V1 WgRelay leases immediately**](LNK-001.md) `P0`
 - [x] [**WSS-001 Own and join framed tunnel child tasks**](WSS-001.md) `P1`
+
+### Gateway build identity reporting
+
+- [~] [**CTRL-020 Add the gateway build identity report contract**](CTRL-020.md) `P1`
