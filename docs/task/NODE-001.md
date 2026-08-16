@@ -1,6 +1,6 @@
 # NODE-001 Define unified node capability and subnet-route contracts
 
-- **status**: in_progress
+- **status**: review — shared slice complete; must merge with the nsd/nsgw arms, not ahead of them
 - **priority**: P0
 - **owner**: ns-shared/NODE-001
 - **createdAt**: 2026-08-16 06:06 UTC

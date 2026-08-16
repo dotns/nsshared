@@ -134,3 +134,18 @@ gateway packet forwarding, deployment, and legacy message removal.
   `resolve_role` and makes the opaque WSS carrier exclusive per machine, which
   is the hard blocker for a unified node. The leg role is a request input only;
   NSD stays the sole granting authority.
+- 2026-08-16 12:05 UTC: NODE-001 implemented items 1-7 and the Bounds and
+  validation section. Names selected during implementation, now fixed for the
+  consumers: capability tokens `node.consume-services.v1`,
+  `node.publish-services.v1`, `node.advertise-subnet-routes.v1`,
+  `node.accept-subnet-routes.v1`; envelope api `node.subnet_routes.report.v1`
+  carrying `NodeSubnetRouteReport`; control message `subnet_route_config.v1`
+  carrying `SubnetRouteConfig`; and `control::types::WssLegRole` on
+  `AuthPayload::leg_role`. Locked ns-shared QA is green with 681 executed
+  tests.
+- 2026-08-16 12:05 UTC: Cascade measured against the exact candidate. `ns`
+  (`a527c8f`) compiles unchanged. `nsd` (`3098dac`) and `nsgw` (`63debe0`) each
+  fail to compile until their own arms land — five edits across four files,
+  listed in `docs/task/NODE-001.md`. This is the outcome the acceptance section
+  anticipates, so the shared crate must merge inside one window with nsd
+  PLAN-129 and nsgw PLAN-123, never ahead of them.
