@@ -27,7 +27,8 @@ use crate::messages::{
     GatewayServicesAck, GatewayServicesReport, LinkMode, PeerCandidatesReport, ServiceReport,
     ServicesAck,
 };
-use crate::types::ConnectorType;
+use crate::subnet_route::{NodeSubnetRouteReport, NodeSubnetRouteReportAck};
+use crate::types::{ConnectorType, WssLegRole};
 
 pub use crate::types::ConnectorType as RegisterType;
 
@@ -136,10 +137,21 @@ pub struct RegisterResponse {
 /// token purpose. `purpose` is `"control"` (NSD machine-control) or `"wss"`
 /// (NSGW WSS relay); an absent value defaults to machine-control server-side.
 /// Any unrecognised value is rejected by NSD with `bad_payload`.
+///
+/// `leg_role` narrows a `"wss"` request to one opaque leg. It is additive: an
+/// absent value serializes away, so a request that does not use it is
+/// byte-identical to a pre-NODE-001 one and keeps NSD's legacy scalar role
+/// derivation.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AuthPayload {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub purpose: Option<String>,
+    /// WSS leg this token is requested for. **Request input only** — NSD is
+    /// the sole granting authority, may refuse the requested leg, and never
+    /// treats this value as self-asserted. Meaningful only alongside
+    /// `purpose = "wss"`. See [`WssLegRole`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub leg_role: Option<WssLegRole>,
 }
 
 /// Response payload for `api = "machine.auth"` — the minted compact JWT.
@@ -182,6 +194,20 @@ pub type GatewayServicesReportRequest = GatewayServicesReport;
 
 /// Response payload for `api = "gateway.services_report"`.
 pub type GatewayServicesReportResponse = GatewayServicesAck;
+
+// ── node.subnet_routes.report.v1 ────────────────────────────────────────────
+
+/// Request payload for `api = "node.subnet_routes.report.v1"`.
+///
+/// A full-snapshot advertisement of the prefixes a node offers to route. It
+/// expresses intent; authority arrives separately as
+/// [`ControlMessage::SubnetRouteConfig`].
+pub type NodeSubnetRoutesReportRequest = NodeSubnetRouteReport;
+
+/// Response payload for `api = "node.subnet_routes.report.v1"`.
+///
+/// Acceptance records the advertisement; it never approves a route.
+pub type NodeSubnetRoutesReportResponse = NodeSubnetRouteReportAck;
 
 // ── peer_candidates.report ──────────────────────────────────────────────────
 
@@ -1034,6 +1060,7 @@ mod tests {
         // purpose present round-trips.
         let req = AuthPayload {
             purpose: Some("wss".into()),
+            leg_role: None,
         };
         let bytes = to_cbor(&req).unwrap();
         let decoded: AuthPayload = from_cbor(&bytes).unwrap();

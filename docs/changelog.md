@@ -1,3 +1,31 @@
+## 2026-08-16 12:05 [feat]
+
+Added the unified node capability and subnet-route wire contracts.
+
+- Added the versioned node capability vocabulary in `common::node_capability`
+  with a single owner for the four wire tokens; unrecognized tokens resolve to
+  nothing and can never activate a role or authorize a route.
+- Added `control::subnet_route` with the intent-only `NodeSubnetRouteReport`
+  (envelope api `node.subnet_routes.report.v1`) and the authoritative
+  `SubnetRouteConfig` projection (control message `subnet_route_config.v1`)
+  as separate types, so an advertisement can never authorize itself.
+- Added deterministic bounds: canonical IPv4 prefixes, rejection of default
+  routes, loopback, link-local, and multicast, route-count and encoded-size
+  limits enforced during decoding, duplicate ids, duplicate prefixes,
+  conflicting owners, overlapping prefixes, realm mismatch, and stale
+  generations.
+- Overlay-reserved range rejection takes the control plane's effective
+  `vip_pool` / `tunnel_ip_pool` as an `OverlayReservedRanges` input instead of
+  pinning NSD's documented defaults, which would otherwise accept a prefix
+  that swallows the overlay's own address space in any deployment that
+  overrides either pool.
+- Added `AuthPayload::leg_role` with the `WssLegRole` request input so one
+  identity can request separately scoped `client` and `relay` WSS legs. NSD
+  remains the sole granting authority.
+- Added cross-repository fixtures plus byte-for-byte compatibility coverage
+  proving existing service, capture, GatewayExit, GatewayEgress, direct-P2P,
+  and relay payloads are unchanged when the new fields are absent.
+
 ## 2026-07-25 [fix]
 
 Made framed WebSocket tunnel child-task ownership structural.

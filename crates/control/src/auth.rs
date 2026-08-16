@@ -27,7 +27,7 @@ use crate::api as envapi;
 use crate::envelope::{self, ControlEnvelope, api as envapi_ids};
 use crate::messages::{ControlMessage, LinkMode};
 use crate::transport::{ControlTransport, framing, sse::endpoint_host};
-use crate::types::ConnectorType;
+use crate::types::{ConnectorType, WssLegRole};
 
 /// Authenticated payload paired with its signed envelope time and monotonic
 /// verification-receipt anchor.
@@ -957,6 +957,8 @@ pub struct BearerTokenRefresher {
     machine_id: String,
     signer: EnvelopeSigner,
     purpose: TokenPurpose,
+    /// WSS leg this refresher requests. Request input only; NSD grants it.
+    leg_role: Option<WssLegRole>,
     verifier: Option<Arc<NsdJwtVerifier>>,
 }
 
@@ -988,6 +990,7 @@ impl BearerTokenRefresher {
             timestamp,
             signature: hex::encode(sig_bytes),
             purpose: Some(self.purpose.as_str().to_string()),
+            leg_role: self.leg_role,
         };
         let resp = self
             .http
@@ -1018,6 +1021,7 @@ impl BearerTokenRefresher {
             timestamp,
             signature: hex::encode(sig_bytes),
             purpose: Some(self.purpose.as_str().to_string()),
+            leg_role: self.leg_role,
         };
         let body =
             serde_json::to_vec(&body).map_err(|e| Error::Auth(format!("auth json encode: {e}")))?;
@@ -1234,6 +1238,7 @@ impl HeartbeatClient {
             timestamp,
             signature: hex::encode(sig_bytes),
             purpose: Some(TokenPurpose::Control.as_str().to_string()),
+            leg_role: None,
         };
         let resp = self
             .http
@@ -1331,6 +1336,11 @@ struct AuthRequest {
     signature: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     purpose: Option<String>,
+    /// Mirrors [`crate::api::AuthPayload::leg_role`] on the legacy JSON path so
+    /// a leg-scoped request survives the envelope-to-legacy fallback. Absent
+    /// values serialize away, keeping the pre-NODE-001 body byte-identical.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    leg_role: Option<WssLegRole>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1542,7 +1552,11 @@ impl AuthClient {
         })
     }
 
-    fn token_refresher(&self, purpose: TokenPurpose) -> Result<BearerTokenRefresher, Error> {
+    fn token_refresher(
+        &self,
+        purpose: TokenPurpose,
+        leg_role: Option<WssLegRole>,
+    ) -> Result<BearerTokenRefresher, Error> {
         let machine_id = self
             .state
             .machine_id
@@ -1557,17 +1571,27 @@ impl AuthClient {
             machine_id,
             signer: EnvelopeSigner::from_state(&self.state),
             purpose,
+            leg_role,
             verifier: self.jwt_verifier.clone(),
         })
     }
 
     /// Build a WSS bearer-token refresher from this registered machine identity.
     pub fn bearer_token_refresher(&self) -> Result<BearerTokenRefresher, Error> {
-        self.token_refresher(TokenPurpose::Wss)
+        self.token_refresher(TokenPurpose::Wss, None)
+    }
+
+    /// Build a WSS bearer-token refresher scoped to one opaque leg, so a
+    /// refreshed token keeps the leg the session was established on.
+    pub fn bearer_token_refresher_for_leg(
+        &self,
+        leg: WssLegRole,
+    ) -> Result<BearerTokenRefresher, Error> {
+        self.token_refresher(TokenPurpose::Wss, Some(leg))
     }
 
     pub fn control_token_refresher(&self) -> Result<BearerTokenRefresher, Error> {
-        self.token_refresher(TokenPurpose::Control)
+        self.token_refresher(TokenPurpose::Control, None)
     }
 
     /// Whether this machine has been registered with the server.
@@ -1743,23 +1767,35 @@ impl AuthClient {
     /// and returns the session JWT on success.
     #[instrument(skip(self))]
     pub async fn authenticate(&self) -> Result<String, Error> {
-        self.authenticate_with_transport_fallback(TokenPurpose::Control)
+        self.authenticate_with_transport_fallback(TokenPurpose::Control, None)
             .await
     }
 
     pub async fn authenticate_wss(&self) -> Result<String, Error> {
-        self.authenticate_with_transport_fallback(TokenPurpose::Wss)
+        self.authenticate_with_transport_fallback(TokenPurpose::Wss, None)
+            .await
+    }
+
+    /// Request a WSS token scoped to one opaque leg.
+    ///
+    /// A unified node holds a consumer leg and a provider leg under the same
+    /// identity, so each is requested separately. The leg is a **request
+    /// input**: NSD authorizes it independently and may refuse it, and this
+    /// call never asserts the role on the machine's behalf.
+    pub async fn authenticate_wss_leg(&self, leg: WssLegRole) -> Result<String, Error> {
+        self.authenticate_with_transport_fallback(TokenPurpose::Wss, Some(leg))
             .await
     }
 
     async fn authenticate_with_transport_fallback(
         &self,
         purpose: TokenPurpose,
+        leg_role: Option<WssLegRole>,
     ) -> Result<String, Error> {
         let Some(transport) = self.transport.as_ref() else {
-            return self.token_refresher(purpose)?.refresh().await;
+            return self.token_refresher(purpose, leg_role)?.refresh().await;
         };
-        match self.authenticate_via_envelope(purpose).await {
+        match self.authenticate_via_envelope(purpose, leg_role).await {
             Ok(token) => Ok(token),
             Err(err)
                 if !is_anti_dpi_transport(transport.as_ref())
@@ -1769,7 +1805,7 @@ impl AuthClient {
                     path = CONTROL_ENVELOPE_PATH,
                     "machine.auth envelope route unavailable; falling back to legacy auth",
                 );
-                self.token_refresher(purpose)?.refresh().await
+                self.token_refresher(purpose, leg_role)?.refresh().await
             }
             Err(err) => Err(err),
         }
@@ -1783,7 +1819,11 @@ impl AuthClient {
     /// server replay-nonce gate. No bearer is attached: the envelope's machine
     /// Ed25519 signature is the authentication, matching the registered-machine
     /// / no-bearer authorization bucket on NSD.
-    async fn authenticate_via_envelope(&self, purpose: TokenPurpose) -> Result<String, Error> {
+    async fn authenticate_via_envelope(
+        &self,
+        purpose: TokenPurpose,
+        leg_role: Option<WssLegRole>,
+    ) -> Result<String, Error> {
         let transport = self
             .transport
             .clone()
@@ -1795,6 +1835,7 @@ impl AuthClient {
             .ok_or_else(|| Error::Auth("not registered".to_string()))?;
         let payload = envapi::AuthPayload {
             purpose: Some(purpose.as_str().to_string()),
+            leg_role,
         };
         let payload_cbor = envapi::to_cbor(&payload)
             .map_err(|e| Error::Auth(format!("machine.auth cbor encode: {e}")))?;
@@ -2590,9 +2631,11 @@ mod tests {
             timestamp: 1,
             signature: "bb".repeat(64),
             purpose: None,
+            leg_role: None,
         };
         let value = serde_json::to_value(&req).unwrap();
         assert!(value.get("purpose").is_none());
+        assert!(value.get("leg_role").is_none());
 
         let req = AuthRequest {
             purpose: Some("control".to_string()),
@@ -2858,6 +2901,65 @@ mod tests {
         assert_eq!(seen[0].api, envapi_ids::MACHINE_AUTH);
         let payload: envapi::AuthPayload = envapi::from_cbor(seen[0].payload.as_ref()).unwrap();
         assert_eq!(payload.purpose.as_deref(), Some("wss"));
+        // The unscoped call stays byte-compatible: no leg is requested, so NSD
+        // keeps its legacy scalar role derivation.
+        assert_eq!(payload.leg_role, None);
+    }
+
+    #[tokio::test]
+    async fn authenticate_wss_leg_requests_each_leg_separately() {
+        // One identity, two legs: the blocker a unified node hits today is
+        // that NSD derives exactly one scalar role per machine. Each call must
+        // name its own leg so NSD can authorize them independently.
+        for (leg, token) in [
+            (WssLegRole::Client, "tok-client-leg"),
+            (WssLegRole::Relay, "tok-relay-leg"),
+        ] {
+            let mut state = fresh_machine_state().await;
+            state
+                .set_registered(
+                    "m-unified".to_string(),
+                    &"aa".repeat(32),
+                    "127.0.0.1:51820",
+                    None,
+                )
+                .unwrap();
+            let nsd_sk = SigningKey::generate(&mut OsRng);
+            let nsd_pin = envelope_pin_for_key(&nsd_sk);
+            let transport_impl = Arc::new(RecordingAuthTransport::new(nsd_sk, token));
+            let transport: Arc<dyn ControlTransport> = transport_impl.clone();
+            let tempdir = tempfile::tempdir().unwrap();
+            let auth = AuthClient::new("noise://nsd-1:4001", state)
+                .with_transport(transport)
+                .with_envelope_trust("nsd-a", "realm-a", tempdir.path(), vec![nsd_pin], None);
+
+            assert_eq!(auth.authenticate_wss_leg(leg).await.unwrap(), token);
+
+            let seen = transport_impl.seen.lock().unwrap();
+            assert_eq!(seen.len(), 1);
+            assert_eq!(seen[0].api, envapi_ids::MACHINE_AUTH);
+            let payload: envapi::AuthPayload = envapi::from_cbor(seen[0].payload.as_ref()).unwrap();
+            assert_eq!(payload.purpose.as_deref(), Some("wss"));
+            assert_eq!(payload.leg_role, Some(leg));
+        }
+    }
+
+    #[test]
+    fn a_leg_scoped_refresher_keeps_its_leg_on_the_legacy_json_body() {
+        // The envelope path can fall back to legacy JSON; the leg must survive
+        // that fallback rather than silently reverting to scalar derivation.
+        let body = AuthRequest {
+            machine_id: "m-unified".to_string(),
+            machine_key_pub: "aa".repeat(32),
+            timestamp: 1,
+            signature: "bb".repeat(64),
+            purpose: Some(TokenPurpose::Wss.as_str().to_string()),
+            leg_role: Some(WssLegRole::Client),
+        };
+
+        let value = serde_json::to_value(&body).unwrap();
+        assert_eq!(value["purpose"], "wss");
+        assert_eq!(value["leg_role"], "client");
     }
 
     #[tokio::test]

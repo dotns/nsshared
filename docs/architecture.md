@@ -4,11 +4,15 @@
 
 ## Workspace Crates
 
-`common` contains shared configuration, machine-state, service, and protocol primitives. Its crate-level source docs export configuration structs for control centers and gateways, machine identity/state management, service definitions, tunnel protocol primitives, and NSD key pin helpers.
+`common` contains shared configuration, machine-state, service, and protocol primitives. Its crate-level source docs export configuration structs for control centers and gateways, machine identity/state management, service definitions, tunnel protocol primitives, and NSD key pin helpers. `common::node_capability` owns the unified-node capability vocabulary (`node.consume-services.v1`, `node.publish-services.v1`, `node.advertise-subnet-routes.v1`, `node.accept-subnet-routes.v1`); it is the single definition of those wire tokens, and an unrecognized token resolves to nothing so it can never activate a role or authorize a route.
 
 `acl` contains the accept-only ACL engine. Its crate-level source docs describe a default-deny policy evaluator, policy and lint models, access-decision inputs, merge helpers for layered policies, and deny-scope handling.
 
 `control` contains the control-plane client. Its crate-level source docs describe machine registration/authentication, server-sent event control streams, control-envelope handling, control message types, retry and merge helpers, multi-NSD support, and Noise/QUIC/SSE transport modules.
+
+`control::subnet_route` holds the L3 subnet-route contracts. Advertisement and authority are separate types on purpose: `NodeSubnetRouteReport` (envelope api `node.subnet_routes.report.v1`) is a node's intent and authorizes nothing, while `SubnetRouteConfig` (control message `subnet_route_config.v1`) is NSD's approved projection and is the only shape that authorizes a route. Neither replaces `RouteEntry` (L4 logical service route) or `CaptureRoute` (NSC capture/exit instruction). Both are full snapshots: an omitted route is withdrawn, and a snapshot that does not advance its generation is stale and dropped whole. Prefix validation takes the control plane's **effective** `vip_pool` / `tunnel_ip_pool` as an `OverlayReservedRanges` input rather than pinning NSD's documented defaults, because both pools are operator-configurable and a pinned validator would accept a prefix that swallows the overlay's own address space wherever a deployment overrides either one.
+
+`control::types::WssLegRole` lets one identity request a `client` or `relay` WSS leg through `AuthPayload::leg_role`. It is a request input only: NSD remains the sole granting authority and the requested leg is never self-asserting.
 
 The public-edge `GatewayHttpRoute` contract carries an optional
 `upstream_authority`. It is omitted when absent for legacy JSON/CBOR

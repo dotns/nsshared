@@ -160,6 +160,10 @@ pub mod api {
     pub const GATEWAY_REFLEXIVE: &str = "gateway.reflexive";
     pub const WG_RELAY_REGISTER_SOURCE: &str = "wg_relay.register_source";
     pub const CLIENT_EXIT_NODE_SELECTION: &str = "client.exit_node_selection.v1";
+    /// NODE-001 (`PLAN-015`): node → NSD full-snapshot subnet-route
+    /// advertisement. Reporting is intent only; approval and projection arrive
+    /// separately through `subnet_route_config.v1`.
+    pub const NODE_SUBNET_ROUTES_REPORT: &str = "node.subnet_routes.report.v1";
     /// D4 (`INGEST-005`): logical id for `POST /api/v1/gateway/report` over
     /// the envelope path. Must stay byte-equal to NSD's INGEST-004 local
     /// constant — adversarial gate C.

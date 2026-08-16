@@ -15,6 +15,7 @@
 pub mod dns_names;
 pub mod envelope_pins;
 pub mod jwt_pins;
+pub mod node_capability;
 pub mod services;
 pub mod state;
 pub mod tunnel;
@@ -29,7 +30,12 @@ pub use dns_names::{
     GATEWAY_DNS_SUFFIX, MACHINE_DNS_SUFFIX, SERVICE_DNS_SUFFIX, gateway_fqdn, is_gateway_fqdn,
     is_machine_fqdn, is_service_fqdn, machine_fqdn, service_fqdn,
 };
-pub use ipnet::IpNet;
+pub use ipnet::{IpNet, Ipv4Net};
+pub use node_capability::{
+    CAPABILITY_NODE_ACCEPT_SUBNET_ROUTES_V1, CAPABILITY_NODE_ADVERTISE_SUBNET_ROUTES_V1,
+    CAPABILITY_NODE_CONSUME_SERVICES_V1, CAPABILITY_NODE_PUBLISH_SERVICES_V1, NodeCapability,
+    recognized_node_capabilities,
+};
 pub use services::{
     GatewayPreference, PublicIngressSubjectPolicy, RuleViolation, ServiceDef, ServiceError,
     ServiceSettings, ServicesConfig, TunnelPreference, port_in_range, proto_matches,
