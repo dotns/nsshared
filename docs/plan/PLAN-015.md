@@ -1,8 +1,8 @@
 # PLAN-015 Unified node capability and subnet-route contracts
 
-- **status**: draft
+- **status**: approved
 - **createdAt**: 2026-08-16 06:06 UTC
-- **approvedAt**: pending
+- **approvedAt**: 2026-08-16 07:31 UTC
 - **relatedTask**: NODE-001
 - **relatedPlans**: ns PLAN-124, nsd PLAN-129, nsgw PLAN-123
 
