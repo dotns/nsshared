@@ -68,4 +68,4 @@ Each task is a single line linking to its detail file. All detailed information 
 
 ### Unified node capability and subnet-route contracts (PLAN-015)
 
-- [ ] [**NODE-001 Define unified node capability and subnet-route contracts**](NODE-001.md) `P0`
+- [-] [**NODE-001 Define unified node capability and subnet-route contracts**](NODE-001.md) `P0`

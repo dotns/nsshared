@@ -121,7 +121,7 @@ enum WirePublicKey {
     Text(String),
 }
 
-fn deserialize_wg_public_key<'de, D>(deserializer: D) -> Result<[u8; 32], D::Error>
+pub(crate) fn deserialize_wg_public_key<'de, D>(deserializer: D) -> Result<[u8; 32], D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -131,7 +131,7 @@ where
     }
 }
 
-fn serialize_wg_public_key<S>(value: &[u8; 32], serializer: S) -> Result<S::Ok, S::Error>
+pub(crate) fn serialize_wg_public_key<S>(value: &[u8; 32], serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
@@ -2285,6 +2285,13 @@ pub enum ControlMessage {
     /// client-mTLS validation.
     #[serde(rename = "gateway_client_ca_bundle.v1")]
     GatewayClientCaBundle(GatewayClientCaBundle),
+    /// Server → Node: authoritative approved subnet-route snapshot.
+    ///
+    /// Full snapshot: it replaces the consumer's installed route set, and an
+    /// omitted route is withdrawn. This is the only message that authorizes an
+    /// L3 subnet route; a node's own advertisement never does.
+    #[serde(rename = "subnet_route_config.v1")]
+    SubnetRouteConfig(crate::subnet_route::SubnetRouteConfig),
     /// Server → Client: direct-P2P candidate update for one peer.
     PeerCandidates(PeerCandidatesUpdate),
     /// Server → Client: the realm's current policy version (TASK-049). NSD
@@ -2339,6 +2346,7 @@ impl ControlMessage {
             ControlMessage::GatewayAuthConfig(_) => "gateway_auth_config.v1",
             ControlMessage::GatewayCertificateBundle(_) => "gateway_certificate_bundle.v1",
             ControlMessage::GatewayClientCaBundle(_) => "gateway_client_ca_bundle.v1",
+            ControlMessage::SubnetRouteConfig(_) => "subnet_route_config.v1",
             ControlMessage::PeerCandidates(_) => "peer_candidates",
             ControlMessage::PolicyVersion { .. } => "policy_version",
             ControlMessage::Unknown => "unknown",

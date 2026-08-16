@@ -27,6 +27,7 @@ pub mod multi;
 pub mod retry;
 pub mod signed_url;
 pub mod sse;
+pub mod subnet_route;
 pub mod transport;
 pub mod types;
 
@@ -1480,6 +1481,19 @@ impl ControlPlane {
                     info!("peer_candidates receiver dropped, shutting down");
                     return Ok(true);
                 }
+            }
+            ControlMessage::SubnetRouteConfig(cfg) => {
+                // NODE-001 (PLAN-015) lands the wire contract only. Installing
+                // approved subnet routes is node data-plane work tracked in ns
+                // PLAN-124, so this arm decodes and ignores: no channel send,
+                // no route install, no forwarding state. NSD gates the event on
+                // `node.accept-subnet-routes.v1`, so a node that does not
+                // advertise the capability never reaches this arm.
+                info!(
+                    generation = cfg.generation,
+                    routes = cfg.routes.len(),
+                    "ignored subnet_route_config (consumer not wired on this control plane)"
+                );
             }
             ControlMessage::PolicyVersion { version } => {
                 // TASK-049 (PLAN-095): pure no-op on this control plane. The
