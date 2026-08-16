@@ -1,6 +1,6 @@
 # ns-shared - Task List
 
-> Updated: 2026-07-28
+> Updated: 2026-08-16
 
 ## Usage
 
@@ -65,3 +65,7 @@ Each task is a single line linking to its detail file. All detailed information 
 ### Gateway build identity reporting
 
 - [~] [**CTRL-020 Add the gateway build identity report contract**](CTRL-020.md) `P1`
+
+### Unified node capability and subnet-route contracts (PLAN-015)
+
+- [ ] [**NODE-001 Define unified node capability and subnet-route contracts**](NODE-001.md) `P0`
