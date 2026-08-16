@@ -109,18 +109,6 @@ impl OverlayReservedRanges {
         }
     }
 
-    /// Effective VIP pool this validator was built with.
-    #[must_use]
-    pub const fn vip_pool(&self) -> Ipv4Net {
-        self.vip_pool
-    }
-
-    /// Effective gateway tunnel-IP pool this validator was built with.
-    #[must_use]
-    pub const fn tunnel_ip_pool(&self) -> Ipv4Net {
-        self.tunnel_ip_pool
-    }
-
     /// The reserved range `prefix` collides with, if any.
     #[must_use]
     pub fn conflict(&self, prefix: Ipv4Net) -> Option<(&'static str, Ipv4Net)> {
@@ -1240,6 +1228,30 @@ mod tests {
         assert!(snapshot.supersedes(Some(8)));
         assert!(!snapshot.supersedes(Some(9)));
         assert!(!snapshot.supersedes(Some(10)));
+    }
+
+    #[test]
+    fn a_report_supersedes_only_a_strictly_older_generation() {
+        let snapshot = report(Vec::new());
+        assert!(snapshot.supersedes(None));
+        assert!(snapshot.supersedes(Some(6)));
+        assert!(!snapshot.supersedes(Some(7)));
+        assert!(!snapshot.supersedes(Some(8)));
+    }
+
+    #[test]
+    fn prefix_overlap_is_symmetric_and_edge_exact() {
+        // Load-bearing beyond this module: the node needs the same predicate to
+        // refuse an overlay route that would shadow a local one.
+        assert!(prefixes_overlap(net("10.1.0.0/16"), net("10.1.2.0/24")));
+        assert!(prefixes_overlap(net("10.1.2.0/24"), net("10.1.0.0/16")));
+        assert!(prefixes_overlap(net("10.1.2.0/24"), net("10.1.2.0/24")));
+        // Adjacent, not overlapping.
+        assert!(!prefixes_overlap(net("10.1.0.0/24"), net("10.1.1.0/24")));
+        assert!(!prefixes_overlap(net("10.1.1.0/24"), net("10.1.0.0/24")));
+        // Single addresses at the boundary of a block.
+        assert!(prefixes_overlap(net("10.1.0.255/32"), net("10.1.0.0/24")));
+        assert!(!prefixes_overlap(net("10.1.1.0/32"), net("10.1.0.0/24")));
     }
 
     #[test]
