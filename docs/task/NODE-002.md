@@ -114,7 +114,7 @@ One file, `crates/control/src/lib.rs`:
 
 | repository | commit built | command | result |
 |---|---|---|---|
-| `ns` | `5d650e1` | `cargo build --workspace --all-targets` | pass |
+| `ns` | `5d650e1` | `cargo clippy --workspace --all-targets` + `cargo test --workspace` | pass |
 | `nsd` | `7719a5f` | `cargo build --workspace --all-targets` | pass |
 | `nsgw` | `87fb4cf` | `cargo build --workspace --all-targets` | pass |
 
