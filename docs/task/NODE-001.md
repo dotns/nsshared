@@ -1,8 +1,8 @@
 # NODE-001 Define unified node capability and subnet-route contracts
 
-- **status**: pending
+- **status**: in_progress
 - **priority**: P0
-- **owner**: unassigned
+- **owner**: ns-shared/NODE-001
 - **createdAt**: 2026-08-16 06:06 UTC
 - **relatedPlan**: PLAN-015
 
