@@ -118,6 +118,26 @@ are the intended cascade PLAN-015 acceptance describes: the shared crate must
 land inside one merge window with the nsd PLAN-129 and nsgw PLAN-123 arms, not
 ahead of them.
 
+With those five edits applied in the throwaway tree, every consumer suite runs
+green against this candidate — no runtime wire regression:
+
+| Consumer | Command | Result |
+|----------|---------|--------|
+| `ns` | `cargo nextest run --workspace --locked` | EXIT=0 — `1010 tests run: 1010 passed, 1 skipped` |
+| `nsd` | `cargo nextest run --workspace --locked` | EXIT=0 — `1081 tests run: 1081 passed (2 slow), 0 skipped` |
+| `nsgw` | `cargo nextest run --workspace --all-features --locked --no-tests=pass` | EXIT=0 — `1511 tests run: 1511 passed, 8 skipped` |
+
+The `ns` run is the cleanest signal of the three: `ns` needed no scaffolding at
+all, so its 1010 tests exercised unmodified consumer source against the new
+shared crate.
+
+`ns` and `nsgw` advanced while this slice was verified — `ns` to `38aaaed` and
+`nsgw` to `6396a53`. Both deltas are documentation-only
+(`ns` `docs/plan/PLAN-124.md`; `nsgw` `docs/plan/PLAN-123.md` plus the NODE-001
+audit finding), so no consumer source moved and the results above still
+describe the current consumer mains. The throwaway worktrees were removed after
+measurement; the consumer checkouts were left untouched.
+
 ## Notes
 
 - 2026-08-16 06:06 UTC: Proposal task created pending approval; unclaimed.
@@ -125,7 +145,7 @@ ahead of them.
   now takes NSD's effective pool configuration as an input instead of pinning
   the default CIDRs.
 - 2026-08-16 12:05 UTC: Implemented PLAN-015 items 1-7 and the Bounds and
-  validation section. Locked QA green with 679 executed tests. Cascade measured:
-  `ns` needs no change; `nsd` and `nsgw` need five arm/field edits that belong
-  to their own plans. Moved to review — this slice must not merge ahead of
-  those consumer arms.
+  validation section. Locked QA green with 681 executed tests. Cascade measured:
+  `ns` compiles and tests green unchanged; `nsd` and `nsgw` need five arm/field
+  edits that belong to their own plans, after which all three suites are green.
+  Moved to review — this slice must not merge ahead of those consumer arms.
