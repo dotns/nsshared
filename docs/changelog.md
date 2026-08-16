@@ -1,3 +1,20 @@
+## 2026-08-16 23:20 [feat]
+
+Gave the approved-subnet-route projection a consumer channel (NODE-002).
+
+- `ControlPlane` gains an optional `subnet_route_tx` and `set_subnet_route_tx`,
+  so a node that accepts subnet routes can receive the `subnet_route_config.v1`
+  projection NODE-001 previously decoded and dropped. Route admission, lease
+  binding, and installation stay in the node.
+- The sender is optional and set by the consumer rather than returned from
+  `ControlPlane::new`, copying `status_tx`. A mandatory receiver in
+  `ControlPlaneInit` would have to be drained by every node that never accepts
+  subnet routes, because a dropped receiver is a shutdown in this dispatch
+  loop.
+- With no consumer attached the arm keeps NODE-001's decode-and-ignore
+  behaviour exactly, so `nsc`, `nsn`, `nsd`, and `nsgw` are unchanged.
+- No wire change: no message type, enum variant, field, or bound moves.
+
 ## 2026-08-16 12:05 [feat]
 
 Added the unified node capability and subnet-route wire contracts.
