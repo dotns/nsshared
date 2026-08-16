@@ -399,6 +399,14 @@ pub struct ControlPlane {
     nsd_id: Option<String>,
     /// Optional scope/session-specific connection-status sender.
     status_tx: Option<mpsc::Sender<ControlPlaneStatus>>,
+    /// Optional consumer for the approved-subnet-route projection.
+    ///
+    /// Optional rather than part of [`ControlPlaneInit`] because most nodes
+    /// never accept subnet routes. A mandatory receiver would have to be
+    /// drained by every one of them — a dropped receiver is a shutdown in this
+    /// dispatch loop — and `None` keeps the decode-and-ignore behaviour those
+    /// nodes have today.
+    subnet_route_tx: Option<mpsc::Sender<crate::subnet_route::SubnetRouteConfig>>,
 }
 
 impl ControlPlane {
@@ -457,6 +465,7 @@ impl ControlPlane {
             recovery_circuit,
             nsd_id: None,
             status_tx: None,
+            subnet_route_tx: None,
         };
         Ok((
             plane,
@@ -474,6 +483,20 @@ impl ControlPlane {
     /// Attach a scope/session-specific connection-status sender.
     pub fn set_status_tx(&mut self, tx: mpsc::Sender<ControlPlaneStatus>) {
         self.status_tx = Some(tx);
+    }
+
+    /// Attach a consumer for the approved-subnet-route projection.
+    ///
+    /// Until one is attached the `subnet_route_config.v1` arm decodes and
+    /// ignores, which is what every node that does not advertise
+    /// `node.accept-subnet-routes.v1` should do. Attaching is what makes a
+    /// projection reach a node data plane; NSD still decides whether the event
+    /// is emitted at all, and admission remains the node's own decision.
+    pub fn set_subnet_route_tx(
+        &mut self,
+        tx: mpsc::Sender<crate::subnet_route::SubnetRouteConfig>,
+    ) {
+        self.subnet_route_tx = Some(tx);
     }
 
     /// Begin one logical outer connection attempt.
@@ -1483,17 +1506,30 @@ impl ControlPlane {
                 }
             }
             ControlMessage::SubnetRouteConfig(cfg) => {
-                // NODE-001 (PLAN-015) lands the wire contract only. Installing
-                // approved subnet routes is node data-plane work tracked in ns
-                // PLAN-124, so this arm decodes and ignores: no channel send,
-                // no route install, no forwarding state. NSD gates the event on
+                // NODE-002: the projection is forwarded only when a node has
+                // attached a consumer. NSD gates the event on
                 // `node.accept-subnet-routes.v1`, so a node that does not
-                // advertise the capability never reaches this arm.
+                // advertise the capability never reaches this arm; a node that
+                // does but has attached nothing keeps NODE-001's
+                // decode-and-ignore behaviour. Route admission, lease binding,
+                // and installation are the node's, not this plane's.
+                let Some(tx) = self.subnet_route_tx.as_ref() else {
+                    info!(
+                        generation = cfg.generation,
+                        routes = cfg.routes.len(),
+                        "ignored subnet_route_config (consumer not wired on this control plane)"
+                    );
+                    return Ok(false);
+                };
                 info!(
                     generation = cfg.generation,
                     routes = cfg.routes.len(),
-                    "ignored subnet_route_config (consumer not wired on this control plane)"
+                    "received subnet_route_config"
                 );
+                if tx.send(cfg).await.is_err() {
+                    info!("subnet_route_config receiver dropped, shutting down");
+                    return Ok(true);
+                }
             }
             ControlMessage::PolicyVersion { version } => {
                 // TASK-049 (PLAN-095): pure no-op on this control plane. The
@@ -3326,5 +3362,169 @@ mod post_services_reauth_tests {
             nsd_b.can_attempt(policy, now + std::time::Duration::from_secs(60)),
             "unaffected NSD must remain eligible"
         );
+    }
+
+    // ── NODE-002: the approved-subnet-route projection reaches a consumer ────
+    //
+    // Both tests drive the real `run_loop`, so the projection travels the
+    // production dispatch path. Calling the arm directly would prove nothing
+    // about the wiring, which is the only thing this task changes.
+
+    /// A stream that hands the loop a scripted message list, then parks.
+    struct ScriptedStream {
+        messages: Arc<Mutex<std::collections::VecDeque<crate::messages::ControlMessage>>>,
+    }
+
+    #[async_trait]
+    impl ControlStream for ScriptedStream {
+        async fn post_services_report(&mut self, _envelope: ControlEnvelope) -> Result<(), Error> {
+            Ok(())
+        }
+
+        async fn connect(&mut self, _envelope: ControlEnvelope) -> Result<(), Error> {
+            Ok(())
+        }
+
+        async fn next_message(
+            &mut self,
+        ) -> Result<crate::auth::VerifiedEnvelopePayload<crate::messages::ControlMessage>, Error>
+        {
+            let next = self
+                .messages
+                .lock()
+                .expect("scripted messages poisoned")
+                .pop_front();
+            match next {
+                Some(payload) => Ok(crate::auth::VerifiedEnvelopePayload {
+                    payload,
+                    signed_at_unix_secs: 0,
+                    received_at: std::time::Instant::now(),
+                }),
+                // Parking rather than erroring keeps the loop in its connected
+                // state, so a failure to deliver shows up as a timeout on the
+                // receiver rather than as a reconnect that hides it.
+                None => std::future::pending().await,
+            }
+        }
+
+        fn set_token(&mut self, _token: String) {}
+    }
+
+    fn one_route_projection() -> crate::subnet_route::SubnetRouteConfig {
+        crate::subnet_route::SubnetRouteConfig {
+            generation: 7,
+            routes: vec![crate::subnet_route::ApprovedSubnetRoute {
+                route_id: "route-a".to_string(),
+                realm_id: "realm-a".to_string(),
+                owner_machine_id: "provider-1".to_string(),
+                prefix: "192.168.50.0/24".parse().expect("prefix"),
+                next_hop_wg_public_key: [7u8; 32],
+                generation: 3,
+                forwarding: crate::subnet_route::SubnetRouteForwardingMode::Snat,
+                scope: crate::subnet_route::SubnetRouteAuthorizationScope::Realm,
+            }],
+        }
+    }
+
+    /// The projection reaches an attached consumer through real dispatch.
+    #[tokio::test]
+    async fn an_attached_consumer_receives_the_subnet_route_projection() {
+        let state = registered_state().await;
+        // No server: `re_auth_after_services_report` is allowed to fail, and
+        // the loop proceeds on the token it already holds.
+        let url = "http://127.0.0.1:1".to_string();
+        let auth = AuthClient::new(&url, state);
+        let (mut plane, _wg, _proxy, _acl, _gw, _rt, _dns, _peer, _tok_rx) =
+            ControlPlane::new(dummy_config(url), empty_report(), auth).expect("control plane");
+
+        let (subnet_tx, mut subnet_rx) = tokio::sync::mpsc::channel(4);
+        plane.set_subnet_route_tx(subnet_tx);
+
+        let projection = one_route_projection();
+        let messages = Arc::new(Mutex::new(std::collections::VecDeque::from([
+            crate::messages::ControlMessage::SubnetRouteConfig(projection.clone()),
+        ])));
+        let stream_messages = Arc::clone(&messages);
+        let run_task = tokio::spawn(async move {
+            plane
+                .run_loop("token-A".to_string(), move || {
+                    Box::new(ScriptedStream {
+                        messages: Arc::clone(&stream_messages),
+                    })
+                })
+                .await
+        });
+
+        let received = tokio::time::timeout(std::time::Duration::from_secs(5), subnet_rx.recv())
+            .await
+            .expect("the projection must reach an attached consumer")
+            .expect("the consumer channel must stay open");
+        assert_eq!(
+            received, projection,
+            "the consumer must receive the decoded projection unchanged"
+        );
+
+        run_task.abort();
+        let _ = run_task.await;
+    }
+
+    /// With no consumer attached the arm keeps NODE-001's behaviour: decode,
+    /// log, ignore — and above all, do not shut the control plane down.
+    ///
+    /// This one passes on both trees by design. It is a guard against the
+    /// optional channel changing behaviour for `nsc`, `nsn`, `nsd`, and `nsgw`,
+    /// not a proof of the new path.
+    #[tokio::test]
+    async fn no_consumer_leaves_the_projection_decoded_and_ignored() {
+        let state = registered_state().await;
+        let url = "http://127.0.0.1:1".to_string();
+        let auth = AuthClient::new(&url, state);
+        let (mut plane, _wg, _proxy, _acl, _gw, _rt, _dns, _peer, mut tok_rx) =
+            ControlPlane::new(dummy_config(url), empty_report(), auth).expect("control plane");
+
+        let (status_tx, mut status_rx) = tokio::sync::mpsc::channel(4);
+        plane.set_status_tx(status_tx);
+
+        // The projection is followed by a token refresh. Observing the *second*
+        // message is what proves the first was ignored rather than fatal: a
+        // shutdown on the projection would stop the loop before it arrives.
+        let messages = Arc::new(Mutex::new(std::collections::VecDeque::from([
+            crate::messages::ControlMessage::SubnetRouteConfig(one_route_projection()),
+            crate::messages::ControlMessage::TokenRefresh {
+                token: "token-after".to_string(),
+            },
+        ])));
+        let stream_messages = Arc::clone(&messages);
+        let run_task = tokio::spawn(async move {
+            plane
+                .run_loop("token-A".to_string(), move || {
+                    Box::new(ScriptedStream {
+                        messages: Arc::clone(&stream_messages),
+                    })
+                })
+                .await
+        });
+
+        let connected = tokio::time::timeout(std::time::Duration::from_secs(5), status_rx.recv())
+            .await
+            .expect("the stream must report connected")
+            .expect("status channel open");
+        assert!(connected.connected);
+
+        let refreshed = tokio::time::timeout(std::time::Duration::from_secs(5), tok_rx.recv())
+            .await
+            .expect("the message after the projection must still be dispatched")
+            .expect("token channel open");
+        assert_eq!(
+            refreshed, "token-after",
+            "an ignored projection must not stop the dispatch loop"
+        );
+        assert!(
+            !run_task.is_finished(),
+            "an ignored projection must not shut the control plane down"
+        );
+
+        run_task.abort();
+        let _ = run_task.await;
     }
 }
