@@ -124,6 +124,14 @@ pub struct RegisterResponse {
     /// Ed25519 envelope-signing public key (64-char lowercase hex).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub nsd_envelope_pubkey: Option<String>,
+    /// Overlay address the control plane assigned to this machine.
+    ///
+    /// An **assignment**, not a suggestion: the control plane allocates it and
+    /// restates the same value in the `WgConfig` it projects to every peer
+    /// authorized to reach this machine, so a client that bound something else
+    /// would answer at an address nobody was told to use. Absent when the
+    /// control plane states none, which is also what every response from before
+    /// the field was projected looks like.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub wg_tunnel_ip: Option<Ipv4Addr>,
 }

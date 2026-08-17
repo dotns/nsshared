@@ -70,3 +70,4 @@ Each task is a single line linking to its detail file. All detailed information 
 
 - [-] [**NODE-001 Define unified node capability and subnet-route contracts**](NODE-001.md) `P0`
 - [-] [**NODE-002 Give the approved-subnet-route projection a consumer channel**](NODE-002.md) `P0`
+- [-] [**NODE-003 Carry the control plane's overlay address assignment to the node**](NODE-003.md) `P0`

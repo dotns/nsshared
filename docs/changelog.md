@@ -1,3 +1,24 @@
+## 2026-08-17 09:40 [feat]
+
+Carried the control plane's overlay address assignment to the node (NODE-003).
+
+- `MachineState` gains `overlay_address`, persisted in the per-realm
+  registration file, so a registered node can find out which overlay address the
+  control plane holds for it instead of configuring one itself.
+- `AuthClient`'s registration decode carries `wg_tunnel_ip` on both the envelope
+  and the legacy JSON path. The field was already on `api::RegisterResponse`;
+  the client's own decode struct dropped it, so the value never reached the
+  node.
+- `set_overlay_address` is separate from `set_registered` rather than a new
+  parameter on it: that call is shared by every client binary, and only the
+  unified node has anything to say about an overlay address.
+- Backward compatible in both directions. A registration file written before
+  this change loads with no address, a machine with no assignment serializes the
+  key away, and a response that omits `wg_tunnel_ip` registers exactly as
+  before. No wire type, field, or bound changes.
+- Merges with the `nsd` projection arm and the `ns` consumer arm in one window;
+  this repository must not merge ahead of them.
+
 ## 2026-08-16 23:20 [feat]
 
 Gave the approved-subnet-route projection a consumer channel (NODE-002).

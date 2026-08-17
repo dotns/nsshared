@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::net::Ipv4Addr;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -1303,6 +1304,11 @@ struct RegisterResponse {
     domain_base: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     nsd_envelope_pubkey: Option<String>,
+    /// Overlay address the control plane assigned to this machine. Defaulted
+    /// rather than required: a control plane that assigns none omits the key,
+    /// and every response written before this field was projected omits it too.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    wg_tunnel_ip: Option<Ipv4Addr>,
 }
 
 async fn legacy_register_response(resp: reqwest::Response) -> Result<RegisterResponse, Error> {
@@ -1726,6 +1732,7 @@ impl AuthClient {
             server_endpoint: resp.server_endpoint,
             domain_base: resp.domain_base,
             nsd_envelope_pubkey: resp.nsd_envelope_pubkey,
+            wg_tunnel_ip: resp.wg_tunnel_ip,
         })
     }
 
@@ -1758,7 +1765,12 @@ impl AuthClient {
                 &resp.server_endpoint,
                 resp.domain_base,
             )
-            .map_err(|e| Error::Auth(e.to_string()))
+            .map_err(|e| Error::Auth(e.to_string()))?;
+        // Recorded only once the registration itself was accepted: an address
+        // kept from a response whose identity fields were rejected would name a
+        // machine this state file does not claim to be.
+        self.state.set_overlay_address(resp.wg_tunnel_ip);
+        Ok(())
     }
 
     /// Authenticate with an Ed25519 signature (`POST /api/v1/machine/auth`).
@@ -2293,6 +2305,143 @@ mod tests {
         assert!(req.access_token.is_none());
         assert!(req.r#type.is_none());
         assert_eq!(req.capabilities, vec![CAPABILITY_CAPTURE_ROUTES_V1]);
+    }
+
+    /// The envelope path carries the control plane's address assignment.
+    ///
+    /// Driven through `register_via_envelope`, not through a serde call: the
+    /// field was already on the wire type before this test existed and was
+    /// dropped by the client's own decode struct, so only the real path proves
+    /// it now survives to `MachineState`.
+    #[tokio::test]
+    async fn register_via_envelope_records_the_assigned_overlay_address() {
+        let state = fresh_machine_state().await;
+        assert_eq!(state.overlay_address, None);
+
+        let nsd_sk = SigningKey::generate(&mut OsRng);
+        let nsd_pin = envelope_pin_for_key(&nsd_sk);
+        let resp_payload = envapi::to_cbor(&envapi::RegisterResponse {
+            machine_id: "machine-assigned".into(),
+            server_peer_key_pub: "aa".repeat(32),
+            server_endpoint: "10.0.0.1:51820".into(),
+            domain_base: Some("n.ns".into()),
+            nsd_envelope_pubkey: None,
+            wg_tunnel_ip: Some(Ipv4Addr::new(100, 64, 0, 7)),
+        })
+        .unwrap();
+        let mock = Arc::new(MockTransport::new(nsd_sk, resp_payload));
+        let transport: Arc<dyn ControlTransport> = mock.clone();
+
+        let mut auth = AuthClient::new("http://nsd-1:3001", state)
+            .with_transport(transport)
+            .with_envelope_trust("nsd-a", "realm-a", "/tmp/nsio-test", vec![nsd_pin], None);
+
+        auth.register_via_envelope("secret-key").await.unwrap();
+
+        assert!(auth.state.is_registered());
+        assert_eq!(
+            auth.state.overlay_address,
+            Some(Ipv4Addr::new(100, 64, 0, 7)),
+            "the address the control plane assigned must survive registration",
+        );
+    }
+
+    /// A control plane that assigns no address leaves the machine with none.
+    #[tokio::test]
+    async fn register_via_envelope_records_no_overlay_address_when_none_is_assigned() {
+        let state = fresh_machine_state().await;
+
+        let nsd_sk = SigningKey::generate(&mut OsRng);
+        let nsd_pin = envelope_pin_for_key(&nsd_sk);
+        let resp_payload = envapi::to_cbor(&envapi::RegisterResponse {
+            machine_id: "machine-unassigned".into(),
+            server_peer_key_pub: "aa".repeat(32),
+            server_endpoint: "10.0.0.1:51820".into(),
+            domain_base: Some("n.ns".into()),
+            nsd_envelope_pubkey: None,
+            wg_tunnel_ip: None,
+        })
+        .unwrap();
+        let mock = Arc::new(MockTransport::new(nsd_sk, resp_payload));
+        let transport: Arc<dyn ControlTransport> = mock.clone();
+
+        let mut auth = AuthClient::new("http://nsd-1:3001", state)
+            .with_transport(transport)
+            .with_envelope_trust("nsd-a", "realm-a", "/tmp/nsio-test", vec![nsd_pin], None);
+
+        auth.register_via_envelope("secret-key").await.unwrap();
+
+        assert!(auth.state.is_registered());
+        assert_eq!(
+            auth.state.overlay_address, None,
+            "no assignment must leave no address rather than a default one",
+        );
+    }
+
+    /// The legacy JSON path carries the assignment too, over real HTTP.
+    #[tokio::test]
+    async fn legacy_register_records_the_assigned_overlay_address() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind");
+        let addr = listener.local_addr().expect("local addr");
+        let body = format!(
+            r#"{{"machine_id":"m-legacy","server_peer_key_pub":"{}","#,
+            "aa".repeat(32)
+        ) + r#""server_endpoint":"10.0.0.1:51820","domain_base":"n.ns","#
+            + r#""wg_tunnel_ip":"100.64.0.9"}"#;
+        let server = tokio::spawn(run_mock_nsd(
+            listener,
+            vec![http_response(200, "application/json", &body)],
+        ));
+
+        let state = fresh_machine_state().await;
+        let url = format!("http://{addr}");
+        let mut auth = AuthClient::new(&url, state);
+
+        auth.register("secret-key")
+            .await
+            .expect("legacy register must succeed");
+
+        assert_eq!(
+            auth.state.overlay_address,
+            Some(Ipv4Addr::new(100, 64, 0, 9)),
+            "the legacy JSON path must carry the assignment as well",
+        );
+        let captured = server.await.expect("mock task panicked");
+        assert_eq!(captured.len(), 1);
+    }
+
+    /// A registration response from a control plane that projects no address to
+    /// this machine's type decodes exactly as it always has.
+    #[tokio::test]
+    async fn legacy_register_without_an_assignment_still_registers() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind");
+        let addr = listener.local_addr().expect("local addr");
+        let body = format!(
+            r#"{{"machine_id":"m-legacy-old","server_peer_key_pub":"{}","#,
+            "aa".repeat(32)
+        ) + r#""server_endpoint":"10.0.0.1:51820","domain_base":"n.ns"}"#;
+        let server = tokio::spawn(run_mock_nsd(
+            listener,
+            vec![http_response(200, "application/json", &body)],
+        ));
+
+        let state = fresh_machine_state().await;
+        let url = format!("http://{addr}");
+        let mut auth = AuthClient::new(&url, state);
+
+        auth.register("secret-key")
+            .await
+            .expect("a response omitting wg_tunnel_ip must still register");
+
+        assert!(auth.state.is_registered());
+        assert_eq!(auth.state.machine_id.as_deref(), Some("m-legacy-old"));
+        assert_eq!(auth.state.overlay_address, None);
+        let captured = server.await.expect("mock task panicked");
+        assert_eq!(captured.len(), 1);
     }
 
     #[tokio::test]
