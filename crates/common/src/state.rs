@@ -6,7 +6,7 @@
 //! This allows one machine to register with multiple NSD realms independently,
 //! sharing the same keypair but with separate registration tokens.
 
-use std::net::SocketAddr;
+use std::net::{Ipv4Addr, SocketAddr};
 use std::path::{Path, PathBuf};
 
 use ed25519_dalek::SigningKey;
@@ -256,6 +256,12 @@ struct RegistrationFile {
     server_peer_pub_hex: Option<String>,
     server_endpoint: Option<String>,
     domain_base: Option<String>,
+    /// Overlay address the control plane assigned at registration. Absent in
+    /// every file written before the assignment was carried, and absent for a
+    /// control plane that assigns none — so it defaults rather than failing the
+    /// load, and serializes away when there is nothing to record.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    overlay_address: Option<Ipv4Addr>,
 }
 
 // ── MachineState ──────────────────────────────────────────────────────────────
@@ -280,6 +286,17 @@ pub struct MachineState {
     /// Auto-assigned domain namespace returned by NSD on registration.
     /// Format: `"{machine_id}.m.ns.io"`.
     pub domain_base: Option<String>,
+    /// Overlay address the control plane assigned to this machine, as returned
+    /// by the registration it accepted.
+    ///
+    /// This is an **assignment**, not a preference: the control plane allocates
+    /// it from its own pool and re-states the same value in the `WgConfig` it
+    /// projects, so a node that binds this address cannot disagree with the
+    /// peers that are told to reach it there. `None` means the control plane
+    /// stated no address — an unregistered machine, or one registered against a
+    /// control plane that assigns none to its type — and the node is then left
+    /// to whatever its configuration says.
+    pub overlay_address: Option<Ipv4Addr>,
 }
 
 impl Clone for MachineState {
@@ -295,6 +312,7 @@ impl Clone for MachineState {
             server_peer_pub: self.server_peer_pub,
             server_endpoint: self.server_endpoint,
             domain_base: self.domain_base.clone(),
+            overlay_address: self.overlay_address,
         }
     }
 }
@@ -371,6 +389,7 @@ impl MachineState {
             server_peer_pub,
             server_endpoint,
             domain_base: reg.domain_base,
+            overlay_address: reg.overlay_address,
         })
     }
 
@@ -401,6 +420,7 @@ impl MachineState {
             server_peer_pub: None,
             server_endpoint: None,
             domain_base: None,
+            overlay_address: None,
         }
     }
 
@@ -438,6 +458,7 @@ impl MachineState {
             server_peer_pub_hex: self.server_peer_pub.as_ref().map(hex::encode),
             server_endpoint: self.server_endpoint.map(|a| a.to_string()),
             domain_base: self.domain_base.clone(),
+            overlay_address: self.overlay_address,
         };
 
         write_json_atomic(&reg_path, &reg).await?;
@@ -492,6 +513,21 @@ impl MachineState {
         self.domain_base = domain_base;
         self.registered = true;
         Ok(())
+    }
+
+    /// Record the overlay address the control plane assigned at registration.
+    ///
+    /// Written straight through, `None` included, for the same reason
+    /// [`Self::set_registered`] overwrites `domain_base`: the registration
+    /// response is the statement of record. A control plane that assigns no
+    /// address leaves the machine with none rather than with a stale one it
+    /// would then bind and advertise.
+    ///
+    /// Kept separate from `set_registered` rather than added to its signature:
+    /// that call is shared by every client binary in the fleet, and none of
+    /// them but the unified node has anything to say about an overlay address.
+    pub fn set_overlay_address(&mut self, overlay_address: Option<Ipv4Addr>) {
+        self.overlay_address = overlay_address;
     }
 }
 
@@ -647,6 +683,79 @@ mod tests {
         let sig_bytes = state.sign(msg);
         let sig = ed25519_dalek::Signature::from_bytes(&sig_bytes);
         state.verifying_key().verify(msg, &sig).unwrap();
+    }
+
+    #[tokio::test]
+    async fn the_assigned_overlay_address_survives_a_save_and_reload() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut state = MachineState::load_or_create(dir.path()).await.unwrap();
+        state
+            .set_registered(
+                "mid-overlay".to_string(),
+                &hex::encode([7u8; 32]),
+                "127.0.0.1:51820",
+                Some(machine_fqdn("mid-overlay")),
+            )
+            .unwrap();
+        state.set_overlay_address(Some(Ipv4Addr::new(100, 64, 0, 11)));
+        state.save(dir.path()).await.unwrap();
+
+        let loaded = MachineState::load_or_create(dir.path()).await.unwrap();
+        assert_eq!(loaded.overlay_address, Some(Ipv4Addr::new(100, 64, 0, 11)));
+    }
+
+    /// A registration file written before the assignment was carried must load
+    /// unchanged, with no address rather than an error or a default one. The
+    /// file is written by hand rather than by an older build, so the test still
+    /// describes the legacy shape once no such build remains.
+    #[tokio::test]
+    async fn a_registration_file_without_an_overlay_address_loads_unchanged() {
+        let dir = tempfile::tempdir().unwrap();
+        MachineState::load_or_create(dir.path()).await.unwrap();
+
+        let reg_path = registration_file_path(dir.path(), "default");
+        tokio::fs::create_dir_all(reg_path.parent().unwrap())
+            .await
+            .unwrap();
+        tokio::fs::write(
+            &reg_path,
+            format!(
+                r#"{{"machine_id":"mid-legacy","registered":true,"server_peer_pub_hex":"{}","server_endpoint":"127.0.0.1:51820","domain_base":"mid-legacy.m.ns.io"}}"#,
+                hex::encode([3u8; 32])
+            ),
+        )
+        .await
+        .unwrap();
+
+        let loaded = MachineState::load_or_create(dir.path()).await.unwrap();
+        assert!(loaded.is_registered());
+        assert_eq!(loaded.machine_id.as_deref(), Some("mid-legacy"));
+        assert_eq!(loaded.overlay_address, None);
+    }
+
+    /// A machine with no assignment must not gain a key on disk: an older
+    /// reader would then see a field it cannot interpret.
+    #[tokio::test]
+    async fn an_unassigned_machine_writes_no_overlay_address_key() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut state = MachineState::load_or_create(dir.path()).await.unwrap();
+        state
+            .set_registered(
+                "mid-none".to_string(),
+                &hex::encode([9u8; 32]),
+                "127.0.0.1:51820",
+                None,
+            )
+            .unwrap();
+        state.save(dir.path()).await.unwrap();
+
+        let written = tokio::fs::read_to_string(registration_file_path(dir.path(), "default"))
+            .await
+            .unwrap();
+        assert!(
+            !written.contains("overlay_address"),
+            "an unassigned machine must serialize the key away: {written}",
+        );
     }
 
     #[tokio::test]
