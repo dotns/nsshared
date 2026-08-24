@@ -4,7 +4,7 @@
 
 ## Workspace Crates
 
-`common` contains shared configuration, machine-state, service, and protocol primitives. Its crate-level source docs export configuration structs for control centers and gateways, machine identity/state management, service definitions, tunnel protocol primitives, and NSD key pin helpers. `common::node_capability` owns the unified-node capability vocabulary (`node.consume-services.v1`, `node.publish-services.v1`, `node.advertise-subnet-routes.v1`, `node.accept-subnet-routes.v1`); it is the single definition of those wire tokens, and an unrecognized token resolves to nothing so it can never activate a role or authorize a route.
+`common` contains shared configuration, machine-state, service, and protocol primitives. Its crate-level source docs export configuration structs for control centers and gateways, machine identity/state management, service definitions, tunnel protocol primitives, and NSD key pin helpers. `common::tunnel::DEFAULT_WIREGUARD_PLAINTEXT_MTU` is the one local data-plane default shared by NS and NSGW; it is not a control-plane field or wire contract. `common::node_capability` owns the unified-node capability vocabulary (`node.consume-services.v1`, `node.publish-services.v1`, `node.advertise-subnet-routes.v1`, `node.accept-subnet-routes.v1`); it is the single definition of those wire tokens, and an unrecognized token resolves to nothing so it can never activate a role or authorize a route.
 
 `acl` contains the accept-only ACL engine. Its crate-level source docs describe a default-deny policy evaluator, policy and lint models, access-decision inputs, merge helpers for layered policies, and deny-scope handling.
 

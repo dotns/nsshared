@@ -1,3 +1,13 @@
+## 2026-08-24 06:07 [fix]
+
+Defined one shared 1360-byte WireGuard plaintext-MTU default (MTU-001 / ns
+PLAN-129).
+
+- Export the conservative local data-plane default from `common::tunnel` for
+  both NS and NSGW consumers.
+- Keep the value outside every serialized control contract; NSD does not
+  project or negotiate it.
+
 ## 2026-08-17 09:40 [feat]
 
 Carried the control plane's overlay address assignment to the node (NODE-003).
