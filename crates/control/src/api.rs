@@ -24,8 +24,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::messages::{
     ControlMessage, ExitNodeDnsPolicy, ExitNodeFallbackPolicy, GatewayCertificateStatus,
-    GatewayServicesAck, GatewayServicesReport, LinkMode, PeerCandidatesReport, ServiceReport,
-    ServicesAck,
+    GatewayRelayCapacity, GatewayServicesAck, GatewayServicesReport, LinkMode,
+    PeerCandidatesReport, ServiceReport, ServicesAck,
 };
 use crate::subnet_route::{NodeSubnetRouteReport, NodeSubnetRouteReportAck};
 use crate::types::{ConnectorType, WssLegRole};
@@ -476,6 +476,11 @@ pub struct GatewayReportRequest {
     /// Non-secret certificate activation status reported by this gateway.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub certificate_statuses: Vec<GatewayCertificateStatus>,
+    /// Relay capacity headroom (PLAN-124 D4). Absent from gateways that do not
+    /// run a relay and from every build before the capability was added, so a
+    /// consumer must treat `None` as "unknown", never as "empty".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub relay_capacity: Option<GatewayRelayCapacity>,
 }
 
 /// Response payload for `api = "gateway.report"` (D4). Empty on success — the
@@ -726,6 +731,7 @@ mod serde_bytes_array_16 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::messages::GatewayRealmCapacity;
     use common::{
         CAPABILITY_GATEWAY_PUBLIC_EDGE_V1, PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_CONFIG,
         PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_UPSTREAM_TLS_ACCEPT_UNTRUSTED,
@@ -936,6 +942,22 @@ mod tests {
                 gateway_ack_generation: Some(7),
                 last_error_code: None,
             }],
+            relay_capacity: Some(GatewayRelayCapacity {
+                max_sessions: 4096,
+                active_routes: 128,
+                max_pending_inits: 1024,
+                active_pending_inits: 3,
+                total_targets: 12,
+                active_targets: 11,
+                routes_evicted_for_capacity: 5,
+                realms: vec![GatewayRealmCapacity {
+                    realm: "realm-a".into(),
+                    route_quota: 2048,
+                    active_routes: 100,
+                    pending_quota: 512,
+                    active_pending_inits: 2,
+                }],
+            }),
         };
         let bytes = to_cbor(&req).unwrap();
         let decoded: GatewayReportRequest = from_cbor(&bytes).unwrap();
@@ -963,6 +985,18 @@ mod tests {
                 PUBLIC_EDGE_SCOPE_GATEWAY_L4_MAP
             ]
         );
+        let capacity = decoded
+            .relay_capacity
+            .expect("relay capacity survives the round trip");
+        assert_eq!(capacity.max_sessions, 4096);
+        assert_eq!(capacity.active_routes, 128);
+        assert_eq!(capacity.routes_evicted_for_capacity, 5);
+        assert_eq!(capacity.total_targets, 12);
+        assert_eq!(capacity.active_targets, 11);
+        assert_eq!(capacity.realms.len(), 1);
+        assert_eq!(capacity.realms[0].realm, "realm-a");
+        assert_eq!(capacity.realms[0].route_quota, 2048);
+        assert_eq!(capacity.realms[0].active_routes, 100);
         assert_eq!(decoded.certificate_statuses.len(), 1);
         assert_eq!(
             decoded.certificate_statuses[0].cert_id,
@@ -1005,6 +1039,11 @@ mod tests {
         assert!(decoded.capabilities.is_empty());
         assert!(decoded.public_ingress_scopes.is_empty());
         assert!(decoded.certificate_statuses.is_empty());
+        // A gateway that predates capacity reporting is "unknown", not "idle".
+        // Defaulting this to a zeroed capacity would read as a gateway with no
+        // load and infinite headroom, which is the exact direction that makes
+        // placement pile work onto it.
+        assert!(decoded.relay_capacity.is_none());
     }
 
     #[test]
@@ -1042,6 +1081,21 @@ mod tests {
             capabilities: Vec::new(),
             public_ingress_scopes: Vec::new(),
             certificate_statuses: Vec::new(),
+            // Present here on purpose: an NSD that predates capacity reporting
+            // has to skip the field, not fail the whole report on it. A gateway
+            // whose reports are rejected outright stops refreshing its endpoint
+            // and eventually looks offline, so this is the compatibility edge
+            // that actually costs something.
+            relay_capacity: Some(GatewayRelayCapacity {
+                max_sessions: 4096,
+                active_routes: 1,
+                max_pending_inits: 1024,
+                active_pending_inits: 0,
+                total_targets: 1,
+                active_targets: 1,
+                routes_evicted_for_capacity: 0,
+                realms: Vec::new(),
+            }),
         };
 
         let bytes = to_cbor(&req).unwrap();
