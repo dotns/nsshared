@@ -2107,6 +2107,69 @@ pub struct GatewayCertificateStatus {
     pub last_error_code: Option<String>,
 }
 
+/// Relay capacity headroom reported by a gateway (PLAN-124 D4).
+///
+/// Placement needs this to refuse assigning new pairs into a gateway that is
+/// already evicting live sessions. The gateway's own overflow behaviour is
+/// evict-oldest, so the first visible symptom of running out of room is an
+/// established user being dropped -- by then it is too late to react. Reporting
+/// the watermark lets the control plane stop before that point.
+///
+/// Counts are a point-in-time sample taken on the relay's prune tick, so they
+/// trail live state by at most one prune interval. That is the same order as
+/// the report interval itself and deliberately keeps the sampling off the
+/// packet path.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct GatewayRelayCapacity {
+    /// Configured global ceiling on relay session routes.
+    pub max_sessions: u32,
+    /// Session **route legs** currently held, not logical sessions. One relayed
+    /// session normally occupies two legs (one per direction), so this is
+    /// roughly twice the session count. Compared against `max_sessions`, which
+    /// is a ceiling on the same leg-counted table.
+    pub active_routes: u32,
+    /// Configured global ceiling on in-flight handshake inits.
+    pub max_pending_inits: u32,
+    /// Handshake inits currently awaiting a response.
+    pub active_pending_inits: u32,
+    /// Relay targets known to this gateway, keyed by connector public key.
+    /// Includes targets parked as conflicted, which `active_targets` excludes.
+    pub total_targets: u32,
+    /// Targets currently eligible to carry traffic.
+    pub active_targets: u32,
+    /// Cumulative count of routes this gateway evicted for capacity since
+    /// process start. Non-zero means the gateway has already dropped live
+    /// sessions; a rising value is a stronger admission signal than any
+    /// watermark, because it reports harm that has happened rather than harm
+    /// that is approaching.
+    pub routes_evicted_for_capacity: u64,
+    /// Per-realm breakdown. A realm appears here when it holds an active relay
+    /// lease, including one with no routes yet -- those are precisely the realms
+    /// with headroom, and omitting them would bias placement away from them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub realms: Vec<GatewayRealmCapacity>,
+}
+
+/// One realm's share of a gateway's relay capacity.
+///
+/// The quotas are an even split of the global ceilings across the realms the
+/// gateway currently serves, so they move as realms come and go. Utilisation is
+/// left to the consumer to compute rather than sent pre-divided, so that a
+/// zero quota can never turn into a division by zero on the wire.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct GatewayRealmCapacity {
+    /// Realm this row accounts for.
+    pub realm: String,
+    /// This realm's current share of `max_sessions`.
+    pub route_quota: u32,
+    /// Route legs this realm holds.
+    pub active_routes: u32,
+    /// This realm's current share of `max_pending_inits`.
+    pub pending_quota: u32,
+    /// Handshake inits this realm holds.
+    pub active_pending_inits: u32,
+}
+
 /// Non-secret client-CA trust bundle targeted to one gateway for downstream
 /// client-mTLS validation.
 ///
