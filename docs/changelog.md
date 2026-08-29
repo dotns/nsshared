@@ -1,3 +1,30 @@
+## 2026-08-29 06:05 [fix]
+
+Gave address-shaped control-message fields one wire encoding (SHARED-002).
+
+- `ControlMessage` is internally tagged, so serde re-deserializes a variant
+  through a `ContentDeserializer` that always reports human-readable while
+  `ciborium` reports the opposite and wrote the binary form. Every bare
+  `SocketAddr`, `IpAddr`, `Ipv4Addr` and `IpNet` was therefore undecodable over
+  a natively encoded CBOR config stream, and the failure tears the stream down
+  rather than skipping the message. Measured: 10 of the 24 variants, including
+  `wg_config`.
+- `serde_wire_addr` writes the human-readable string in every format and reads
+  either that or the legacy non-human-readable form, so bytes an un-upgraded
+  producer already wrote keep decoding. Applied to all 27 previously bare
+  fields; `serde_ipnet_vec`'s three fields fold into the same family.
+- JSON is unchanged, byte for byte. The config stream is unchanged too: NSD's
+  producer serializes through `serde_json::Value` before encoding CBOR, so it
+  already emitted these fields as strings.
+- **One wire shape moves, and the cutover is ordered: NSD before the node.**
+  `P2pCandidate` also rides `peer_candidates.report`, which is raw `ciborium`
+  on both ends and where the binary form is the working shape today; a new
+  producer's string form is rejected by a consumer that predates this change.
+  The tolerant reader covers the opposite direction. Merge with the `nsd`
+  consumer arm ahead of any `ns` producer rollout.
+- `subnet_route.rs` and the raw envelope payloads in `api.rs` keep their
+  existing encodings deliberately — see `docs/task/SHARED-002.md`.
+
 ## 2026-08-24 06:07 [fix]
 
 Defined one shared 1360-byte WireGuard plaintext-MTU default (MTU-001 / ns

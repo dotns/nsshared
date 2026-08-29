@@ -506,8 +506,9 @@ pub enum ExitNodeFallbackPolicy {
     NextAvailable,
 }
 
-/// Canonical wire form for every address-shaped field carried inside a
-/// [`ControlMessage`].
+/// Canonical wire form for the address-shaped fields carried inside a
+/// [`ControlMessage`], and for [`P2pCandidate`], which also rides the
+/// `peer_candidates.report` envelope.
 ///
 /// `SocketAddr`, `IpAddr`, `Ipv4Addr` and `IpNet` all switch shape on
 /// `Serializer::is_human_readable`: a string when the format calls itself
@@ -515,31 +516,48 @@ pub enum ExitNodeFallbackPolicy {
 /// [`ControlMessage`] is internally tagged, and serde re-deserializes an
 /// internally-tagged variant through a `ContentDeserializer` that always
 /// reports `is_human_readable() == true`, while `ciborium` reports `false` and
-/// therefore *wrote* the binary form. The two never meet: the field is written
-/// as the Rust-native encoding and then rejected with `invalid type: map,
-/// expected socket address`, which tears down the whole config stream.
+/// therefore *wrote* the binary form. The stock impls never meet: the field is
+/// written as the Rust-native encoding and then rejected with `invalid type:
+/// map, expected socket address`, which tears down the whole config stream.
 ///
 /// These helpers **write one form and accept two**:
 ///
 /// - **Write** — always the human-readable string, whatever the format
-///   reports. That is the shape NSD's config-stream producer already emits (it
-///   serializes through `serde_json::Value` before encoding CBOR) and the only
-///   shape the `ContentDeserializer` can read. It is also what
-///   `serde_ipv4net` in `subnet_route.rs` settled on, for the same reason:
-///   one contract, one wire encoding, one cross-repository fixture.
-/// - **Read** — the string form *and* the legacy `is_human_readable() ==
-///   false` form. `P2pCandidate` also rides `peer_candidates.report`, which is
-///   encoded with `ciborium` directly and has always carried the binary form,
-///   so bytes an un-upgraded producer already wrote must keep decoding. A
-///   string-only reader would leave exactly one broken cell in the
-///   compatibility matrix — old producer against new consumer — and the extra
-///   visitor arm is what closes it.
+///   reports. On the config stream that is a no-op: NSD's producer serializes
+///   through `serde_json::Value` before encoding CBOR, so those bytes were
+///   already strings. `serde_ipv4net` in `subnet_route.rs` writes the same
+///   form for the same reason — one wire encoding per contract — though its
+///   reader is string-only, so the two are not interchangeable.
+/// - **Read** — the string form *and* the legacy non-human-readable form, so
+///   bytes an un-upgraded producer already wrote keep decoding instead of
+///   tearing a stream down. Note this is `deserialize_any`, so the legacy
+///   form is also accepted over JSON, where it never legitimately occurred;
+///   that widening is the price of one reader for both formats.
+///
+/// **This changes one wire shape, and the cutover is ordered.** Every
+/// [`ControlMessage`] field is safe in both directions, because the binary
+/// form was undecodable there and no consumer could have depended on it. But
+/// [`P2pCandidate::endpoint`] also rides `peer_candidates.report`
+/// ([`crate::api::PeerCandidatesReportRequest`]), which is `ciborium` on both
+/// ends and where the binary form is the *working* shape today. A new
+/// producer's string form is rejected by a consumer that predates this module
+/// (`unknown variant "10.0.0.11:51820", expected "V4" or "V6"`), and no reader
+/// arm here can fix an already-deployed binary. **Deploy the consumer first:
+/// NSD before the node.** The tolerant reader is what covers the opposite
+/// cell, an un-upgraded node reporting to an upgraded NSD.
+///
+/// Scope is deliberately this file. The address fields on the raw envelope
+/// payloads in `api.rs` (`RegisterResponse::wg_tunnel_ip`,
+/// `GatewayReportRequest::wg_tunnel_ip`, `ExitNodeSelectionScope::Cidrs`,
+/// `GatewayReflexiveResponse::observed_addr`) keep the native impls: they are
+/// `ciborium` on both ends, symmetric, and converting them would open a second
+/// ordered cutover for no gain.
 mod serde_wire_addr {
     use std::fmt;
     use std::marker::PhantomData;
     use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV6};
 
-    use serde::de::{Error as _, MapAccess, SeqAccess, Unexpected, Visitor};
+    use serde::de::{Error as _, IgnoredAny, MapAccess, SeqAccess, Unexpected, Visitor};
     use serde::ser::SerializeSeq as _;
 
     use super::{Deserialize, Deserializer, IpNet, Serialize, Serializer};
@@ -563,10 +581,55 @@ mod serde_wire_addr {
         }
     }
 
-    /// The single-entry key of a legacy enum-map form (`"V4"` / `"V6"`).
-    fn legacy_variant<'de, A: MapAccess<'de>>(map: &mut A) -> Result<String, A::Error> {
-        map.next_key::<String>()?
-            .ok_or_else(|| A::Error::custom("empty address enum map"))
+    /// Which arm of a legacy enum-map form this is.
+    enum LegacyVariant {
+        V4,
+        V6,
+    }
+
+    /// Read the single-entry key of a legacy enum-map form.
+    ///
+    /// The key is never echoed into the error. A decode failure here becomes
+    /// `Error::Sse` and is logged on every reconnect, and the key is
+    /// attacker-chosen and unbounded; the crate redacts payload bytes
+    /// elsewhere for the same reason (`transport::sse`).
+    fn legacy_variant<'de, A: MapAccess<'de>>(map: &mut A) -> Result<LegacyVariant, A::Error> {
+        match map.next_key::<String>()?.as_deref() {
+            Some("V4") => Ok(LegacyVariant::V4),
+            Some("V6") => Ok(LegacyVariant::V6),
+            Some(_) => Err(A::Error::custom(
+                "legacy address enum map key is neither \"V4\" nor \"V6\"",
+            )),
+            None => Err(A::Error::custom("empty address enum map")),
+        }
+    }
+
+    /// Consume whatever follows the one entry a legacy enum map is allowed to
+    /// carry.
+    ///
+    /// `MapAccess` must be driven to `None`, and `ciborium`'s is a live cursor
+    /// over the byte stream rather than a buffer: returning early leaves the
+    /// surplus entries in place, and the enclosing struct then reads them as
+    /// its own fields. A crafted `{"V4": [...], "keepalive": 999}` would
+    /// otherwise overwrite a later field of the message that contains it.
+    fn drain_map<'de, A: MapAccess<'de>>(mut map: A) -> Result<(), A::Error> {
+        if map.next_key::<IgnoredAny>()?.is_some() {
+            return Err(A::Error::custom(
+                "legacy address enum map carries more than one entry",
+            ));
+        }
+        Ok(())
+    }
+
+    /// The `SeqAccess` counterpart of [`drain_map`].
+    fn drain_seq<'de, A: SeqAccess<'de>>(mut seq: A, expected: usize) -> Result<(), A::Error> {
+        if seq.next_element::<IgnoredAny>()?.is_some() {
+            return Err(A::Error::invalid_length(
+                expected + 1,
+                &"no elements after the address octets",
+            ));
+        }
+        Ok(())
     }
 
     impl FromWire for SocketAddr {
@@ -577,27 +640,22 @@ mod serde_wire_addr {
         }
 
         fn from_legacy_map<'de, A: MapAccess<'de>>(mut map: A) -> Result<Self, A::Error> {
-            match legacy_variant(&mut map)?.as_str() {
-                "V4" => {
+            let addr = match legacy_variant(&mut map)? {
+                LegacyVariant::V4 => {
                     let (octets, port): ([u8; 4], u16) = map.next_value()?;
-                    Ok(SocketAddr::from((Ipv4Addr::from(octets), port)))
+                    SocketAddr::from((Ipv4Addr::from(octets), port))
                 }
-                "V6" => {
+                LegacyVariant::V6 => {
                     // serde writes `(ip, port)` for V6 as well; `flowinfo` and
                     // `scope_id` never reach the wire and its own reader
-                    // restores them as zero.
+                    // restores them as zero. [`WireDisplay`] drops them on the
+                    // way out for the same reason, so both arms agree.
                     let (octets, port): ([u8; 16], u16) = map.next_value()?;
-                    Ok(SocketAddr::V6(SocketAddrV6::new(
-                        Ipv6Addr::from(octets),
-                        port,
-                        0,
-                        0,
-                    )))
+                    SocketAddr::V6(SocketAddrV6::new(Ipv6Addr::from(octets), port, 0, 0))
                 }
-                other => Err(A::Error::custom(format!(
-                    "unknown SocketAddr variant {other:?}"
-                ))),
-            }
+            };
+            drain_map(map)?;
+            Ok(addr)
         }
     }
 
@@ -609,13 +667,12 @@ mod serde_wire_addr {
         }
 
         fn from_legacy_map<'de, A: MapAccess<'de>>(mut map: A) -> Result<Self, A::Error> {
-            match legacy_variant(&mut map)?.as_str() {
-                "V4" => Ok(IpAddr::from(map.next_value::<[u8; 4]>()?)),
-                "V6" => Ok(IpAddr::from(map.next_value::<[u8; 16]>()?)),
-                other => Err(A::Error::custom(format!(
-                    "unknown IpAddr variant {other:?}"
-                ))),
-            }
+            let addr = match legacy_variant(&mut map)? {
+                LegacyVariant::V4 => IpAddr::from(map.next_value::<[u8; 4]>()?),
+                LegacyVariant::V6 => IpAddr::from(map.next_value::<[u8; 16]>()?),
+            };
+            drain_map(map)?;
+            Ok(addr)
         }
     }
 
@@ -633,6 +690,7 @@ mod serde_wire_addr {
                     .next_element()?
                     .ok_or_else(|| A::Error::invalid_length(index, &Self::EXPECTING))?;
             }
+            drain_seq(seq, octets.len())?;
             Ok(Ipv4Addr::from(octets))
         }
     }
@@ -648,30 +706,70 @@ mod serde_wire_addr {
         /// wrapping a flat octets-plus-prefix tuple: five bytes for V4,
         /// seventeen for V6.
         fn from_legacy_map<'de, A: MapAccess<'de>>(mut map: A) -> Result<Self, A::Error> {
-            let text = match legacy_variant(&mut map)?.as_str() {
-                "V4" => {
+            let (addr, prefix_len) = match legacy_variant(&mut map)? {
+                LegacyVariant::V4 => {
                     let bytes: [u8; 5] = map.next_value()?;
-                    let addr = Ipv4Addr::new(bytes[0], bytes[1], bytes[2], bytes[3]);
-                    format!("{addr}/{}", bytes[4])
+                    let octets: [u8; 4] = bytes[..4].try_into().expect("4 of 5 bytes");
+                    (IpAddr::from(octets), bytes[4])
                 }
-                "V6" => {
+                LegacyVariant::V6 => {
                     let bytes: [u8; 17] = map.next_value()?;
-                    let mut octets = [0u8; 16];
-                    octets.copy_from_slice(&bytes[..16]);
-                    format!("{}/{}", Ipv6Addr::from(octets), bytes[16])
+                    let octets: [u8; 16] = bytes[..16].try_into().expect("16 of 17 bytes");
+                    (IpAddr::from(octets), bytes[16])
                 }
-                other => Err(A::Error::custom(format!("unknown IpNet variant {other:?}")))?,
             };
-            text.parse().map_err(A::Error::custom)
+            drain_map(map)?;
+            // `IpNet::new` keeps host bits exactly as `FromStr` would, and
+            // reports an out-of-range prefix as a prefix-length error rather
+            // than as a syntax error for a string this code fabricated.
+            IpNet::new(addr, prefix_len).map_err(A::Error::custom)
+        }
+    }
+
+    /// The string rendering that reaches the wire.
+    ///
+    /// This is `Display` for every type except `SocketAddr`, where `Display`
+    /// appends `%scope_id` for a scoped IPv6 address. The legacy binary form
+    /// could not carry a zone index — serde writes `(ip, port)` and reads it
+    /// back with `scope_id: 0` — so emitting one would put a token on the wire
+    /// that has never appeared there, that is meaningless off the originating
+    /// host, and that the legacy read arm would decode to a different,
+    /// non-equal value. Consumers compare configs structurally to decide
+    /// whether to re-apply a WireGuard device, so the two read paths have to
+    /// agree.
+    pub trait WireDisplay {
+        fn serialize_wire<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error>;
+    }
+
+    macro_rules! wire_display_via_display {
+        ($($ty:ty),+ $(,)?) => {$(
+            impl WireDisplay for $ty {
+                fn serialize_wire<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+                    serializer.collect_str(self)
+                }
+            }
+        )+};
+    }
+
+    wire_display_via_display!(IpAddr, Ipv4Addr, IpNet);
+
+    impl WireDisplay for SocketAddr {
+        fn serialize_wire<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+            match self {
+                SocketAddr::V4(_) => serializer.collect_str(self),
+                SocketAddr::V6(addr) => {
+                    serializer.collect_str(&SocketAddrV6::new(*addr.ip(), addr.port(), 0, 0))
+                }
+            }
         }
     }
 
     /// Write side of the contract: the string form, in every format.
     struct AsStr<'a, T>(&'a T);
 
-    impl<T: fmt::Display> Serialize for AsStr<'_, T> {
+    impl<T: WireDisplay> Serialize for AsStr<'_, T> {
         fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-            serializer.collect_str(self.0)
+            self.0.serialize_wire(serializer)
         }
     }
 
@@ -709,7 +807,7 @@ mod serde_wire_addr {
     pub fn serialize<S, T>(value: &T, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
-        T: fmt::Display,
+        T: WireDisplay,
     {
         AsStr(value).serialize(serializer)
     }
@@ -729,7 +827,7 @@ mod serde_wire_addr {
         pub fn serialize<S, T>(value: &Option<T>, serializer: S) -> Result<S::Ok, S::Error>
         where
             S: Serializer,
-            T: fmt::Display,
+            T: WireDisplay,
         {
             match value {
                 Some(value) => serializer.serialize_some(&AsStr(value)),
@@ -753,7 +851,7 @@ mod serde_wire_addr {
         pub fn serialize<S, T>(values: &[T], serializer: S) -> Result<S::Ok, S::Error>
         where
             S: Serializer,
-            T: fmt::Display,
+            T: WireDisplay,
         {
             let mut seq = serializer.serialize_seq(Some(values.len()))?;
             for value in values {
@@ -3891,7 +3989,13 @@ tunnel = "ws"
     }
 
     #[test]
-    fn existing_wire_shapes_stay_byte_identical() {
+    fn existing_wire_shapes_carry_no_field_the_legacy_shape_lacked() {
+        // These shadow types are the pre-additive-field *field set*, not the
+        // pre-SHARED-002 encoding: every address-shaped field carries the same
+        // `serde_wire_addr` the product field does, because that encoding
+        // moved on purpose. What this case still guards — and what the fields
+        // below are populated to keep it guarding — is that no field was added
+        // to the wire and no `skip_serializing_if` was lost.
         #[derive(serde::Serialize)]
         struct LegacyRouteEntry {
             domain: String,
@@ -3900,24 +4004,44 @@ tunnel = "ws"
             port: u16,
             #[serde(default, skip_serializing_if = "ServiceBackendKind::is_nsn_backed")]
             backend: ServiceBackendKind,
-            #[serde(default, skip_serializing_if = "Option::is_none")]
+            #[serde(
+                default,
+                with = "serde_wire_addr::option",
+                skip_serializing_if = "Option::is_none"
+            )]
             target_vip: Option<Ipv4Addr>,
-            #[serde(default, skip_serializing_if = "Option::is_none")]
+            #[serde(
+                default,
+                with = "serde_wire_addr::option",
+                skip_serializing_if = "Option::is_none"
+            )]
             nsn_wg_ip: Option<Ipv4Addr>,
             #[serde(default, skip_serializing_if = "Option::is_none")]
             virtual_port: Option<u16>,
         }
 
-        // `ip_address` carries the same `serde_wire_addr` the product field
-        // does: SHARED-002 moved every address-shaped field to the string form
-        // deliberately, and this case guards the *field set*, not that
-        // encoding.
+        #[derive(serde::Serialize)]
+        struct LegacyPeerConfig {
+            // Serialized with serde's default, matching the product field:
+            // `PeerConfig::public_key` customizes only `deserialize_with`.
+            public_key: [u8; 32],
+            #[serde(
+                default,
+                with = "serde_wire_addr::option",
+                skip_serializing_if = "Option::is_none"
+            )]
+            endpoint: Option<SocketAddr>,
+            #[serde(with = "serde_wire_addr::vec")]
+            allowed_ips: Vec<IpNet>,
+            persistent_keepalive: u16,
+        }
+
         #[derive(serde::Serialize)]
         struct LegacyWgConfig {
             #[serde(with = "serde_wire_addr")]
             ip_address: Ipv4Addr,
             listen_port: u16,
-            peers: Vec<PeerConfig>,
+            peers: Vec<LegacyPeerConfig>,
         }
 
         #[derive(serde::Serialize)]
@@ -3929,7 +4053,13 @@ tunnel = "ws"
             certificates: Vec<PublicEdgeCertificateRef>,
         }
 
-        let route = sample_route_entry();
+        // Populated, so the address fields are actually on the wire for the
+        // comparison rather than elided by `skip_serializing_if`.
+        let route = RouteEntry {
+            target_vip: Some(Ipv4Addr::new(100, 64, 0, 10)),
+            nsn_wg_ip: Some(Ipv4Addr::new(10, 0, 0, 2)),
+            ..sample_route_entry()
+        };
         let legacy_route = LegacyRouteEntry {
             domain: route.domain.clone(),
             site: route.site.clone(),
@@ -3943,19 +4073,28 @@ tunnel = "ws"
         assert_eq!(
             crate::api::to_cbor(&route).unwrap(),
             crate::api::to_cbor(&legacy_route).unwrap(),
-            "RouteEntry CBOR must remain byte-identical"
+            "RouteEntry must carry no field the legacy shape lacked"
         );
 
         let wg = sample_wg_config();
         let legacy_wg = LegacyWgConfig {
             ip_address: wg.ip_address,
             listen_port: wg.listen_port,
-            peers: wg.peers.clone(),
+            peers: wg
+                .peers
+                .iter()
+                .map(|peer| LegacyPeerConfig {
+                    public_key: peer.public_key,
+                    endpoint: peer.endpoint,
+                    allowed_ips: peer.allowed_ips.clone(),
+                    persistent_keepalive: peer.persistent_keepalive,
+                })
+                .collect(),
         };
         assert_eq!(
             crate::api::to_cbor(&wg).unwrap(),
             crate::api::to_cbor(&legacy_wg).unwrap(),
-            "WgConfig CBOR must remain byte-identical"
+            "WgConfig must carry no field the legacy shape lacked"
         );
 
         let l4 = GatewayL4Map {
@@ -3981,7 +4120,7 @@ tunnel = "ws"
         assert_eq!(
             crate::api::to_cbor(&l4).unwrap(),
             crate::api::to_cbor(&legacy_l4).unwrap(),
-            "public-edge L4 CBOR must remain byte-identical"
+            "public-edge L4 must carry no field the legacy shape lacked"
         );
 
         let capture_json = serde_json::to_string(&sample_capture_route()).unwrap();
@@ -4915,6 +5054,27 @@ tunnel = "ws"
             .unwrap_or_else(|| panic!("expected a CBOR array, got {value:?}"))[index]
     }
 
+    fn sample_subnet_route_config() -> crate::subnet_route::SubnetRouteConfig {
+        use crate::subnet_route::{
+            ApprovedSubnetRoute, SubnetRouteAuthorizationScope, SubnetRouteConfig,
+            SubnetRouteForwardingMode,
+        };
+
+        SubnetRouteConfig {
+            generation: 11,
+            routes: vec![ApprovedSubnetRoute {
+                route_id: "snr1-89f1bf77cf5eebe2ddeb7706079e7b84".to_owned(),
+                realm_id: "realm-a".to_owned(),
+                owner_machine_id: "machine-provider".to_owned(),
+                prefix: "192.168.10.0/24".parse().unwrap(),
+                next_hop_wg_public_key: [3u8; 32],
+                generation: 11,
+                forwarding: SubnetRouteForwardingMode::Snat,
+                scope: SubnetRouteAuthorizationScope::Consumer,
+            }],
+        }
+    }
+
     fn sample_p2p_candidate() -> P2pCandidate {
         P2pCandidate {
             kind: P2pCandidateKind::ServerReflexive,
@@ -5255,6 +5415,51 @@ tunnel = "ws"
                     candidates: vec![sample_p2p_candidate()],
                 }),
             ),
+            // `ExitScope::Cidrs` is the field whose helper this contract
+            // renamed, and it is reachable only through a `GatewayExit`
+            // backend — every other sample is `NsnBacked`, and `RouteEntry`
+            // skips a default backend entirely.
+            (
+                "gateway.services_report",
+                ControlMessage::GatewayServicesReport(GatewayServicesReport {
+                    services: Vec::new(),
+                    exit_profiles: vec![GatewayExitProfileDeclaration {
+                        profile_ref: "corp-cidr".to_owned(),
+                        scope: ExitScope::Cidrs {
+                            cidrs: vec![
+                                "198.51.100.0/24".parse().unwrap(),
+                                "2001:db8::/32".parse().unwrap(),
+                            ],
+                        },
+                        enabled: true,
+                        capabilities: Vec::new(),
+                        policy_labels: BTreeMap::new(),
+                    }],
+                }),
+            ),
+            (
+                "routing_config/gateway_exit_scope",
+                ControlMessage::RoutingConfig(RoutingConfig {
+                    routes: vec![RouteEntry {
+                        backend: ServiceBackendKind::GatewayExit {
+                            profile_ref: "corp-exit".to_owned(),
+                            scope: ExitScope::Cidrs {
+                                cidrs: vec!["203.0.113.0/24".parse().unwrap()],
+                            },
+                        },
+                        ..sample_route_entry()
+                    }],
+                    capture_routes: Vec::new(),
+                    nsn_service_terminate_admission_enabled: true,
+                }),
+            ),
+            // Routed through `subnet_route::serde_ipv4net` rather than this
+            // module, and never otherwise round-tripped inside the tagged
+            // envelope — which is exactly the shape that reproduces this bug.
+            (
+                "subnet_route_config.v1",
+                ControlMessage::SubnetRouteConfig(sample_subnet_route_config()),
+            ),
         ]
     }
 
@@ -5268,8 +5473,17 @@ tunnel = "ws"
                 "{label} must decode from CBOR inside a ControlMessage: {:?}",
                 decoded.err()
             );
+            let decoded = decoded.unwrap();
+            // `#[serde(other)] Unknown` turns an unrecognized tag into `Ok`,
+            // so `is_ok()` alone cannot see a tag-level regression — and the
+            // comparison below would then panic on `Unknown`'s
+            // `skip_serializing` rather than name the case.
+            assert!(
+                !matches!(decoded, ControlMessage::Unknown),
+                "{label} fell through to the Unknown catch-all"
+            );
             assert_eq!(
-                serde_json::to_string(&decoded.unwrap()).unwrap(),
+                serde_json::to_string(&decoded).unwrap(),
                 serde_json::to_string(&msg).unwrap(),
                 "{label} must survive a CBOR round trip unchanged"
             );
@@ -5282,6 +5496,10 @@ tunnel = "ws"
             let json = serde_json::to_string(&msg).unwrap();
             let decoded: ControlMessage = serde_json::from_str(&json)
                 .unwrap_or_else(|err| panic!("{label} must decode from JSON: {err}"));
+            assert!(
+                !matches!(decoded, ControlMessage::Unknown),
+                "{label} fell through to the Unknown catch-all"
+            );
             assert_eq!(
                 serde_json::to_string(&decoded).unwrap(),
                 json,
@@ -5354,6 +5572,316 @@ tunnel = "ws"
                 }
                 other => panic!("wrong variant: {other:?}"),
             }
+        }
+    }
+
+    /// The legacy read arms for `Ipv4Addr`, `IpNet` and `SocketAddr`, driven
+    /// from a producer that wrote all three with `ciborium`'s own
+    /// non-human-readable encoding.
+    #[test]
+    fn legacy_native_wg_config_addresses_decode_inside_control_message() {
+        #[derive(Serialize)]
+        struct LegacyPeer {
+            #[serde(serialize_with = "serialize_wg_public_key")]
+            public_key: [u8; 32],
+            endpoint: Option<SocketAddr>,
+            allowed_ips: Vec<IpNet>,
+            persistent_keepalive: u16,
+        }
+
+        #[derive(Serialize)]
+        struct LegacyWg {
+            ip_address: Ipv4Addr,
+            listen_port: u16,
+            peers: Vec<LegacyPeer>,
+        }
+
+        #[derive(Serialize)]
+        #[serde(tag = "type", rename_all = "snake_case")]
+        enum LegacyControlMessage {
+            WgConfig(LegacyWg),
+        }
+
+        let legacy = LegacyControlMessage::WgConfig(LegacyWg {
+            ip_address: Ipv4Addr::new(10, 0, 0, 1),
+            listen_port: 51820,
+            peers: vec![LegacyPeer {
+                public_key: [2u8; 32],
+                endpoint: Some("127.0.0.1:51820".parse().unwrap()),
+                allowed_ips: vec![
+                    "10.0.0.0/24".parse().unwrap(),
+                    "2001:db8::/32".parse().unwrap(),
+                ],
+                persistent_keepalive: 25,
+            }],
+        });
+        let bytes = crate::api::to_cbor(&legacy).unwrap();
+
+        let wire = cbor_value(&bytes);
+        assert!(
+            cbor_field(&wire, "ip_address").as_array().is_some(),
+            "the fixture must carry the non-human-readable octet sequence"
+        );
+
+        let decoded = crate::api::from_cbor::<ControlMessage>(&bytes);
+        assert!(
+            decoded.is_ok(),
+            "a legacy wg_config must still decode: {:?}",
+            decoded.err()
+        );
+        match decoded.unwrap() {
+            ControlMessage::WgConfig(wg) => {
+                assert_eq!(wg.ip_address, Ipv4Addr::new(10, 0, 0, 1));
+                assert_eq!(
+                    wg.peers[0].endpoint,
+                    Some("127.0.0.1:51820".parse().unwrap())
+                );
+                assert_eq!(
+                    wg.peers[0].allowed_ips,
+                    vec![
+                        "10.0.0.0/24".parse::<IpNet>().unwrap(),
+                        "2001:db8::/32".parse::<IpNet>().unwrap(),
+                    ]
+                );
+                assert_eq!(wg.peers[0].persistent_keepalive, 25);
+            }
+            other => panic!("wrong variant: {other:?}"),
+        }
+    }
+
+    /// The legacy read arm for `IpAddr`, and `IpNet` on an adjacently-tagged
+    /// variant.
+    #[test]
+    fn legacy_native_proxy_config_addresses_decode_inside_control_message() {
+        #[derive(Serialize)]
+        #[serde(tag = "type", content = "value", rename_all = "snake_case")]
+        enum LegacyRewriteTarget {
+            Ip(IpAddr),
+            #[allow(dead_code, reason = "the V6 arm is exercised through `Ip`")]
+            Cidr(IpNet),
+        }
+
+        #[derive(Serialize)]
+        struct LegacyRule {
+            resource_id: String,
+            source_prefix: IpNet,
+            dest_prefix: IpNet,
+            rewrite_to: LegacyRewriteTarget,
+            port_range: Option<(u16, u16)>,
+            protocol: Protocol,
+        }
+
+        #[derive(Serialize)]
+        struct LegacyProxy {
+            chain_id: String,
+            rules: Vec<LegacyRule>,
+        }
+
+        #[derive(Serialize)]
+        #[serde(tag = "type", rename_all = "snake_case")]
+        enum LegacyControlMessage {
+            ProxyConfig(LegacyProxy),
+        }
+
+        for (rewrite, expected) in [
+            (
+                LegacyRewriteTarget::Ip("192.0.2.10".parse().unwrap()),
+                RewriteTarget::Ip("192.0.2.10".parse().unwrap()),
+            ),
+            (
+                LegacyRewriteTarget::Ip("2001:db8::10".parse().unwrap()),
+                RewriteTarget::Ip("2001:db8::10".parse().unwrap()),
+            ),
+            (
+                LegacyRewriteTarget::Cidr("192.0.2.0/24".parse().unwrap()),
+                RewriteTarget::Cidr("192.0.2.0/24".parse().unwrap()),
+            ),
+        ] {
+            let legacy = LegacyControlMessage::ProxyConfig(LegacyProxy {
+                chain_id: "chain-1".to_owned(),
+                rules: vec![LegacyRule {
+                    resource_id: "rule-1".to_owned(),
+                    source_prefix: "10.0.0.0/24".parse().unwrap(),
+                    dest_prefix: "10.1.0.0/24".parse().unwrap(),
+                    rewrite_to: rewrite,
+                    port_range: Some((80, 443)),
+                    protocol: Protocol::Tcp,
+                }],
+            });
+            let bytes = crate::api::to_cbor(&legacy).unwrap();
+
+            let decoded = crate::api::from_cbor::<ControlMessage>(&bytes);
+            assert!(
+                decoded.is_ok(),
+                "a legacy proxy_config must still decode: {:?}",
+                decoded.err()
+            );
+            match decoded.unwrap() {
+                ControlMessage::ProxyConfig(cfg) => {
+                    assert_eq!(
+                        serde_json::to_string(&cfg.rules[0].rewrite_to).unwrap(),
+                        serde_json::to_string(&expected).unwrap()
+                    );
+                    assert_eq!(
+                        cfg.rules[0].source_prefix,
+                        "10.0.0.0/24".parse::<IpNet>().unwrap()
+                    );
+                    assert_eq!(
+                        cfg.rules[0].dest_prefix,
+                        "10.1.0.0/24".parse::<IpNet>().unwrap()
+                    );
+                }
+                other => panic!("wrong variant: {other:?}"),
+            }
+        }
+    }
+
+    /// A legacy enum map is one entry. `ciborium`'s `MapAccess` is a cursor
+    /// over the byte stream, so a reader that stopped after the first entry
+    /// would leave the surplus in place and the *enclosing* struct would
+    /// consume it as one of its own fields.
+    #[test]
+    fn a_legacy_address_map_with_a_surplus_entry_is_rejected() {
+        use ciborium::Value;
+
+        let endpoint = Value::Map(vec![
+            (
+                Value::Text("V4".to_owned()),
+                Value::Array(vec![
+                    Value::Array(vec![
+                        Value::Integer(10.into()),
+                        Value::Integer(200.into()),
+                        Value::Integer(0.into()),
+                        Value::Integer(11.into()),
+                    ]),
+                    Value::Integer(51_820.into()),
+                ]),
+            ),
+            // Smuggled: the same name as a field of the enclosing candidate.
+            (
+                Value::Text("priority".to_owned()),
+                Value::Integer(999.into()),
+            ),
+        ]);
+        let report = Value::Map(vec![
+            (Value::Text("epoch".to_owned()), Value::Integer(7.into())),
+            (
+                Value::Text("peer_key_pub".to_owned()),
+                Value::Text(B64_STANDARD.encode([3u8; 32])),
+            ),
+            (
+                Value::Text("candidates".to_owned()),
+                Value::Array(vec![Value::Map(vec![
+                    (
+                        Value::Text("kind".to_owned()),
+                        Value::Text("server_reflexive".to_owned()),
+                    ),
+                    (Value::Text("endpoint".to_owned()), endpoint),
+                    (
+                        Value::Text("priority".to_owned()),
+                        Value::Integer(100.into()),
+                    ),
+                ])]),
+            ),
+        ]);
+
+        let bytes = crate::api::to_cbor(&report).unwrap();
+        let decoded = crate::api::from_cbor::<PeerCandidatesReport>(&bytes);
+        assert!(
+            decoded.is_err(),
+            "a two-entry legacy address map must be rejected, not silently \
+             promoted into the enclosing struct: {decoded:?}"
+        );
+    }
+
+    /// The sequence counterpart: a fifth octet must not become the enclosing
+    /// struct's next field.
+    #[test]
+    fn a_legacy_octet_sequence_with_a_trailing_element_is_rejected() {
+        use ciborium::Value;
+
+        let wg = Value::Map(vec![
+            (
+                Value::Text("ip_address".to_owned()),
+                Value::Array(vec![
+                    Value::Integer(10.into()),
+                    Value::Integer(0.into()),
+                    Value::Integer(0.into()),
+                    Value::Integer(1.into()),
+                    Value::Integer(99.into()),
+                ]),
+            ),
+            (
+                Value::Text("listen_port".to_owned()),
+                Value::Integer(51_820.into()),
+            ),
+            (Value::Text("peers".to_owned()), Value::Array(Vec::new())),
+        ]);
+
+        let bytes = crate::api::to_cbor(&wg).unwrap();
+        let decoded = crate::api::from_cbor::<WgConfig>(&bytes);
+        let Err(err) = decoded else {
+            panic!("a five-octet legacy IPv4 sequence must be rejected");
+        };
+        // The diagnosis has to name the sequence. Without the drain the
+        // surplus octet is read as the enclosing struct's next *key*, and the
+        // error blames a field that was never at fault.
+        let message = err.to_string();
+        assert!(
+            message.contains("address octets"),
+            "the error must blame the octet sequence, got: {message}"
+        );
+    }
+
+    /// `Display` for a scoped IPv6 socket address appends `%scope_id`, but the
+    /// legacy binary form could never carry one and its reader restores zero.
+    /// Writing the zone would give the two accepted read forms different
+    /// values for one endpoint, and consumers compare configs structurally.
+    #[test]
+    fn an_ipv6_zone_index_never_reaches_the_wire() {
+        use std::net::{Ipv6Addr, SocketAddrV6};
+
+        let scoped = SocketAddr::V6(SocketAddrV6::new(
+            Ipv6Addr::new(0xfe80, 0, 0, 0, 0, 0, 0, 1),
+            51_820,
+            0,
+            42,
+        ));
+        assert_eq!(scoped.to_string(), "[fe80::1%42]:51820");
+
+        let update = PeerCandidatesUpdate {
+            machine_id: "m-peer".to_owned(),
+            epoch: 1,
+            peer_key_pub: [9u8; 32],
+            candidates: vec![P2pCandidate {
+                endpoint: scoped,
+                ..sample_p2p_candidate()
+            }],
+        };
+        let bytes = crate::api::to_cbor(&ControlMessage::PeerCandidates(update)).unwrap();
+
+        let wire = cbor_value(&bytes);
+        let candidate = cbor_item(cbor_field(&wire, "candidates"), 0);
+        assert_eq!(
+            cbor_field(candidate, "endpoint").as_text(),
+            Some("[fe80::1]:51820"),
+            "the zone index must be dropped on the way out"
+        );
+
+        match crate::api::from_cbor::<ControlMessage>(&bytes).unwrap() {
+            ControlMessage::PeerCandidates(decoded) => {
+                assert_eq!(
+                    decoded.candidates[0].endpoint,
+                    SocketAddr::V6(SocketAddrV6::new(
+                        Ipv6Addr::new(0xfe80, 0, 0, 0, 0, 0, 0, 1),
+                        51_820,
+                        0,
+                        0,
+                    )),
+                    "both read forms must land on the same value"
+                );
+            }
+            other => panic!("wrong variant: {other:?}"),
         }
     }
 
@@ -6308,14 +6836,27 @@ tunnel = "ws"
             config_version: u64,
             confirm_not_before_unix_secs: u64,
             expires_at_unix_secs: u64,
+            #[serde(with = "serde_wire_addr::vec")]
             endpoints: Vec<SocketAddr>,
         }
 
+        // Non-empty on both sides throughout: with empty vectors and no
+        // populated address this matrix compares message envelopes and
+        // certifies nothing about the fields it exists to police.
+        let gateways = vec![GatewayInfo {
+            id: "gw-a".to_owned(),
+            wg_endpoint: "203.0.113.7:51820".to_owned(),
+            wss_endpoint: "wss://gw-a.example.test".to_owned(),
+            tunnel_ip: Some(Ipv4Addr::new(10, 0, 0, 1)),
+            wg_relay_endpoint: Some("203.0.113.7:51821".to_owned()),
+        }];
+        let relay_pairs = vec![sample_gateway_wg_relay_pair()];
+
         let legacy_gateway = LegacyGatewayConfig {
-            gateways: Vec::new(),
+            gateways: gateways.clone(),
         };
         let new_gateway_without_roster = GatewayConfig {
-            gateways: Vec::new(),
+            gateways: gateways.clone(),
             wg_relay_roster: None,
         };
         assert_eq!(
@@ -6334,10 +6875,10 @@ tunnel = "ws"
         assert!(decoded.wg_relay_roster.is_none());
 
         let legacy_relay = LegacyGatewayWgRelayConfig {
-            relay_pairs: Vec::new(),
+            relay_pairs: relay_pairs.clone(),
         };
         let new_relay_without_lease = GatewayWgRelayConfig {
-            relay_pairs: Vec::new(),
+            relay_pairs: relay_pairs.clone(),
             forwarding_lease: None,
         };
         assert_eq!(
@@ -6361,7 +6902,10 @@ tunnel = "ws"
             config_version: 11,
             confirm_not_before_unix_secs: 100,
             expires_at_unix_secs: 200,
-            endpoints: Vec::new(),
+            endpoints: vec![
+                "203.0.113.7:51821".parse().unwrap(),
+                "[2001:db8::7]:51821".parse().unwrap(),
+            ],
         };
         let decoded: WgRelayIdentityRoster =
             crate::api::from_cbor(&crate::api::to_cbor(&roster_without_gate).unwrap()).unwrap();
@@ -6370,8 +6914,16 @@ tunnel = "ws"
             serde_json::from_str(&serde_json::to_string(&roster_without_gate).unwrap()).unwrap();
         assert!(!decoded.fleet_lease_enforced);
 
+        assert_eq!(
+            decoded.endpoints,
+            vec![
+                "203.0.113.7:51821".parse::<SocketAddr>().unwrap(),
+                "[2001:db8::7]:51821".parse::<SocketAddr>().unwrap(),
+            ]
+        );
+
         let new_gateway = GatewayConfig {
-            gateways: Vec::new(),
+            gateways: gateways.clone(),
             wg_relay_roster: Some(decoded),
         };
         let new_gateway_cbor = crate::api::to_cbor(&new_gateway).unwrap();
@@ -6392,7 +6944,7 @@ tunnel = "ws"
         let _: LegacyGatewayConfig = serde_json::from_str(&new_gateway_json).unwrap();
 
         let new_relay = GatewayWgRelayConfig {
-            relay_pairs: Vec::new(),
+            relay_pairs,
             forwarding_lease: Some(WgRelayForwardingLease {
                 session,
                 generation: 11,

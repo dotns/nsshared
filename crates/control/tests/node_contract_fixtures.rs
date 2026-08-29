@@ -356,6 +356,155 @@ fn a_legacy_wss_relay_table_is_byte_identical() {
     ));
 }
 
+// ── pinned CBOR address encodings ────────────────────────────────────────────
+
+/// Hex of the CBOR a `ControlMessage` carries for one address-shaped field.
+///
+/// Every address-shaped field on the config stream is a **CBOR text string**,
+/// the same spelling JSON uses. It is not `ciborium`'s Rust-native form
+/// (`{"V4": [[a,b,c,d], port]}` for a `SocketAddr`, a four-octet array for an
+/// `Ipv4Addr`, `{"V4": [a,b,c,d,prefix]}` for an `IpNet`): `ControlMessage` is
+/// internally tagged, and serde re-deserializes the variant through a
+/// `ContentDeserializer` that always reports `is_human_readable() == true`, so
+/// the native form is written and then rejected.
+///
+/// These are the literals `ns`, `nsd` and `nsgw` mirror. IPv6 in particular:
+/// the bracketed `[addr]:port` spelling, and **no `%zone` suffix** — the zone
+/// index is dropped on the way out, because the form this contract replaced
+/// could not carry one.
+fn cbor_hex<T: serde::Serialize>(value: &T) -> String {
+    to_cbor(value)
+        .unwrap()
+        .iter()
+        .fold(String::new(), |mut acc, byte| {
+            use std::fmt::Write as _;
+            let _ = write!(acc, "{byte:02x}");
+            acc
+        })
+}
+
+fn assert_cbor_carries_text(bytes: &[u8], text: &str) {
+    let encoded = bytes.iter().fold(String::new(), |mut acc, byte| {
+        use std::fmt::Write as _;
+        let _ = write!(acc, "{byte:02x}");
+        acc
+    });
+    let needle = text.as_bytes().iter().fold(String::new(), |mut acc, byte| {
+        use std::fmt::Write as _;
+        let _ = write!(acc, "{byte:02x}");
+        acc
+    });
+    assert!(
+        encoded.contains(&needle),
+        "expected the CBOR text {text:?} in {encoded}"
+    );
+}
+
+#[test]
+fn the_control_message_address_fields_are_cbor_text_strings() {
+    use std::net::{Ipv4Addr, SocketAddr};
+
+    use control::messages::{
+        ControlMessage, P2pCandidate, P2pCandidateKind, PeerCandidatesUpdate, PeerConfig, WgConfig,
+    };
+
+    let wg = ControlMessage::WgConfig(WgConfig {
+        ip_address: Ipv4Addr::new(10, 0, 0, 1),
+        listen_port: 51820,
+        peers: vec![PeerConfig {
+            public_key: [2u8; 32],
+            endpoint: Some("198.51.100.7:51820".parse().unwrap()),
+            allowed_ips: vec!["10.0.0.0/24".parse().unwrap()],
+            persistent_keepalive: 25,
+            wss_relay: None,
+            wss_relay_fallback: None,
+        }],
+    });
+    let bytes = to_cbor(&wg).unwrap();
+    assert_cbor_carries_text(&bytes, "10.0.0.1");
+    assert_cbor_carries_text(&bytes, "198.51.100.7:51820");
+    assert_cbor_carries_text(&bytes, "10.0.0.0/24");
+    // The Rust-native `Ipv4Addr` form is a four-octet array, `84 0a 00 00 01`.
+    assert!(
+        !cbor_hex(&wg).contains("840a000001"),
+        "the native octet-array form must not reach the wire"
+    );
+
+    let candidates = ControlMessage::PeerCandidates(PeerCandidatesUpdate {
+        machine_id: "m-1".to_owned(),
+        epoch: 3,
+        peer_key_pub: [2u8; 32],
+        candidates: vec![
+            P2pCandidate {
+                kind: P2pCandidateKind::Host,
+                endpoint: "192.0.2.10:51820".parse().unwrap(),
+                priority: 100,
+                observed_at_unix_ms: 1_700_000_000_000,
+                source: None,
+                relay_url: None,
+            },
+            P2pCandidate {
+                kind: P2pCandidateKind::ServerReflexive,
+                endpoint: "[2001:db8::10]:51820".parse().unwrap(),
+                priority: 90,
+                observed_at_unix_ms: 1_700_000_000_000,
+                source: None,
+                relay_url: None,
+            },
+        ],
+    });
+    let bytes = to_cbor(&candidates).unwrap();
+    assert_cbor_carries_text(&bytes, "192.0.2.10:51820");
+    assert_cbor_carries_text(&bytes, "[2001:db8::10]:51820");
+    // `a1 62 5634` is `{"V4": ...` — serde's native `SocketAddr` map.
+    assert!(
+        !cbor_hex(&candidates).contains("a1625634"),
+        "the native SocketAddr enum-map form must not reach the wire"
+    );
+
+    let decoded: ControlMessage = from_cbor(&bytes).unwrap();
+    match decoded {
+        ControlMessage::PeerCandidates(update) => {
+            assert_eq!(
+                update.candidates[1].endpoint,
+                "[2001:db8::10]:51820".parse::<SocketAddr>().unwrap()
+            );
+        }
+        other => panic!("expected peer_candidates, got {}", other.event_type()),
+    }
+}
+
+/// `peer_candidates.report` is the one hop whose bytes this contract moved.
+///
+/// It is raw `ciborium` on both ends, so unlike the config stream the shape a
+/// producer writes is the shape a consumer must read. A consumer that predates
+/// this contract expects the native enum map here and will reject the string —
+/// **deploy the consumer before the producer**. New consumers read both.
+#[test]
+fn the_peer_candidates_report_endpoint_is_a_cbor_text_string() {
+    use control::messages::{P2pCandidate, P2pCandidateKind, PeerCandidatesReport};
+
+    let report = PeerCandidatesReport {
+        epoch: 7,
+        peer_key_pub: [3u8; 32],
+        candidates: vec![P2pCandidate {
+            kind: P2pCandidateKind::ServerReflexive,
+            endpoint: "192.0.2.10:51820".parse().unwrap(),
+            priority: 100,
+            observed_at_unix_ms: 1_700_000_000_000,
+            source: None,
+            relay_url: None,
+        }],
+    };
+    let bytes = to_cbor(&report).unwrap();
+    assert_cbor_carries_text(&bytes, "192.0.2.10:51820");
+    assert_eq!(from_cbor::<PeerCandidatesReport>(&bytes).unwrap(), report);
+    assert_eq!(
+        envelope_api::PEER_CANDIDATES_REPORT,
+        "peer_candidates.report"
+    );
+}
+
 /// The `ControlMessage` shape a pre-NODE-001 consumer compiled against: it
 /// knows nothing about `subnet_route_config.v1` and falls back on
 /// `#[serde(other)]`.

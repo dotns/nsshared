@@ -75,3 +75,7 @@ Each task is a single line linking to its detail file. All detailed information 
 ### WireGuard plaintext MTU default (ns PLAN-129)
 
 - [x] [**MTU-001 Define the shared WireGuard plaintext MTU default**](MTU-001.md) `P1`
+
+### Control-message address wire form
+
+- [x] [**SHARED-002 Decode address-shaped ControlMessage fields from CBOR**](SHARED-002.md) `P0`
