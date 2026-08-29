@@ -539,7 +539,15 @@ pub enum ExitNodeFallbackPolicy {
 /// form was undecodable there and no consumer could have depended on it. But
 /// [`P2pCandidate::endpoint`] also rides `peer_candidates.report`
 /// ([`crate::api::PeerCandidatesReportRequest`]), which is `ciborium` on both
-/// ends and where the binary form is the *working* shape today. A new
+/// ends and where the binary form is the *working* shape today.
+///
+/// It is not the only annotated type on a raw envelope — `GatewayServicesReport`
+/// is one too ([`crate::api::GatewayServicesReportRequest`] is an alias for it),
+/// carrying [`ExitScope::Cidrs`]. That one adds no cell for a narrower reason
+/// than "it does not ride an envelope": its write form did not move, because
+/// the field already carried the string encoding before this module existed.
+/// Anything annotated here that later gains an envelope hop needs the same
+/// check. A new
 /// producer's string form is rejected by a consumer that predates this module
 /// (`unknown variant "10.0.0.11:51820", expected "V4" or "V6"`), and no reader
 /// arm here can fix an already-deployed binary. **Deploy the consumer first:
@@ -548,8 +556,9 @@ pub enum ExitNodeFallbackPolicy {
 ///
 /// Scope is deliberately this file. The address fields on the raw envelope
 /// payloads in `api.rs` (`RegisterResponse::wg_tunnel_ip`,
-/// `GatewayReportRequest::wg_tunnel_ip`, `ExitNodeSelectionScope::Cidrs`,
-/// `GatewayReflexiveResponse::observed_addr`) keep the native impls: they are
+/// `GatewayReportRequest::wg_tunnel_ip`, `ExitNodeSelectionScope::Cidrs`, and
+/// both of `GatewayReflexiveResponse`'s — `observed_addr` and
+/// `relay_socket_addr`) keep the native impls: they are
 /// `ciborium` on both ends, symmetric, and converting them would open a second
 /// ordered cutover for no gain.
 mod serde_wire_addr {
