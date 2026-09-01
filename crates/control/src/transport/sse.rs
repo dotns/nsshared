@@ -85,19 +85,12 @@ impl ControlTransport for SseTransport {
                 warn!(endpoint, error = %e, "failed to enable TCP keepalive on control socket");
             }
 
-            // Extract the hostname for SNI (strip port if present).
-            let host = endpoint
-                .rsplit_once(':')
-                .map(|(h, _)| h)
-                .unwrap_or(endpoint);
-
             let Some(connector) = self.connector.as_ref() else {
                 debug!(endpoint, "SseTransport: plaintext HTTP connection");
                 return Ok(BoxStream::new(tcp));
             };
 
-            let server_name = ServerName::try_from(host.to_string())
-                .map_err(|e| Error::Connect(format!("invalid server name '{host}': {e}")))?;
+            let server_name = endpoint_server_name(endpoint)?;
 
             debug!(endpoint, "SseTransport: TLS handshake");
             let tls = connector
@@ -176,6 +169,17 @@ pub(crate) fn endpoint_host(endpoint: &str) -> &str {
         .rsplit_once(':')
         .map(|(host, _)| host)
         .unwrap_or(endpoint)
+}
+
+fn endpoint_server_name(endpoint: &str) -> Result<ServerName<'static>, Error> {
+    let authority_host = endpoint_host(endpoint);
+    let tls_host = authority_host
+        .strip_prefix('[')
+        .and_then(|host| host.strip_suffix(']'))
+        .unwrap_or(authority_host);
+
+    ServerName::try_from(tls_host.to_owned())
+        .map_err(|e| Error::Connect(format!("invalid server name '{tls_host}': {e}")))
 }
 
 pub(crate) fn config_stream_path(envelope: &ControlEnvelope) -> Result<String, Error> {
@@ -555,6 +559,20 @@ mod tests {
             |msg| signer.sign(msg).to_bytes(),
         )
         .unwrap()
+    }
+
+    #[test]
+    fn endpoint_server_name_separates_ipv6_socket_authority_from_tls_identity() {
+        assert_eq!(
+            endpoint_server_name("[2001:db8::1]:443").unwrap().to_str(),
+            "2001:db8::1"
+        );
+        assert_eq!(
+            endpoint_server_name("control.example.test:8443")
+                .unwrap()
+                .to_str(),
+            "control.example.test"
+        );
     }
 
     struct ScriptedStream {

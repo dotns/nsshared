@@ -1,3 +1,13 @@
+## 2026-09-01 13:30 [fix]
+
+Separated the SSE transport's TCP socket authority from its TLS server name.
+
+- Bracketed IPv6 endpoints such as `[2001:db8::1]:443` remain intact for
+  `TcpStream::connect`, while TLS certificate verification receives the
+  unbracketed IP literal required by rustls.
+- DNS and IPv4 endpoint behavior is unchanged; focused tests pin both IPv6 and
+  DNS server-name derivation.
+
 ## 2026-08-29 06:05 [fix]
 
 Gave address-shaped control-message fields one wire encoding (SHARED-002).
