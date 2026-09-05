@@ -51,6 +51,23 @@ impl SseTransport {
         Self::with_webpki_roots()
     }
 
+    /// Build TLS fixture transport with an explicit test trust anchor.
+    /// Normal builds do not expose this test-only constructor.
+    #[cfg(feature = "integration-fixtures")]
+    pub fn with_test_root(root: rustls::pki_types::CertificateDer<'static>) -> Result<Self, Error> {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let mut roots = rustls::RootCertStore::empty();
+        roots
+            .add(root)
+            .map_err(|e| Error::Connect(format!("test trust root: {e}")))?;
+        let config = ClientConfig::builder()
+            .with_root_certificates(roots)
+            .with_no_client_auth();
+        Ok(Self {
+            connector: Some(TlsConnector::from(Arc::new(config))),
+        })
+    }
+
     /// Build a plaintext HTTP `SseTransport`.
     pub fn plaintext() -> Self {
         Self { connector: None }

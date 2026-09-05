@@ -7,6 +7,10 @@ license.workspace = true
 authors.workspace = true
 publish.workspace = true
 
+[features]
+# Internal fixtures only; never enabled by the normal dependency graph.
+integration-fixtures = []
+
 [dependencies]
 acl    = { workspace = true }
 arc-swap = { workspace = true }
