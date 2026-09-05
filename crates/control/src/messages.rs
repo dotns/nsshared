@@ -1383,6 +1383,19 @@ pub enum GatewayWgRelayAddressing {
 /// A single zero-trust WireGuard relay allowance for one gateway.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct GatewayWgRelayPair {
+    /// Authoritative Node tunnel addresses; absent on registration-only rows.
+    #[serde(
+        default,
+        with = "serde_wire_addr::option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub nsc_tunnel_ip: Option<Ipv4Addr>,
+    #[serde(
+        default,
+        with = "serde_wire_addr::option",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub nsn_tunnel_ip: Option<Ipv4Addr>,
     /// Client-side WireGuard public key.
     #[serde(
         serialize_with = "serialize_wg_public_key",
@@ -5117,6 +5130,8 @@ tunnel = "ws"
 
     fn sample_gateway_wg_relay_pair() -> GatewayWgRelayPair {
         GatewayWgRelayPair {
+            nsc_tunnel_ip: None,
+            nsn_tunnel_ip: None,
             nsc_pubkey: [1u8; 32],
             nsc_machine_id: "m-nsc".to_owned(),
             nsc_machine_key_pub: [2u8; 32],
@@ -5127,6 +5142,35 @@ tunnel = "ws"
             addressing: GatewayWgRelayAddressing::ReceiverIndex,
             listen_port: Some(51_822),
         }
+    }
+
+    #[test]
+    fn gateway_pair_addresses_round_trip_in_control_envelope() {
+        let mut pair = sample_gateway_wg_relay_pair();
+        pair.nsc_tunnel_ip = Some("100.64.0.1".parse().unwrap());
+        pair.nsn_tunnel_ip = Some("100.98.0.2".parse().unwrap());
+        let message = ControlMessage::GatewayWgRelay(GatewayWgRelayConfig {
+            relay_pairs: vec![pair],
+            ..GatewayWgRelayConfig::default()
+        });
+        let bytes = crate::api::to_cbor(&message).unwrap();
+        let decoded: ControlMessage = crate::api::from_cbor(&bytes).unwrap();
+        assert_eq!(
+            serde_json::to_value(decoded).unwrap(),
+            serde_json::to_value(message).unwrap()
+        );
+    }
+
+    #[test]
+    fn gateway_pair_missing_addresses_remain_absent_and_ipv6_is_rejected() {
+        let pair = sample_gateway_wg_relay_pair();
+        let mut value = serde_json::to_value(&pair).unwrap();
+        assert!(value.get("nsc_tunnel_ip").is_none());
+        let decoded: GatewayWgRelayPair = serde_json::from_value(value.clone()).unwrap();
+        assert_eq!(decoded.nsc_tunnel_ip, None);
+        assert_eq!(decoded.nsn_tunnel_ip, None);
+        value["nsc_tunnel_ip"] = serde_json::json!("::1");
+        assert!(serde_json::from_value::<GatewayWgRelayPair>(value).is_err());
     }
 
     /// The four fields SHARED-002 names, one test each, so a regression on any
@@ -6718,6 +6762,8 @@ tunnel = "ws"
     fn gateway_wg_relay_config_round_trips_via_json() {
         let cfg = GatewayWgRelayConfig {
             relay_pairs: vec![GatewayWgRelayPair {
+                nsc_tunnel_ip: None,
+                nsn_tunnel_ip: None,
                 nsc_pubkey: [3u8; 32],
                 nsc_machine_id: "m-client".to_owned(),
                 nsc_machine_key_pub: [6u8; 32],
@@ -6748,6 +6794,8 @@ tunnel = "ws"
     fn gateway_wg_relay_config_accepts_registration_only_pair() {
         let cfg = GatewayWgRelayConfig {
             relay_pairs: vec![GatewayWgRelayPair {
+                nsc_tunnel_ip: None,
+                nsn_tunnel_ip: None,
                 nsc_pubkey: [3u8; 32],
                 nsc_machine_id: "m-client".to_owned(),
                 nsc_machine_key_pub: [6u8; 32],
