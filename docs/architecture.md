@@ -10,6 +10,13 @@
 
 `control` contains the control-plane client. Its crate-level source docs describe machine registration/authentication, server-sent event control streams, control-envelope handling, control message types, retry and merge helpers, multi-NSD support, and Noise/QUIC/SSE transport modules.
 
+`control::messages::GatewayWgRelayPair` carries both authoritative node tunnel
+addresses and an explicit `GatewayWgRelayIndexScheme`. Omitted/default
+`address_xor` preserves existing serialized defaults; NSD emits `device_key` to
+match current NS directional indices. The scheme is independent of the reserved
+port-addressing mode. Consumers must retain canonical pair admission and cannot
+treat an absent address or an unknown scheme as usable forwarding authority.
+
 `control::subnet_route` holds the L3 subnet-route contracts. Advertisement and authority are separate types on purpose: `NodeSubnetRouteReport` (envelope api `node.subnet_routes.report.v1`) is a node's intent and authorizes nothing, while `SubnetRouteConfig` (control message `subnet_route_config.v1`) is NSD's approved projection and is the only shape that authorizes a route. Neither replaces `RouteEntry` (L4 logical service route) or `CaptureRoute` (NSC capture/exit instruction). Both are full snapshots: an omitted route is withdrawn, and a snapshot that does not advance its generation is stale and dropped whole. Prefix validation takes the control plane's **effective** `vip_pool` / `tunnel_ip_pool` as an `OverlayReservedRanges` input rather than pinning NSD's documented defaults, because both pools are operator-configurable and a pinned validator would accept a prefix that swallows the overlay's own address space wherever a deployment overrides either one.
 
 `control::types::WssLegRole` lets one identity request a `client` or `relay` WSS leg through `AuthPayload::leg_role`. It is a request input only: NSD remains the sole granting authority and the requested leg is never self-asserting.

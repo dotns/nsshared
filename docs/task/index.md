@@ -1,6 +1,6 @@
 # ns-shared - Task List
 
-> Updated: 2026-08-16
+> Updated: 2026-09-06
 
 ## Usage
 
@@ -79,3 +79,5 @@ Each task is a single line linking to its detail file. All detailed information 
 ### Control-message address wire form
 
 - [x] [**SHARED-002 Decode address-shaped ControlMessage fields from CBOR**](SHARED-002.md) `P0`
+
+- [x] [**COMPAT-001 Restore relay interoperability with current NS nodes**](COMPAT-001.md) `P0`

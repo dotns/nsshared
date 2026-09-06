@@ -1380,10 +1380,30 @@ pub enum GatewayWgRelayAddressing {
     Port,
 }
 
+/// Namespace used by the high 24 bits of a node's WireGuard sender index.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GatewayWgRelayIndexScheme {
+    /// Canonical pair address XOR; both directions share one namespace.
+    #[default]
+    AddressXor,
+    /// Existing NS device/public-peer SHA-256 namespace, independently per end.
+    DeviceKey,
+}
+
+impl GatewayWgRelayIndexScheme {
+    fn is_default(&self) -> bool {
+        *self == Self::AddressXor
+    }
+}
+
 /// A single zero-trust WireGuard relay allowance for one gateway.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct GatewayWgRelayPair {
-    /// Authoritative Node tunnel addresses; absent on registration-only rows.
+    /// Explicit index contract; omitted by producers of the address-XOR mode.
+    #[serde(default, skip_serializing_if = "GatewayWgRelayIndexScheme::is_default")]
+    pub index_scheme: GatewayWgRelayIndexScheme,
+    /// Authoritative node tunnel addresses; missing assignments remain absent.
     #[serde(
         default,
         with = "serde_wire_addr::option",
@@ -5130,6 +5150,7 @@ tunnel = "ws"
 
     fn sample_gateway_wg_relay_pair() -> GatewayWgRelayPair {
         GatewayWgRelayPair {
+            index_scheme: GatewayWgRelayIndexScheme::AddressXor,
             nsc_tunnel_ip: None,
             nsn_tunnel_ip: None,
             nsc_pubkey: [1u8; 32],
@@ -5145,8 +5166,32 @@ tunnel = "ws"
     }
 
     #[test]
+    fn gateway_pair_index_scheme_is_explicit_and_legacy_defaults_are_preserved() {
+        let mut pair = sample_gateway_wg_relay_pair();
+        let legacy = serde_json::to_value(&pair).unwrap();
+        assert!(legacy.get("index_scheme").is_none());
+        assert_eq!(
+            serde_json::from_value::<GatewayWgRelayPair>(legacy)
+                .unwrap()
+                .index_scheme,
+            GatewayWgRelayIndexScheme::AddressXor
+        );
+        pair.index_scheme = GatewayWgRelayIndexScheme::DeviceKey;
+        let encoded = serde_json::to_value(&pair).unwrap();
+        assert_eq!(encoded["index_scheme"], "device_key");
+        assert_eq!(
+            serde_json::from_value::<GatewayWgRelayPair>(encoded.clone()).unwrap(),
+            pair
+        );
+        let mut invalid = encoded;
+        invalid["index_scheme"] = serde_json::json!("unknown");
+        assert!(serde_json::from_value::<GatewayWgRelayPair>(invalid).is_err());
+    }
+
+    #[test]
     fn gateway_pair_addresses_round_trip_in_control_envelope() {
         let mut pair = sample_gateway_wg_relay_pair();
+        pair.index_scheme = GatewayWgRelayIndexScheme::DeviceKey;
         pair.nsc_tunnel_ip = Some("100.64.0.1".parse().unwrap());
         pair.nsn_tunnel_ip = Some("100.98.0.2".parse().unwrap());
         let message = ControlMessage::GatewayWgRelay(GatewayWgRelayConfig {
@@ -6762,6 +6807,7 @@ tunnel = "ws"
     fn gateway_wg_relay_config_round_trips_via_json() {
         let cfg = GatewayWgRelayConfig {
             relay_pairs: vec![GatewayWgRelayPair {
+                index_scheme: GatewayWgRelayIndexScheme::AddressXor,
                 nsc_tunnel_ip: None,
                 nsn_tunnel_ip: None,
                 nsc_pubkey: [3u8; 32],
@@ -6794,6 +6840,7 @@ tunnel = "ws"
     fn gateway_wg_relay_config_accepts_registration_only_pair() {
         let cfg = GatewayWgRelayConfig {
             relay_pairs: vec![GatewayWgRelayPair {
+                index_scheme: GatewayWgRelayIndexScheme::AddressXor,
                 nsc_tunnel_ip: None,
                 nsn_tunnel_ip: None,
                 nsc_pubkey: [3u8; 32],

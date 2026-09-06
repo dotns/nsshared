@@ -1,3 +1,9 @@
+## 2026-09-06 [fix]
+
+Add an explicit gateway relay index scheme (COMPAT-001). Preserve the omitted
+address-derived default and carry the device-key scheme in JSON and CBOR for
+coordinated NSD/NSGW compatibility with current NS nodes.
+
 ## 2026-09-01 13:30 [fix]
 
 Separated the SSE transport's TCP socket authority from its TLS server name.
