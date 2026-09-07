@@ -1,6 +1,7 @@
 //! Shared Mesh control framing and credential validation.
 
 mod codec;
+mod compact;
 mod framing;
 mod handshake;
 mod identity;
@@ -8,6 +9,7 @@ mod mailbox;
 mod recovery;
 mod validity;
 
+pub use compact::*;
 pub use framing::*;
 pub use handshake::*;
 pub use identity::*;

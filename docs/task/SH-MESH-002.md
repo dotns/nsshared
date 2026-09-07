@@ -1,6 +1,6 @@
 # SH-MESH-002：实现确定性成员归约与恢复摘要
 
-- **状态（status）**: pending
+- **状态（status）**: in progress
 - **优先级（priority）**: P1
 - **负责人（owner）**: 当前实现者；范围与风险决定由仓库负责人负责
 - **创建日期（createdAt）**: 2026-09-07
@@ -27,7 +27,7 @@
 
 - [ ] add/evict/admins 按 seq 连续归约且历史权限判定一致。
 - [ ] 成员资格撤销水位不因旧 incarnation、新 timestamp 或 vouch 降低。
-- [ ] canonical state 对同一语义状态生成相同字节与摘要。
+- [x] canonical state 对同一语义状态生成相同字节与摘要。
 - [ ] 管理员 revision 竞态和同时间 addr/capability 冲突确定性收敛。
 - [ ] 不规范编码、摘要不匹配、未知版本与数值溢出被拒绝。
 
@@ -37,10 +37,29 @@
 
 ## 验证（Verification）
 
+canonical state 独立块首次入口：`cargo test --locked -p control --test mesh_compact_state`。
+用例 `mesh_compact_state_matches_independent_binary_and_digest`、
+`mesh_compact_state_rejects_order_duplicates_versions_and_truncation`、
+`mesh_compact_state_checks_capacities_and_incarnation_watermarks`。
+新增 `mesh/compact.rs` 与定向测试，覆盖 C5 固定顺序、长度、排序、摘要和容量；
+使用结构化字段与标准字节读取，不保存原文/理由/地址/policy。随后运行 Mesh 回归、
+fmt/lint。当前 Linux 已执行上述定向入口，3 passed；随后
+`CARGO_INCREMENTAL=0 cargo test --locked -p control mesh_`：27 passed，
+0 failed/ignored。`just fmt-check`、`just lint` 均退出 0。独立固定字段字节与
+hashlib 摘要向量一致，全部截断前缀、重复/乱序 key、版本、容量和 anchor 不匹配
+均被拒绝。证据 `verified`，纯内存，无网络或持久状态副作用。
+
+待负责人决定：撤销管理员的成员资格时是否同时移除其管理员资格；特别是最后一名
+管理员被移除后是否自动恢复平等权限。唯一契约未明确这一转换，已请求决定；只暂停
+受影响的 evict 权限归约及依赖路径，canonical 表示/摘要与其它独立块继续。未选择默认行为。
+
 当前 macOS：`cargo test --locked -p control`；增加独立的事件排列/重复/缺口、权限转换、digest 输入边界向量，记录实际定向用例。`just fmt-check`、`just lint`，交付关联计划当前平台 QA。
 
-门禁阶段：implementation；交付时执行关联计划当前平台适用 merge 检查。当前没有实现或测试新增，实际运行结果：未执行，证据 `assumed`。新增测试后、首次执行前记录精确命令/过滤器、用例列表及预期断言；零匹配、skip、单纯编译不能证明行为通过。记录实际权限、制品/环境、退出状态、主体断言、清理结果和证据路径。仅在当前平台执行，不将未运行的 Linux/Windows 记为通过。
+门禁阶段：implementation；交付时执行关联计划当前平台适用 merge 检查。
+本块只关闭 canonical 编码/摘要条件；连续权限归约、管理员转换、owner 记录收敛和
+完整溢出路径尚未验证。上述 Linux 纯逻辑结果不替代 macOS/Windows 或真实端到端验收。
 
 ## 状态日志（Status Log）
 
 - 2026-09-07：按已批准方案创建；计划资产审查完成，实现状态仍 pending。
+- 2026-09-07：canonical state 编码、摘要与有界解码已验证；任务继续 in progress。
