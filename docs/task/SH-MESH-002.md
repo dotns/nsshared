@@ -28,7 +28,7 @@
 - [ ] add/evict/admins 按 seq 连续归约且历史权限判定一致。
 - [ ] 成员资格撤销水位不因旧 incarnation、新 timestamp 或 vouch 降低。
 - [x] canonical state 对同一语义状态生成相同字节与摘要。
-- [ ] 管理员 revision 竞态和同时间 addr/capability 冲突确定性收敛。
+- [x] 管理员 revision 竞态和同时间 addr/capability 冲突确定性收敛。
 - [ ] 不规范编码、摘要不匹配、未知版本与数值溢出被拒绝。
 
 ## 实现说明（Implementation Notes）
@@ -36,6 +36,25 @@
 所有产品/协议语义引用唯一契约；不在任务中重定义默认值或另建状态机。实现顺序先纯逻辑和离线验证，再完成依赖已满足的真实接线。
 
 ## 验证（Verification）
+
+add/admins 独立归约块首次入口：
+`CARGO_INCREMENTAL=0 cargo test --locked --offline -p control --test mesh_membership`。
+在前一 canonical 状态上判断历史权限，严格连续 seq、管理员 revision、完整 signing/WG
+绑定与地址复算；旧 incarnation 不覆盖新成员，也不删除撤销水位。有效回执下的无权或
+过时记录只消费 seq，字段/容量/上下文错误拒绝；不处理待决定的 evict 管理员转换。
+当前 Linux 定向测试 6 passed，0 failed/ignored，用例为
+`mesh_membership_adds_preserve_watermarks_and_only_advance_incarnations`、
+`mesh_membership_admin_revision_races_and_last_admin_removal_are_deterministic`、
+`mesh_membership_admins_resolve_retained_full_keys_without_restoring_membership`、
+`mesh_membership_never_grants_nonmembers_or_nonadmins_historical_management_rights`、
+`mesh_membership_rejects_wrong_context_gaps_overflow_and_field_bindings`、
+`mesh_membership_enforces_member_and_retained_identity_capacity_without_partial_results`。
+`CARGO_INCREMENTAL=0 cargo test --locked --offline -p control mesh_`：45 passed，
+0 failed/ignored；`just fmt-check` 和 `CARGO_INCREMENTAL=0 just lint` 均退出 0。
+证据 `verified`，纯内存；管理员完整 key 只从前态解析，不从指纹构造身份。
+覆盖批准、非管理员、已离开成员、revision 竞态、显式 admins 记录清空最后管理员、
+重放/缺口/溢出、地址与 WG 冲突和成员/身份容量。保留已有非成员管理员不恢复其成员
+资格；该输入测试不决定 evict 是否移除管理员，完整权限与撤销验收仍未闭合。
 
 genesis 独立块首次入口：
 `CARGO_INCREMENTAL=0 cargo test --locked --offline -p control --test mesh_genesis`。
@@ -104,8 +123,9 @@ hashlib 摘要向量一致，全部截断前缀、重复/乱序 key、版本、�
 当前 macOS：`cargo test --locked -p control`；增加独立的事件排列/重复/缺口、权限转换、digest 输入边界向量，记录实际定向用例。`just fmt-check`、`just lint`，交付关联计划当前平台 QA。
 
 门禁阶段：implementation；交付时执行关联计划当前平台适用 merge 检查。
-canonical 编码/摘要与 owner 记录收敛已有上述证据；连续权限归约、管理员转换和
-完整溢出路径尚未验证。上述 Linux 纯逻辑结果不替代 macOS/Windows 或真实端到端验收。
+canonical 编码/摘要、owner 收敛及 add/admins 连续归约已有上述证据；evict 权限归约、
+撤销管理员转换和完整溢出路径尚未验证。上述 Linux 纯逻辑结果不替代 macOS/Windows
+或真实端到端验收。
 
 ## 状态日志（Status Log）
 
@@ -113,3 +133,4 @@ canonical 编码/摘要与 owner 记录收敛已有上述证据；连续权限�
 - 2026-09-07：canonical state 编码、摘要与有界解码已验证；任务继续 in progress。
 - 2026-09-08：owner 地址/能力记录的签名、成员绑定和确定性合并已验证；管理员归约继续待完成。
 - 2026-09-08：genesis 双签名、初始状态摘要与创建回执绑定已验证；完整权限归约仍未闭合。
+- 2026-09-08：add/admins 连续归约、历史权限和 revision 竞态已验证；evict 待负责人决定。

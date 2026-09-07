@@ -75,6 +75,11 @@
 
 ## 计划级验证结果（Plan-level Verification Results）
 
+2026-09-08：add/admins 独立归约块完成，见[任务验证](../task/SH-MESH-002.md#验证verification)。
+Linux 45 项 Mesh 回归与 fmt/lint 通过；历史权限、成员水位保留、管理员 revision
+竞态与容量边界已有直接证据。evict 管理员转换仍待决定，完整任务、跨仓及 native
+验收未闭合，继续推进不依赖该决定的实现块。
+
 2026-09-08：genesis 独立块完成，见[任务验证](../task/SH-MESH-002.md#验证verification)。
 Linux 39 项 Mesh 回归与 fmt/lint 通过；创建材料和回执复算已有直接证据，
 不替代连续权限归约、relay 持久化、跨仓或 native 验收。
