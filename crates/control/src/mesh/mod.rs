@@ -2,11 +2,13 @@
 
 mod codec;
 mod framing;
+mod handshake;
 mod mailbox;
 mod recovery;
 mod validity;
 
 pub use framing::*;
+pub use handshake::*;
 pub use mailbox::*;
 pub use recovery::*;
 pub use validity::*;

@@ -25,17 +25,42 @@
 
 ## 验收标准（Acceptance Criteria）
 
-- [ ] 所有基线和扩展 API 均有完整字段编号、类型、可选项与签名向量。
-- [ ] 最大合法请求与响应均能按规定 framing 传输，1201-byte Mesh datagram 被拒绝。
-- [ ] 身份、网络/域、时间、请求绑定和回执字段篡改均被拒绝。
-- [ ] 活凭据过期边界与历史记录校验规则分别通过定向测试。
-- [ ] managed envelope 固定向量未改变。
+- [x] 所有基线和扩展 API 均有完整字段编号、类型、可选项与签名向量。
+- [x] 最大合法请求与响应均能按规定 framing 传输，1201-byte Mesh datagram 被拒绝。
+- [x] 身份、网络/域、时间、请求绑定和回执字段篡改均被拒绝。
+- [x] 活凭据过期边界与历史记录校验规则分别通过定向测试。
+- [x] managed envelope 固定向量未改变。
+- [ ] 契约 C1/C7 的身份指纹、IPv4/IPv6 domain 和盐边界有固定向量。
 
 ## 实现说明（Implementation Notes）
 
 字段表和原始十六进制 fixture 是新 wire 的执行契约，不只用 serde round-trip 作证明。独立期望字节与已签固定向量能发现双端一致但同样错误的编码；NS 复制相同向量，不复制临时输出。共享 fixtures 不包含真实 secrets。
 
 ## 验证（Verification）
+
+第四块首次入口：`cargo test --locked -p control --test mesh_handshake` 和
+`cargo test --locked -p control mesh_cookie_matches_independent_hmac_input`。
+用例覆盖 cookie 来源/key/request/初始 expiry、当前/上一时间桶、重启密钥轮换，
+WSS challenge 的连接/origin/双公钥/签名绑定与精确 30 秒失效；消费型接口防止再次验签。
+新增 `mesh/handshake.rs` 与 `tests/mesh_handshake.rs`，随后执行既有 Mesh 回归和 fmt/lint。
+首次执行前结果为 `assumed`；仅纯逻辑，真实 WSS 连接与 pending 分配顺序由 relay 任务验证。
+固定向量入口：`cargo test --locked -p control --test mesh_golden_vectors`，
+用例 `mesh_fixed_vectors_cover_every_api_and_preserve_original_envelopes`、
+`mesh_fixed_payloads_decode_with_semantic_and_internal_signature_checks`。
+`tests/fixtures/mesh-v1/oracle.rs` 独立使用 CBOR/签名库，不调用生产 control 编码器，
+产出 `vectors.json` 的固定原文、签名输入和 payload 字节；测试覆盖 API 集合、
+字段语义、内外签名、身份/domain 篡改、真实 framing 大小及 Managed envelope 不变。
+第四块定向结果：27 组固定向量的 2 个测试、3 个握手行为测试与已有 14 个 Mesh 测试
+全部通过；独立 HMAC 输入测试 1 项通过。cookie 固定 MAC 另以 OpenSSL 复算一致；
+最初缺失 xxd 的管道输出已丢弃，改用直接 printf 二进制输入重新核验。
+字段编号/类型/可选项清单见 `tests/fixtures/mesh-v1/README.md`。
+新增固定测试最初的 Rust 借用错误已修复，未修改生产验证语义；后续定向测试退出 0。
+`just fmt-check`、`just lint` 已通过；提交前再次执行完整 `cargo test --locked -p control`
+以及包含最终固定 MAC 断言的 fmt/lint。实际 Linux 普通用户，无产品状态/网络副作用。
+最终结果：完整 control 测试退出 0（436 个单元测试、19 个 Mesh 集成测试、
+23 个既有 contract 集成测试；0 个 doctest 不作为新增行为证据）。最终 fmt/lint
+均退出 0，证据 `locally checked`。上述 API 级验收闭合；回读唯一契约发现
+C1/C7 的指纹和地址派生义务尚无对应勾选项，已在原验收区补列，任务保持 in progress。
 
 第三块首次入口：`cargo test --locked -p control --test mesh_mailbox_wire`，
 用例 `mesh_accept_preserves_dual_signatures_and_join_binding`、
