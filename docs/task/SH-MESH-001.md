@@ -37,6 +37,23 @@
 
 ## 验证（Verification）
 
+第二块首次验证入口：`cargo test --locked -p control --test mesh_recovery_wire`。
+用例：`mesh_query_matches_independent_integer_map_vector`、
+`mesh_payload_rejects_ambiguous_and_unbounded_encodings`、
+`mesh_receipt_binds_every_result_field_and_relay_key`、
+`mesh_restore_proof_binds_upload_identity_and_dimensions`、
+`mesh_recovery_messages_fit_real_envelopes_and_enforce_limits`。
+覆盖独立字段字节、未知可选字段、重复/非定长/非最短 CBOR、签名绑定、
+恢复维度与真实 envelope 长度；随后运行 `just fmt-check`、`just lint`。
+嵌套 receipt 是数据结构，不新增可调用的 relay API；status 编码为
+0=committed、1=result_unavailable、2=conflict，非成功必须不含 seq/receipt。
+字段编号由 `mesh/recovery.rs` 逐项声明；Option 明确编码为 null。
+payload 接受任意 map 字段顺序，要求定长容器和最短整数编码；原始签名材料
+由 envelope/持久记录保存，不用解码后的重新编码值代替。
+第二块结果：5 个行为测试全部通过，`just fmt-check` 和 `just lint` 退出 0；
+证据 `locally checked`，Linux 普通用户，无产品持久状态或网络副作用。
+完整原设计 mailbox API、管理记录及跨仓向量仍待后续块完成。
+
 2026-09-07 实现首块：新增 `crates/control/src/mesh/{mod,framing,validity}.rs`
 和 `crates/control/tests/mesh_transport.rs`。实际宿主为 Linux，以下仅形成本地逻辑证据，
 不替代主计划要求的 macOS 原生验收。首次执行入口为
