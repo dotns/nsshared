@@ -17,7 +17,7 @@
 
 ## 权威上下文（Authoritative Context）
 
-本地规则：用户提供的一般仓库规则（本仓未发现 AGENTS.md）。权威产品设计、**docs 基线 `0d1f03e75572fe780ce9af3c402e0fb8106e5767`**、三仓代码 hash、已选 D1–D8 和验证范围例外均见 [主计划](../../../ns/docs/plan/PLAN-218.md)。本计划不复制第二套 wire/存储/恢复定义。
+本地规则：用户提供的一般仓库规则（本仓未发现 AGENTS.md）。权威产品设计、**docs 基线 `0d1f03e75572fe780ce9af3c402e0fb8106e5767`**、三仓代码 hash、已选 D1–D9 和验证范围例外均见 [主计划](../../../ns/docs/plan/PLAN-218.md)。本计划不复制第二套 wire/存储/恢复定义。
 
 本仓从干净 main 仅快进拉取并创建分支；source reviewed only，不能据复用候选推断新能力已实现。现有无关 plan/task 保留其状态与范围。
 
@@ -61,7 +61,7 @@
 
 ## 决策、暂缓与回滚（Decisions / Deferred / Rollback）
 
-无新增负责人决策项；主计划 D1–D8 为 selected，未验证不标 resolved。主计划的当前平台范围由负责人明确授权，现有质量门定义不变。若聚合 QA 涉及未授权目标，只报告实际运行的当前平台子项；不能报完整 QA 通过。Linux、Windows native 与独立 docs 待审核同步统一在 [主计划](../../../ns/docs/plan/PLAN-218.md) 跟踪；不作为本轮计划准备退出条件。
+无新增负责人决策项；主计划 D1–D9 为 selected，未验证不标 resolved。主计划的当前平台范围由负责人明确授权，现有质量门定义不变。若聚合 QA 涉及未授权目标，只报告实际运行的当前平台子项；不能报完整 QA 通过。Linux、Windows native 与独立 docs 待审核同步统一在 [主计划](../../../ns/docs/plan/PLAN-218.md) 跟踪；不作为本轮计划准备退出条件。
 
 未来回退先停止新 Mesh 功能并清理其拥有的运行对象，保留密钥、锚点与回执；旧程序不能忽略未知 schema 或重置 seq。Managed 默认配置不承担 Mesh state 迁移。共享 wire 变更必须连同兼容向量评审，禁止单端静默降级。
 

@@ -26,7 +26,7 @@
 ## 验收标准（Acceptance Criteria）
 
 - [ ] add/evict/admins 按 seq 连续归约且历史权限判定一致。
-- [ ] 驱逐水位不因旧 incarnation、新 timestamp 或 vouch 降低。
+- [ ] 成员资格撤销水位不因旧 incarnation、新 timestamp 或 vouch 降低。
 - [ ] canonical state 对同一语义状态生成相同字节与摘要。
 - [ ] 管理员 revision 竞态和同时间 addr/capability 冲突确定性收敛。
 - [ ] 不规范编码、摘要不匹配、未知版本与数值溢出被拒绝。
