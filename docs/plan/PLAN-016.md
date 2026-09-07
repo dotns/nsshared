@@ -1,6 +1,6 @@
 # PLAN-016：Mesh v1 共享 wire 与确定性状态契约
 
-- **状态（status）**: approved
+- **状态（status）**: in progress
 - **负责人（owner）**: 当前实现者；范围、风险与发布决定由仓库负责人负责
 - **创建日期（createdAt）**: 2026-09-07
 - **目标（target）**: 完成本仓 Mesh v1 实现并提供当前平台验证证据
@@ -25,7 +25,7 @@
 
 | 顺序 | 任务 | 状态 | 依赖 |
 | --- | --- | --- | --- |
-| 10 | [SH-MESH-001](../task/SH-MESH-001.md) | pending | 见任务的依赖和独立边界 |
+| 10 | [SH-MESH-001](../task/SH-MESH-001.md) | in progress | 见任务的依赖和独立边界 |
 | 20 | [SH-MESH-002](../task/SH-MESH-002.md) | pending | 见任务的依赖和独立边界 |
 
 各任务是独立验收和未来提交边界。准备阶段仅共享 wire 首块和主计划列出的独立存储/配置部分可开始；有实现依赖的任务维持 pending，不能把计划审查替代依赖交付。
@@ -74,5 +74,9 @@
 - [ ] 设计偏离与剩余发布验证范围已按主计划记录。
 
 ## 计划级验证结果（Plan-level Verification Results）
+
+2026-09-07 实现已由后续调用授权。SH-MESH-001 的 framing/时间校验首块和
+Managed envelope 回归取得 Linux 本地证据，见[任务验证](../task/SH-MESH-001.md#验证verification)。
+完整 wire、归约、跨仓兼容及 macOS 验收仍未闭合，退出标准保持未勾选。
 
 2026-09-07：计划资产经过连续审查修订；链接、索引、状态、checklist 和文件范围检查通过，证据 `locally checked`。实现和行为证据未取得，任务均 pending，退出条件未勾选。Git 写操作仅限已授权的前置 main/ff-only/分支准备，无后续 Git 写操作。

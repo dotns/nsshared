@@ -1,6 +1,6 @@
 # SH-MESH-001：定义 Mesh wire 类型与兼容向量
 
-- **状态（status）**: pending
+- **状态（status）**: in progress
 - **优先级（priority）**: P1
 - **负责人（owner）**: 当前实现者；范围与风险决定由仓库负责人负责
 - **创建日期（createdAt）**: 2026-09-07
@@ -36,6 +36,24 @@
 字段表和原始十六进制 fixture 是新 wire 的执行契约，不只用 serde round-trip 作证明。独立期望字节与已签固定向量能发现双端一致但同样错误的编码；NS 复制相同向量，不复制临时输出。共享 fixtures 不包含真实 secrets。
 
 ## 验证（Verification）
+
+2026-09-07 实现首块：新增 `crates/control/src/mesh/{mod,framing,validity}.rs`
+和 `crates/control/tests/mesh_transport.rs`。实际宿主为 Linux，以下仅形成本地逻辑证据，
+不替代主计划要求的 macOS 原生验收。首次执行入口为
+`cargo test --locked -p control --test mesh_transport`，用例：
+`mesh_udp_size_and_magic_boundaries`（1200/1201 字节与 magic）、
+`mesh_wss_has_separate_control_and_wg_limits`（控制/WG 分帧与独立上限）、
+`mesh_live_time_boundaries_do_not_renew_history`（精确到期、skew、溢出与历史验证）、
+`mesh_signatures_bind_domain_identity_and_original_payload`（请求/响应域、身份与原始字节绑定）。
+另运行 `cargo test --locked -p control envelope::tests`、`just fmt-check`、`just lint`。
+本块不创建 socket、临时持久状态或本机网络对象，清理不适用。
+完整 API 字段、双签名与固定向量仍属于后续块，验收项保持未勾选。
+
+首块实际结果：4 个 `mesh_transport` 测试和 24 个 `envelope::tests` 全部通过；
+`just fmt-check`、`just lint` 退出 0。lint 首次因 Cargo 缓存写权限失败，
+提升后因磁盘空间失败；仅清理本轮 `target/debug/incremental` 后重试原入口通过。
+证据 `locally checked`；使用普通用户构建/测试，提升只用于缓存写入和格式化，
+没有产品网络或特权操作。具体断言保存在上述测试文件；历史验收不因此整项关闭。
 
 当前 macOS：`cargo test --locked -p control`；定向 Mesh 向量测试需要实际创建，记录过滤器。用最大32成员/admin、最大字符串/u64和嵌套 envelope 的真实编码计算大小；分开发送原文和回执仍须能重组且不提前提交。仓库已有 `just fmt-check`、`just lint`；本任务不运行 native/TUN。
 
