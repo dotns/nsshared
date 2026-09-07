@@ -3,6 +3,7 @@
 mod codec;
 mod compact;
 mod framing;
+mod genesis;
 mod handshake;
 mod history;
 mod identity;
@@ -13,6 +14,7 @@ mod validity;
 
 pub use compact::*;
 pub use framing::*;
+pub use genesis::*;
 pub use handshake::*;
 pub use history::*;
 pub use identity::*;

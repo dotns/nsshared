@@ -37,6 +37,22 @@
 
 ## 验证（Verification）
 
+genesis 独立块首次入口：
+`CARGO_INCREMENTAL=0 cargo test --locked --offline -p control --test mesh_genesis`。
+复算原始 register 的 seq=0 初始成员集合，检查双签名及创建回执绑定；预期覆盖
+独立固定摘要、旧时间历史验证、重签后的错误网络/nonce/作者/WG/incarnation、
+错误 receipt 摘要/seq/relay、尾随/截断/过长/过深输入。不据此开放状态覆盖或 runtime。
+当前 Linux：定向入口 4 passed，0 failed/ignored，用例为
+`mesh_genesis_recomputes_independent_initial_state_and_historical_receipt`、
+`mesh_genesis_rejects_resigned_receipt_aliases_and_wrong_relay`、
+`mesh_genesis_requires_member_signature_and_bound_network_proof`、
+`mesh_genesis_rejects_truncated_trailing_and_excessive_input`。
+复用独立 register-create 原文，显式拼接 134 字节初始状态，并使用 Perl Digest::SHA
+独立计算固定摘要；未把仅有 wire 合法性的 synthetic receipt 当成创建证明。
+`CARGO_INCREMENTAL=0 cargo test --locked --offline -p control mesh_`：39 passed，
+0 failed/ignored；`just fmt-check` 和 `CARGO_INCREMENTAL=0 just lint` 均退出 0。
+证据 `verified`，纯内存，无网络/持久状态副作用；创建材料不授予覆盖已知高 seq 的权限。
+
 owner 记录独立块首次入口：
 `CARGO_INCREMENTAL=0 cargo test --locked --offline -p control --test mesh_owner_records`。
 新增 peer-only `mesh.addr`/`mesh.capability` payload、历史签名/当前成员绑定验证与
@@ -96,3 +112,4 @@ canonical 编码/摘要与 owner 记录收敛已有上述证据；连续权限�
 - 2026-09-07：按已批准方案创建；计划资产审查完成，实现状态仍 pending。
 - 2026-09-07：canonical state 编码、摘要与有界解码已验证；任务继续 in progress。
 - 2026-09-08：owner 地址/能力记录的签名、成员绑定和确定性合并已验证；管理员归约继续待完成。
+- 2026-09-08：genesis 双签名、初始状态摘要与创建回执绑定已验证；完整权限归约仍未闭合。
