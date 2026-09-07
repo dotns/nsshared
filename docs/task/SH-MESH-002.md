@@ -37,6 +37,22 @@
 
 ## 验证（Verification）
 
+历史原文/回执绑定块首次入口：
+`CARGO_INCREMENTAL=0 cargo test --locked -p control --test mesh_history`。
+新增 `mesh/history.rs` 和定向测试，预期覆盖 add 双签名、evict/admins 原文签名、
+原字节摘要、作者/操作/网络绑定、连续 seq 与溢出、种类混淆、历史寿命和伪造回执。
+验证类型只表明原文真实性，不授予成员或管理权限；归约仍须读取前一状态。
+当前 Linux 定向测试 4 passed，具体用例：
+`mesh_history_preserves_original_add_and_authenticates_expired_records`、
+`mesh_history_rejects_receipt_aliases_gaps_overflow_and_wrong_relay`、
+`mesh_history_rejects_forged_originals_and_kind_confusion`、
+`mesh_history_bounds_originals_and_rejects_trailing_envelope_data`。
+首轮 lint 拒绝大枚举变体，改为 Box 承载 add 后重跑定向入口仍 4 passed；
+`CARGO_INCREMENTAL=0 cargo test --locked -p control mesh_`：31 passed，0 failed/ignored；
+`just fmt-check` 与 `CARGO_INCREMENTAL=0 just lint` 均退出 0。
+验证包含原字节借用不变、伪造原文/回执、已重签的错误关联字段、尾随和过深嵌套拒绝。
+证据 `verified`，纯内存，无网络和持久状态副作用；未据此关闭权限归约验收。
+
 canonical state 独立块首次入口：`cargo test --locked -p control --test mesh_compact_state`。
 用例 `mesh_compact_state_matches_independent_binary_and_digest`、
 `mesh_compact_state_rejects_order_duplicates_versions_and_truncation`、
