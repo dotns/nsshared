@@ -81,6 +81,22 @@ impl<T: Field> Field for Option<T> {
     }
 }
 
+impl Field for String {
+    fn to_value(&self) -> Value {
+        Value::Text(self.clone())
+    }
+    fn from_value(value: Value) -> Result<Self, Error> {
+        match value {
+            Value::Text(value) => Ok(value),
+            _ => Err(Error::Payload("UTF-8 string")),
+        }
+    }
+    fn sign_into(&self, out: &mut Vec<u8>) {
+        out.extend_from_slice(&(self.len() as u32).to_be_bytes());
+        out.extend_from_slice(self.as_bytes());
+    }
+}
+
 pub(super) fn encode(value: &Value) -> Result<Vec<u8>, Error> {
     let mut out = Vec::new();
     ciborium::ser::into_writer(value, &mut out).map_err(|_| Error::Payload("CBOR encoding"))?;

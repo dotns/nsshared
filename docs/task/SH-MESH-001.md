@@ -37,6 +37,20 @@
 
 ## 验证（Verification）
 
+第三块首次入口：`cargo test --locked -p control --test mesh_mailbox_wire`，
+用例 `mesh_accept_preserves_dual_signatures_and_join_binding`、
+`mesh_network_proof_and_vouch_bind_registration_nonce`、
+`mesh_management_originals_are_authenticated_and_bounded`、
+`mesh_mailbox_vectors_and_registration_budget`、`mesh_origin_and_pin_reject_ambiguous_inputs`。
+覆盖原设计 API、最大名称/origin/admins/整数、独立 cookie 字节、双签名与身份/时间绑定。
+新增 `mesh/mailbox.rs` 明确字段编号；join 在原字段后增加稳定 request_id，
+registered 在原字段后增加独立 slot_status、受限 anchor 与创建凭据。
+evict body 在原字段后保存完整 member_pub，vouch 最后携带独立 domain 签名。
+这些字段落实契约 C2/C4/C5，不改变 Managed envelope。随后运行既有 Mesh 测试、
+`just fmt-check` 和 `just lint`；第三块 5 个测试与已有 9 个 Mesh 测试全部通过，
+fmt/lint 均退出 0，证据 `locally checked`。无产品网络/持久状态副作用。
+跨仓所需的完整固定签名 fixture 及 WSS hello/cookie 认证向量仍待闭合。
+
 第二块首次验证入口：`cargo test --locked -p control --test mesh_recovery_wire`。
 用例：`mesh_query_matches_independent_integer_map_vector`、
 `mesh_payload_rejects_ambiguous_and_unbounded_encodings`、

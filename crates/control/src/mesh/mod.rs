@@ -2,10 +2,12 @@
 
 mod codec;
 mod framing;
+mod mailbox;
 mod recovery;
 mod validity;
 
 pub use framing::*;
+pub use mailbox::*;
 pub use recovery::*;
 pub use validity::*;
 

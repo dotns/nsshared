@@ -164,7 +164,7 @@ impl RestoreChunk {
     }
 }
 
-fn verify(key: &[u8; 32], input: &[u8], signature: &[u8; 64]) -> Result<(), Error> {
+pub(super) fn verify(key: &[u8; 32], input: &[u8], signature: &[u8; 64]) -> Result<(), Error> {
     let key = VerifyingKey::from_bytes(key).map_err(|_| Error::Payload("signing key"))?;
     key.verify_strict(input, &Signature::from_bytes(signature))
         .map_err(|_| Error::Payload("signature"))
