@@ -38,6 +38,7 @@ payload!(Accept, "mesh.accept", {
     9_u64 => capabilities: u64, 10_u64 => joiner_addrs: OverlayAddresses,
     11_u64 => approver_addrs: OverlayAddresses, 12_u64 => added_at: u64,
     13_u64 => expires_at: u64, 14_u64 => network_sig: [u8; 64],
+    15_u64 => joiner_pub: [u8; 32],
 });
 payload!(Resolved, "mesh.resolved", {
     1_u64 => network_pub: [u8; 32], 2_u64 => request_id: [u8; 16],
@@ -107,7 +108,7 @@ fn validate_admins(admins: &[u8]) -> Result<(), Error> {
 
 impl OverlayAddresses {
     fn validate(&self) -> Result<(), Error> {
-        Ok(())
+        ensure(u32::try_from(self.v4_salt).is_ok(), "IPv4 salt width")
     }
 }
 impl Cookie {
@@ -224,6 +225,10 @@ impl Join {
 impl Accept {
     fn validate(&self) -> Result<(), Error> {
         ensure(
+            super::member_id(&self.joiner_pub) == self.joiner_id,
+            "joiner identity binding",
+        )?;
+        ensure(
             !self.network_name.is_empty() && self.network_name.len() <= 64,
             "network name",
         )?;
@@ -232,6 +237,8 @@ impl Accept {
             "relay origin size",
         )?;
         validate_relay_origin(&self.relay_origin)?;
+        self.joiner_addrs.validate()?;
+        self.approver_addrs.validate()?;
         ensure(
             self.member_incarnation > 0 && self.capabilities & !CAPABILITY_EXIT == 0,
             "incarnation or capabilities",
@@ -255,6 +262,7 @@ impl Accept {
         self.approver_addrs.sign_into(&mut out);
         self.added_at.sign_into(&mut out);
         self.expires_at.sign_into(&mut out);
+        self.joiner_pub.sign_into(&mut out);
         Ok(out)
     }
 
@@ -281,6 +289,7 @@ impl Accept {
         ensure(
             self.network_pub == expected.network_pub
                 && self.joiner_id == expected.joiner_id
+                && self.joiner_pub == expected.joiner_pub
                 && self.joiner_wg == expected.joiner_wg
                 && self.request_id == expected.request_id,
             "join request binding",
@@ -292,6 +301,7 @@ impl Accept {
 pub struct JoinBinding {
     pub network_pub: [u8; 32],
     pub joiner_id: [u8; 20],
+    pub joiner_pub: [u8; 32],
     pub joiner_wg: [u8; 32],
     pub request_id: [u8; 16],
     pub deadline: u64,

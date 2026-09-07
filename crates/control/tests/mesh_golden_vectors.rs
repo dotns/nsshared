@@ -5,6 +5,16 @@ use control::mesh::*;
 use ed25519_dalek::{Signature, SigningKey, VerifyingKey};
 use serde::Deserialize;
 
+#[path = "fixtures/mesh-v1/oracle.rs"]
+mod oracle;
+
+#[test]
+fn mesh_independent_oracle_matches_checked_in_vectors() {
+    let expected: serde_json::Value =
+        serde_json::from_str(include_str!("fixtures/mesh-v1/vectors.json")).unwrap();
+    assert_eq!(oracle::vectors(), expected);
+}
+
 #[derive(Deserialize)]
 struct Suite {
     version: u64,
@@ -246,7 +256,8 @@ fn mesh_fixed_payloads_decode_with_semantic_and_internal_signature_checks() {
                     .verify_join(
                         &JoinBinding {
                             network_pub: public(12),
-                            joiner_id: [5; 20],
+                            joiner_id: member_id(&public(14)),
+                            joiner_pub: public(14),
                             joiner_wg: [6; 32],
                             request_id: [2; 16],
                             deadline: 1120,

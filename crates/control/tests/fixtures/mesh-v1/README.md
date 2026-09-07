@@ -2,9 +2,9 @@
 
 `vectors.json` contains 27 fixed synthetic vectors. `oracle.rs` constructs integer
 maps and signature inputs independently of the production `control` module.
-It uses only ciborium, ed25519-dalek, sha2, serde_json and hex, and can be compiled
-as a standalone Rust program against the workspace's locked dependencies.
-Normal tests consume the checked-in bytes; they never regenerate expectations.
+It uses only ciborium, ed25519-dalek, blake2, sha2, serde_json and hex. The golden-vector
+test compiles it and compares its independent output to the checked-in bytes;
+tests never rewrite or regenerate the fixture file.
 
 All payloads and nested structures use integer field `0 = 1` for the schema.
 The following ordered lists assign field numbers starting at 1. `key` is a
@@ -20,7 +20,7 @@ by `mesh_mailbox_wire`, `mesh_recovery_wire`, `mesh_transport` and `mesh_handsha
 | registered | nonce:nonce, status:u, network_pub:key, pin:PinInfo?, admins:bytes, admins_revision:u, latest_seq:u, observed_addr:ObservedEndpoint, relay_key:key, ttl_secs:u, slot_status:u, anchor:AnchorChallenge?, creation_receipt:bytes? |
 | cookie | nonce:nonce, cookie:16 bytes |
 | join | pin:text, joiner_wg:key, capabilities:u, expires_at:u, cookie:16 bytes?, request_id:nonce |
-| accept | network_pub:key, network_name:text, relay_origin:text, approver_wg:key, joiner_id:id, joiner_wg:key, request_id:nonce, member_incarnation:u, capabilities:u, joiner_addrs:OverlayAddresses, approver_addrs:OverlayAddresses, added_at:u, expires_at:u, network_sig:sig |
+| accept | network_pub:key, network_name:text, relay_origin:text, approver_wg:key, joiner_id:id, joiner_wg:key, request_id:nonce, member_incarnation:u, capabilities:u, joiner_addrs:OverlayAddresses, approver_addrs:OverlayAddresses, added_at:u, expires_at:u, network_sig:sig, joiner_pub:key |
 | resolved | network_pub:key, request_id:nonce, joiner_id:id, approver_id:id, seq:u |
 | deny | request_id:nonce, joiner_id:id, reason:text |
 | vouch | network_pub:key, member_id:id, member_wg:key, incarnation:u, register_nonce:nonce, issued_at:u, expires_at:u, signature:sig |
@@ -37,7 +37,7 @@ by `mesh_mailbox_wire`, `mesh_recovery_wire`, `mesh_transport` and `mesh_handsha
 | restore.chunk | network_pub:key, request_id:nonce, anchor_seq:u, state_digest:digest, index:u, bytes:bytes |
 | restore.finish | network_pub:key, request_id:nonce, anchor_seq:u, state_digest:digest |
 | WssHello | challenge:32 bytes, origin:text, signer_pub:key, wg_pub:key, signature:sig |
-| OverlayAddresses | v4:4 bytes, v4_salt:u, v6:16 bytes |
+| OverlayAddresses | v4:4 bytes, v4_salt:u (0..u32::MAX), v6:16 bytes |
 | ObservedEndpoint | ip:4 or 16 bytes, port:u |
 | PinRequest | ttl_secs:u |
 | PinInfo | value:text, expires_in_secs:u |

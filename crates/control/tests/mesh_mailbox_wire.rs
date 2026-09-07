@@ -39,7 +39,8 @@ fn accept() -> Accept {
         network_name: "home".into(),
         relay_origin: "udp://relay.example:51821".into(),
         approver_wg: [2; 32],
-        joiner_id: [3; 20],
+        joiner_id: member_id(&SigningKey::from_bytes(&[3; 32]).verifying_key().to_bytes()),
+        joiner_pub: SigningKey::from_bytes(&[3; 32]).verifying_key().to_bytes(),
         joiner_wg: [4; 32],
         request_id: [5; 16],
         member_incarnation: 1,
@@ -73,6 +74,7 @@ fn mesh_accept_preserves_dual_signatures_and_join_binding() {
     let mut binding = JoinBinding {
         network_pub: value.network_pub,
         joiner_id: value.joiner_id,
+        joiner_pub: value.joiner_pub,
         joiner_wg: value.joiner_wg,
         request_id: value.request_id,
         deadline: 160,
@@ -84,7 +86,7 @@ fn mesh_accept_preserves_dual_signatures_and_join_binding() {
     binding.request_id = value.request_id;
     binding.network_pub[0] ^= 1;
     assert!(value.verify_join(&binding, 110).is_err());
-    for field in 0..14 {
+    for field in 0..15 {
         let mut invalid = value.clone();
         match field {
             0 => invalid.network_pub[0] ^= 1,
@@ -100,7 +102,8 @@ fn mesh_accept_preserves_dual_signatures_and_join_binding() {
             10 => invalid.approver_addrs.v6[0] ^= 1,
             11 => invalid.added_at += 1,
             12 => invalid.expires_at -= 1,
-            _ => invalid.network_sig[0] ^= 1,
+            13 => invalid.network_sig[0] ^= 1,
+            _ => invalid.joiner_pub[0] ^= 1,
         }
         assert!(invalid.verify_network_signature().is_err());
     }
@@ -284,8 +287,8 @@ fn mesh_mailbox_vectors_and_registration_budget() {
         "d".repeat(50)
     );
     value.member_incarnation = u64::MAX;
-    value.joiner_addrs.v4_salt = u64::MAX;
-    value.approver_addrs.v4_salt = u64::MAX;
+    value.joiner_addrs.v4_salt = u64::from(u32::MAX);
+    value.approver_addrs.v4_salt = u64::from(u32::MAX);
     value.added_at = u64::MAX - 60;
     value.expires_at = u64::MAX;
     let original = envelope(Accept::API, value.added_at, value.encode().unwrap(), &key)

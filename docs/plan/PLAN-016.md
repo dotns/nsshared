@@ -25,7 +25,7 @@
 
 | 顺序 | 任务 | 状态 | 依赖 |
 | --- | --- | --- | --- |
-| 10 | [SH-MESH-001](../task/SH-MESH-001.md) | in progress | 见任务的依赖和独立边界 |
+| 10 | [SH-MESH-001](../task/SH-MESH-001.md) | done | 见任务的依赖和独立边界 |
 | 20 | [SH-MESH-002](../task/SH-MESH-002.md) | pending | 见任务的依赖和独立边界 |
 
 各任务是独立验收和未来提交边界。准备阶段仅共享 wire 首块和主计划列出的独立存储/配置部分可开始；有实现依赖的任务维持 pending，不能把计划审查替代依赖交付。
@@ -67,13 +67,18 @@
 
 ## 退出标准（Exit Criteria）
 
-- [ ] SH-MESH-001 当前范围的验收与实际证据已闭合。
+- [x] SH-MESH-001 当前范围的验收与实际证据已闭合。
 - [ ] SH-MESH-002 当前范围的验收与实际证据已闭合。
 - [ ] 本仓当前平台适用质量检查已记录实际结果。
 - [ ] 本仓与 NS 的跨仓兼容场景已有证据链接。
 - [ ] 设计偏离与剩余发布验证范围已按主计划记录。
 
 ## 计划级验证结果（Plan-level Verification Results）
+
+2026-09-07：SH-MESH-001 纯协议范围闭合，见任务最终验证：固定 27 组协议向量，
+独立身份/地址结果，完整 control 回归（436 单元 + 23 Mesh + 23 既有契约）
+及 fmt/lint/deny/shear 均成功。实际环境 Linux，证据 `locally checked`。
+SH-MESH-002、跨仓互操作、计划级质量门及 macOS native 仍未闭合，计划继续执行。
 
 2026-09-07 实现已由后续调用授权。SH-MESH-001 的 framing/时间校验首块和
 Managed envelope 回归取得 Linux 本地证据，见[任务验证](../task/SH-MESH-001.md#验证verification)。

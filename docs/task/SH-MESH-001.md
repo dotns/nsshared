@@ -1,6 +1,6 @@
 # SH-MESH-001：定义 Mesh wire 类型与兼容向量
 
-- **状态（status）**: in progress
+- **状态（status）**: done
 - **优先级（priority）**: P1
 - **负责人（owner）**: 当前实现者；范围与风险决定由仓库负责人负责
 - **创建日期（createdAt）**: 2026-09-07
@@ -30,13 +30,37 @@
 - [x] 身份、网络/域、时间、请求绑定和回执字段篡改均被拒绝。
 - [x] 活凭据过期边界与历史记录校验规则分别通过定向测试。
 - [x] managed envelope 固定向量未改变。
-- [ ] 契约 C1/C7 的身份指纹、IPv4/IPv6 domain 和盐边界有固定向量。
+- [x] 契约 C1/C7 的身份指纹、IPv4/IPv6 domain 和盐边界有固定向量。
 
 ## 实现说明（Implementation Notes）
 
 字段表和原始十六进制 fixture 是新 wire 的执行契约，不只用 serde round-trip 作证明。独立期望字节与已签固定向量能发现双端一致但同样错误的编码；NS 复制相同向量，不复制临时输出。共享 fixtures 不包含真实 secrets。
 
 ## 验证（Verification）
+
+第五块首次入口：`cargo test --locked -p control --test mesh_identity`，
+用例 `mesh_fingerprints_and_addresses_match_independent_blake2s_vectors`、
+`mesh_fingerprint_and_address_bindings_reject_ambiguous_values`、
+`mesh_address_allocation_bounds_attempts_and_collision_order`。
+新增 `mesh/identity.rs` 和定向测试，独立 Python hashlib 的 20/15/4-byte BLAKE2s
+结果冻结为测试常量，区别于截断 256-bit digest；盐签名编码仍按 payload u64，
+地址派生按 C7 使用 u32 BE，超过 u32 的 wire 盐拒绝。
+复用锁文件已有 `blake2 0.10.6` 并显式声明 control 直接依赖；MIT/Apache-2.0、
+纯 Rust、无新增 TLS/provider/native 构建，关闭不必要默认 feature。通过 Cargo
+离线解析仅更新直接依赖边，再执行 Mesh 回归、fmt/lint、deny/shear。
+首次执行前证据 `assumed`；本块无持久状态/socket/权限副作用。
+为满足 C5 的完整公钥 canonical state，accept 追加第 15 字段 `joiner_pub`，
+纳入网络签名，并校验其 C1 指纹与 joiner_id 一致；JoinBinding 同时核对完整公钥。
+27 组独立向量仅 accept 原文/签名随该字段更新，Managed 向量保持不变。
+独立 oracle 现纳入正常测试编译和 lint，新增
+`mesh_independent_oracle_matches_checked_in_vectors`；不在测试中重写 fixture。
+11 个当前受影响定向测试通过，Clippy 的可合并 if 已按建议修复后原门禁通过。
+`just deny` 退出 0（既有 yanked/duplicate/wildcard 警告保留，不升级无关依赖）；
+`just shear` 在接线 oracle 后无问题。最终完整 control 回归及 fmt/shear 再次执行中。
+第五块最终结果：完整 control 回归退出 0，436 个单元测试、23 个 Mesh 集成测试、
+23 个既有契约集成测试通过，零失败/忽略；fmt/lint/deny/shear 全部退出 0。
+证据 `locally checked`，本任务纯协议范围闭合。实际跨仓复制/互操作、relay runtime、
+macOS 原生网络与共享仓最终质量门仍由对应任务/计划保留，不由本任务 done 替代。
 
 第四块首次入口：`cargo test --locked -p control --test mesh_handshake` 和
 `cargo test --locked -p control mesh_cookie_matches_independent_hmac_input`。
@@ -118,3 +142,4 @@ payload 接受任意 map 字段顺序，要求定长容器和最短整数编码�
 ## 状态日志（Status Log）
 
 - 2026-09-07：按已批准方案创建；计划资产审查完成，实现状态仍 pending。
+- 2026-09-07：wire、身份/地址、认证、固定向量及本地验证闭合；任务 done。

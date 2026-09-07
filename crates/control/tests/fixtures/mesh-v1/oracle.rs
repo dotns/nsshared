@@ -1,4 +1,4 @@
-//! Standalone fixture oracle: only CBOR/cryptographic primitives, never control codecs.
+//! Independent fixture oracle: only CBOR/cryptographic primitives, never control codecs.
 //! Fixed seeds are synthetic test material, not deployment identities.
 use ciborium::value::Value;
 use ed25519_dalek::{Signer, SigningKey};
@@ -83,7 +83,9 @@ fn envelope(api: &str, kind: &str, payload: &[u8]) -> (Vec<u8>, Vec<u8>) {
     ]));
     (input, bytes)
 }
-fn main() {
+pub(super) fn vectors() -> serde_json::Value {
+    let joiner = SigningKey::from_bytes(&[14; 32]).verifying_key().to_bytes();
+    let joiner_id = blake2::Blake2s::<blake2::digest::consts::U20>::digest(joiner);
     let member = SigningKey::from_bytes(&[11; 32]).verifying_key().to_bytes();
     let network = SigningKey::from_bytes(&[12; 32]).verifying_key().to_bytes();
     let relay = SigningKey::from_bytes(&[13; 32]).verifying_key().to_bytes();
@@ -186,13 +188,14 @@ fn main() {
     lp(&mut ai, b"home");
     lp(&mut ai, b"wss://relay.example:9443");
     ai.extend_from_slice(&[4; 32]);
-    ai.extend_from_slice(&[5; 20]);
+    ai.extend_from_slice(&joiner_id);
     ai.extend_from_slice(&[6; 32]);
     ai.extend_from_slice(&[2; 16]);
     ints(&mut ai, &[1, 1]);
     addr_input(&mut ai);
     addr_input(&mut ai);
     ints(&mut ai, &[1000, 1060]);
+    ai.extend_from_slice(&joiner);
     cases.push((
         "accept",
         "mesh.accept",
@@ -202,7 +205,7 @@ fn main() {
             s("home"),
             s("wss://relay.example:9443"),
             b(&[4; 32]),
-            b(&[5; 20]),
+            b(&joiner_id),
             b(&[6; 32]),
             b(&[2; 16]),
             n(1),
@@ -212,6 +215,7 @@ fn main() {
             n(1000),
             n(1060),
             sig(12, &ai),
+            b(&joiner),
         ]),
     ));
     cases.push((
@@ -447,8 +451,5 @@ fn main() {
         let (input, envelope) = envelope(api, kind, &payload);
         serde_json::json!({"name":name,"api":api,"kind":kind,"payload_hex":hex::encode(payload),"envelope_hex":hex::encode(envelope),"signing_input_hex":hex::encode(input)})
     }).collect();
-    println!(
-        "{}",
-        serde_json::to_string_pretty(&serde_json::json!({"version":1,"vectors":vectors})).unwrap()
-    );
+    serde_json::json!({"version":1,"vectors":vectors})
 }

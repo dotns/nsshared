@@ -274,6 +274,7 @@ dependencies = [
  "arc-swap",
  "async-trait",
  "base64",
+ "blake2",
  "ciborium",
  "common",
  "ed25519-dalek",
