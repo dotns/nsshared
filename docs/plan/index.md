@@ -44,3 +44,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**PLAN-013 Causal scoped WG relay wire contract**](PLAN-013.md) `2026-07-13`
 - [x] [**PLAN-014 Structured framed-WSS tunnel task lifecycle**](PLAN-014.md) `2026-07-25`
 - [-] [**PLAN-015 Unified node capability and subnet-route contracts**](PLAN-015.md) `2026-08-16`
+- [-] [**PLAN-016：Mesh v1 共享 wire 与确定性状态契约**](PLAN-016.md) `2026-09-07`
