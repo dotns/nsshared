@@ -446,6 +446,18 @@ pub(super) fn vectors() -> serde_json::Value {
             b(&genesis),
         ]),
     ));
+    cases.push((
+        "owner-address",
+        "mesh.addr",
+        "request",
+        map(vec![b(&network), n(1), n(7)]),
+    ));
+    cases.push((
+        "owner-capability",
+        "mesh.capability",
+        "request",
+        map(vec![b(&network), n(1), n(1)]),
+    ));
     let vectors: Vec<_> = cases.into_iter().map(|(name,api,kind,payload)| {
         let payload = cbor(&payload);
         let (input, envelope) = envelope(api, kind, &payload);

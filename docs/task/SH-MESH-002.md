@@ -37,6 +37,22 @@
 
 ## 验证（Verification）
 
+owner 记录独立块首次入口：
+`CARGO_INCREMENTAL=0 cargo test --locked --offline -p control --test mesh_owner_records`。
+新增 peer-only `mesh.addr`/`mesh.capability` payload、历史签名/当前成员绑定验证与
+同时间原文摘要归并；唯一字段契约见主计划 C6。预期覆盖重复与重排、非 owner 签名、
+网络/种类/incarnation/WG 作用域、未知 flags/salt 溢出、尾随/过深/过长输入、地址复算。
+当前 Linux 定向入口 4 passed，0 failed/ignored；用例为
+`mesh_owner_records_verify_independent_vectors_and_recompute_addresses`、
+`mesh_owner_records_converge_across_duplicate_and_reordered_versions`、
+`mesh_owner_records_reject_forgery_revocation_and_cross_scope_replacement`、
+`mesh_owner_records_bound_schema_lengths_and_nested_input`。
+独立 oracle 与固定向量增加至 29 组；
+`CARGO_INCREMENTAL=0 cargo test --locked --offline -p control mesh_`：35 passed，
+0 failed/ignored；`just fmt-check` 和 `CARGO_INCREMENTAL=0 just lint` 均退出 0。
+证据 `verified`，纯内存，无网络或持久状态副作用。不关闭管理员 revision 或完整
+归约验收，不将成员间原文注册为 relay mailbox 接口，不将历史签名视为业务就绪。
+
 历史原文/回执绑定块首次入口：
 `CARGO_INCREMENTAL=0 cargo test --locked -p control --test mesh_history`。
 新增 `mesh/history.rs` 和定向测试，预期覆盖 add 双签名、evict/admins 原文签名、
@@ -72,10 +88,11 @@ hashlib 摘要向量一致，全部截断前缀、重复/乱序 key、版本、�
 当前 macOS：`cargo test --locked -p control`；增加独立的事件排列/重复/缺口、权限转换、digest 输入边界向量，记录实际定向用例。`just fmt-check`、`just lint`，交付关联计划当前平台 QA。
 
 门禁阶段：implementation；交付时执行关联计划当前平台适用 merge 检查。
-本块只关闭 canonical 编码/摘要条件；连续权限归约、管理员转换、owner 记录收敛和
+canonical 编码/摘要与 owner 记录收敛已有上述证据；连续权限归约、管理员转换和
 完整溢出路径尚未验证。上述 Linux 纯逻辑结果不替代 macOS/Windows 或真实端到端验收。
 
 ## 状态日志（Status Log）
 
 - 2026-09-07：按已批准方案创建；计划资产审查完成，实现状态仍 pending。
 - 2026-09-07：canonical state 编码、摘要与有界解码已验证；任务继续 in progress。
+- 2026-09-08：owner 地址/能力记录的签名、成员绑定和确定性合并已验证；管理员归约继续待完成。

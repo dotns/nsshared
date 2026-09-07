@@ -1,6 +1,6 @@
 # Mesh v1 Wire Vectors
 
-`vectors.json` contains 27 fixed synthetic vectors. `oracle.rs` constructs integer
+`vectors.json` contains 29 fixed synthetic vectors. `oracle.rs` constructs integer
 maps and signature inputs independently of the production `control` module.
 It uses only ciborium, ed25519-dalek, blake2, sha2, serde_json and hex. The golden-vector
 test compiles it and compares its independent output to the checked-in bytes;
@@ -29,6 +29,8 @@ by `mesh_mailbox_wire`, `mesh_recovery_wire`, `mesh_transport` and `mesh_handsha
 | Eviction body | member_id:id, incarnation:u, reason:text, member_pub:key |
 | Admins body | admins:bytes, admins_revision:u |
 | SignedManagementRecord | kind:u, network_pub:key, op_id:op, author_pub:key, issued_at:u, expires_at:u, body:bytes, signature:sig |
+| addr (peer-only) | network_pub:key, member_incarnation:u, v4_salt:u (0..u32::MAX) |
+| capability (peer-only) | network_pub:key, member_incarnation:u, capabilities:u (exit bit only) |
 | commit.query | network_pub:key, op_id:op, record_digest:digest |
 | commit.ack | network_pub:key, op_id:op, record_digest:digest, seq:u |
 | CommitReceipt | network_pub:key, op_id:op, author_pub:key, seq:u, record_digest:digest, signature:sig |
@@ -48,6 +50,10 @@ fresh outer envelopes do not replace the original signed record. Other entries
 with capitalized names are nested data, not additional relay endpoints.
 The cookie variant is unsigned and decoded separately from ControlEnvelope.
 The WSS hello is a pre-authentication payload, not a managed JWT endpoint.
+`mesh.addr` and `mesh.capability` are owner-signed records exchanged over member
+WG streams, not relay mailbox endpoints. Their request-domain signatures and
+original-byte digests survive historical sync; membership and incarnation are
+checked separately by `mesh_owner_records` before comparing timestamp/digest.
 
 Fixed-width signature fields are raw bytes, unsigned integers are BE u64, and
 dynamic fields have BE u32 byte lengths. Option uses 0/1 then the present value;

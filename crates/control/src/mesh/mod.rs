@@ -7,6 +7,7 @@ mod handshake;
 mod history;
 mod identity;
 mod mailbox;
+mod owner;
 mod recovery;
 mod validity;
 
@@ -16,6 +17,7 @@ pub use handshake::*;
 pub use history::*;
 pub use identity::*;
 pub use mailbox::*;
+pub use owner::*;
 pub use recovery::*;
 pub use validity::*;
 

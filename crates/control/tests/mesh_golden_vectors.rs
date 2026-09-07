@@ -42,7 +42,7 @@ fn public(seed: u8) -> [u8; 32] {
 fn mesh_fixed_vectors_cover_every_api_and_preserve_original_envelopes() {
     let suite = suite();
     assert_eq!(suite.version, 1);
-    assert_eq!(suite.vectors.len(), 27);
+    assert_eq!(suite.vectors.len(), 29);
     let mut apis = BTreeSet::new();
     for vector in &suite.vectors {
         let payload = hex::decode(&vector.payload_hex).unwrap();
@@ -118,6 +118,8 @@ fn mesh_fixed_vectors_cover_every_api_and_preserve_original_envelopes() {
             "mesh.restore.begin",
             "mesh.restore.chunk",
             "mesh.restore.finish",
+            "mesh.addr",
+            "mesh.capability",
         ])
     );
 }
@@ -370,6 +372,22 @@ fn mesh_fixed_payloads_decode_with_semantic_and_internal_signature_checks() {
                     assert_eq!(value.receipt, None);
                 }
             }
+            "mesh.addr" => assert_eq!(
+                decode!(AddressUpdate),
+                AddressUpdate {
+                    network_pub: public(12),
+                    member_incarnation: 1,
+                    v4_salt: 7,
+                }
+            ),
+            "mesh.capability" => assert_eq!(
+                decode!(CapabilityUpdate),
+                CapabilityUpdate {
+                    network_pub: public(12),
+                    member_incarnation: 1,
+                    capabilities: CAPABILITY_EXIT,
+                }
+            ),
             "mesh.restore.begin" => decode!(RestoreBegin)
                 .verify_proof(&public(11), &[4; 32])
                 .unwrap(),

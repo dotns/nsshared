@@ -75,6 +75,10 @@
 
 ## 计划级验证结果（Plan-level Verification Results）
 
+2026-09-08：SH-MESH-002 owner 独立块完成，见[任务验证](../task/SH-MESH-002.md#验证verification)。
+Linux 35 项 Mesh 回归、29 组独立固定向量及 fmt/lint 通过；管理员权限归约、
+跨仓互操作和 native 验收仍未闭合，任务与计划继续 in progress。
+
 2026-09-07：SH-MESH-001 纯协议范围闭合，见任务最终验证：固定 27 组协议向量，
 独立身份/地址结果，完整 control 回归（436 单元 + 23 Mesh + 23 既有契约）
 及 fmt/lint/deny/shear 均成功。实际环境 Linux，证据 `locally checked`。
