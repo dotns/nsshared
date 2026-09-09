@@ -98,16 +98,24 @@ impl Field for String {
 }
 
 pub(super) fn encode(value: &Value) -> Result<Vec<u8>, Error> {
+    encode_with_limit(value, MAX_CONTROL_FRAME)
+}
+
+pub(super) fn encode_with_limit(value: &Value, limit: usize) -> Result<Vec<u8>, Error> {
     let mut out = Vec::new();
     ciborium::ser::into_writer(value, &mut out).map_err(|_| Error::Payload("CBOR encoding"))?;
-    if out.len() > MAX_CONTROL_FRAME {
+    if out.len() > limit {
         return Err(Error::TooLarge);
     }
     Ok(out)
 }
 
 pub(super) fn decode(bytes: &[u8]) -> Result<Value, Error> {
-    if bytes.len() > MAX_CONTROL_FRAME {
+    decode_with_limit(bytes, MAX_CONTROL_FRAME)
+}
+
+pub(super) fn decode_with_limit(bytes: &[u8], limit: usize) -> Result<Value, Error> {
+    if bytes.len() > limit {
         return Err(Error::TooLarge);
     }
     let mut input = bytes;
@@ -118,7 +126,7 @@ pub(super) fn decode(bytes: &[u8]) -> Result<Value, Error> {
     }
     // Ciborium emits definite lengths and shortest integers while preserving
     // map order, so this rejects indefinite/nonminimal forms without reparsing CBOR.
-    if encode(&value)? != bytes {
+    if encode_with_limit(&value, limit)? != bytes {
         return Err(Error::Payload("noncanonical CBOR"));
     }
     validate_tree(&value, 0)?;

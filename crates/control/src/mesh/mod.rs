@@ -11,6 +11,7 @@ mod mailbox;
 mod membership;
 mod owner;
 mod recovery;
+mod sync;
 mod validity;
 
 pub use compact::*;
@@ -23,6 +24,7 @@ pub use mailbox::*;
 pub use membership::*;
 pub use owner::*;
 pub use recovery::*;
+pub use sync::*;
 pub use validity::*;
 
 #[derive(Debug, thiserror::Error)]

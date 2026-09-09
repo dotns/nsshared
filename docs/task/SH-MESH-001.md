@@ -1,6 +1,6 @@
 # SH-MESH-001：定义 Mesh wire 类型与兼容向量
 
-- **状态（status）**: done
+- **状态（status）**: in progress
 - **优先级（priority）**: P1
 - **负责人（owner）**: 当前实现者；范围与风险决定由仓库负责人负责
 - **创建日期（createdAt）**: 2026-09-07
@@ -25,8 +25,8 @@
 
 ## 验收标准（Acceptance Criteria）
 
-- [x] 所有基线和扩展 API 均有完整字段编号、类型、可选项与签名向量。
-- [x] 最大合法请求与响应均能按规定 framing 传输，1201-byte Mesh datagram 被拒绝。
+- [ ] 所有基线和扩展 API 均有完整字段编号、类型、可选项与签名向量。
+- [ ] 最大合法请求与响应均能按规定 framing 传输，1201-byte Mesh datagram 被拒绝。
 - [x] 身份、网络/域、时间、请求绑定和回执字段篡改均被拒绝。
 - [x] 活凭据过期边界与历史记录校验规则分别通过定向测试。
 - [x] managed envelope 固定向量未改变。
@@ -37,6 +37,24 @@
 字段表和原始十六进制 fixture 是新 wire 的执行契约，不只用 serde round-trip 作证明。独立期望字节与已签固定向量能发现双端一致但同样错误的编码；NS 复制相同向量，不复制临时输出。共享 fixtures 不包含真实 secrets。
 
 ## 验证（Verification）
+
+2026-09-09 新选 C6 同步协议块（共享实现已验证，跨仓门禁待完成）：在既有 WG 账本帧边界内新增版本化
+Digest/Pull/Records/Done/DoneAck，历史原文与规范回执摘要链、owner 胜者快照共同
+构成版本。生产范围为 `mesh/sync.rs`、`sync/digest.rs` 与原 codec 私有显式 limit
+复用入口；既有 1200-byte 控制 API 不放宽。完整帧包含 u32 BE 长度头最多 65536
+字节，页最多 24 项、owner 总数最多 64；解析不是鉴权，摘要不是已持久或 Ready。
+新增 `tests/mesh_sync.rs` 七项 `mesh_sync_` 测试与 `fixtures/mesh-sync-v1` 十个
+独立固定向量。`CARGO_INCREMENTAL=0 cargo test --locked --offline -p control
+--test mesh_sync -- --list` 编译 33.36s，通过并匹配七项；随后 `cargo test --locked
+--offline -p control mesh_` 编译 1m32s，56 项通过，含七项新测试（4.82s）。
+再运行完整 `CARGO_INCREMENTAL=0 cargo test --locked --offline -p control`：436 项
+单元、55 项 Mesh 集成和 23 项既有契约集成全部通过，0 failed/ignored；新七项
+再次通过（4.39s）。`CARGO_INCREMENTAL=0 CARGO_NET_OFFLINE=true just fmt-check lint`
+通过，Clippy 39.55s。固定向量与独立 oracle 在实际产品测试中逐项核对，不以生成
+成功替代产品测试。唯一契约 C6.1/C6.2 已补详细字段与摘要；NS 七文件已机械镜像，
+除既有测试 cfg 头外逐字节一致，但对应 Cargo 门禁尚未执行，跨仓验收保持开放。
+真实流分片/拼接、双向确认、写盘后完成与两 TCP 槽调度由 NS runtime 块验证，
+本块仅完整单帧编解码、认证记录摘要与固定字节，不宣称 Linux live-e2e 通过。
 
 第五块首次入口：`cargo test --locked -p control --test mesh_identity`，
 用例 `mesh_fingerprints_and_addresses_match_independent_blake2s_vectors`、

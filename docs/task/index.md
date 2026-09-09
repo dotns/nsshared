@@ -82,5 +82,5 @@ Each task is a single line linking to its detail file. All detailed information 
 
 - [x] [**COMPAT-001 Restore relay interoperability with current NS nodes**](COMPAT-001.md) `P0`
 
-- [x] [**SH-MESH-001：定义 Mesh wire 类型与兼容向量**](SH-MESH-001.md) `P1`
+- [-] [**SH-MESH-001：定义 Mesh wire 类型与兼容向量**](SH-MESH-001.md) `P1`
 - [-] [**SH-MESH-002：实现确定性成员归约与恢复摘要**](SH-MESH-002.md) `P1`
