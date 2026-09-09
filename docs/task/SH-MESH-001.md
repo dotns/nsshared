@@ -38,6 +38,21 @@
 
 ## 验证（Verification）
 
+2026-09-09 负责人选择首次入网与 WG 私钥交付补充，唯一字段/边界见主契约 C6.3。
+新增并注册 `mesh/key_exchange.rs`、`key_exchange/framing.rs` 和六项直接测试，
+复用原五种 C6、已有 envelope 签名域及严格 CBOR；两种 key API 仅用于 WG。
+`fixtures/mesh-key-v1` 独立 oracle 的两份完整帧向量分别为 473/528 字节，生成后
+结构化比对一致，SHA256 `ec7134d6efd8d5810ef951c67840bbace463e25f0dcdd64de67877fad0c07bd6`。
+`CARGO_INCREMENTAL=0 cargo test --locked --offline -p control mesh_key_ -- --list`
+首次编译 2m14s，准确枚举六项新测试。随后完整 control 测试 442 项单元、55 项
+Mesh 集成、23 项既有契约全部通过，0 failed/ignored；六项新测试均实际通过。
+单元制品 SHA256 `543492822783e32fc59e4cbcd477e838aae9c608bdebdb464af77310926a126f`。
+`cargo fmt --all -- --check` 与离线 `just lint`（workspace/all-targets Clippy，37.14s）
+通过，独立审查未发现确定协议缺陷。证据 verified 限纯 codec/固定向量，不宣称
+通用 CBOR 解析内部临时副本完全擦除。既有 secrecy 依赖复用，无版本或锁文件变更。
+NS 镜像、实际
+权限/WG epoch/nonce 消费、Vault 安装、完整 PIN bootstrap 和 live-e2e 均待后续验证。
+
 2026-09-09 新选 C6 同步协议块（共享实现已验证，跨仓门禁待完成）：在既有 WG 账本帧边界内新增版本化
 Digest/Pull/Records/Done/DoneAck，历史原文与规范回执摘要链、owner 胜者快照共同
 构成版本。生产范围为 `mesh/sync.rs`、`sync/digest.rs` 与原 codec 私有显式 limit

@@ -75,6 +75,11 @@
 
 ## 计划级验证结果（Plan-level Verification Results）
 
+2026-09-09：负责人新选 C6.3 的 WG-only 密钥请求/交付已补 codec、完整签名帧
+固定向量及六项测试。完整 control（442 单元/55 Mesh 集成/23 既有契约）和 fmt/lint
+均通过，详见[任务验证](../task/SH-MESH-001.md#验证verification)。仅关闭本共享
+协议块；NS 镜像、实际权限与密钥安装、完整入网及跨仓/native 验收保持开放。
+
 2026-09-09：负责人新选 C6 版本化同步方案已实现共享 wire/摘要与十个固定向量；
 七项新增、完整 control（436 单元/55 Mesh 集成/23 既有契约）及 fmt/lint 均通过。
 唯一契约已补 C6.1/C6.2，NS 镜像漂移检查通过、Cargo 门禁仍待完成，故任务及对应
