@@ -75,6 +75,11 @@
 
 ## 计划级验证结果（Plan-level Verification Results）
 
+2026-09-09：负责人明确 evict 连带管理员移除及实际变化时 revision 加 1 的规则，
+该决策阻断解除；纯归约块已通过 10 项定向、49 项 Mesh 回归与 fmt/lint，
+见[任务验证](../task/SH-MESH-002.md#验证verification)。本机 Linux 验证优先；
+vouch 水位保护的直接接线证据、NS 镜像及计划级交付检查仍未完成，不关闭退出项。
+
 2026-09-08：add/admins 独立归约块完成，见[任务验证](../task/SH-MESH-002.md#验证verification)。
 Linux 45 项 Mesh 回归与 fmt/lint 通过；历史权限、成员水位保留、管理员 revision
 竞态与容量边界已有直接证据。evict 管理员转换仍待决定，完整任务、跨仓及 native

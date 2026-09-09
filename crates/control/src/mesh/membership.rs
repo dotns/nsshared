@@ -20,6 +20,54 @@ pub struct MembershipReduction {
 }
 
 impl CompactState {
+    /// Revoke through the signed incarnation without affecting a later admission.
+    /// Removing a current administrator changes the set and consumes one revision.
+    pub fn reduce_evict(
+        &self,
+        record: &AuthenticatedRecord<'_>,
+    ) -> Result<MembershipReduction, Error> {
+        let ManagementContents::Evict(eviction) = record.contents() else {
+            return Err(Error::Payload("expected eviction record"));
+        };
+        let mut next = self.next_record(record)?;
+        if !self.entitled(&record.receipt().author_pub) {
+            return Ok(MembershipReduction {
+                state: next,
+                effect: MembershipEffect::NotEntitled,
+            });
+        }
+        if self
+            .evicted_through
+            .get(&eviction.member_pub)
+            .is_some_and(|watermark| *watermark >= eviction.incarnation)
+        {
+            return Ok(MembershipReduction {
+                state: next,
+                effect: MembershipEffect::StaleIncarnation,
+            });
+        }
+        next.evicted_through
+            .insert(eviction.member_pub, eviction.incarnation);
+        if self
+            .members
+            .get(&eviction.member_pub)
+            .is_some_and(|member| member.incarnation <= eviction.incarnation)
+        {
+            next.members.remove(&eviction.member_pub);
+            if next.admins.remove(&eviction.member_pub) {
+                next.admins_revision = self
+                    .admins_revision
+                    .checked_add(1)
+                    .ok_or(Error::Payload("admin revision overflow"))?;
+            }
+        }
+        next.validate()?;
+        Ok(MembershipReduction {
+            state: next,
+            effect: MembershipEffect::Applied,
+        })
+    }
+
     /// Historical membership only. Live join, relay-origin trust, durability and business
     /// readiness are separate checks. Even ineffective authenticated records consume their seq.
     pub fn reduce_add(

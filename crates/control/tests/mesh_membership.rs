@@ -161,6 +161,37 @@ fn sign_admins(author: u8, members: &[u8], revision: u64, seq: u64) -> Signed {
     )
 }
 
+fn sign_evict(author: u8, member_pub: [u8; 32], incarnation: u64, seq: u64) -> Signed {
+    let mut op_id = [10; 16];
+    op_id[8..].copy_from_slice(&seq.to_be_bytes());
+    let eviction = Eviction {
+        member_id: member_id(&member_pub),
+        member_pub,
+        incarnation,
+        reason: "fixture removal".into(),
+    };
+    let mut record = SignedManagementRecord {
+        kind: SignedManagementRecord::EVICT,
+        network_pub: public(12),
+        op_id,
+        author_pub: public(author),
+        issued_at: 1000,
+        expires_at: 1060,
+        body: eviction.encode().unwrap(),
+        signature: [0; 64],
+    };
+    record.signature = key(author)
+        .sign(&record.signing_input().unwrap())
+        .to_bytes();
+    Signed::new(
+        ManagementKind::Evict,
+        record.encode().unwrap(),
+        author,
+        op_id,
+        seq,
+    )
+}
+
 fn unchanged_membership(
     old: &CompactState,
     reduction: &MembershipReduction,
@@ -403,4 +434,187 @@ fn mesh_membership_enforces_member_and_retained_identity_capacity_without_partia
     assert_eq!(restored.effect, MembershipEffect::Applied);
     assert_eq!(restored.state.evicted_through, retained.evicted_through);
     assert_eq!(restored.state.members.len(), 3);
+}
+
+#[test]
+fn mesh_membership_evictions_preserve_new_incarnations_and_never_clear_watermarks() {
+    let initial = state();
+    let eviction = sign_evict(11, public(15), 1, 2);
+    let removed = initial.reduce_evict(&eviction.verified()).unwrap();
+    let mut expected = initial.clone();
+    expected.seq = 2;
+    expected.members.remove(&public(15));
+    expected.evicted_through.insert(public(15), 1);
+    assert_eq!(removed.effect, MembershipEffect::Applied);
+    assert_eq!(removed.state, expected);
+    assert_eq!(initial, state());
+
+    let add = sign_add(add_value(11, 15, 3, 5), 11, 3);
+    let rejoined = removed.state.reduce_add(&add.verified()).unwrap();
+    assert_eq!(rejoined.state.evicted_through[&public(15)], 1);
+    let admins = sign_admins(11, &[15], 1, 4);
+    let designated = rejoined.state.reduce_admins(&admins.verified()).unwrap();
+    let old = sign_evict(15, public(15), 2, 5);
+    let delayed = designated.state.reduce_evict(&old.verified()).unwrap();
+    assert_eq!(delayed.effect, MembershipEffect::Applied);
+    assert_eq!(delayed.state.members, designated.state.members);
+    assert_eq!(delayed.state.admins, designated.state.admins);
+    assert_eq!(delayed.state.admins_revision, 1);
+    assert_eq!(delayed.state.evicted_through[&public(15)], 2);
+    let old = sign_evict(15, public(15), 1, 6);
+    let repeated = delayed.state.reduce_evict(&old.verified()).unwrap();
+    unchanged_membership(
+        &delayed.state,
+        &repeated,
+        MembershipEffect::StaleIncarnation,
+    );
+    let current = sign_evict(15, public(15), 3, 7);
+    let removed = repeated.state.reduce_evict(&current.verified()).unwrap();
+    assert!(!removed.state.members.contains_key(&public(15)));
+    assert!(removed.state.admins.is_empty());
+    assert_eq!(removed.state.admins_revision, 2);
+    assert_eq!(removed.state.evicted_through[&public(15)], 3);
+    let new = sign_add(add_value(11, 15, 4, 5), 11, 8);
+    let readmitted = removed.state.reduce_add(&new.verified()).unwrap();
+    assert_eq!(readmitted.state.members[&public(15)].incarnation, 4);
+    assert!(readmitted.state.admins.is_empty());
+    assert_eq!(readmitted.state.admins_revision, 2);
+    assert_eq!(readmitted.state.evicted_through[&public(15)], 3);
+    let stale = sign_add(add_value(11, 15, 3, 5), 11, 9);
+    unchanged_membership(
+        &readmitted.state,
+        &readmitted.state.reduce_add(&stale.verified()).unwrap(),
+        MembershipEffect::StaleIncarnation,
+    );
+}
+
+#[test]
+fn mesh_membership_evictions_revision_only_changed_admin_sets_and_restore_equal_rights() {
+    let mut initial = state();
+    initial.members.insert(
+        public(14),
+        CompactMember {
+            wg_pub: [7; 32],
+            incarnation: 1,
+        },
+    );
+    initial.members.insert(
+        public(16),
+        CompactMember {
+            wg_pub: [6; 32],
+            incarnation: 1,
+        },
+    );
+    initial.admins = BTreeSet::from([public(11), public(15)]);
+    initial.admins_revision = 1;
+    let ordinary = sign_evict(11, public(16), 1, 2);
+    let ordinary = initial.reduce_evict(&ordinary.verified()).unwrap();
+    assert_eq!(ordinary.state.admins, initial.admins);
+    assert_eq!(ordinary.state.admins_revision, 1);
+    let admin = sign_evict(11, public(15), 1, 3);
+    let admin = ordinary.state.reduce_evict(&admin.verified()).unwrap();
+    assert_eq!(admin.state.admins, BTreeSet::from([public(11)]));
+    assert_eq!(admin.state.admins_revision, 2);
+    let raced = sign_admins(11, &[11], 2, 4);
+    let raced = admin.state.reduce_admins(&raced.verified()).unwrap();
+    unchanged_membership(&admin.state, &raced, MembershipEffect::StaleAdminRevision);
+    let last = sign_evict(11, public(11), 1, 5);
+    let last = raced.state.reduce_evict(&last.verified()).unwrap();
+    assert!(last.state.admins.is_empty());
+    assert_eq!(last.state.admins_revision, 3);
+    assert_eq!(
+        last.state.members.keys().copied().collect::<Vec<_>>(),
+        vec![public(14)]
+    );
+    let promote = sign_admins(14, &[14], 4, 6);
+    let promoted = last.state.reduce_admins(&promote.verified()).unwrap();
+    assert_eq!(promoted.effect, MembershipEffect::Applied);
+    assert_eq!(promoted.state.admins_revision, 4);
+    let absent = sign_evict(14, public(15), 2, 7);
+    let absent = promoted.state.reduce_evict(&absent.verified()).unwrap();
+    assert_eq!(absent.state.admins, promoted.state.admins);
+    assert_eq!(absent.state.admins_revision, 4);
+    assert_eq!(absent.state.evicted_through[&public(15)], 2);
+    assert_eq!(
+        CompactState::decode(&absent.state.encode().unwrap()).unwrap(),
+        absent.state
+    );
+}
+
+#[test]
+fn mesh_membership_evictions_use_preceding_authority_and_sequence_mutual_removals() {
+    let initial = state();
+    let first = sign_evict(11, public(15), 1, 2);
+    let first = initial.reduce_evict(&first.verified()).unwrap();
+    let second = sign_evict(15, public(11), 1, 3);
+    let second = first.state.reduce_evict(&second.verified()).unwrap();
+    unchanged_membership(&first.state, &second, MembershipEffect::NotEntitled);
+    assert!(second.state.members.contains_key(&public(11)));
+    assert!(!second.state.evicted_through.contains_key(&public(11)));
+    let mut managed = initial;
+    managed.admins.insert(public(11));
+    managed.admins_revision = 1;
+    for author in [15, 16] {
+        let removal = sign_evict(author, public(11), u64::MAX, 2);
+        unchanged_membership(
+            &managed,
+            &managed.reduce_evict(&removal.verified()).unwrap(),
+            MembershipEffect::NotEntitled,
+        );
+    }
+    // Historical signature validity never restores a departed administrator's rights.
+    managed.members.remove(&public(11));
+    let removal = sign_evict(11, public(15), 1, 2);
+    unchanged_membership(
+        &managed,
+        &managed.reduce_evict(&removal.verified()).unwrap(),
+        MembershipEffect::NotEntitled,
+    );
+}
+
+#[test]
+fn mesh_membership_evictions_bound_context_capacity_and_exhausted_incarnations() {
+    let initial = state();
+    let eviction = sign_evict(11, public(15), 1, 2);
+    let add = sign_add(add_value(11, 14, 1, 6), 11, 2);
+    assert!(initial.reduce_evict(&add.verified()).is_err());
+    assert!(initial.reduce_add(&eviction.verified()).is_err());
+    assert!(initial.reduce_admins(&eviction.verified()).is_err());
+    for change in [
+        |s: &mut CompactState| s.network_pub = public(17),
+        |s: &mut CompactState| s.seq = 0,
+        |s: &mut CompactState| s.seq = 2,
+        |s: &mut CompactState| s.seq = u64::MAX,
+    ] {
+        let mut bad = initial.clone();
+        change(&mut bad);
+        let old = bad.clone();
+        assert!(bad.reduce_evict(&eviction.verified()).is_err());
+        assert_eq!(bad, old);
+    }
+    let exhausted = sign_evict(11, public(15), u64::MAX, 2);
+    let exhausted = initial.reduce_evict(&exhausted.verified()).unwrap();
+    assert_eq!(exhausted.state.evicted_through[&public(15)], u64::MAX);
+    let rejoin = sign_add(add_value(11, 15, u64::MAX, 5), 11, 3);
+    unchanged_membership(
+        &exhausted.state,
+        &exhausted.state.reduce_add(&rejoin.verified()).unwrap(),
+        MembershipEffect::StaleIncarnation,
+    );
+    let mut full = initial;
+    for index in 0_u64..4094 {
+        let mut identity = [99; 32];
+        identity[..8].copy_from_slice(&index.to_be_bytes());
+        full.evicted_through.insert(identity, 1);
+    }
+    full.validate().unwrap();
+    let original = full.clone();
+    let growth = sign_evict(11, public(16), 1, 2);
+    assert!(full.reduce_evict(&growth.verified()).is_err());
+    assert_eq!(full, original);
+    let existing = full.reduce_evict(&eviction.verified()).unwrap();
+    assert_eq!(existing.effect, MembershipEffect::Applied);
+    assert_eq!(existing.state.evicted_through.len(), 4095);
+    assert_eq!(existing.state.members.len(), 1);
+    existing.state.validate().unwrap();
 }

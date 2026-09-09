@@ -25,17 +25,37 @@
 
 ## 验收标准（Acceptance Criteria）
 
-- [ ] add/evict/admins 按 seq 连续归约且历史权限判定一致。
+- [x] add/evict/admins 按 seq 连续归约且历史权限判定一致。
 - [ ] 成员资格撤销水位不因旧 incarnation、新 timestamp 或 vouch 降低。
 - [x] canonical state 对同一语义状态生成相同字节与摘要。
 - [x] 管理员 revision 竞态和同时间 addr/capability 冲突确定性收敛。
-- [ ] 不规范编码、摘要不匹配、未知版本与数值溢出被拒绝。
+- [x] 不规范编码、摘要不匹配、未知版本与数值溢出被拒绝。
 
 ## 实现说明（Implementation Notes）
 
 所有产品/协议语义引用唯一契约；不在任务中重定义默认值或另建状态机。实现顺序先纯逻辑和离线验证，再完成依赖已满足的真实接线。
 
 ## 验证（Verification）
+
+2026-09-09 evict 归约块已验证：负责人已选择实际移除成员时同时移除其管理员资格，
+管理员集为空恢复平等成员；因移除而实际改变管理员集时 revision 加 1，否则不增加。
+显式 admins 原文的既有 revision 规则不变。范围仅 `mesh/membership.rs` 与
+`tests/mesh_membership.rs`，不接网关持久事务或客户端网络流程。
+先运行 `CARGO_INCREMENTAL=0 cargo test --locked --offline -p control --test mesh_membership -- --list`，
+随后同入口行为测试、`cargo test --locked --offline -p control mesh_` 与既有 fmt/lint。
+新增精确用例：
+`mesh_membership_evictions_preserve_new_incarnations_and_never_clear_watermarks`、
+`mesh_membership_evictions_revision_only_changed_admin_sets_and_restore_equal_rights`、
+`mesh_membership_evictions_use_preceding_authority_and_sequence_mutual_removals`、
+`mesh_membership_evictions_bound_context_capacity_and_exhausted_incarnations`。
+实际 `--list` 匹配 10 项（原 6 加新 4），定向行为 10 passed、0 failed/ignored，
+2.79 秒；完整 `cargo test --locked --offline -p control mesh_` 49 passed、
+0 failed/ignored，包含 29 组既有独立向量。`just fmt-check` 与
+`CARGO_INCREMENTAL=0 CARGO_NET_OFFLINE=true just lint` 均退出 0，源码首次门禁通过。
+证据 `verified` 限纯签名归约，覆盖水位保留、重新加入后的旧代次保护、管理员转换、
+互相撤销顺序、无权记录消费 seq、缺口/溢出及身份容量。关闭完整 add/evict/admins
+历史归约及输入拒绝两项；vouch 恢复路径不降低水位的验收仍需直接接线证据，
+不由本块推断通过。NS 镜像正在同步，尚未取得其独立门禁和连续重放结果。
 
 add/admins 独立归约块首次入口：
 `CARGO_INCREMENTAL=0 cargo test --locked --offline -p control --test mesh_membership`。
@@ -116,19 +136,19 @@ fmt/lint。当前 Linux 已执行上述定向入口，3 passed；随后
 hashlib 摘要向量一致，全部截断前缀、重复/乱序 key、版本、容量和 anchor 不匹配
 均被拒绝。证据 `verified`，纯内存，无网络或持久状态副作用。
 
-待负责人决定：撤销管理员的成员资格时是否同时移除其管理员资格；特别是最后一名
-管理员被移除后是否自动恢复平等权限。唯一契约未明确这一转换，已请求决定；只暂停
-受影响的 evict 权限归约及依赖路径，canonical 表示/摘要与其它独立块继续。未选择默认行为。
+2026-09-09 上述管理员撤销及 revision 规则已由负责人选择，解除该决策阻断；
+实现/验证见本节 evict 结果，仍不表示 vouch 或跨仓任务闭合。
 
 当前 macOS：`cargo test --locked -p control`；增加独立的事件排列/重复/缺口、权限转换、digest 输入边界向量，记录实际定向用例。`just fmt-check`、`just lint`，交付关联计划当前平台 QA。
 
 门禁阶段：implementation；交付时执行关联计划当前平台适用 merge 检查。
-canonical 编码/摘要、owner 收敛及 add/admins 连续归约已有上述证据；evict 权限归约、
-撤销管理员转换和完整溢出路径尚未验证。上述 Linux 纯逻辑结果不替代 macOS/Windows
+canonical 编码/摘要、owner 收敛及 add/evict/admins 连续归约已有上述证据；vouch 恢复
+接线对水位的保护、跨仓及计划交付门尚未闭合。上述 Linux 纯逻辑结果不替代 macOS/Windows
 或真实端到端验收。
 
 ## 状态日志（Status Log）
 
+- 2026-09-09：evict 归约及管理员连带移除已验证，49 项 Mesh 回归与 fmt/lint 通过；vouch/跨仓保持未闭合。
 - 2026-09-07：按已批准方案创建；计划资产审查完成，实现状态仍 pending。
 - 2026-09-07：canonical state 编码、摘要与有界解码已验证；任务继续 in progress。
 - 2026-09-08：owner 地址/能力记录的签名、成员绑定和确定性合并已验证；管理员归约继续待完成。
