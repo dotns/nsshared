@@ -2,6 +2,7 @@
 
 mod codec;
 mod compact;
+mod discovery;
 mod framing;
 mod genesis;
 mod handshake;
@@ -16,6 +17,7 @@ mod sync;
 mod validity;
 
 pub use compact::*;
+pub use discovery::*;
 pub use framing::*;
 pub use genesis::*;
 pub use handshake::*;

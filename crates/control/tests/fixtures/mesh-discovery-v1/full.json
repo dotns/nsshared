@@ -1,0 +1,1 @@
+{"version":"mesh_trust.v1","relay_origin":"wss://[2001:db8::1]:443","relay_key":{"current":"66be7e332c7a453332bd9d0a7f7db055f5c5ef1a06ada66d98b39fb6810c473a","next":"0b513ad9b4924015ca0902ed079044d3ac5dbec2306f06948c10da8eb6e39f2d"},"udp_port":65535,"wss_port":443,"capabilities":["udp","wss"]}

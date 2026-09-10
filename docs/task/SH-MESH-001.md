@@ -44,6 +44,40 @@
 
 ## 验证（Verification）
 
+2026-09-10 discovery 类型块：负责人已采纳 PLAN-016 方案，唯一契约 C1.1 已在
+NS `4ddc6968` 同步。新增 `mesh/discovery.rs` 的 `DiscoveryDocument`、
+`DiscoveryKeys`、有限 `DiscoveryCapability`，导出 `DISCOVERY_PATH`、
+`DISCOVERY_VERSION` 和 `MAX_DISCOVERY_BYTES=4096`。`encode/decode` 验证完整
+JSON、canonical origin、32-byte lowercase hex key、非零端口及能力一致性；
+未知/重复字段、未知能力、错误 key 编码和尾随值拒绝。缺省/null 可选值等价，
+编码省略不存在的字段。调用方必须在 HTTP 收集时应用同一大小上限，且仍需
+验证 WebPKI、目标 origin 和固定 key，解析本身不建立信任或允许 key 迁移。
+
+新增 `tests/mesh_discovery.rs` 四项直接测试，以及独立 Python JSON 生成的
+`fixtures/mesh-discovery-v1/{udp.json,full.json}`（去尾换行分别 201/294 bytes）。
+固定期望字节不调用生产序列化生成；实际产品编码逐字节对照两份 fixture，解码
+另外核对完整 key/端口/能力。UDP-only/full+next、可选 null、字段矛盾/缺失、
+重复已知字段（包括先 null 后重复）、未知字段、全部截断位置及 4096/4097-byte
+完整响应边界均通过。有限 enum 与 key 不含真实秘密。
+
+当前 Linux x86_64、Rust 1.96.0，首次
+`CARGO_INCREMENTAL=0 cargo test --locked --offline -p control --test mesh_discovery -- --list`
+准确枚举四项（编译 29.66s），同 target 直接测试 4 passed。
+`CARGO_INCREMENTAL=0 cargo test --locked --offline -p control mesh_`
+共 72 passed，0 failed/ignored（编译 1m30s）；过滤掉的其它 control 测试不算通过。
+`CARGO_INCREMENTAL=0 CARGO_NET_OFFLINE=true just fmt-check lint` 首次通过，
+workspace/all-targets Clippy 36.65s；无依赖/锁文件改动、lint 放宽或额外全量 QA。
+普通用户纯 codec 测试，无 socket/产品持久副作用；无需网络清理。
+原始输出保留在 Git 外：
+
+- `/tmp/mesh-b-discovery-tests.log`：SHA256 `2ecf3fab518efe97b1c70c9370814a42d15557042585ea1425d201c7063ef42d`。
+
+- `/tmp/mesh-b-discovery-mesh.log`：SHA256 `42666d7a42e137dab3f3c56175cac88148a80c63e34753a072289f658e6a7d83`。
+
+- `/tmp/mesh-b-discovery-static.log`：SHA256 `c8c162588268bce23365845c230e2bbffc8ffe4835b8e09cb6295a576eaf0d77`。
+
+证据 `verified` 限共享类型/固定向量；NS 镜像、HTTPS/full/slim 服务与 PIN e2e 仍开放。
+
 2026-09-10 WSS 已选认证前外层向量块：按 NS `c884f3a9` C2 新增
 `tests/fixtures/mesh-wss-v1/{vectors.json,oracle.rs}` 和
 `tests/mesh_wss_preauth.rs`，不改生产 wire/API 或 NS 源码。两个固定向量覆盖

@@ -107,15 +107,15 @@ B 维护本仓原始证据并链接联合结果；最终 Linux live-e2e 的既�
   重试可确认既有安装，更高状态只报 conflict，不降低锚点或泄露完整 current。
   待负责人/A 确认逐块 ACK 还是其它恢复反馈策略，以及结果组合与授权边界；
   不复用管理 CommitResult 冒充恢复回执，不新增 relay 账本下载。
-- **discovery 文档**：基线固定 WebPKI `GET /.well-known/nsmesh` 和
-  `mesh_trust.v1`，尚无共享 JSON 类型/向量。建议对象字段为
+- **discovery 文档（已选）**：负责人本日已采纳本提案，NS `4ddc6968` 唯一契约
+  C1.1 已同步；类型/向量与真实服务仍分块验证。对象字段为
   `version:"mesh_trust.v1", relay_origin:string,
   relay_key:{current:lowercase hex32,next:optional lowercase hex32},
   udp_port:u16,wss_port:optional u16,capabilities:string[]`；端口须非零，
   origin 使用既有 canonical 规则；current 来自实际持久 relay identity。
   `next` 仅有已配置轮换材料时出现，不在本块新增轮换策略。
-  仅声明实际就绪的 udp/wss 能力，未知版本、重复或矛盾字段拒绝；A 核对消费端
-  后冻结字段名、可选编码和能力扩展规则。slim 不开启 TLS/discovery，既有显式
+  仅声明实际就绪的 udp/wss 能力，未知版本、重复或矛盾字段拒绝；消费端按 C1.1
+  和共享固定向量核对字段、可选编码及有限能力，不能自行扩展。slim 不开启 TLS/discovery，既有显式
   不支持行为保留；不把 full 的 UDP-only 阶段误报为完整 WSS 支持。
 
 request winner 查询的授权范围和 vouch 的 seq/digest/anchor/旧水位转换仍按
