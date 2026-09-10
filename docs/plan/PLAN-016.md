@@ -79,6 +79,49 @@ B 维护本仓原始证据并链接联合结果；最终 Linux live-e2e 的既�
 
 ## 决策、暂缓与回滚（Decisions / Deferred / Rollback）
 
+### 2026-09-10 B 协议提案交接（未冻结）
+
+接管基线：NS `d3ce46ac`、NSGW `6902115`、shared `7242cd7`，均为
+`feat/mesh-mode`；A 随后交付 NS `81246bd8`，B 尚未消费该版本。旧 Linux 执行
+任务最后状态为 interrupted，B 接管时三仓无 Git lock；NS 工作树干净，未观察到
+其它 NS 写入任务。本轮 B 只写 NSGW/shared；历史临时草稿不作为实现输入。
+本段只记录待审核候选，不构成第二套协议，也不改变任务验收。
+负责人选择语义后由 A 更新唯一契约并给出稳定 NS commit，B 才实现公开类型、
+完整帧固定向量与 NSGW 接线；A 负责 NS 镜像。每次交接包含三仓版本及拒绝边界。
+
+- **WSS 外层**：负责人于本日 B 对话已选择：服务端独立 32-byte binary
+  challenge，客户端独立既有 WssHello CBOR binary 回复，成功后才允许既有
+  control/WG framing。保持连接/origin/双 key 绑定、30 秒期限和一次性消费；
+  认证前其它 binary/text 应拒绝。待 A 固定确切阶段及错误行为后交接，选择不等于已实现。
+- **恢复响应**：C2/C5 与 shared 现状已有 RestoreBegin/Chunk/Finish 请求，但没有
+  对应结果 payload；finish 的“返回已固定状态”不足以决定 ACK 和重试关联。
+  建议增加签名 `mesh.restore.result`，CBOR 编号候选为
+  `1 network_pub:bytes32, 2 request_id:bytes16, 3 uploader_pub:bytes32,
+  4 anchor_seq:u64, 5 state_digest:bytes32, 6 phase:u64,
+  7 chunk_index:optional u64, 8 status:u64`。phase 候选为 begin=0/chunk=1/finish=2，
+  index 仅 chunk 存在；status 候选为 accepted=0/installed=1/incomplete=2/
+  conflict=3/busy=4，合法组合由 A 冻结。响应沿既有 envelope 关联请求 nonce；
+  只有验证过 uploader/候选绑定才回复。installed 只在持久 CAS 后返回；同锚点
+  重试可确认既有安装，更高状态只报 conflict，不降低锚点或泄露完整 current。
+  待负责人/A 确认逐块 ACK 还是其它恢复反馈策略，以及结果组合与授权边界；
+  不复用管理 CommitResult 冒充恢复回执，不新增 relay 账本下载。
+- **discovery 文档**：基线固定 WebPKI `GET /.well-known/nsmesh` 和
+  `mesh_trust.v1`，尚无共享 JSON 类型/向量。建议对象字段为
+  `version:"mesh_trust.v1", relay_origin:string,
+  relay_key:{current:lowercase hex32,next:optional lowercase hex32},
+  udp_port:u16,wss_port:optional u16,capabilities:string[]`；端口须非零，
+  origin 使用既有 canonical 规则；current 来自实际持久 relay identity。
+  `next` 仅有已配置轮换材料时出现，不在本块新增轮换策略。
+  仅声明实际就绪的 udp/wss 能力，未知版本、重复或矛盾字段拒绝；A 核对消费端
+  后冻结字段名、可选编码和能力扩展规则。slim 不开启 TLS/discovery，既有显式
+  不支持行为保留；不把 full 的 UDP-only 阶段误报为完整 WSS 支持。
+
+request winner 查询的授权范围和 vouch 的 seq/digest/anchor/旧水位转换仍按
+主计划开放项单独选择，不能由上述 framing 提案隐式决定。D2 的控制/注册心跳
+方案已由负责人在 B 对话选定，待 A 同步唯一契约；不影响 shared 现有 wire。
+该段证据为 `reviewed only`：已对照固定设计基线、C2/C5 和当前 recovery 类型，
+未修改协议实现、向量或 NS 文件，未运行产品验证。
+
 无新增负责人决策项；主计划 D1–D9 为 selected，未验证不标 resolved。主计划的当前平台范围由负责人明确授权，现有质量门定义不变。若聚合 QA 涉及未授权目标，只报告实际运行的当前平台子项；不能报完整 QA 通过。Linux、Windows native 与独立 docs 待审核同步统一在 [主计划](../../../ns/docs/plan/PLAN-218.md) 跟踪；不作为本轮计划准备退出条件。
 
 未来回退先停止新 Mesh 功能并清理其拥有的运行对象，保留密钥、锚点与回执；旧程序不能忽略未知 schema 或重置 seq。Managed 默认配置不承担 Mesh state 迁移。共享 wire 变更必须连同兼容向量评审，禁止单端静默降级。
