@@ -95,18 +95,13 @@ B 维护本仓原始证据并链接联合结果；最终 Linux live-e2e 的既�
   control/WG framing。保持连接/origin/双 key 绑定、30 秒期限和一次性消费；
   认证前其它 binary/text 应拒绝。C2 已按补充授权在 NS `c884f3a9` 同步，
   A 已确认读取；独立固定向量及实际 WSS 运行接线分别验证，选择不等于已实现。
-- **恢复响应**：C2/C5 与 shared 现状已有 RestoreBegin/Chunk/Finish 请求，但没有
-  对应结果 payload；finish 的“返回已固定状态”不足以决定 ACK 和重试关联。
-  建议增加签名 `mesh.restore.result`，CBOR 编号候选为
-  `1 network_pub:bytes32, 2 request_id:bytes16, 3 uploader_pub:bytes32,
-  4 anchor_seq:u64, 5 state_digest:bytes32, 6 phase:u64,
-  7 chunk_index:optional u64, 8 status:u64`。phase 候选为 begin=0/chunk=1/finish=2，
-  index 仅 chunk 存在；status 候选为 accepted=0/installed=1/incomplete=2/
-  conflict=3/busy=4，合法组合由 A 冻结。响应沿既有 envelope 关联请求 nonce；
-  只有验证过 uploader/候选绑定才回复。installed 只在持久 CAS 后返回；同锚点
-  重试可确认既有安装，更高状态只报 conflict，不降低锚点或泄露完整 current。
-  待负责人/A 确认逐块 ACK 还是其它恢复反馈策略，以及结果组合与授权边界；
-  不复用管理 CommitResult 冒充恢复回执，不新增 relay 账本下载。
+- **恢复响应（已选）**：负责人于 2026-09-11 采纳签名 `mesh.restore.result` 逐块
+  ACK 方案；明确授权 B 同步唯一契约，NS `b5afb9b5` C2 已冻结字段编号、合法组合、
+  请求 nonce 与上传者/候选绑定及重试边界。begin/chunk 返回 accepted；finish
+  仅持久 CAS 成功后返回 installed，缺块 incomplete、锚点变化 conflict、确定容量
+  不足 busy。响应不授予成员权限、不续期活动、不返回完整 current；无 proof 或
+  无有效候选绑定不回复。以唯一契约为准，类型/固定向量、Relay 接线和 NS 镜像
+  分块验证；不复用管理 CommitResult，不新增 relay 账本下载。
 - **discovery 文档（已选）**：负责人本日已采纳本提案，NS `4ddc6968` 唯一契约
   C1.1 已同步；类型/向量与真实服务仍分块验证。对象字段为
   `version:"mesh_trust.v1", relay_origin:string,

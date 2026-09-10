@@ -44,6 +44,29 @@
 
 ## 验证（Verification）
 
+2026-09-11 恢复结果共享块（verified）：按 NS `b5afb9b5` C2 新增 `RestoreResult`，
+实现全部九种合法 phase/status 组合、chunk index 约束和 `sign_response`；结果
+使用既有 response domain、原请求 nonce 和响应时间，不修改 Managed envelope
+或既有恢复请求。该签名方法的调用方须先验证候选授权；客户端仍须核对完整
+候选、phase/index、nonce 和已固定 Relay key，不能仅凭解码成功取得权限。
+
+`tests/mesh_restore_result.rs` 四项测试通过：独立 Python CBOR/OpenSSL 完整签名
+向量、全部状态/index 组合、候选字段与 nonce 篡改，以及截断/重复/缺省/错误宽度/
+未知版本/非规范编码拒绝。九份 `fixtures/mesh-restore-v1` 固定向量的最大 UDP
+响应为 357 bytes；只有合成测试 key，无部署凭据。A 镜像消费相同字节。
+`CARGO_INCREMENTAL=0 cargo test --locked --offline -p control mesh_`：76 passed，
+0 failed；过滤的其它测试不计通过。`CARGO_INCREMENTAL=0 CARGO_NET_OFFLINE=true
+just fmt-check lint` 通过（Clippy 49.44s）。无依赖/lockfile 变化或额外全量 QA。
+原始输出在执行机 Git 外：
+
+- `/tmp/mesh-b-restore-result-tests.log`：SHA256 `e0c3ba6cf563fc616a14302637d0a3e8dd571fd830f892dccf9a44c98e1bd0f4`。
+
+- `/tmp/mesh-b-restore-result-mesh.log`：SHA256 `1bf31c3fe40430a9553803e55d5d4c625ed4310b6a86c69f3241728403937701`。
+
+- `/tmp/mesh-b-restore-result-static.log`：SHA256 `5096461a827331e6f83e4ee73c144cf99779324a45c74ba2c8a7692c324092f9`。
+
+此证据限共享 codec/签名/固定向量；Relay 持久接线、NS 镜像和真实恢复验收保持开放。
+
 2026-09-10 discovery 类型块：负责人已采纳 PLAN-016 方案，唯一契约 C1.1 已在
 NS `4ddc6968` 同步。新增 `mesh/discovery.rs` 的 `DiscoveryDocument`、
 `DiscoveryKeys`、有限 `DiscoveryCapability`，导出 `DISCOVERY_PATH`、
