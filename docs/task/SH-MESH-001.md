@@ -44,6 +44,17 @@
 
 ## 验证（Verification）
 
+2026-09-11 B 按 NS `86d857d8` C2 实现 `WinnerQuery/WinnerResult` 与三份独立
+完整签名固定向量（query/found/unavailable）。完整请求 key 对、nonce、合法 optional
+组合、重复/缺失/错误宽度/非最短 CBOR、request/response domain 及固定 Relay key
+拒绝边界均已验证。最大 UDP 样本 420 bytes（found、u64::MAX seq），小于 1200。
+`cargo test --locked --offline -p control --test mesh_winner`：4 passed，0 failed/ignored；
+`cargo fmt --all -- --check` 与 `cargo clippy --locked --offline -p control --all-targets -- -D warnings`
+通过。原始日志位于 B Linux `/tmp`，不入库：
+- `mesh-b-winner-shared-tests.log` SHA256 `cb600be8aa60f485909618a41e5d8071e3916d2827b9fa85039b5dec36bf4f1c`。
+- `mesh-b-winner-shared-lint.log` SHA256 `08c9cdce978e6641f8d59099651e6b77680d0a6582b7db54b58186d0edff39f3`。
+证据 `verified`（wire/本地静态）；A 的 NS 镜像、Relay 接线、S02 及最终跨仓验收继续开放。
+
 2026-09-11 恢复结果共享块（verified）：按 NS `b5afb9b5` C2 新增 `RestoreResult`，
 实现全部九种合法 phase/status 组合、chunk index 约束和 `sign_response`；结果
 使用既有 response domain、原请求 nonce 和响应时间，不修改 Managed envelope

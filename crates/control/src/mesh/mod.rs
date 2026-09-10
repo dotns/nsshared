@@ -16,6 +16,7 @@ mod recovery;
 mod restore_result;
 mod sync;
 mod validity;
+mod winner;
 
 pub use compact::*;
 pub use discovery::*;
@@ -32,6 +33,7 @@ pub use recovery::*;
 pub use restore_result::*;
 pub use sync::*;
 pub use validity::*;
+pub use winner::*;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
