@@ -2,7 +2,7 @@
 
 use ciborium::value::Value;
 use ed25519_dalek::SigningKey;
-use secrecy::{ExposeSecret as _, SecretBox, zeroize::Zeroize as _};
+use secrecy::{ExposeSecret as _, ExposeSecretMut as _, SecretBox, zeroize::Zeroize as _};
 
 use super::codec::{self, Field};
 use super::{Error, SyncVersion};
@@ -186,7 +186,7 @@ impl KeyGrant {
                 self.network_secret.expose_secret().to_value(),
             ),
         ]));
-        codec::encode(&value.0).map(|bytes| SecretBox::new(Box::new(bytes)))
+        encode_secret(&value.0, super::MAX_CONTROL_FRAME)
     }
 
     /// The caller owns and must protect the input buffer; no authentication is implied.
@@ -228,6 +228,20 @@ impl KeyGrant {
             secret.ok_or(Error::Payload("missing network secret"))?,
         )
     }
+}
+
+// Keep serializer output protected even if serialization fails or unwinds.
+fn encode_secret<T: serde::Serialize>(
+    value: &T,
+    limit: usize,
+) -> Result<SecretBox<Vec<u8>>, Error> {
+    let mut output = SecretBox::new(Box::new(Vec::with_capacity(limit)));
+    ciborium::ser::into_writer(value, output.expose_secret_mut())
+        .map_err(|_| Error::Payload("secret CBOR encoding"))?;
+    if output.expose_secret().len() > limit {
+        return Err(Error::TooLarge);
+    }
+    Ok(output)
 }
 
 // The generic CBOR parser owns temporary buffers too; this guard only wipes this tree.

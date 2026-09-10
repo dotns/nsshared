@@ -39,10 +39,10 @@ fn fixtures() -> serde_json::Value {
     ))
     .unwrap()
 }
-fn bytes(index: usize, field: &str) -> Vec<u8> {
+pub(super) fn bytes(index: usize, field: &str) -> Vec<u8> {
     hex::decode(fixtures()["vectors"][index][field].as_str().unwrap()).unwrap()
 }
-fn envelope(index: usize) -> ControlEnvelope {
+pub(super) fn envelope(index: usize) -> ControlEnvelope {
     ControlEnvelope::from_cbor(&bytes(index, "envelope_hex")).unwrap()
 }
 fn key_frame(bytes: &[u8]) -> KeyEnvelope {
@@ -317,15 +317,39 @@ fn mesh_key_secret_debug_is_redacted_and_encoding_stays_explicit() {
     let debug = format!("{envelope:?}");
     assert!(debug.contains("[REDACTED]"));
     assert!(!debug.contains(&hex::encode(bytes(1, "payload_hex"))));
-    let payload = grant.encode().unwrap();
     let key = SigningKey::from_bytes(&[13; 32]);
-    let signed = ControlEnvelope::sign_response(
-        KeyGrant::API,
-        None,
-        public(13),
-        payload.expose_secret().clone(),
-        |input| key.sign(input).to_bytes(),
-    )
-    .unwrap();
-    assert!(KeyEnvelope::from_envelope(signed).unwrap().encode().is_ok());
+    let signed = KeyEnvelope::sign_grant(&grant, |input| key.sign(input).to_bytes()).unwrap();
+    assert!(signed.encode().is_ok());
+}
+
+#[test]
+fn mesh_key_guarded_grant_uses_fresh_nonce_and_live_response_domain() {
+    let grant = KeyGrant::decode(&bytes(1, "payload_hex")).unwrap();
+    let key = SigningKey::from_bytes(&[13; 32]);
+    let first = KeyEnvelope::sign_grant(&grant, |input| key.sign(input).to_bytes()).unwrap();
+    let second = KeyEnvelope::sign_grant(&grant, |input| key.sign(input).to_bytes()).unwrap();
+    assert_ne!(first.nonce(), second.nonce());
+    assert_ne!(first.nonce(), grant.request_nonce());
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let encoded = first.encode().unwrap();
+    let decoded = key_frame(encoded.expose_secret());
+    let verified = decoded
+        .verify_grant(grant.request(), grant.request_nonce(), now)
+        .unwrap();
+    assert_eq!(
+        verified.network_secret().expose_secret(),
+        grant.network_secret().expose_secret()
+    );
+    assert!(
+        decoded
+            .verify_request(&grant.request().grantor, now)
+            .is_err()
+    );
+    let envelope = ControlEnvelope::from_cbor(&encoded.expose_secret()[4..]).unwrap();
+    assert_eq!(envelope.machine_id, None);
+    assert_eq!(envelope.v, 1);
+    assert!(envelope.verify_response(now, &public(14)).is_err());
 }

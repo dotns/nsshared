@@ -44,6 +44,32 @@
 
 ## 验证（Verification）
 
+2026-09-10 PIN 优先接缝已实现并验证：新增
+`KeyEnvelope::sign_grant(&KeyGrant, signer) -> Result<KeyEnvelope, mesh::Error>`。
+签名器沿用 `FnOnce(&[u8]) -> [u8; 64]`；先由带擦除 Drop 的 envelope 持有秘密，
+再读取时钟、取得 fresh nonce 和调用签名器，错误或 unwind 不经过裸 Vec 所有权。
+Grant/完整帧序列化输出从创建起由 SecretBox 持有。复用既有 response 签名输入，
+C6.3 字段、签名域、固定向量、权限及 Managed 行为均未改变。
+生产改动为 `envelope.rs` 的 crate 内签发 helper、`mesh/key_exchange.rs` 及
+`mesh/key_exchange/framing.rs`；NS 镜像由 A 消费稳定提交，不在本机写 NS。
+
+首次 `CARGO_INCREMENTAL=0 cargo test --locked --offline -p control mesh_key_ -- --list`
+编译 1m58s，准确枚举 9 项；随后完整 `cargo test --locked --offline -p control`
+在同一 `CARGO_INCREMENTAL=0` 下编译 1m49s，445 单元、55 Mesh 集成、23 既有契约
+均通过，0 failed/ignored。三项新增测试覆盖 fresh nonce/实时验签、原独立完整帧
+及 signing-input 向量、注入时钟错误/签名器真实 unwind 后重试。
+`CARGO_INCREMENTAL=0 CARGO_NET_OFFLINE=true just fmt-check lint` 通过，Clippy 38.16s。
+没有执行 workspace 全量 QA，没有修改依赖/锁文件或固定 fixture。
+
+原始输出在 Git 外：`/tmp/mesh-b-key-signing-control.log`（SHA256
+`d2c83814a99df03829b82acaf4cef395b011a515a8ab0f8b3ebefd721814a2c7`），
+`/tmp/mesh-b-key-signing-static.log`（SHA256
+`f8577ed04766c4d277a2c036da2c49077bbb13364bd6c1f80599e63f82270be2`）。
+本机 Linux 普通用户，纯 codec/签名，无产品持久或网络资源；cleanup 不适用。
+证据 verified 限上述行为；秘密擦除由 guard 所有权和 Drop 源码审查支持，测试
+不读取释放后的内存、不宣称通用 CBOR 解码器内部临时分配完全擦除。
+实际 WG/Vault、跨仓镜像及完整 PIN e2e 仍由后续任务关闭。
+
 2026-09-09 负责人选择首次入网与 WG 私钥交付补充，唯一字段/边界见主契约 C6.3。
 新增并注册 `mesh/key_exchange.rs`、`key_exchange/framing.rs` 和六项直接测试，
 复用原五种 C6、已有 envelope 签名域及严格 CBOR；两种 key API 仅用于 WG。

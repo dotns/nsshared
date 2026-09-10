@@ -1,9 +1,9 @@
 use std::collections::BTreeSet;
 
 use ciborium::value::Value;
-use secrecy::{SecretBox, zeroize::Zeroize as _};
+use secrecy::{ExposeSecret as _, ExposeSecretMut as _, SecretBox, zeroize::Zeroize as _};
 
-use super::{KeyGrant, KeyPeerBinding, KeyRequest, MAX_KEY_BODY, SensitiveValue};
+use super::{KeyGrant, KeyPeerBinding, KeyRequest, MAX_KEY_BODY, SensitiveValue, encode_secret};
 use crate::envelope::ControlEnvelope;
 use crate::mesh::{Error, SyncFrame, codec, decode_sync_length};
 
@@ -37,15 +37,40 @@ impl KeyEnvelope {
     pub fn from_envelope(envelope: ControlEnvelope) -> Result<Self, Error> {
         let result = Self { envelope };
         result.validate()?;
-        let bytes = secrecy::zeroize::Zeroizing::new(
-            result
-                .envelope
-                .to_cbor()
-                .map_err(|_| Error::Payload("key envelope encoding"))?,
-        );
-        if bytes.len() > MAX_KEY_BODY {
-            return Err(Error::TooLarge);
-        }
+        encode_secret(&result.envelope, MAX_KEY_BODY)?;
+        Ok(result)
+    }
+
+    /// Sign a WG-only grant without moving secret bytes into an unguarded
+    /// envelope. The caller still checks live WG identity, authority and Saved.
+    pub fn sign_grant<F>(grant: &KeyGrant, sign: F) -> Result<Self, Error>
+    where
+        F: FnOnce(&[u8]) -> [u8; 64],
+    {
+        Self::sign_grant_using(grant, |envelope| envelope.sign_response_in_place(sign))
+    }
+
+    fn sign_grant_using<F>(grant: &KeyGrant, finish: F) -> Result<Self, Error>
+    where
+        F: FnOnce(&mut ControlEnvelope) -> Result<(), crate::envelope::Error>,
+    {
+        let payload = grant.encode()?;
+        // Establish Drop before copying bytes or executing fallible/user code.
+        let mut result = Self {
+            envelope: ControlEnvelope {
+                v: crate::envelope::ENVELOPE_VERSION,
+                api: KeyGrant::API.into(),
+                ts: 0,
+                nonce: [0; 16],
+                machine_id: None,
+                machine_key_pub: grant.request().grantor.signing_pub,
+                payload: serde_bytes::ByteBuf::new(),
+                signature: [0; 64],
+            },
+        };
+        result.envelope.payload = serde_bytes::ByteBuf::from(payload.expose_secret().clone());
+        finish(&mut result.envelope)?;
+        encode_secret(&result.envelope, MAX_KEY_BODY)?;
         Ok(result)
     }
 
@@ -58,18 +83,13 @@ impl KeyEnvelope {
     }
 
     pub fn encode(&self) -> Result<SecretBox<Vec<u8>>, Error> {
-        let body = secrecy::zeroize::Zeroizing::new(
-            self.envelope
-                .to_cbor()
-                .map_err(|_| Error::Payload("key envelope encoding"))?,
-        );
-        if body.len() > MAX_KEY_BODY {
-            return Err(Error::TooLarge);
-        }
-        let mut frame = Vec::with_capacity(4 + body.len());
-        frame.extend_from_slice(&(body.len() as u32).to_be_bytes());
-        frame.extend_from_slice(&body);
-        Ok(SecretBox::new(Box::new(frame)))
+        let body = encode_secret(&self.envelope, MAX_KEY_BODY)?;
+        let body = body.expose_secret();
+        let mut frame = SecretBox::new(Box::new(Vec::with_capacity(4 + body.len())));
+        let output = frame.expose_secret_mut();
+        output.extend_from_slice(&(body.len() as u32).to_be_bytes());
+        output.extend_from_slice(body);
+        Ok(frame)
     }
 
     /// Signature and full declared binding only; caller checks current WG/member/version facts.
@@ -183,4 +203,50 @@ pub fn decode_wg_peer_frame(frame: &[u8]) -> Result<WgPeerFrame, Error> {
     let _validated = SensitiveValue(codec::decode(&tree)?);
     let envelope = ControlEnvelope::from_cbor(body).map_err(|_| Error::Payload("key envelope"))?;
     KeyEnvelope::from_envelope(envelope).map(WgPeerFrame::Key)
+}
+
+#[cfg(test)]
+mod signing_tests {
+    use super::*;
+    use ed25519_dalek::{Signer as _, SigningKey};
+
+    fn fixture() -> KeyGrant {
+        KeyGrant::decode(&super::super::tests::bytes(1, "payload_hex")).unwrap()
+    }
+
+    #[test]
+    fn mesh_key_guarded_signing_matches_existing_independent_vector() {
+        let grant = fixture();
+        let key = SigningKey::from_bytes(&[13; 32]);
+        let signed = KeyEnvelope::sign_grant_using(&grant, |envelope| {
+            let reference = super::super::tests::envelope(1);
+            envelope.sign_response_at(reference.ts, reference.nonce, |input| {
+                assert_eq!(input, super::super::tests::bytes(1, "signing_input_hex"));
+                key.sign(input).to_bytes()
+            });
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(
+            signed.encode().unwrap().expose_secret(),
+            &super::super::tests::bytes(1, "frame_hex")
+        );
+    }
+
+    #[test]
+    fn mesh_key_guarded_signing_handles_clock_error_and_signer_unwind() {
+        let grant = fixture();
+        let result = KeyEnvelope::sign_grant_using(&grant, |envelope| {
+            assert!(!envelope.payload.is_empty());
+            Err(crate::envelope::Error::ClockBeforeEpoch)
+        });
+        assert!(result.is_err());
+        let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            KeyEnvelope::sign_grant(&grant, |_| panic!("test signing callback unwind"))
+        }));
+        assert!(panic.is_err());
+        // The caller retains its protected grant and can retry after failure.
+        let key = SigningKey::from_bytes(&[13; 32]);
+        assert!(KeyEnvelope::sign_grant(&grant, |input| key.sign(input).to_bytes()).is_ok());
+    }
 }
