@@ -113,8 +113,12 @@ B 维护本仓原始证据并链接联合结果；最终 Linux live-e2e 的既�
   和共享固定向量核对字段、可选编码及有限能力，不能自行扩展。slim 不开启 TLS/discovery，既有显式
   不支持行为保留；不把 full 的 UDP-only 阶段误报为完整 WSS 支持。
 
-request winner 查询的授权范围和 vouch 的 seq/digest/anchor/旧水位转换仍按
-主计划开放项单独选择，不能由上述 framing 提案隐式决定。D2 的控制/注册心跳
+2026-09-11 request winner 查询已由负责人选择，NS `86d857d8` C2 为唯一契约：
+完整 network/request_id/joiner signing/WG key、当前批准权限与载体身份、请求 nonce
+绑定；found 只返回 author/seq/digest，unavailable 不证明从未提交。shared `74a6cd2`
+已交付公开类型及三份完整签名固定向量，四项协议测试和 control 静态门通过，详见
+[SH-MESH-001](../task/SH-MESH-001.md#验证verification)。A 镜像/消费与 Relay/S02
+联合证据继续开放。vouch 的 seq/digest/anchor/旧水位转换仍须单独选择。D2 的控制/注册心跳
 方案已由负责人在 B 对话选定，C5 已在 NS `c884f3a9` 同步；不影响 shared 现有 wire。
 该段证据为 `reviewed only`：已对照固定设计基线、C2/C5 和当前 recovery 类型，
 未修改协议实现、向量或 NS 文件，未运行产品验证。
