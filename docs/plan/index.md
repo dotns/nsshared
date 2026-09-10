@@ -1,6 +1,8 @@
 # ns-shared - Plan Index
 
-> Updated: 2026-08-16
+> Mesh 双设备分工：A 负责 NS，B 负责 NSGW/shared；统一见 [PLAN-218](../../../ns/docs/plan/PLAN-218.md#双设备分工与交接)。既有状态以正文与实际证据为准。
+
+> Updated: 2026-09-10
 
 ## Usage
 
