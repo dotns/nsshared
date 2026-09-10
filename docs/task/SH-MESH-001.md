@@ -19,7 +19,7 @@
 
 ## 依赖与实施边界（Dependencies）
 
-已冻结的 C1/C2 类型与向量无额外实现前置，按实际证据复用；WSS 外层及赢家查询等新增语义仍需主计划所列决定与契约交接。公开类型/编码向量通过直接验证后，NS 镜像与 NSGW 才消费相应增量；不把本任务整体标为 ready-to-implement。
+已冻结的 C1/C2 类型与向量无额外实现前置，按实际证据复用；WSS 外层已由负责人选择并在 NS `c884f3a9` C2 同步，固定向量继续验证；赢家查询等未决语义仍需主计划所列决定与契约交接。公开类型/编码向量通过直接验证后，NS 镜像与 NSGW 才消费相应增量；不把本任务整体标为 ready-to-implement。
 
 本任务保留独立验证与提交/回滚边界；本次计划修订不授权实现或 Git 写操作，后续执行遵循主计划及用户当时授权。
 
@@ -43,6 +43,35 @@
 字段表和原始十六进制 fixture 是新 wire 的执行契约，不只用 serde round-trip 作证明。独立期望字节与已签固定向量能发现双端一致但同样错误的编码；NS 复制相同向量，不复制临时输出。共享 fixtures 不包含真实 secrets。
 
 ## 验证（Verification）
+
+2026-09-10 WSS 已选认证前外层向量块：按 NS `c884f3a9` C2 新增
+`tests/fixtures/mesh-wss-v1/{vectors.json,oracle.rs}` 和
+`tests/mesh_wss_preauth.rs`，不改生产 wire/API 或 NS 源码。两个固定向量覆盖
+DNS/IPv6 canonical origin、独立 32-byte binary challenge 和 202/200-byte
+完整 WssHello CBOR binary。fixture 首次由独立 Python CBOR 和 OpenSSL Ed25519
+生成；正常测试中的独立 Rust oracle 不调用生产 codec/signing-input，逐字段
+对照固定 JSON，生产 codec 编解码和签名输入另行与相同固定字节比较。
+原始 challenge 可恰好以 `01 01` 开头，测试明确其被通用 postauth decoder
+解释为 control 的可能性；实际连接必须按阶段处理，不能探测或 fallback。
+
+当前 Linux x86_64、Rust 1.96.0，首次入口
+`CARGO_INCREMENTAL=0 cargo test --locked --offline -p control --test mesh_wss_preauth -- --list`
+准确枚举三项（首次编译 6.92s）。随后
+`CARGO_INCREMENTAL=0 cargo test --locked --offline -p control --test mesh_wss_preauth --test mesh_handshake --test mesh_transport`
+共 10 passed，0 failed/ignored：新三项固定字节/原签名域/错误外层，以及既有
+七项连接 origin/双 key 绑定、30 秒失效和载体边界。错误前缀、两消息拼接、所有
+截断位置、重复版本字段和错误版本均被拒绝。
+`CARGO_INCREMENTAL=0 CARGO_NET_OFFLINE=true just fmt-check lint` 首次通过，
+workspace/all-targets Clippy 1.37s。没有放宽 lint、依赖/锁文件变更或额外全量 QA。
+fixture 中仅公开固定测试种子/字节，生成时私有临时目录已清理；普通用户纯 codec/
+签名测试，无产品 socket/持久副作用。原始验证日志保留在 Git 外：
+
+- `/tmp/mesh-b-wss-vectors-tests.log`：SHA256 `2e0f8d75fb42c7442cb45e89fc42dbd4c32cf4488a12c26ca5d52726b2a8201b`。
+
+- `/tmp/mesh-b-wss-vectors-static.log`：SHA256 `afff280a017ec290a151c4f87de6d6f63b57319cd9d7d7f211b85d297288e4d4`。
+
+固定 fixture SHA256 `7aae0c32da072cfb4531b5e1ad9028e26a47153ba1f9d63805e7cd5a1046d8a7`。
+证据 `verified` 限 codec/固定向量；NS 镜像、实际 TLS/WSS、混合载体和完整 PIN e2e 仍开放。
 
 2026-09-10 PIN 优先接缝已实现并验证：新增
 `KeyEnvelope::sign_grant(&KeyGrant, signer) -> Result<KeyEnvelope, mesh::Error>`。
