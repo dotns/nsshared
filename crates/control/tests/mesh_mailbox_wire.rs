@@ -152,6 +152,8 @@ fn mesh_network_proof_and_vouch_bind_registration_nonce() {
     registration
         .verify_network_proof(&[3; 16], &[4; 32])
         .unwrap();
+    // Ordinary registration remains byte-for-byte on the pre-intent map shape.
+    assert_eq!(registration.encode().unwrap()[0], 0xa7);
     assert!(
         registration
             .verify_network_proof(&[5; 16], &[4; 32])
@@ -203,13 +205,23 @@ fn register_network_proof_can_bind_the_nonce_of_its_signed_envelope() {
             )
             .to_bytes(),
     );
+    assert!(
+        registration
+            .network_proof_input(&nonce, &machine_key.verifying_key().to_bytes())
+            .unwrap()
+            .ends_with(&[1, 1])
+    );
+    let encoded = registration.encode().unwrap();
+    assert_eq!(encoded[0], 0xa8);
+    assert_eq!(&encoded[encoded.len() - 2..], &[7, 0xf5]);
+    assert_eq!(Register::decode(&encoded).unwrap(), registration);
 
     let request = ControlEnvelope::sign_request_with_nonce(
         Register::API,
         Some("member-1".into()),
         machine_key.verifying_key().to_bytes(),
         nonce,
-        registration.encode().unwrap(),
+        encoded,
         |input| machine_key.sign(input).to_bytes(),
     )
     .unwrap();

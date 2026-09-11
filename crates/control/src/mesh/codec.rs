@@ -97,9 +97,6 @@ impl<T: Field> Field for Option<T> {
             }
         }
     }
-    fn missing() -> Result<Self, Error> {
-        Ok(None)
-    }
 }
 
 impl Field for String {
