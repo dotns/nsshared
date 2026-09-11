@@ -171,7 +171,11 @@ impl Register {
         self.wg_pub.sign_into(&mut out);
         self.member_incarnation.sign_into(&mut out);
         signer.sign_into(&mut out);
-        self.recovery_intent.unwrap_or(false).sign_into(&mut out);
+        // Keep the v1 proof input byte-for-byte stable for ordinary registration.
+        // The validated only non-default value carries an explicit presence/value marker.
+        if self.recovery_intent.is_some() {
+            out.extend_from_slice(&[1, 1]);
+        }
         Ok(out)
     }
 
