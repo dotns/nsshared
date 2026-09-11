@@ -99,6 +99,71 @@ fn with_credential(raw: Vec<u8>) -> ControlEnvelope {
 }
 
 #[test]
+fn mesh_vouch_maximum_registration_preserves_proofs_and_transport_budgets() {
+    let now = u64::MAX - 60;
+    let mut current = state();
+    current.seq = u64::MAX;
+    current.admins_revision = u64::MAX;
+    current.members.get_mut(&public(14)).unwrap().incarnation = u64::MAX;
+    current.evicted_through.insert(public(14), u64::MAX - 1);
+    let canonical = current.encode().unwrap();
+    let mut credential = vouch();
+    credential.incarnation = u64::MAX;
+    credential.issued_at = now;
+    credential.expires_at = u64::MAX;
+    credential.signature = key(11)
+        .sign(&credential.signing_input().unwrap())
+        .to_bytes();
+    let mut signed = envelope(Vouch::API, 11, credential.encode().unwrap());
+    signed.ts = now;
+    resign(&mut signed, 11);
+    for proof in [false, true] {
+        for allocate_pin in [false, true] {
+            let mut request = with_credential(signed.to_cbor().unwrap());
+            request.ts = now;
+            let mut payload = Register::decode(&request.payload).unwrap();
+            payload.member_incarnation = u64::MAX;
+            payload.allocate_pin = allocate_pin.then_some(PinRequest { ttl_secs: u64::MAX });
+            if proof {
+                payload.network_proof = Some(
+                    key(12)
+                        .sign(
+                            &payload
+                                .network_proof_input(&request.nonce, &request.machine_key_pub)
+                                .unwrap(),
+                        )
+                        .to_bytes(),
+                );
+                payload
+                    .verify_network_proof(&request.nonce, &request.machine_key_pub)
+                    .unwrap();
+            }
+            request.payload = payload.encode().unwrap().into();
+            resign(&mut request, 14);
+            current.verify_registration_vouch(&request, now).unwrap();
+            let raw = request.to_cbor().unwrap();
+            let udp = encode_udp(&raw).unwrap();
+            let wss = encode_wss(WssFrame::Control(&raw), 0).unwrap();
+            assert!(udp.len() <= MAX_CONTROL_FRAME);
+            assert!(wss.len() <= MAX_CONTROL_FRAME);
+            assert_eq!(decode_udp(&udp).unwrap(), raw);
+            assert!(matches!(
+                decode_wss(&wss, 0).unwrap(),
+                WssFrame::Control(bytes) if bytes == raw
+            ));
+            let received = ControlEnvelope::from_cbor(decode_udp(&udp).unwrap()).unwrap();
+            current.verify_registration_vouch(&received, now).unwrap();
+            assert_eq!(current.encode().unwrap(), canonical);
+            eprintln!(
+                "maximum vouch registration: proof={proof}, pin={allocate_pin}, UDP={}, WSS={}",
+                udp.len(),
+                wss.len()
+            );
+        }
+    }
+}
+
+#[test]
 fn mesh_vouch_matches_independent_openssl_registration_and_canonical_state_vector() {
     let vector: serde_json::Value =
         serde_json::from_str(include_str!("fixtures/mesh-vouch-v1/vectors.json")).unwrap();

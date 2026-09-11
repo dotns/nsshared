@@ -44,6 +44,39 @@
 
 ## 验证（Verification）
 
+### 最大报文与可选注册组合（2026-09-11）
+
+本块仅补直接 wire 验证，不修改公开字段、签名域、固定向量或报文上限。
+`mesh_mailbox_wire` 对最大网络名（64 bytes）、origin（255 bytes）、32 管理员、
+u64 数值、IPv6 observed endpoint 以及管理原文/排序封装，同时检查 UDP/WSS
+完整帧长度和解帧后的原字节。另补 genesis 创建回执与 recovery anchor 两种
+互斥注册响应；它们的 UDP/WSS 样本分别为 574/568、407/401 bytes。
+
+`mesh_vouch_maximum_registration_preserves_proofs_and_transport_budgets` 使用
+有效内外签名、最大 incarnation/seq/revision/时间，遍历 network proof 与 PIN
+请求的四种组合；解帧后再次验证 vouch，确认 canonical state 没有变化。最大组合
+为 UDP 794、WSS 788 bytes。既有 codec 压力样本把 Accept 原文作为 opaque vouch
+编码，达到 1196/1190 bytes；这只证明 framing 容量，不把该样本称为有效恢复凭据。
+最大 Registered 管理员响应为 1036/1030 bytes，最大 admins 原文排序封装为
+1108/1102 bytes。1200/1201-byte 拒绝边界继续由 `mesh_transport` 验证。
+
+`mesh_wss_preauth_maximum_origin_fits_separate_hello_message` 另验证 255-byte
+canonical WSS origin：独立 CBOR Hello 为 433 bytes，签名、解码和原字节保持；
+不能作为认证后 framing 解析，256-byte origin 在编码和签名输入处均拒绝。
+这不启动或验收客户端 WSS 自动切换/重连。
+
+Linux、Rust 1.96.0、普通用户、离线锁文件：control 的 Mesh 单元过滤器及全部
+17 个 `mesh_*.rs` 集成 target 共 87 passed，0 failed/ignored；补入最大 Hello
+后定向 `mesh_wss_preauth` 4 passed，合计覆盖当前 88 个不同 Mesh 用例。
+精确命令及原始日志在 Git 外 `/tmp/mesh-b-wire-budget-command.txt`、
+`/tmp/mesh-b-wire-budget-tests.log`、`/tmp/mesh-b-wire-budget-hello.log`。
+`cargo fmt --all -- --check` 和
+`CARGO_INCREMENTAL=0 cargo clippy --locked --offline -p control --all-targets -- -D warnings`
+通过；Clippy 日志 `/tmp/mesh-b-wire-budget-clippy.log`。没有产品状态、socket 或
+原生网络副作用。证据 verified 限共享 codec；NS 需镜像三份改动测试
+`mesh_mailbox_wire.rs`、`mesh_vouch.rs`、`mesh_wss_preauth.rs`，无需镜像生产类型。
+本块不替代主计划 C10 原生 S01–S06，也不据局部样本关闭全部 API 的总体验收。
+
 2026-09-11 B 按 NS `86d857d8` C2 实现 `WinnerQuery/WinnerResult` 与三份独立
 完整签名固定向量（query/found/unavailable）。完整请求 key 对、nonce、合法 optional
 组合、重复/缺失/错误宽度/非最短 CBOR、request/response domain 及固定 Relay key

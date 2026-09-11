@@ -25,6 +25,16 @@ fn envelope(api: &str, ts: u64, payload: Vec<u8>, key: &SigningKey) -> ControlEn
     }
 }
 
+fn control_budget(name: &str, raw: &[u8]) {
+    let udp = encode_udp(raw).unwrap();
+    let wss = encode_wss(WssFrame::Control(raw), 0).unwrap();
+    assert!(udp.len() <= MAX_CONTROL_FRAME, "{name}");
+    assert!(wss.len() <= MAX_CONTROL_FRAME, "{name}");
+    assert_eq!(decode_udp(&udp).unwrap(), raw);
+    assert!(matches!(decode_wss(&wss, 0).unwrap(), WssFrame::Control(bytes) if bytes == raw));
+    eprintln!("maximum {name}: UDP={}, WSS={}", udp.len(), wss.len());
+}
+
 fn addresses() -> OverlayAddresses {
     OverlayAddresses {
         v4: [100, 64, 1, 2],
@@ -223,7 +233,14 @@ fn mesh_management_originals_are_authenticated_and_bounded() {
         )
         .to_cbor()
         .unwrap();
-        assert!(encode_udp(&wrapped).unwrap().len() <= 1200);
+        control_budget(
+            if kind == 0 {
+                Eviction::API
+            } else {
+                Admins::API
+            },
+            &wrapped,
+        );
         let sequenced = Sequenced {
             network_pub: [1; 32],
             seq: u64::MAX,
@@ -232,7 +249,14 @@ fn mesh_management_originals_are_authenticated_and_bounded() {
         let sequenced = envelope(Sequenced::API, u64::MAX, sequenced.encode().unwrap(), &key)
             .to_cbor()
             .unwrap();
-        assert!(encode_udp(&sequenced).unwrap().len() <= 1200);
+        control_budget(
+            if kind == 0 {
+                "sequenced-eviction"
+            } else {
+                "sequenced-admins"
+            },
+            &sequenced,
+        );
         record.op_id[0] ^= 1;
         assert!(record.verify().is_err());
     }
@@ -294,7 +318,7 @@ fn mesh_mailbox_vectors_and_registration_budget() {
     let original = envelope(Accept::API, value.added_at, value.encode().unwrap(), &key)
         .to_cbor()
         .unwrap();
-    assert!(encode_udp(&original).unwrap().len() <= 1200);
+    control_budget(Accept::API, &original);
     let registration = Register {
         network_pub: [1; 32],
         wg_pub: [2; 32],
@@ -356,7 +380,7 @@ fn mesh_mailbox_vectors_and_registration_budget() {
         (Unbind::API, unbind.encode().unwrap()),
     ] {
         let encoded = envelope(api, u64::MAX, bytes, &key).to_cbor().unwrap();
-        assert!(encode_udp(&encoded).unwrap().len() <= 1200, "{api}");
+        control_budget(api, &encoded);
     }
     assert_eq!(
         Register::decode(&registration.encode().unwrap()).unwrap(),
@@ -373,6 +397,58 @@ fn mesh_mailbox_vectors_and_registration_budget() {
         resolved
     );
     assert_eq!(Unbind::decode(&unbind.encode().unwrap()).unwrap(), unbind);
+}
+
+#[test]
+fn mesh_registered_optional_genesis_and_recovery_frames_fit_both_carriers() {
+    let key = SigningKey::from_bytes(&[5; 32]);
+    let mut receipt = CommitReceipt {
+        network_pub: [1; 32],
+        op_id: [2; 16],
+        author_pub: [3; 32],
+        seq: 0,
+        record_digest: [4; 32],
+        signature: [0; 64],
+    };
+    receipt.signature = key.sign(&receipt.signing_input()).to_bytes();
+    receipt.verify(&key.verifying_key().to_bytes()).unwrap();
+    let mut value = Registered {
+        nonce: [2; 16],
+        status: Registered::REGISTERED,
+        network_pub: receipt.network_pub,
+        pin: Some(PinInfo {
+            value: "KX-83920174".into(),
+            expires_in_secs: 3600,
+        }),
+        admins: Vec::new(),
+        admins_revision: 0,
+        latest_seq: 0,
+        observed_addr: ObservedEndpoint {
+            ip: vec![1; 16],
+            port: 65535,
+        },
+        relay_key: key.verifying_key().to_bytes(),
+        ttl_secs: u64::MAX,
+        slot_status: Registered::SLOT_BOUND,
+        anchor: None,
+        creation_receipt: Some(receipt.encode().unwrap()),
+    };
+    for name in ["registered-genesis", "registered-recovery"] {
+        let payload = value.encode().unwrap();
+        assert_eq!(Registered::decode(&payload).unwrap(), value);
+        let raw = envelope(Registered::API, u64::MAX, payload, &key)
+            .to_cbor()
+            .unwrap();
+        control_budget(name, &raw);
+        value.status = Registered::RECOVERING;
+        value.pin = None;
+        value.creation_receipt = None;
+        value.anchor = Some(AnchorChallenge {
+            anchor_seq: u64::MAX,
+            state_digest: [4; 32],
+            format_version: 1,
+        });
+    }
 }
 
 #[test]

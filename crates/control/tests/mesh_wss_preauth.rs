@@ -1,5 +1,5 @@
 use control::mesh::{self, WssFrame, WssHello};
-use ed25519_dalek::{Signature, VerifyingKey};
+use ed25519_dalek::{Signature, Signer as _, SigningKey, VerifyingKey};
 
 #[path = "fixtures/mesh-wss-v1/oracle.rs"]
 mod oracle;
@@ -10,6 +10,45 @@ fn vectors() -> serde_json::Value {
 
 fn bytes(vector: &serde_json::Value, field: &str) -> Vec<u8> {
     hex::decode(vector[field].as_str().unwrap()).unwrap()
+}
+
+#[test]
+fn mesh_wss_preauth_maximum_origin_fits_separate_hello_message() {
+    let key = SigningKey::from_bytes(&[11; 32]);
+    let mut hello = WssHello {
+        origin: format!(
+            "wss://{}.{}.{}.{}:65535",
+            "a".repeat(63),
+            "b".repeat(63),
+            "c".repeat(63),
+            "d".repeat(51),
+        ),
+        challenge: [3; 32],
+        signer_pub: key.verifying_key().to_bytes(),
+        wg_pub: [4; 32],
+        signature: [0; 64],
+    };
+    assert_eq!(hello.origin.len(), 255);
+    hello.signature = key.sign(&hello.signing_input().unwrap()).to_bytes();
+    let wire = hello.encode().unwrap();
+    assert!(wire.len() <= mesh::MAX_CONTROL_FRAME);
+    let decoded = WssHello::decode(&wire).unwrap();
+    assert_eq!(decoded, hello);
+    key.verifying_key()
+        .verify_strict(
+            &decoded.signing_input().unwrap(),
+            &Signature::from_bytes(&decoded.signature),
+        )
+        .unwrap();
+    assert!(mesh::decode_wss(&wire, 1500).is_err());
+    eprintln!("maximum separate WSS hello: {} bytes", wire.len());
+
+    hello
+        .origin
+        .insert(hello.origin.len() - ":65535".len(), 'd');
+    assert_eq!(hello.origin.len(), 256);
+    assert!(hello.encode().is_err());
+    assert!(hello.signing_input().is_err());
 }
 
 #[test]
