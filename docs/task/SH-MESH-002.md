@@ -32,7 +32,7 @@
 ## 验收标准（Acceptance Criteria）
 
 - [x] add/evict/admins 按 seq 连续归约且历史权限判定一致。
-- [ ] 成员资格撤销水位不因旧 incarnation、新 timestamp 或 vouch 降低。
+- [x] 成员资格撤销水位不因旧 incarnation、新 timestamp 或 vouch 降低。
 - [x] canonical state 对同一语义状态生成相同字节与摘要。
 - [x] 管理员 revision 竞态和同时间 addr/capability 冲突确定性收敛。
 - [x] 不规范编码、摘要不匹配、未知版本与数值溢出被拒绝。
@@ -59,7 +59,11 @@ fmt、变更文件 typos、diff 检查及 oracle 重生成字节比对通过。�
 没有依赖或锁文件变化；未运行全 workspace QA。
 原始日志在 B Linux `/tmp/mesh-b-vouch-shared-final-tests.log`、
 `/tmp/mesh-b-vouch-shared-clippy.log`，不入 Git。证据 verified 限共享校验与固定向量，
-NS 镜像与真实无锚点安装/注册仍分别验证；不据此关闭本任务的运行接线义务。
+NS 镜像 `16b00d47` 的 26 文件 parity、17 项协议测试和 Linux dev-check 已通过。
+[GW-MESH-003](../../../nsgw/docs/task/GW-MESH-003.md#验证verification) 的 full 真实
+UDP/WSS 恢复与注册已验证：原 seq/digest、incarnation 3/撤销水位 2 保留，
+坏凭据不增补成员；112 项相邻回归通过。与既有归约/水位测试共同关闭上述水位项。
+完整 NS 灾难恢复客户端与最终联合验收仍开放，本次只关闭共享能力的直接验证。
 
 2026-09-09 evict 归约块已验证：负责人已选择实际移除成员时同时移除其管理员资格，
 管理员集为空恢复平等成员；因移除而实际改变管理员集时 revision 加 1，否则不增加。
