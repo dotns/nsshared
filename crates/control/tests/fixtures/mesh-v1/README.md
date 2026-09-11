@@ -69,3 +69,31 @@ request ID `02` repeated 16, expiry 120 and bucket 2, its truncated HMAC-SHA256 
 Cross-repository consumers copy these same bytes and run semantic assertions,
 signature checks and transport bounds. A successful fixture check is protocol
 evidence only; it does not establish native networking or runtime readiness.
+
+## Extension vectors and field maps
+
+These entries use the same schema key 0, numbered-field convention, byte widths
+and explicit-null convention as the table above. Their independent full-envelope
+vectors live alongside this directory; they do not change the original 29 vectors.
+
+| Type/API suffix | Numbered fields in order | Fixed vectors |
+| --- | --- | --- |
+| winner.query | network_pub:key, request_id:nonce, joiner_pub:key, joiner_wg:key | [mesh-winner-v1](../mesh-winner-v1/vectors.json) |
+| winner.result | network_pub:key, request_id:nonce, joiner_pub:key, joiner_wg:key, status:u, author_pub:key?, seq:u?, record_digest:digest? | [mesh-winner-v1](../mesh-winner-v1/vectors.json) |
+| restore.result | network_pub:key, request_id:nonce, uploader_pub:key, anchor_seq:u, state_digest:digest, phase:u, chunk_index:u?, status:u | [mesh-restore-v1](../mesh-restore-v1/vectors.json) |
+
+Winner found requires all three optional fields and seq > 0; unavailable requires
+all three null. Restore result vectors cover all nine legal phase/status pairs;
+only chunk has an index (0..2047). Both response signatures use the existing
+response domain and the exact request nonce; neither result grants membership.
+
+Peer-only sync and key exchange use their separately bounded WG framing. The
+authoritative complete maps are [C6.1 and C6.3](../../../../../../ns/docs/plan/PLAN-218-mesh-contract.md).
+The independent [sync vectors](../mesh-sync-v1/vectors.json) cover Digest, Pull,
+Records, Done and DoneAck, including history/genesis and owner pages; they add
+no signature domain. The [key vectors](../mesh-key-v1/vectors.json) cover
+KeyRequest and KeyGrant, with the original request/response signature domains.
+[Registration vouch](../mesh-vouch-v1/vectors.json) and
+[WSS preauthentication](../mesh-wss-v1/vectors.json) retain the field maps above.
+HTTPS [discovery](../mesh-discovery-v1/full.json) uses named JSON fields and WebPKI,
+not a signed Mesh CBOR envelope; its schema is authoritative in C1.1.

@@ -31,8 +31,8 @@
 
 ## 验收标准（Acceptance Criteria）
 
-- [ ] 所有基线和扩展 API 均有完整字段编号、类型、可选项与签名向量。
-- [ ] 最大合法请求与响应均能按规定 framing 传输，1201-byte Mesh datagram 被拒绝。
+- [x] 所有基线和扩展 API 均有完整字段编号、类型、可选项与签名向量。
+- [x] 最大合法请求与响应均能按规定 framing 传输，1201-byte Mesh datagram 被拒绝。
 - [x] 身份、网络/域、时间、请求绑定和回执字段篡改均被拒绝。
 - [x] 活凭据过期边界与历史记录校验规则分别通过定向测试。
 - [x] managed envelope 固定向量未改变。
@@ -43,6 +43,29 @@
 字段表和原始十六进制 fixture 是新 wire 的执行契约，不只用 serde round-trip 作证明。独立期望字节与已签固定向量能发现双端一致但同样错误的编码；NS 复制相同向量，不复制临时输出。共享 fixtures 不包含真实 secrets。
 
 ## 验证（Verification）
+
+### 共享范围验收映射（2026-09-11）
+
+按唯一契约 C1.1/C2/C6.1/C6.3 对账全部 API；本表承接下文的历史与当前实际
+证据，不重定义协议。字段总入口为
+[wire 字段与扩展索引](../../crates/control/tests/fixtures/mesh-v1/README.md)。
+
+| 范围 | 字段/固定向量 | framing、边界与签名证据 |
+| --- | --- | --- |
+| register/registered/cookie/join/accept/resolved/deny/vouch/unbind | mesh-v1 的完整字段表及固定原文；mesh-vouch-v1 另固定有效注册凭据组合 | mesh_mailbox_wire、mesh_vouch；最大字符串/管理员/整数、创建与恢复响应、内外签名及四种可选注册组合 |
+| admins/evict/sequenced/commit.query/ack/result | mesh-v1 内原文、嵌套 CommitReceipt、状态与完整签名向量 | mesh_mailbox_wire、mesh_recovery_wire、mesh_golden_vectors；原文与回执分包，各自校验完整 framing |
+| restore.begin/chunk/finish/result | mesh-v1 请求与 mesh-restore-v1 九种结果向量；result 完整编号见扩展索引 | mesh_recovery_wire、mesh_restore_result；512-byte chunk、2048 块、1 MiB、最大 seq、phase/index/nonce 绑定 |
+| winner.query/result | mesh-winner-v1 请求/found/unavailable 三种签名向量；完整编号见扩展索引 | mesh_winner；最大 seq、全部 optional 组合与请求/响应域拒绝 |
+| WSS Hello | mesh-v1 字段表、mesh-wss-v1 独立两份完整消息 | mesh_handshake、mesh_wss_preauth；255-byte origin、独立消息与认证后 framing 不混用 |
+| addr/capability、WG sync、KeyRequest/KeyGrant | mesh-v1 owner 原文、mesh-sync-v1 十份、mesh-key-v1 两份；完整字段见 C6.1/C6.3 | mesh_owner_records、mesh_sync、mesh_key_*；历史/owner 页与总量边界、64 KiB sync 帧、1200-byte key 帧、密钥签名/版本/nonce 与独立 framing |
+| HTTPS discovery | C1.1、mesh-discovery-v1 的 full/UDP JSON | mesh_discovery；完整对象、可选 next/WSS、4096/4097-byte 边界；WebPKI 由消费方验证 |
+| 控制传输公共边界 | C2、mesh_transport | UDP 1200/1201-byte 与 magic；WSS 控制/WG 独立上限；最大内部类型受完整外层预算再次约束 |
+
+据上述字段、独立固定字节与实际通过的测试，关闭本任务的两项共享 codec 验收。
+包含 opaque 原文的压力样本仅证明编码预算，有效 vouch 另由验签后的组合证明；
+未知扩展或超限嵌套原文不能绕过完整帧检查。此对账未修改生产类型或 fixture 字节。
+任务与 PLAN-016 仍为 in progress：NS 测试镜像、匹配版本的联合退出项及交付质量门
+继续由各自任务执行，不把共享层勾选视为原生阶段或整个主计划完成。
 
 ### 最大报文与可选注册组合（2026-09-11）
 
@@ -75,7 +98,7 @@ Linux、Rust 1.96.0、普通用户、离线锁文件：control 的 Mesh 单元�
 通过；Clippy 日志 `/tmp/mesh-b-wire-budget-clippy.log`。没有产品状态、socket 或
 原生网络副作用。证据 verified 限共享 codec；NS 需镜像三份改动测试
 `mesh_mailbox_wire.rs`、`mesh_vouch.rs`、`mesh_wss_preauth.rs`，无需镜像生产类型。
-本块不替代主计划 C10 原生 S01–S06，也不据局部样本关闭全部 API 的总体验收。
+本块不替代主计划 C10 原生 S01–S06；共享范围的完整对账另见上表。
 
 2026-09-11 B 按 NS `86d857d8` C2 实现 `WinnerQuery/WinnerResult` 与三份独立
 完整签名固定向量（query/found/unavailable）。完整请求 key 对、nonce、合法 optional
