@@ -16,6 +16,7 @@ mod recovery;
 mod restore_result;
 mod sync;
 mod validity;
+mod vouch;
 mod winner;
 
 pub use compact::*;

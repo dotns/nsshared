@@ -118,7 +118,10 @@ B 维护本仓原始证据并链接联合结果；最终 Linux live-e2e 的既�
 绑定；found 只返回 author/seq/digest，unavailable 不证明从未提交。shared `74a6cd2`
 已交付公开类型及三份完整签名固定向量，四项协议测试和 control 静态门通过，详见
 [SH-MESH-001](../task/SH-MESH-001.md#验证verification)。A 镜像/消费与 Relay/S02
-联合证据继续开放。vouch 的 seq/digest/anchor/旧水位转换仍须单独选择。D2 的控制/注册心跳
+联合证据继续开放。2026-09-11 负责人已选择完整紧凑状态恢复原 seq/digest，vouch
+仅绑定本次注册与完整状态中的现有成员，不更改成员或撤销水位；唯一契约 C5 已同步。
+B 先交付只读校验与固定向量，再实现 Relay 无锚点 CAS 和注册消费；A 镜像与客户端
+恢复、匹配三仓的联合验收分别验证。D2 的控制/注册心跳
 方案已由负责人在 B 对话选定，C5 已在 NS `c884f3a9` 同步；不影响 shared 现有 wire。
 该段证据为 `reviewed only`：已对照固定设计基线、C2/C5 和当前 recovery 类型，
 未修改协议实现、向量或 NS 文件，未运行产品验证。

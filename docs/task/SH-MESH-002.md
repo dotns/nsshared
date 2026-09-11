@@ -23,7 +23,7 @@
 
 本任务保留独立验证与提交/回滚边界；本次计划修订不授权实现或 Git 写操作，后续执行遵循主计划及用户当时授权。
 
-2026-09-10 双设备归属：B 独占 shared 纯归约/摘要和向量，A 镜像并验证 NS 结果。既有 add/admins/evict 证据保持原范围；vouch 水位转换需先冻结语义，不以纯函数测试冒称恢复运行路径通过。
+2026-09-10 双设备归属：B 独占 shared 纯归约/摘要和向量，A 镜像并验证 NS 结果。既有 add/admins/evict 证据保持原范围。2026-09-11 负责人已选择完整状态恢复与只读 vouch，按唯一契约 C5 实现；不以纯函数测试冒称恢复运行路径通过。
 共享写入、旧执行任务接管、稳定版本和资源隔离统一见
 [主计划分工](../../../ns/docs/plan/PLAN-218.md#双设备分工与交接)，块内及跨仓验证安排见
 [联合验证](../../../ns/docs/plan/PLAN-218.md#双设备联合验证安排)。不以任务整体状态替代所需接口的
@@ -42,6 +42,24 @@
 所有产品/协议语义引用唯一契约；不在任务中重定义默认值或另建状态机。实现顺序先纯逻辑和离线验证，再完成依赖已满足的真实接线。
 
 ## 验证（Verification）
+
+### 恢复后注册 vouch（2026-09-11，共享已验证）
+
+已选 C5 不再定义逐人补回的可变归约。新增 `CompactState::verify_registration_vouch`，
+验证完整当前状态、外层注册签名、原 vouch 双层签名、严格期限、完整目标身份/WG/
+incarnation、本次 nonce 及签发者当前批准权。目标须已在册，当前 incarnation 须高于
+保留水位；旧 add、坏凭据、无 current/成员不能增补成员。接口仅借用状态，保持
+seq/digest、成员及撤销水位不变；普通在册注册仍不强制提供 vouch。
+范围为 `mesh/vouch.rs`、公开模块入口、`tests/mesh_vouch.rs` 与独立固定向量；
+OpenSSL/独立 CBOR oracle 固定完整签名注册、UDP/WSS framing、canonical state 和摘要。
+`cargo test --locked --offline -p control --test mesh_vouch --test mesh_recovery_wire
+--test mesh_restore_result --test mesh_golden_vectors` 共 17 passed，零 failed/ignored，
+其中新 vouch 五项。control all-targets Clippy（`-D warnings`，35.86s）、workspace
+fmt、变更文件 typos、diff 检查及 oracle 重生成字节比对通过。命令均使用 locked/offline，
+没有依赖或锁文件变化；未运行全 workspace QA。
+原始日志在 B Linux `/tmp/mesh-b-vouch-shared-final-tests.log`、
+`/tmp/mesh-b-vouch-shared-clippy.log`，不入 Git。证据 verified 限共享校验与固定向量，
+NS 镜像与真实无锚点安装/注册仍分别验证；不据此关闭本任务的运行接线义务。
 
 2026-09-09 evict 归约块已验证：负责人已选择实际移除成员时同时移除其管理员资格，
 管理员集为空恢复平等成员；因移除而实际改变管理员集时 revision 加 1，否则不增加。
