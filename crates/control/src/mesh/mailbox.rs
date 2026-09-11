@@ -16,6 +16,7 @@ payload!(Register, "mesh.register", {
     1_u64 => network_pub: [u8; 32], 2_u64 => wg_pub: [u8; 32],
     3_u64 => member_incarnation: u64, 4_u64 => allocate_pin: Option<PinRequest>,
     5_u64 => network_proof: Option<[u8; 64]>, 6_u64 => vouch: Option<Vec<u8>>,
+    7_u64 => recovery_intent: Option<bool>,
 });
 payload!(Registered, "mesh.registered", {
     1_u64 => nonce: [u8; 16], 2_u64 => status: u64, 3_u64 => network_pub: [u8; 32],
@@ -154,6 +155,7 @@ impl Register {
         if let Some(credential) = &self.vouch {
             ensure(!credential.is_empty(), "empty vouch")?;
         }
+        ensure(self.recovery_intent != Some(false), "recovery intent")?;
         Ok(())
     }
 
@@ -169,6 +171,7 @@ impl Register {
         self.wg_pub.sign_into(&mut out);
         self.member_incarnation.sign_into(&mut out);
         signer.sign_into(&mut out);
+        self.recovery_intent.unwrap_or(false).sign_into(&mut out);
         Ok(out)
     }
 

@@ -139,6 +139,7 @@ fn mesh_network_proof_and_vouch_bind_registration_nonce() {
         allocate_pin: None,
         network_proof: None,
         vouch: None,
+        recovery_intent: None,
     };
     registration.network_proof = Some(
         key.sign(
@@ -191,6 +192,7 @@ fn register_network_proof_can_bind_the_nonce_of_its_signed_envelope() {
         allocate_pin: None,
         network_proof: None,
         vouch: None,
+        recovery_intent: Some(true),
     };
     registration.network_proof = Some(
         network_key
@@ -221,6 +223,13 @@ fn register_network_proof_can_bind_the_nonce_of_its_signed_envelope() {
     assert!(
         decoded
             .verify_network_proof(&[9; 16], &request.machine_key_pub)
+            .is_err()
+    );
+    let mut altered = decoded;
+    altered.recovery_intent = None;
+    assert!(
+        altered
+            .verify_network_proof(&request.nonce, &request.machine_key_pub)
             .is_err()
     );
 }
@@ -372,6 +381,7 @@ fn mesh_mailbox_vectors_and_registration_budget() {
         allocate_pin: Some(PinRequest { ttl_secs: u64::MAX }),
         network_proof: None,
         vouch: Some(original),
+        recovery_intent: None,
     };
     let registered = Registered {
         nonce: [1; 16],

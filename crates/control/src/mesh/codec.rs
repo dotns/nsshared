@@ -27,6 +27,21 @@ impl Field for u64 {
     }
 }
 
+impl Field for bool {
+    fn to_value(&self) -> Value {
+        Value::Bool(*self)
+    }
+    fn from_value(value: Value) -> Result<Self, Error> {
+        match value {
+            Value::Bool(value) => Ok(value),
+            _ => Err(Error::Payload("boolean")),
+        }
+    }
+    fn sign_into(&self, out: &mut Vec<u8>) {
+        out.push(u8::from(*self));
+    }
+}
+
 impl<const N: usize> Field for [u8; N] {
     fn to_value(&self) -> Value {
         Value::Bytes(self.to_vec())

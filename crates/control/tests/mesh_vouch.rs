@@ -92,6 +92,7 @@ fn with_credential(raw: Vec<u8>) -> ControlEnvelope {
             allocate_pin: None,
             network_proof: None,
             vouch: Some(raw),
+            recovery_intent: None,
         }
         .encode()
         .unwrap(),
