@@ -317,6 +317,37 @@ impl ControlEnvelope {
         })
     }
 
+    /// Sign fields already held by a caller-owned envelope guard. Secret callers
+    /// must establish that guard before clock/RNG/signing can fail or unwind.
+    pub(crate) fn sign_response_in_place<F>(&mut self, sign: F) -> Result<(), Error>
+    where
+        F: FnOnce(&[u8]) -> [u8; 64],
+    {
+        let ts = now_secs()?;
+        let mut nonce = [0; 16];
+        OsRng.fill_bytes(&mut nonce);
+        self.sign_response_at(ts, nonce, sign);
+        Ok(())
+    }
+
+    pub(crate) fn sign_response_at<F>(&mut self, ts: u64, nonce: [u8; 16], sign: F)
+    where
+        F: FnOnce(&[u8]) -> [u8; 64],
+    {
+        self.ts = ts;
+        self.nonce = nonce;
+        self.signature = sign(&build_sig_input(SigInput {
+            domain: DOMAIN_RESPONSE,
+            v: self.v,
+            api: &self.api,
+            ts,
+            nonce: &nonce,
+            machine_id: self.machine_id.as_deref(),
+            machine_key_pub: &self.machine_key_pub,
+            payload_cbor: &self.payload,
+        }));
+    }
+
     /// Verify a request envelope against the embedded `machine_key_pub`.
     ///
     /// Checks version, clock skew, and Ed25519 signature. Does **not**
