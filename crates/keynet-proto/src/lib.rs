@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs, clippy::panic, clippy::unwrap_used, clippy::expect_used)]
 
-//! Synchronous Keynet v0.6 wire, derivation, and validation primitives.
+//! Synchronous Keynet v1 wire, derivation, and validation primitives.
 
 mod codec;
 mod intro;
@@ -229,7 +229,9 @@ fn address_digest(input: &[u8]) -> Result<[u8; ADDRESS_DIGEST_BYTES], Derivation
     Ok(output)
 }
 
-fn identity_digest(input: &[u8]) -> Result<[u8; IDENTITY_DIGEST_BYTES], DerivationError> {
+pub(crate) fn identity_digest(
+    input: &[u8],
+) -> Result<[u8; IDENTITY_DIGEST_BYTES], DerivationError> {
     let mut hasher = <Blake2sMac<U12> as KeyInit>::new_from_slice(IDENTITY_KEY)
         .map_err(|_| DerivationError::InvalidOutputSize)?;
     hasher.update(input);
