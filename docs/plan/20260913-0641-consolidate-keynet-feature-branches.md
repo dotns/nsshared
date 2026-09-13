@@ -8,7 +8,7 @@
 ## Context
 
 The dedicated ns-shared integration clone accumulated phase 1, paused phase 2
-rework, and project decision records on local campaign branches while canonical
+rework, and project decision records on temporary integration branches while canonical
 repositories use feat/keynet as the intended preservation branch. Canonical
 nsgw and ns-remote have no keynet implementation delta. The documentation
 repository already has its independent keynet design history on feat/keynet.
@@ -37,12 +37,13 @@ ns-shared main only.
 
 ## Alternatives
 
-Keeping the work only in campaign branches leaves the intended feature branches
+Keeping the work only in temporary integration branches leaves the intended feature branches
 without the paused work and keeps main as an implicit integration branch.
 
 ## Completion note
 
-The maintained diagram location is `/workspace/nsiod/mermaid/keynet/`. The
+The maintained diagram location is the external diagram repository's
+`mermaid/keynet/` directory. The
 documentation feature branch removed only identical copied diagrams in commit
 `7da63a0`; approved records, proposals, authority digest, source code, fixture
 pins, and main restoration remain unchanged.

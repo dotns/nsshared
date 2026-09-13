@@ -29,9 +29,9 @@ absent.
 
 ## RED evidence and assertion mapping
 
-The pre-implementation focused command, using the installed Cargo binary, was:
+The pre-implementation focused command was:
 
-`env -u RUSTC_WRAPPER CARGO_BUILD_JOBS=4 CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0 /home/alan/.cargo/bin/cargo test -p keynet-proto --test naming --locked`
+`cargo test -p keynet-proto --test naming --locked`
 
 It failed with exit code 101 and `E0432`: `AliasPool`, `NameOperation`,
 `NameRecord`, `alias_candidate`, `alias_candidates`, `normalize_label`, and

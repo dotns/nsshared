@@ -18,14 +18,14 @@ Consolidating paused keynet feature branches and restoring the integration main.
 ## Dependencies
 
 - **blocked by**: (none)
-- **blocks**: future keynet campaign resumption
+- **blocks**: future keynet implementation resumption
 
 ## Notes
 
-The migration uses the verified preservation map from the preceding campaign.
+The migration uses the verified preservation map from the preceding consolidation.
 No remote fetch, push, or history rewrite is permitted.
 
 - complete: Canonical feature preservation, additive main restoration, and migration QA completed; Phase 2 remains paused rework.
-- 2026-09-13: Corrected the maintained diagram location to
-  `/workspace/nsiod/mermaid/keynet/`. The fourteen duplicate copies were removed
+- 2026-09-13: Corrected the maintained diagram location to the external diagram
+  repository's `mermaid/keynet/` directory. The fourteen duplicate copies were removed
   from docs/feat/keynet in commit `7da63a0`; its README now points to that source.
