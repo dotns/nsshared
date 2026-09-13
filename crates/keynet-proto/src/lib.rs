@@ -10,6 +10,7 @@ use blake2::{
         consts::{U12, U15},
     },
 };
+use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 use std::net::Ipv6Addr;
 
 /// The Keynet address-format version defined by design section 13.6.
@@ -226,4 +227,513 @@ fn identity_digest(input: &[u8]) -> Result<[u8; IDENTITY_DIGEST_BYTES], Derivati
     let mut output = [0_u8; IDENTITY_DIGEST_BYTES];
     output.copy_from_slice(&digest);
     Ok(output)
+}
+
+const KEY_BINDING_CONTEXT: &[u8] = b"keynet/key-binding/v1";
+const KEY_BINDING_UNSIGNED_MIN_BYTES: usize = 107;
+const KEY_BINDING_UNSIGNED_MAX_BYTES: usize = 131;
+const KEY_BINDING_SIGNED_MIN_BYTES: usize = 173;
+const KEY_BINDING_SIGNED_MAX_BYTES: usize = 197;
+
+/// A version-one signed assertion of an identity's WireGuard key (§2.2, §§13.1-13.3).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct KeyBinding {
+    /// The record version, which is one for this schema (§2.2).
+    pub ver: u8,
+    /// The network to which this binding belongs (§2.2).
+    pub network_id: NetworkId,
+    /// The Ed25519 public identity which signs this binding (§2.2).
+    pub identity: Identity,
+    /// The asserted WireGuard public key (§2.2).
+    pub wireguard_key: [u8; 32],
+    /// The monotonic per-identity binding generation (§2.2, §13.3).
+    pub generation: u64,
+    /// The inclusive Unix-second validity start (§2.2, §13.3).
+    pub not_before: u64,
+    /// The exclusive Unix-second validity end (§2.2, §13.3).
+    pub not_after: u64,
+    /// The Ed25519 signature of the prescribed seven-field preimage (§2.2, §13.2).
+    pub signature: [u8; 64],
+}
+
+/// A failure to parse the canonical KeyBinding CBOR schema (§13.1).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum KeyBindingDecodeError {
+    /// The record was not the exact bounded canonical eight-field CBOR array.
+    InvalidEncoding,
+    /// The record used a version other than one.
+    UnsupportedVersion,
+}
+
+/// A failure to create or verify a KeyBinding signature (§2.2, §13.2).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum KeyBindingSignatureError {
+    /// The in-memory record does not use the version-one KeyBinding schema.
+    UnsupportedVersion,
+    /// The supplied signing key does not have the record's identity public key.
+    SignerIdentityMismatch,
+    /// The identity bytes cannot be decoded as a strict Ed25519 public key.
+    InvalidIdentityKey,
+    /// The signature did not verify under the binding identity.
+    InvalidSignature,
+}
+
+/// A KeyBinding interval failure (§13.3).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum KeyBindingTimeError {
+    /// The interval is empty or inverted.
+    InvalidInterval,
+    /// The supplied Unix second is outside the half-open interval.
+    NotCurrent,
+}
+
+/// A KeyBinding whose signature was verified but whose time interval was not yet considered.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct VerifiedKeyBinding(KeyBinding);
+
+/// A KeyBinding verified cryptographically and current at an explicit Unix second.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct CurrentKeyBinding(KeyBinding);
+
+impl KeyBinding {
+    /// Encodes this record as the canonical eight-field signed array (§2.2, §13.1-13.2).
+    #[must_use]
+    pub fn encode(&self) -> Vec<u8> {
+        let mut encoded = self.unsigned_bytes();
+        encoded[0] = 0x88;
+        put_bytes(&mut encoded, &self.signature);
+        debug_assert!(
+            (KEY_BINDING_SIGNED_MIN_BYTES..=KEY_BINDING_SIGNED_MAX_BYTES).contains(&encoded.len())
+        );
+        encoded
+    }
+
+    /// Returns the canonical seven-field unsigned array signed by this record (§13.2).
+    #[must_use]
+    pub fn unsigned_bytes(&self) -> Vec<u8> {
+        let mut encoded = Vec::with_capacity(KEY_BINDING_UNSIGNED_MAX_BYTES);
+        encoded.push(0x87);
+        put_uint(&mut encoded, u64::from(self.ver));
+        put_bytes(&mut encoded, &self.network_id);
+        put_bytes(&mut encoded, &self.identity);
+        put_bytes(&mut encoded, &self.wireguard_key);
+        put_uint(&mut encoded, self.generation);
+        put_uint(&mut encoded, self.not_before);
+        put_uint(&mut encoded, self.not_after);
+        debug_assert!(
+            (KEY_BINDING_UNSIGNED_MIN_BYTES..=KEY_BINDING_UNSIGNED_MAX_BYTES)
+                .contains(&encoded.len())
+        );
+        encoded
+    }
+
+    /// Returns the exact Ed25519 message context and unsigned array (§2.2, §13.2).
+    #[must_use]
+    pub fn signing_preimage(&self) -> Vec<u8> {
+        let unsigned = self.unsigned_bytes();
+        let mut preimage = Vec::with_capacity(KEY_BINDING_CONTEXT.len() + unsigned.len());
+        preimage.extend_from_slice(KEY_BINDING_CONTEXT);
+        preimage.extend_from_slice(&unsigned);
+        preimage
+    }
+
+    /// Signs this binding with its identity's caller-provided Ed25519 signing key (§2.2, §13.2).
+    pub fn sign(&mut self, signer: &SigningKey) -> Result<(), KeyBindingSignatureError> {
+        if self.ver != 1 {
+            return Err(KeyBindingSignatureError::UnsupportedVersion);
+        }
+        if signer.verifying_key().to_bytes() != self.identity {
+            return Err(KeyBindingSignatureError::SignerIdentityMismatch);
+        }
+        self.signature = signer.sign(&self.signing_preimage()).to_bytes();
+        Ok(())
+    }
+
+    /// Decodes one strict canonical signed KeyBinding without performing verification (§2.2, §13.1).
+    pub fn decode(encoded: &[u8]) -> Result<Self, KeyBindingDecodeError> {
+        if !(KEY_BINDING_SIGNED_MIN_BYTES..=KEY_BINDING_SIGNED_MAX_BYTES).contains(&encoded.len()) {
+            return Err(KeyBindingDecodeError::InvalidEncoding);
+        }
+        let mut reader = BindingCborReader::new(encoded);
+        reader.array(8)?;
+        let ver =
+            u8::try_from(reader.uint()?).map_err(|_| KeyBindingDecodeError::InvalidEncoding)?;
+        let network_id = reader.bytes()?;
+        let identity = reader.bytes()?;
+        let wireguard_key = reader.bytes()?;
+        let generation = reader.uint()?;
+        let not_before = reader.uint()?;
+        let not_after = reader.uint()?;
+        let signature = reader.signature()?;
+        if !reader.finished() {
+            return Err(KeyBindingDecodeError::InvalidEncoding);
+        }
+        if ver != 1 {
+            return Err(KeyBindingDecodeError::UnsupportedVersion);
+        }
+        Ok(Self {
+            ver,
+            network_id,
+            identity,
+            wireguard_key,
+            generation,
+            not_before,
+            not_after,
+            signature,
+        })
+    }
+
+    /// Verifies this binding's Ed25519 signature without considering its interval (§2.2, §13.2-13.3).
+    pub fn verify(&self) -> Result<VerifiedKeyBinding, KeyBindingSignatureError> {
+        if self.ver != 1 {
+            return Err(KeyBindingSignatureError::UnsupportedVersion);
+        }
+        let verifying_key = VerifyingKey::from_bytes(&self.identity)
+            .map_err(|_| KeyBindingSignatureError::InvalidIdentityKey)?;
+        let signature = Signature::from_bytes(&self.signature);
+        verifying_key
+            .verify_strict(&self.signing_preimage(), &signature)
+            .map_err(|_| KeyBindingSignatureError::InvalidSignature)?;
+        Ok(VerifiedKeyBinding(*self))
+    }
+
+    /// Decodes canonical CBOR before checking its signature, preserving rejection precedence (§13.1-13.2).
+    pub fn decode_and_verify(
+        encoded: &[u8],
+    ) -> Result<VerifiedKeyBinding, KeyBindingVerificationError> {
+        Self::decode(encoded)
+            .map_err(KeyBindingVerificationError::Decode)?
+            .verify()
+            .map_err(KeyBindingVerificationError::Signature)
+    }
+
+    /// Checks that this record has a nonempty interval without consulting a clock (§13.3).
+    pub fn validate_interval(&self) -> Result<(), KeyBindingTimeError> {
+        if self.not_before >= self.not_after {
+            return Err(KeyBindingTimeError::InvalidInterval);
+        }
+        Ok(())
+    }
+
+    /// Checks whether this record is current at an explicit Unix second (§13.3).
+    pub fn validate_current(&self, now: u64) -> Result<CurrentKeyBinding, KeyBindingTimeError> {
+        self.validate_interval()?;
+        if now < self.not_before || now >= self.not_after {
+            return Err(KeyBindingTimeError::NotCurrent);
+        }
+        Ok(CurrentKeyBinding(*self))
+    }
+}
+
+/// A parse-or-signature failure returned by [`KeyBinding::decode_and_verify`] (§13.1-13.2).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum KeyBindingVerificationError {
+    /// Canonical parsing failed before any signature operation.
+    Decode(KeyBindingDecodeError),
+    /// Signature verification failed after canonical parsing succeeded.
+    Signature(KeyBindingSignatureError),
+}
+
+impl VerifiedKeyBinding {
+    /// Returns the verified record without performing any interval validation (§13.3).
+    #[must_use]
+    pub fn binding(self) -> KeyBinding {
+        self.0
+    }
+
+    /// Validates this verified record at an explicit Unix second (§13.3).
+    pub fn validate_current(self, now: u64) -> Result<CurrentKeyBinding, KeyBindingTimeError> {
+        self.0.validate_current(now)
+    }
+}
+
+impl CurrentKeyBinding {
+    /// Returns the checked binding for a proposed installation (§2.2, §13.3).
+    #[must_use]
+    pub fn binding(self) -> KeyBinding {
+        self.0
+    }
+
+    /// Evaluates an installation without mutating the supplied scoped state (§2.2, §13.3).
+    pub fn installation_decision(
+        self,
+        state: &KeyBindingState,
+    ) -> Result<InstallationDecision, KeyBindingTransitionError> {
+        evaluate_key_binding_installation(state, self)
+    }
+}
+
+/// A `(network_id, identity)` namespace for KeyBinding high-water state (§13.3).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct KeyBindingScope {
+    /// The scoped network identifier.
+    pub network_id: NetworkId,
+    /// The scoped identity public key.
+    pub identity: Identity,
+}
+
+/// The installed generation and WireGuard key for one scope (§13.3).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct CommittedKeyBinding {
+    /// The highest successfully installed generation.
+    pub generation: u64,
+    /// The installed WireGuard public key for that generation.
+    pub wireguard_key: [u8; 32],
+}
+
+/// A latched equal-generation disagreement which disables its two keys (§2.2, §13.3).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct KeyBindingConflict {
+    /// The disputed generation.
+    pub generation: u64,
+    /// The previously committed WireGuard key.
+    pub first_key: [u8; 32],
+    /// The authenticated conflicting WireGuard key.
+    pub second_key: [u8; 32],
+}
+
+/// Caller-owned high-water and conflict information for one binding scope (§13.3).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct KeyBindingState {
+    /// The scope to which all state in this value belongs.
+    pub scope: KeyBindingScope,
+    /// The optionally installed binding high-water and key.
+    pub committed: Option<CommittedKeyBinding>,
+    /// The optional inclusive revocation high-water.
+    pub revoked_through: Option<u64>,
+    /// The optional equal-generation conflict latch.
+    pub conflict: Option<KeyBindingConflict>,
+}
+
+/// A proposed state replacement resulting from a successful install or conflict latch (§13.3).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct KeyBindingTransition {
+    /// The complete replacement state; callers choose whether and when to commit it.
+    pub next_state: KeyBindingState,
+}
+
+/// The pure installation outcome for a signature- and time-checked binding (§2.2, §13.3).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum InstallationDecision {
+    /// A new binding should be installed using the supplied state transition.
+    Install(KeyBindingTransition),
+    /// The candidate exactly matches an installed binding and needs no transition.
+    Idempotent,
+    /// An authenticated equal-generation different-key record should latch a conflict.
+    LatchConflict(KeyBindingTransition),
+}
+
+/// A rejected KeyBinding state transition (§13.3).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum KeyBindingTransitionError {
+    /// The candidate does not belong to the supplied state scope.
+    ScopeMismatch,
+    /// The candidate generation is below the committed high-water.
+    Rollback,
+    /// The candidate generation is at or below the inclusive revocation high-water.
+    Revoked,
+    /// A conflict remains latched until a strictly higher candidate is accepted.
+    ConflictLatched,
+}
+
+/// Evaluates a checked KeyBinding installation without modifying caller-owned state (§2.2, §13.3).
+pub fn evaluate_key_binding_installation(
+    state: &KeyBindingState,
+    candidate: CurrentKeyBinding,
+) -> Result<InstallationDecision, KeyBindingTransitionError> {
+    let binding = candidate.binding();
+    if state.scope.network_id != binding.network_id || state.scope.identity != binding.identity {
+        return Err(KeyBindingTransitionError::ScopeMismatch);
+    }
+    if state
+        .revoked_through
+        .is_some_and(|generation| binding.generation <= generation)
+    {
+        return Err(KeyBindingTransitionError::Revoked);
+    }
+    if let Some(conflict) = state.conflict {
+        if binding.generation <= conflict.generation {
+            return Err(KeyBindingTransitionError::ConflictLatched);
+        }
+        return Ok(InstallationDecision::Install(KeyBindingTransition {
+            next_state: KeyBindingState {
+                committed: Some(CommittedKeyBinding {
+                    generation: binding.generation,
+                    wireguard_key: binding.wireguard_key,
+                }),
+                conflict: None,
+                ..*state
+            },
+        }));
+    }
+    if let Some(committed) = state.committed {
+        if binding.generation < committed.generation {
+            return Err(KeyBindingTransitionError::Rollback);
+        }
+        if binding.generation == committed.generation {
+            if binding.wireguard_key == committed.wireguard_key {
+                return Ok(InstallationDecision::Idempotent);
+            }
+            return Ok(InstallationDecision::LatchConflict(KeyBindingTransition {
+                next_state: KeyBindingState {
+                    committed: None,
+                    conflict: Some(KeyBindingConflict {
+                        generation: binding.generation,
+                        first_key: committed.wireguard_key,
+                        second_key: binding.wireguard_key,
+                    }),
+                    ..*state
+                },
+            }));
+        }
+    }
+    Ok(InstallationDecision::Install(KeyBindingTransition {
+        next_state: KeyBindingState {
+            committed: Some(CommittedKeyBinding {
+                generation: binding.generation,
+                wireguard_key: binding.wireguard_key,
+            }),
+            conflict: None,
+            ..*state
+        },
+    }))
+}
+
+struct BindingCborReader<'a> {
+    input: &'a [u8],
+    position: usize,
+}
+
+impl<'a> BindingCborReader<'a> {
+    fn new(input: &'a [u8]) -> Self {
+        Self { input, position: 0 }
+    }
+
+    fn array(&mut self, expected: u64) -> Result<(), KeyBindingDecodeError> {
+        let (major, value) = self.head()?;
+        if major != 4 || value != expected {
+            return Err(KeyBindingDecodeError::InvalidEncoding);
+        }
+        Ok(())
+    }
+
+    fn uint(&mut self) -> Result<u64, KeyBindingDecodeError> {
+        let (major, value) = self.head()?;
+        if major != 0 {
+            return Err(KeyBindingDecodeError::InvalidEncoding);
+        }
+        Ok(value)
+    }
+
+    fn bytes(&mut self) -> Result<[u8; 32], KeyBindingDecodeError> {
+        self.fixed_bytes()
+    }
+
+    fn signature(&mut self) -> Result<[u8; 64], KeyBindingDecodeError> {
+        self.fixed_bytes()
+    }
+
+    fn fixed_bytes<const N: usize>(&mut self) -> Result<[u8; N], KeyBindingDecodeError> {
+        let (major, length) = self.head()?;
+        if major != 2 || length != N as u64 {
+            return Err(KeyBindingDecodeError::InvalidEncoding);
+        }
+        let end = self
+            .position
+            .checked_add(N)
+            .filter(|end| *end <= self.input.len())
+            .ok_or(KeyBindingDecodeError::InvalidEncoding)?;
+        let mut output = [0_u8; N];
+        output.copy_from_slice(&self.input[self.position..end]);
+        self.position = end;
+        Ok(output)
+    }
+
+    fn head(&mut self) -> Result<(u8, u64), KeyBindingDecodeError> {
+        let initial = self.take()?;
+        let major = initial >> 5;
+        let additional = initial & 0x1f;
+        let (value, width) = match additional {
+            value @ 0..=23 => (u64::from(value), 0),
+            24 => (u64::from(self.take()?), 1),
+            25 => (
+                u64::from(u16::from_be_bytes([self.take()?, self.take()?])),
+                2,
+            ),
+            26 => (
+                u64::from(u32::from_be_bytes([
+                    self.take()?,
+                    self.take()?,
+                    self.take()?,
+                    self.take()?,
+                ])),
+                4,
+            ),
+            27 => (
+                u64::from_be_bytes([
+                    self.take()?,
+                    self.take()?,
+                    self.take()?,
+                    self.take()?,
+                    self.take()?,
+                    self.take()?,
+                    self.take()?,
+                    self.take()?,
+                ]),
+                8,
+            ),
+            _ => return Err(KeyBindingDecodeError::InvalidEncoding),
+        };
+        let minimal = match width {
+            0 => true,
+            1 => value >= 24,
+            2 => value > u64::from(u8::MAX),
+            4 => value > u64::from(u16::MAX),
+            8 => value > u64::from(u32::MAX),
+            _ => false,
+        };
+        if !minimal {
+            return Err(KeyBindingDecodeError::InvalidEncoding);
+        }
+        Ok((major, value))
+    }
+
+    fn take(&mut self) -> Result<u8, KeyBindingDecodeError> {
+        let value = self
+            .input
+            .get(self.position)
+            .copied()
+            .ok_or(KeyBindingDecodeError::InvalidEncoding)?;
+        self.position += 1;
+        Ok(value)
+    }
+
+    fn finished(&self) -> bool {
+        self.position == self.input.len()
+    }
+}
+
+fn put_bytes<const N: usize>(encoded: &mut Vec<u8>, bytes: &[u8; N]) {
+    debug_assert!(N <= usize::from(u8::MAX));
+    encoded.extend_from_slice(&[0x58, N as u8]);
+    encoded.extend_from_slice(bytes);
+}
+
+fn put_uint(encoded: &mut Vec<u8>, value: u64) {
+    match value {
+        0..=23 => encoded.push(value as u8),
+        24..=255 => encoded.extend_from_slice(&[0x18, value as u8]),
+        256..=65_535 => {
+            encoded.push(0x19);
+            encoded.extend_from_slice(&(value as u16).to_be_bytes());
+        }
+        65_536..=4_294_967_295 => {
+            encoded.push(0x1a);
+            encoded.extend_from_slice(&(value as u32).to_be_bytes());
+        }
+        _ => {
+            encoded.push(0x1b);
+            encoded.extend_from_slice(&value.to_be_bytes());
+        }
+    }
 }
