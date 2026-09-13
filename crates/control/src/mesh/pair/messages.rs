@@ -354,3 +354,76 @@ impl MeshV2PairDelivery {
         Ok(())
     }
 }
+
+record!(MeshV2PairDirectoryQuery {
+    1_u64 => realm: [u8; 32], 2_u64 => node: MeshV2NodeIdentity,
+    3_u64 => target: MeshV2NodeIdentity, 4_u64 => grant_digest: [u8; 32],
+});
+impl MeshV2PairDirectoryQuery {
+    pub const API: &'static str = "mesh.v2.pair.directory";
+    fn validate(&self) -> Result<(), Error> {
+        self.node.validate()?;
+        self.target.validate()?;
+        if self.realm == [0; 32]
+            || self.grant_digest == [0; 32]
+            || self.node.signing_pub == self.target.signing_pub
+            || self.node.wg_pub == self.target.wg_pub
+        {
+            return Err(Error::Payload("pair directory identity binding"));
+        }
+        Ok(())
+    }
+
+    /// This authenticates the exact pair; the owner also checks its current revocation floors.
+    pub fn verify_grant(&self, grant: &MeshV2PairGrant) -> Result<(), Error> {
+        self.validate()?;
+        grant.verify()?;
+        if self.realm != grant.binding.realm
+            || self.grant_digest != grant.binding.digest()?
+            || grant.binding.peer(&self.node.signing_pub)? != &self.target
+            || grant.binding.peer(&self.target.signing_pub)? != &self.node
+        {
+            return Err(Error::Payload("pair directory grant mismatch"));
+        }
+        Ok(())
+    }
+}
+
+record!(MeshV2PairDirectoryResult {
+    1_u64 => nonce: [u8; 16], 2_u64 => realm: [u8; 32],
+    3_u64 => target: MeshV2NodeIdentity, 4_u64 => grant_digest: [u8; 32],
+    5_u64 => allocation: MeshV2RegistrationAllocation,
+});
+impl MeshV2PairDirectoryResult {
+    pub const API: &'static str = "mesh.v2.pair.directory.result";
+    fn validate(&self) -> Result<(), Error> {
+        self.target.validate()?;
+        self.allocation.validate()?;
+        if self.realm == [0; 32]
+            || self.grant_digest == [0; 32]
+            || self.allocation.wg_pub != self.target.wg_pub
+        {
+            return Err(Error::Payload("pair directory allocation binding"));
+        }
+        Ok(())
+    }
+
+    /// Verify the enclosing pinned-relay signature before matching this response.
+    /// Directory metadata never grants live session capabilities or business permission.
+    pub fn verify_query(
+        &self,
+        query: &MeshV2PairDirectoryQuery,
+        nonce: &[u8; 16],
+    ) -> Result<(), Error> {
+        self.validate()?;
+        query.validate()?;
+        if self.nonce != *nonce
+            || self.realm != query.realm
+            || self.target != query.target
+            || self.grant_digest != query.grant_digest
+        {
+            return Err(Error::Payload("pair directory response mismatch"));
+        }
+        Ok(())
+    }
+}

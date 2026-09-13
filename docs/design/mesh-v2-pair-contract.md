@@ -107,3 +107,25 @@ delivery_id。`MeshV2PairDelivery`（`mesh.v2.pair.delivery`）每次最多投�
 未知字段／非规范顺序拒绝、当前挑战及反射负例、PIN 脱敏和 UDP/WSS 封装大小。
 `just fmt-check`、`just lint` 通过。证据为 `locally checked`；本块不创建宿主网络
 资源，cleanup 不适用。尚未验证 NS 镜像、真实 PIN 服务、双端持久化或原生业务。
+
+### Authorized peer directory
+
+`MeshV2PairDirectoryQuery` (`mesh.v2.pair.directory`) carries realm, caller
+`node`, full `target` identity and `grant_digest`. Its `verify_grant` checks
+both grant signatures and the exact two identities. A relay only answers from
+its current verified grant projection and committed target allocation; it does
+not expose a name search or public identity enumeration. After relay restart,
+endpoints first re-submit their saved `MeshV2PairApproved` under a fresh signed
+envelope. Directory reads do not renew that projection.
+
+`MeshV2PairDirectoryResult` (`mesh.v2.pair.directory.result`) carries the
+request envelope nonce, realm, full target identity, grant digest and allocation.
+After checking the pinned relay's enclosing signature, consumers call
+`verify_query` with the exact pending query and nonce, then recheck local current
+relation/revocation state before publishing DNS or routes. Allocation WG key
+and addresses must validate against the exact target. This result contains no
+live session capabilities and grants no business permission.
+
+The directory contract test checks query/grant and response/nonce/identity
+mismatches, invalid allocation and closed-map decoding. All 10 pairing contract
+tests pass; consumer transport and native DNS acceptance remain separate gates.

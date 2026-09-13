@@ -374,3 +374,57 @@ fn pair_hello_and_session_use_real_x25519_bound_node_keys() {
         )
         .unwrap();
 }
+
+#[test]
+fn pair_directory_binds_grant_full_identity_allocation_and_response_nonce() {
+    use super::super::{MeshV2AddressPurpose, mesh_v2_overlay_ipv6};
+    let grant = grant();
+    let query = MeshV2PairDirectoryQuery {
+        realm: grant.binding.realm,
+        node: grant.binding.first.clone(),
+        target: grant.binding.second.clone(),
+        grant_digest: grant.binding.digest().unwrap(),
+    };
+    query.verify_grant(&grant).unwrap();
+    let wg_pub = query.target.wg_pub;
+    let reply = MeshV2PairDirectoryResult {
+        nonce: [7; 16],
+        realm: query.realm,
+        target: query.target.clone(),
+        grant_digest: query.grant_digest,
+        allocation: MeshV2RegistrationAllocation {
+            wg_pub,
+            native_ipv6: mesh_v2_overlay_ipv6(&wg_pub, MeshV2AddressPurpose::Native),
+            translated_ipv6: mesh_v2_overlay_ipv6(&wg_pub, MeshV2AddressPurpose::Ipv4Translated),
+            name_salt: [8; 16],
+            name_len: 5,
+            dns_root: "nsmesh.net".into(),
+        },
+    };
+    reply.verify_query(&query, &[7; 16]).unwrap();
+    assert!(reply.verify_query(&query, &[8; 16]).is_err());
+    for mutation in 0..4 {
+        let mut changed = query.clone();
+        match mutation {
+            0 => changed.realm[0] ^= 1,
+            1 => changed.target.wg_pub[0] ^= 1,
+            2 => changed.target.signing_pub = changed.node.signing_pub,
+            _ => changed.grant_digest[0] ^= 1,
+        }
+        assert!(changed.verify_grant(&grant).is_err());
+        assert!(reply.verify_query(&changed, &[7; 16]).is_err());
+    }
+    assert_eq!(
+        MeshV2PairDirectoryQuery::decode(&query.encode().unwrap()).unwrap(),
+        query
+    );
+    let encoded = reply.encode().unwrap();
+    assert_eq!(MeshV2PairDirectoryResult::decode(&encoded).unwrap(), reply);
+    let mut unknown = encoded;
+    unknown[0] += 1;
+    unknown.extend_from_slice(&[6, 0]);
+    assert!(MeshV2PairDirectoryResult::decode(&unknown).is_err());
+    let mut changed = reply;
+    changed.allocation.wg_pub = [99; 32];
+    assert!(changed.encode().is_err());
+}
