@@ -8,6 +8,7 @@ use super::{Error, OverlayAddresses};
 /// Mesh v2 is deliberately distinct from the v1 per-network address scheme.
 /// Its stable addresses derive solely from the node's WireGuard public key.
 pub const MESH_V2_PROTOCOL_VERSION: u8 = 2;
+pub const MESH_V2_REGISTER_API: &str = "mesh.v2.register";
 
 /// A one-time RFC 4193 random Global ID, frozen as a protocol constant rather
 /// than generated during installation or group creation.
@@ -286,5 +287,11 @@ mod tests {
             input,
             mesh_v2_registration_proof_input(&signing, &[0x23; 32], &nonce)
         );
+    }
+
+    #[test]
+    fn mesh_v2_registration_api_is_not_the_v1_wire_api() {
+        assert_eq!(MESH_V2_REGISTER_API, "mesh.v2.register");
+        assert_ne!(MESH_V2_REGISTER_API, super::super::Register::API);
     }
 }
