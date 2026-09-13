@@ -3,7 +3,7 @@
 - **status**: approved
 - **createdAt**: 2026-09-13 08:01 UTC
 - **approvedAt**: 2026-09-13 11:08 UTC
-- **designRevision**: `docs/ns/keynet.md` in the documentation repository at commit `4ae04faa06ca1f5d64e40aca58aa8e55a50c1e6e` (v0.7), SHA-256 `ceeca74ab6dad33f34df36ef789c1d32014679c9592655439210c169b0bebce6`
+- **designRevision**: `docs/ns/keynet.md` in the documentation repository at commit `7f6090d340bb22d2c61f992e5e7b72666e21ae3e` (v0.7 clarification), SHA-256 `82818d8345c81736a7c8d65c82d07e3c785ac9d542ef0b1ef2acca3a51378e76`
 
 ## Context
 
@@ -15,7 +15,7 @@ state ownership, and acceptance tests. Section 13 is authoritative for every
 byte-level contract.
 
 The active design revision was verified both as the working file and as the
-object at docs commit `4ae04faa06ca1f5d64e40aca58aa8e55a50c1e6e`;
+object at docs commit `7f6090d340bb22d2c61f992e5e7b72666e21ae3e`;
 both have the recorded SHA-256 digest above.
 
 ## Approved resolution

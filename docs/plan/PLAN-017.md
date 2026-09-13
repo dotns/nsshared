@@ -4,9 +4,9 @@
 - **createdAt**: 2026-09-13 03:55 UTC
 - **approvedAt**: 2026-09-13 04:09 UTC
 - **campaign**: keynet-v1-20260913
-- **designRevision**: `docs/ns/keynet.md` in the documentation repository at commit `4ae04faa06ca1f5d64e40aca58aa8e55a50c1e6e` (v0.7), SHA-256 `ceeca74ab6dad33f34df36ef789c1d32014679c9592655439210c169b0bebce6`
+- **designRevision**: `docs/ns/keynet.md` in the documentation repository at commit `7f6090d340bb22d2c61f992e5e7b72666e21ae3e` (v0.7 clarification), SHA-256 `82818d8345c81736a7c8d65c82d07e3c785ac9d542ef0b1ef2acca3a51378e76`
 - **builtAgainst**: phase 1 was built against v0.4; completed phases retained their reviewed vectors across later compatible revisions; see Design revisions below
-- **campaignState**: the campaign resumed on 2026-09-13; v0.7 at docs commit `4ae04faa06ca1f5d64e40aca58aa8e55a50c1e6e`, SHA-256 `ceeca74ab6dad33f34df36ef789c1d32014679c9592655439210c169b0bebce6`, is the active pin for the remaining phases
+- **campaignState**: the campaign resumed on 2026-09-13; the v0.7 clarification at docs commit `7f6090d340bb22d2c61f992e5e7b72666e21ae3e`, SHA-256 `82818d8345c81736a7c8d65c82d07e3c785ac9d542ef0b1ef2acca3a51378e76`, is the active pin for remaining work
 - **integrationBranch**: `feat/keynet` in the canonical `ns-shared` checkout (the dedicated clone's `main` was restored to `d02a29c`)
 - **updatedAt**: 2026-09-13 13:03 UTC
 
@@ -91,7 +91,7 @@ same revision digest until an explicitly approved later revision replaces it.
     codecs with fixtures; phase 6 seals against v0.6. Phases 1, 2 and 4
     change as metadata only. The recovery root and statement records stay
     open in the design and are outside this plan.
-13. The v0.7 revision (docs commit `4ae04faa06ca1f5d64e40aca58aa8e55a50c1e6e`)
+13. The v0.7 revision (docs commit `7f6090d340bb22d2c61f992e5e7b72666e21ae3e`)
     resolves the recorded design gaps. Phase 4 adds the approved default-nickname
     and per-owner NameRecord version-stream behavior. Phase 5 is split: the
     unchanged relay datagram, cryptographic and Revocation portion may land
@@ -224,6 +224,7 @@ changed.
 | 2026-09-13 07:20 | v0.5: UDP relay carrier; sections 5, 6.6, 8, 9, 11, 12, 13.2, 13.4, 13.5, 13.6, 7.5 step 2; decision records merged into the design | `173d4bf3ed25125822210e17c56ae31e172168098af7209d1d3486a5629b624e` | `c5f8309` | Substantive deviation `affects=[5,6]` |
 | 2026-09-13 08:25 | v0.6: consistency revision after a full review; section 13.7 in-band control records; `token_id` in INTRO; Revocation record; STATUS, budget, cutover and recovery rules; corrected PSK, recovery, directory, nickname, size and placement statements | `494c50a12112aa88fe6fa084c0be9a14a2ca66415244ff202b72d89e08190fc1` | `0f56552` | Approved substantive deviation `affects=[3,5,6]`; active pin for phases P2-P6 |
 | 2026-09-13 11:08 | v0.7: resolved rotation, ordered endpoint, probe, DNS, relay, CLI and naming contracts; alias portability remains deferred | `ceeca74ab6dad33f34df36ef789c1d32014679c9592655439210c169b0bebce6` | `4ae04faa` | Approved substantive deviation `affects=[4,5,6]`; active pin for remaining phases |
+| 2026-09-13 14:00 | v0.7 clarification: stage-specific relay budgets, greedy relay selection and empty display metadata | `82818d8345c81736a7c8d65c82d07e3c785ac9d542ef0b1ef2acca3a51378e76` | `7f6090d` | Active pin for remaining work; sealed fixture bytes and manifest remain unchanged at the prior v0.7 release pin |
 
 The approved review records that produced the two revisions are archived
 under `docs/decisions/keynet/`.
