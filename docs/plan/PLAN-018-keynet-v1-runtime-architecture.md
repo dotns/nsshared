@@ -1,9 +1,9 @@
 # PLAN-018 Keynet v1 Cross-Repository Runtime Architecture
 
-- **status**: draft
+- **status**: approved
 - **createdAt**: 2026-09-13 08:01 UTC
-- **approvedAt**: (pending)
-- **designRevision**: `/workspace/nsiod/docs/docs/ns/keynet.md` at docs commit `0f56552` (v0.6), SHA-256 `494c50a12112aa88fe6fa084c0be9a14a2ca66415244ff202b72d89e08190fc1`
+- **approvedAt**: 2026-09-13 11:08 UTC
+- **designRevision**: `docs/ns/keynet.md` in the documentation repository at commit `4ae04faa06ca1f5d64e40aca58aa8e55a50c1e6e` (v0.7), SHA-256 `ceeca74ab6dad33f34df36ef789c1d32014679c9592655439210c169b0bebce6`
 
 ## Context
 
@@ -14,8 +14,31 @@ section 14.7 and the recovery commands. Sections 1, 8, and 9 constrain scope,
 state ownership, and acceptance tests. Section 13 is authoritative for every
 byte-level contract.
 
-The design revision was verified both as the working file and as the object at
-docs commit `0f56552`; both have the recorded SHA-256 digest above.
+The active design revision was verified both as the working file and as the
+object at docs commit `4ae04faa06ca1f5d64e40aca58aa8e55a50c1e6e`;
+both have the recorded SHA-256 digest above.
+
+## Approved resolution
+
+The alternatives below are retained as architectural analysis. The approved
+implementation boundary is:
+
+- `ns-remote` owns an independent pure `keynet-wire` crate and consumes only
+  data copies of the shared interoperability fixtures. It has no source or
+  package dependency on `ns-shared`.
+- Node behavior lives in `keynet-runtime`, with thin daemon, IPC, TUN, DNS and
+  secure-storage adapters in the existing owning crates.
+- Policy-neutral BoringTun, TUN and packet-pump primitives may be reused or
+  factored from `tunnel-wg`; its policy semantics are not imported.
+- The gateway relay is a separate `nsgw-keynet-relay` binary and service.
+  `nsgw-server` is not modified. Policy-neutral TLS, listener, WebSocket and
+  drain primitives may be reused or factored from `nsgw-wss`; its bearer,
+  ACL, role, rendezvous, stream and allocation policy is not imported.
+- End-to-end acceptance uses real binaries in isolated Linux namespaces,
+  preferring rootless user and network namespaces. Host-privileged work needs
+  separate authorization.
+- The design gaps catalogued later in this document were resolved by v0.7.
+  Section 13 of that revision is authoritative for the resulting bytes.
 
 ### Current repository boundaries
 
@@ -482,5 +505,6 @@ For this documentation-only change:
 
 ## Annotations
 
-Approval is pending. The required design-owner decisions above remain open;
-this proposal does not assign wire bytes or behavior to them.
+Approved architecture choices are recorded in the v0.7 design and its decision
+record. The design gaps catalogued above are retained as historical rationale;
+the active v0.7 text supplies the authoritative behavior and wire assignments.

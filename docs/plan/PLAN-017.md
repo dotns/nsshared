@@ -1,20 +1,20 @@
-# PLAN-017 Keynet-proto wire and derivation primitives for keynet v0.6
+# PLAN-017 Keynet-proto wire and derivation primitives for keynet v0.7
 
 - **status**: approved
 - **createdAt**: 2026-09-13 03:55 UTC
 - **approvedAt**: 2026-09-13 04:09 UTC
 - **campaign**: keynet-v1-20260913
-- **designRevision**: `/workspace/nsiod/docs/docs/ns/keynet.md` at docs commit `0f56552` (v0.6), SHA-256 `494c50a12112aa88fe6fa084c0be9a14a2ca66415244ff202b72d89e08190fc1`
-- **builtAgainst**: phase 1 was built against v0.4; phase 2 retained its byte-compatible v0.4 vectors and is being revalidated and re-pinned against v0.6; see Design revisions below
-- **campaignState**: the campaign resumed on 2026-09-13; v0.6 at docs commit `0f56552`, SHA-256 `494c50a12112aa88fe6fa084c0be9a14a2ca66415244ff202b72d89e08190fc1`, is the active pin for phases P2-P6
+- **designRevision**: `docs/ns/keynet.md` in the documentation repository at commit `4ae04faa06ca1f5d64e40aca58aa8e55a50c1e6e` (v0.7), SHA-256 `ceeca74ab6dad33f34df36ef789c1d32014679c9592655439210c169b0bebce6`
+- **builtAgainst**: phase 1 was built against v0.4; completed phases retained their reviewed vectors across later compatible revisions; see Design revisions below
+- **campaignState**: the campaign resumed on 2026-09-13; v0.7 at docs commit `4ae04faa06ca1f5d64e40aca58aa8e55a50c1e6e`, SHA-256 `ceeca74ab6dad33f34df36ef789c1d32014679c9592655439210c169b0bebce6`, is the active pin for the remaining phases
 - **integrationBranch**: `feat/keynet` in the canonical `ns-shared` checkout (the dedicated clone's `main` was restored to `d02a29c`)
-- **updatedAt**: 2026-09-13 08:30 UTC
+- **updatedAt**: 2026-09-13 11:08 UTC
 
 ## Context
 
 The repository needs an independent `keynet-proto` workspace crate containing
 the pure wire, cryptographic derivation, validation and fixture primitives for
-keynet v0.6. It must not depend on existing internal crates, an async runtime,
+keynet v0.7. It must not depend on existing internal crates, an async runtime,
 networking or production filesystem access.
 
 The authoritative design is the English keynet document named above. Its
@@ -44,7 +44,7 @@ same revision digest until an explicitly approved later revision replaces it.
    Ed25519 over `keynet/pairing-token/v1` followed by the canonical unsigned
    eleven-field array. HKDF has absent salt; token text is capped at 1024
    bytes and each text field at 255 bytes.
-5. INTRO is the six-field array of v0.6 section 13.5, naming the token by
+5. INTRO is the six-field array of v0.7 section 13.5, naming the token by
    `token_id` (SHA-256 of the canonical signed PairingToken) and carrying a
    caller-supplied 32-byte nonce; its MAC covers the five-field section 13.2
    transcript including `token_id`. INTRO_ACK is the normative five-field
@@ -91,6 +91,12 @@ same revision digest until an explicitly approved later revision replaces it.
     codecs with fixtures; phase 6 seals against v0.6. Phases 1, 2 and 4
     change as metadata only. The recovery root and statement records stay
     open in the design and are outside this plan.
+13. The v0.7 revision (docs commit `4ae04faa06ca1f5d64e40aca58aa8e55a50c1e6e`)
+    resolves the recorded design gaps. Phase 4 adds the approved default-nickname
+    and per-owner NameRecord version-stream behavior. Phase 5 is split: the
+    unchanged relay datagram, cryptographic and Revocation portion may land
+    first, followed by the v0.7 relay-identifier grammar, section 13.7 records
+    and new section 13.6 limits. Phase 6 seals the complete v0.7 fixture set.
 
 ## Roadmap
 
@@ -100,7 +106,7 @@ same revision digest until an explicitly approved later revision replaces it.
 | 2 | Canonical KeyBinding and generation decisions | 1 | Accepted against v0.6; focused, adversarial, crate, doctest, and repository quality gates passed |
 | 3 | PairingToken, PSK and INTRO | 1, 2 | Pending; spec must use the v0.6 six-field INTRO with `token_id` |
 | 4 | Labels, alias candidates and NameRecord | 1, 2, 3 | Pending |
-| 5 | Relay datagram, revocation and in-band control record codecs, registration signature and session MACs | 1, 2, 3, 4 | Pending; spec must be issued against v0.6 sections 13.5 and 13.7 |
+| 5 | Relay datagram, revocation and in-band control record codecs, registration signature and session MACs | 1, 2, 3, 4 | In progress in two parts: unchanged relay datagrams/cryptography/Revocation, then v0.7 identifier, control-record and limit additions |
 | 6 | Interoperability fixture release and final acceptance | 1, 2, 3, 4, 5 | Pending; seals vectors and the final manifest pin against the current revision |
 
 Each phase receives adversarial testing and an acceptance review. Only one
@@ -182,6 +188,7 @@ final vectors and the manifest pin against the current revision.
 | 2026-09-13 06:00 | CLI revision: sections 1.1, 7.5, 7.6, 8, 11, new 14 | `ff3337f1f9fa0d825fce505fde44d5a2b66bf60aeff02fca279f4343761df173` | `a4b98bc` | Metadata-only deviation, `affects=[1..6]`; not re-pinned before the pause |
 | 2026-09-13 07:20 | v0.5: UDP relay carrier; sections 5, 6.6, 8, 9, 11, 12, 13.2, 13.4, 13.5, 13.6, 7.5 step 2; decision records merged into the design | `173d4bf3ed25125822210e17c56ae31e172168098af7209d1d3486a5629b624e` | `c5f8309` | Substantive deviation `affects=[5,6]` |
 | 2026-09-13 08:25 | v0.6: consistency revision after a full review; section 13.7 in-band control records; `token_id` in INTRO; Revocation record; STATUS, budget, cutover and recovery rules; corrected PSK, recovery, directory, nickname, size and placement statements | `494c50a12112aa88fe6fa084c0be9a14a2ca66415244ff202b72d89e08190fc1` | `0f56552` | Approved substantive deviation `affects=[3,5,6]`; active pin for phases P2-P6 |
+| 2026-09-13 11:08 | v0.7: resolved rotation, ordered endpoint, probe, DNS, relay, CLI and naming contracts; alias portability remains deferred | `ceeca74ab6dad33f34df36ef789c1d32014679c9592655439210c169b0bebce6` | `4ae04faa` | Approved substantive deviation `affects=[4,5,6]`; active pin for remaining phases |
 
 The approved review records that produced the two revisions are archived
 under `docs/decisions/keynet/`.
