@@ -31,6 +31,9 @@ const CONFLICT_CASES: &str = "idempotent_peer,self_collision,all_group_distinct_
 const BINDING_CASES: &str = "minimum,maximum,width_23,width_24,width_255,width_256,width_65535,width_65536,width_4294967295,width_4294967296,conflict,invalid_signature";
 const PAIRING_CASES: &str = "full";
 const INTRODUCTION_CASES: &str = "full";
+const ALIAS_CASES: &str = "kind6_non_power_two,kind4_non_power_two";
+const LABEL_CASES: &str = "ascii_runs,uppercase_non_ascii,empty,one_byte,length_63,truncate_64,truncate_trailing_hyphen,reserved_id,reserved_v4";
+const NAME_RECORD_CASES: &str = "claim_width_boundaries";
 
 fn root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(ROOT)
@@ -167,7 +170,7 @@ fn load(root: &Path) -> Result<BTreeMap<String, String>, String> {
         ("design_sha256", DESIGN_SHA256),
         (
             "coverage",
-            "addresses,identities,conflicts,key_bindings,pairing_tokens,introductions,integrity",
+            "addresses,identities,conflicts,key_bindings,pairing_tokens,introductions,aliases,labels,name_records,integrity",
         ),
         ("address_cases", ADDRESS_CASES),
         ("identity_cases", IDENTITY_CASES),
@@ -175,6 +178,9 @@ fn load(root: &Path) -> Result<BTreeMap<String, String>, String> {
         ("key_binding_cases", BINDING_CASES),
         ("pairing_token_cases", PAIRING_CASES),
         ("introduction_cases", INTRODUCTION_CASES),
+        ("alias_cases", ALIAS_CASES),
+        ("label_cases", LABEL_CASES),
+        ("name_record_cases", NAME_RECORD_CASES),
     ]);
     let mut entries = BTreeMap::new();
     for line in manifest.lines().filter(|line| !line.is_empty()) {
@@ -221,6 +227,9 @@ fn load(root: &Path) -> Result<BTreeMap<String, String>, String> {
     validate_case_inventory(root, "key_bindings.vec", BINDING_CASES)?;
     validate_case_inventory(root, "pairing_tokens.vec", PAIRING_CASES)?;
     validate_case_inventory(root, "introductions.vec", INTRODUCTION_CASES)?;
+    validate_case_inventory(root, "aliases.vec", ALIAS_CASES)?;
+    validate_case_inventory(root, "labels.vec", LABEL_CASES)?;
+    validate_case_inventory(root, "name_records.vec", NAME_RECORD_CASES)?;
     Ok(entries)
 }
 

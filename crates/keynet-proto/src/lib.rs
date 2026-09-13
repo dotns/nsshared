@@ -5,9 +5,11 @@
 
 mod codec;
 mod intro;
+mod naming;
 mod pairing;
 
 pub use intro::*;
+pub use naming::*;
 pub use pairing::*;
 
 use blake2::{
