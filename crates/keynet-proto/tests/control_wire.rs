@@ -46,6 +46,16 @@ fn candidate(address: ObservedAddr, kind: EndpointKind) -> EndpointCandidate {
     EndpointCandidate { address, kind }
 }
 
+fn maximum_authority(label: char) -> String {
+    format!(
+        "{}.{}.{}.{}:1",
+        label.to_string().repeat(63),
+        label.to_string().repeat(63),
+        label.to_string().repeat(63),
+        label.to_string().repeat(61)
+    )
+}
+
 #[test]
 fn all_eight_records_match_independent_literal_bytes() {
     let values = vectors();
@@ -115,7 +125,12 @@ fn relay_identifier_and_endpoint_vectors_are_strict() {
             }
             "invalid" => {
                 assert_eq!(expected, "error");
-                if line.contains("short_endpoint") {
+                if _case == "site_local_ipv6" {
+                    assert!(RelayIdentifier::parse(input).is_err());
+                    assert!(EndpointHint::parse(input).is_err());
+                    assert!(RelayIdentifier::canonicalize(input).is_err());
+                    assert!(EndpointHint::canonicalize(input).is_err());
+                } else if line.contains("short_endpoint") {
                     assert!(EndpointHint::parse(input).is_err());
                 } else {
                     assert!(RelayIdentifier::parse(input).is_err());
@@ -139,6 +154,7 @@ fn identifier_length_label_port_and_address_boundaries_are_exact() {
         "[::1]:1",
     ] {
         assert!(RelayIdentifier::parse(value).is_ok(), "{value}");
+        assert!(EndpointHint::parse(value).is_ok(), "{value}");
     }
     for value in [
         "a:0",
@@ -165,6 +181,10 @@ fn identifier_length_label_port_and_address_boundaries_are_exact() {
         RelayIdentifier::canonicalize(&maximum_dns.replacen(":1", ".:1", 1))
             .map(|value| value.to_string()),
         Ok(maximum_dns)
+    );
+    assert_eq!(
+        EndpointHint::canonicalize("[FC00:0:0:0:0:0:0:1]:1").map(|value| value.to_string()),
+        Ok("[fc00::1]:1".to_owned())
     );
 }
 
@@ -307,6 +327,11 @@ fn body_enums_counts_ports_binding_equality_and_order_are_enforced() {
         ControlRecord::decode(&noncanonical_relay),
         Err(ControlDecodeError::InvalidBody)
     );
+    let site_local_relay = hex_bytes("830105830180816b5b666563303a3a315d3a31");
+    assert_eq!(
+        ControlRecord::decode(&site_local_relay),
+        Err(ControlDecodeError::InvalidBody)
+    );
 }
 
 #[test]
@@ -351,6 +376,53 @@ fn canonical_selection_orders_deduplicates_and_applies_caps() {
             .expect("bounded")
             .len()
             <= MAX_CONTROL_DATAGRAM_BYTES
+    );
+}
+
+#[test]
+fn relay_selection_skips_oversized_entries_and_continues_in_canonical_order() {
+    let values = vectors();
+    let candidates = (1..=8)
+        .map(|suffix| {
+            let mut ip = [0; 16];
+            ip[..4].copy_from_slice(&[0x20, 0x01, 0x0d, 0xb8]);
+            ip[15] = suffix;
+            candidate(ObservedAddr::V6(ip, u16::MAX), EndpointKind::Configured)
+        })
+        .collect::<Vec<_>>();
+    let relays = ['d', 'z', 'c', 'b', 'a', 'd']
+        .into_iter()
+        .map(|label| {
+            let text = if label == 'z' {
+                "z".to_owned()
+            } else {
+                maximum_authority(label)
+            };
+            RelayIdentifier::parse(&text).expect("valid relay fixture")
+        })
+        .collect::<Vec<_>>();
+    let selection = select_ordered_endpoints(1, &candidates, &relays, None).expect("selection");
+    assert_eq!(
+        selection
+            .snapshot
+            .relays
+            .iter()
+            .map(RelayIdentifier::as_str)
+            .collect::<Vec<_>>(),
+        [
+            maximum_authority('a'),
+            maximum_authority('b'),
+            maximum_authority('c'),
+            "z".to_owned(),
+        ]
+    );
+    assert_eq!(
+        selection.omitted_relays,
+        usize::from(values["greedy_omitted_relays"][0])
+    );
+    assert_eq!(
+        ControlRecord::OrderedEndpoints(selection.snapshot).encode(),
+        Ok(values["greedy_ordered_endpoints"].clone())
     );
 }
 

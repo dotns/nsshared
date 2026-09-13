@@ -8,7 +8,7 @@
 - **builtAgainst**: phase 1 was built against v0.4; completed phases retained their reviewed vectors across later compatible revisions; see Design revisions below
 - **campaignState**: the campaign resumed on 2026-09-13; v0.7 at docs commit `4ae04faa06ca1f5d64e40aca58aa8e55a50c1e6e`, SHA-256 `ceeca74ab6dad33f34df36ef789c1d32014679c9592655439210c169b0bebce6`, is the active pin for the remaining phases
 - **integrationBranch**: `feat/keynet` in the canonical `ns-shared` checkout (the dedicated clone's `main` was restored to `d02a29c`)
-- **updatedAt**: 2026-09-13 11:57 UTC
+- **updatedAt**: 2026-09-13 12:40 UTC
 
 ## Context
 
@@ -186,6 +186,8 @@ Phase 5B delivered strict canonical relay identifiers and endpoint hints, all
 eight section 13.7 in-band control records, v0.7 constants and deterministic
 ordered-snapshot selection. Fixed literal vectors, adversarial checks, the
 80-test crate gate and the 789-test repository gate passed with zero skipped.
+Acceptance repair added explicit `fec0::/10` rejection and greedy relay fitting
+across the complete canonical input; focused and package gates passed.
 The completed task record is
 `crates/keynet-proto/docs/task/phase-5b-control-wire.md`.
 

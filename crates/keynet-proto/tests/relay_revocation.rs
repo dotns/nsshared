@@ -388,6 +388,13 @@ fn register_signature_slot_shared_secret_hkdf_and_validation_match_literals() {
             .validate(header, &canonical.relay_name, 1500)
             .is_ok()
     );
+    let mut site_local = canonical.clone();
+    site_local.relay_name = "[fec0::1]:443".to_owned();
+    site_local.sign(&signer).expect("site-local REGISTER signs");
+    assert_eq!(
+        site_local.validate(header, &site_local.relay_name, 1500),
+        Err(RegisterValidationError::RelayNameMismatch)
+    );
     let mut malformed = values["register_datagram"].clone();
     malformed[37] = 0x9f;
     assert_eq!(

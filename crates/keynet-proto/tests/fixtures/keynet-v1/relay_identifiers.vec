@@ -24,3 +24,4 @@ invalid|whitespace| relay.example:51822|error
 invalid|mapped_ipv6|[::ffff:192.0.2.1]:51822|error
 invalid|unspecified_ipv6|[::]:51822|error
 invalid|multicast_ipv6|[ff02::1]:51822|error
+invalid|site_local_ipv6|[fec0::1]:51822|error

@@ -395,7 +395,10 @@ pub fn select_ordered_endpoints(
             break;
         }
     }
-    for relay in ordered_relays.into_iter().take(MAX_ENDPOINT_RELAYS) {
+    for relay in ordered_relays {
+        if snapshot.relays.len() == MAX_ENDPOINT_RELAYS {
+            break;
+        }
         let mut next = snapshot.clone();
         next.relays.push(relay);
         if ControlRecord::OrderedEndpoints(next.clone())
@@ -403,8 +406,6 @@ pub fn select_ordered_endpoints(
             .is_ok()
         {
             snapshot = next;
-        } else {
-            break;
         }
     }
     Ok(OrderedEndpointSelection {

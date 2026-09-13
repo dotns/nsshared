@@ -54,3 +54,29 @@ behavior remain unchanged except where v0.7 makes relay identifiers strict.
   skipped. Before/after the final gate, anonymous memory was 3494002688 /
   6480814080 bytes, `oom_kill` remained 15, and `/workspace` had 100803916 /
   100673316 KiB available.
+
+## Acceptance repair
+
+- IPv6 authority validation now explicitly rejects the scoped site-local
+  `fec0::/10` range for received and locally canonicalized relay identifiers
+  and endpoint hints. The same structural rejection is covered through signed
+  PairingToken decoding, ORDERED_ENDPOINTS decoding, and strict REGISTER
+  admission. Private `fc00::/7` unicast and loopback `::1` remain accepted.
+- Ordered relay selection now examines the complete canonical deduplicated
+  input, skips a relay that would exceed the datagram cap, and continues until
+  four relays have actually been selected or the input is exhausted. The
+  fixed eight-candidate vector selects three 255-byte authorities, skips the
+  fourth, then selects the later short ID; its full-input omitted count is one.
+- RED reproduced three control-test failures plus one PairingToken and one
+  REGISTER failure. GREEN passed all 47 focused tests, all 82 package tests,
+  one doctest, all-target Clippy with warnings denied, rustfmt, typo,
+  unused-dependency, and diff checks. No check was skipped.
+- Updated fixture SHA-256: `control_records.vec`
+  `4197b46b58694796d25a6592a4f1fc795c0a564973716d06eb6687d55b256ba9`;
+  `relay_identifiers.vec`
+  `d5b3c2a0a5ded38201ad8f57ac437f8067d6461125086a0fa5bd854de1183595`;
+  `manifest.txt`
+  `f666d5b3befe54471713475db8ab811becc93136dc904f15175abd81c960e49b`.
+- Before/after verification, anonymous memory was 3585540096 / 3608588288
+  bytes, `oom_kill` remained 15, and `/workspace` had 95791504 / 95790820 KiB
+  available. The prior repository quality-gate evidence remains applicable.

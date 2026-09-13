@@ -278,6 +278,39 @@ fn signed_relay_and_endpoint_text_is_rejected_before_signature_verification() {
         PairingToken::decode(&encoded),
         Err(PairingTokenDecodeError::InvalidEndpoint)
     );
+
+    let (mut value, signer, _) = token();
+    value.relay = "[fec0::1]:443".to_owned();
+    assert_eq!(
+        value.sign(&signer),
+        Err(keynet_proto::PairingTokenSignatureError::InvalidToken(
+            PairingTokenEncodeError::InvalidRelay
+        ))
+    );
+    let (mut value, signer, _) = token();
+    value.endpoint = Some("[fec0::1]:51820".to_owned());
+    assert_eq!(
+        value.sign(&signer),
+        Err(keynet_proto::PairingTokenSignatureError::InvalidToken(
+            PairingTokenEncodeError::InvalidEndpoint
+        ))
+    );
+
+    let (value, _, _) = token();
+    let mut encoded = value.encode().expect("canonical token");
+    let endpoint = encoded
+        .windows(b"[2001:db8::1]:51820".len())
+        .position(|window| window == b"[2001:db8::1]:51820")
+        .expect("endpoint text");
+    encoded[endpoint - 1] = 0x6f;
+    encoded.splice(
+        endpoint..endpoint + b"[2001:db8::1]:51820".len(),
+        b"[fec0::1]:51820".iter().copied(),
+    );
+    assert_eq!(
+        PairingToken::decode(&encoded),
+        Err(PairingTokenDecodeError::InvalidEndpoint)
+    );
 }
 
 #[test]

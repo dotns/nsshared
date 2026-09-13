@@ -239,6 +239,7 @@ fn validate_ipv6(host: &str, allow_local_form: bool) -> Result<(), RelayIdentifi
     if address.is_unspecified()
         || address.is_multicast()
         || address.is_unicast_link_local()
+        || is_site_local(address)
         || address.to_ipv4_mapped().is_some()
     {
         return Err(RelayIdentifierError::InvalidIpv6);
@@ -247,6 +248,11 @@ fn validate_ipv6(host: &str, allow_local_form: bool) -> Result<(), RelayIdentifi
         return Err(RelayIdentifierError::InvalidIpv6);
     }
     Ok(())
+}
+
+fn is_site_local(address: Ipv6Addr) -> bool {
+    let octets = address.octets();
+    octets[0] == 0xfe && octets[1] & 0xc0 == 0xc0
 }
 
 fn validate_dns(host: &str, allow_local_form: bool) -> Result<(), RelayIdentifierError> {
