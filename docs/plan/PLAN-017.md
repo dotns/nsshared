@@ -61,7 +61,7 @@ same revision digest until an explicitly approved later revision replaces it.
 | Phase | Name | Depends | Manager | Status |
 |---|---|---|---|---|
 | 1 | Independent crate and address/name derivation foundation | None | vkd2enid | Merged: head `bf61531b19821e728702d359e18bec03bcdfdcab`; merge base `49c257d71ed7e0387febeefbf1ab1fb15524bbd0`; merged-tree QA passed |
-| 2 | Canonical KeyBinding and generation decisions | 1 | — | Pending |
+| 2 | Canonical KeyBinding and generation decisions | 1 | xu8nz412 | Working |
 | 3 | PairingToken, PSK and INTRO | 1, 2 | — | Pending |
 | 4 | Labels, alias candidates and NameRecord | 1, 2, 3 | — | Pending |
 | 5 | Bounded typed relay frames | 1, 2, 3, 4 | — | Pending |
