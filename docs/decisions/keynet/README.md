@@ -12,7 +12,7 @@ rewrite an approved record.
 
 The latest owner-reported authoritative English design is
 `/workspace/nsiod/docs/docs/ns/keynet.md`, SHA-256
-`173d4bf3ed25125822210e17c56ae31e172168098af7209d1d3486a5629b624e` (v0.5, docs commit `c5f8309`).
+`494c50a12112aa88fe6fa084c0be9a14a2ca66415244ff202b72d89e08190fc1` (v0.6, docs commit `0f56552`; v0.5 was `173d4bf3ed25125822210e17c56ae31e172168098af7209d1d3486a5629b624e` at `c5f8309`).
 Archive hashes identify these review documents, not the authoritative design file.
 
 CLI approval covers sections 1.1, 7.5, 7.6 and 14 and the four reviewed defaults.
@@ -28,8 +28,8 @@ digest and revision before future specifications and fixture pins adopt it.
 Phases 1 and 2 were built against the original design pin
 `7c99ffb2e03c0728128da7270754aa065148e263fdc7c3aef233ff9696fa8a9f`; the
 campaign is paused (see `docs/plan/PLAN-017.md`). When it resumes, phase 2 is
-re-pinned to v0.5 as metadata, phase 5 receives its specification against the
-v0.5 relay profile, and every undispatched phase receives a complete updated
+re-pinned to the current revision as metadata, phase 5 receives its
+specification against the current relay and in-band control profiles, and every undispatched phase receives a complete updated
 specification before dispatch, preserving its boundaries and pure-codec scope.
 
 Relocating these records does not change design content, approval, source code,

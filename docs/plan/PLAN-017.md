@@ -1,20 +1,20 @@
-# PLAN-017 Keynet-proto wire and derivation primitives for keynet v0.5
+# PLAN-017 Keynet-proto wire and derivation primitives for keynet v0.6
 
 - **status**: approved
 - **createdAt**: 2026-09-13 03:55 UTC
 - **approvedAt**: 2026-09-13 04:09 UTC
 - **campaign**: cmp-202609130355
-- **designRevision**: `/workspace/nsiod/docs/docs/ns/keynet.md` at docs commit `c5f8309` (v0.5), SHA-256 `173d4bf3ed25125822210e17c56ae31e172168098af7209d1d3486a5629b624e`
+- **designRevision**: `/workspace/nsiod/docs/docs/ns/keynet.md` at docs commit `0f56552` (v0.6), SHA-256 `494c50a12112aa88fe6fa084c0be9a14a2ca66415244ff202b72d89e08190fc1`
 - **builtAgainst**: phases 1 and 2 were built and their fixture manifests pinned against v0.4, SHA-256 `7c99ffb2e03c0728128da7270754aa065148e263fdc7c3aef233ff9696fa8a9f`; see Design revisions below
 - **campaignState**: paused since 2026-09-13 06:59 UTC; worktrees and `bkd/*` branches removed; resuming requires an explicit new owner and a re-pin to the current design revision
 - **integrationBranch**: `feat/keynet` in the canonical `ns-shared` checkout (the dedicated clone's `main` was restored to `d02a29c`)
-- **updatedAt**: 2026-09-13 08:00 UTC
+- **updatedAt**: 2026-09-13 08:30 UTC
 
 ## Context
 
 The repository needs an independent `keynet-proto` workspace crate containing
 the pure wire, cryptographic derivation, validation and fixture primitives for
-keynet v0.5. It must not depend on existing internal crates, an async runtime,
+keynet v0.6. It must not depend on existing internal crates, an async runtime,
 networking or production filesystem access.
 
 The authoritative design is the English keynet document named above. Its
@@ -44,10 +44,13 @@ same revision digest until an explicitly approved later revision replaces it.
    Ed25519 over `keynet/pairing-token/v1` followed by the canonical unsigned
    eleven-field array. HKDF has absent salt; token text is capped at 1024
    bytes and each text field at 255 bytes.
-5. INTRO uses a caller-supplied 32-byte nonce and the section 13 transcript.
-   INTRO_ACK is the normative five-field array with its separate
-   `keynet/intro-ack/v1` MAC context. Token lookup, nonce generation and
-   replay storage remain caller responsibilities.
+5. INTRO is the six-field array of v0.6 section 13.5, naming the token by
+   `token_id` (SHA-256 of the canonical signed PairingToken) and carrying a
+   caller-supplied 32-byte nonce; its MAC covers the five-field section 13.2
+   transcript including `token_id`. INTRO_ACK is the normative five-field
+   array with its separate `keynet/intro-ack/v1` MAC context. Token lookup by
+   `token_id`, nonce generation and replay storage remain caller
+   responsibilities.
 6. H22, alias candidates and label normalization follow section 13.4. The
    PairingToken `issuer_name` supplies the device name used by the default
    nickname behavior.
@@ -77,8 +80,17 @@ same revision digest until an explicitly approved later revision replaces it.
     13.4, 13.5, 13.6 and 7.5 step 2; Architect review `keynet-relay-udp v1`)
     is a substantive deviation, `affects=[5,6]`: phase 5 is re-specified
     against the datagram profile in decision 8 and phase 6 seals vectors
-    against v0.5. Phases 2-4 keep their contracts and vector payloads;
-    their pins change as metadata only.
+    against the current revision. Phases 2-4 keep their contracts and
+    vector payloads; their pins change as metadata only.
+12. The v0.6 consistency revision (owner review, docs commit `0f56552`) is
+    a further substantive deviation, `affects=[3,5,6]`, pending Architect
+    confirmation on resume: phase 3 gains the `token_id` field in INTRO
+    (decision 5); phase 5 additionally covers the Revocation record
+    (context `keynet/revocation/v1`) and the section 13.7 in-band control
+    record codecs (ACK, ENDPOINTS, BINDING, REVOCATION, NAME) as pure
+    codecs with fixtures; phase 6 seals against v0.6. Phases 1, 2 and 4
+    change as metadata only. The recovery root and statement records stay
+    open in the design and are outside this plan.
 
 ## Roadmap
 
@@ -86,10 +98,10 @@ same revision digest until an explicitly approved later revision replaces it.
 |---|---|---|---|---|
 | 1 | Independent crate and address/name derivation foundation | None | vkd2enid | Merged: head `bf61531b19821e728702d359e18bec03bcdfdcab`; merge base `49c257d71ed7e0387febeefbf1ab1fb15524bbd0`; merged-tree QA passed |
 | 2 | Canonical KeyBinding and generation decisions | 1 | xu8nz412 | Paused, not accepted: rework R1-R3 at manager head `6091f10`, preserved on `feat/keynet` by merge `26711e6`; no Architect review, no merged-tree QA record for that head |
-| 3 | PairingToken, PSK and INTRO | 1, 2 | — | Pending |
+| 3 | PairingToken, PSK and INTRO | 1, 2 | — | Pending; spec must use the v0.6 six-field INTRO with `token_id` |
 | 4 | Labels, alias candidates and NameRecord | 1, 2, 3 | — | Pending |
-| 5 | Relay datagram codec, registration signature and session MACs | 1, 2, 3, 4 | — | Pending; spec must be reissued against v0.5 section 13.5 |
-| 6 | Interoperability fixture release and final acceptance | 1, 2, 3, 4, 5 | — | Pending; seals vectors and the final manifest pin against v0.5 |
+| 5 | Relay datagram, revocation and in-band control record codecs, registration signature and session MACs | 1, 2, 3, 4 | — | Pending; spec must be issued against v0.6 sections 13.5 and 13.7 |
+| 6 | Interoperability fixture release and final acceptance | 1, 2, 3, 4, 5 | — | Pending; seals vectors and the final manifest pin against the current revision |
 
 Each phase is refuted before its Architect review. Only one phase runs at a
 time because build capacity is constrained. A phase is merged automatically
@@ -164,9 +176,10 @@ quality-gate evidence are recorded here as phases are dispatched and merged.
 
 ### Phases 3-6: not dispatched
 
-Phase 3 and phase 4 specifications can be issued from the v0.5 text without
-byte changes to their contracts. Phase 5 needs a new specification (decision
-8). Phase 6 seals the final vectors and the manifest pin against v0.5.
+Phase 4 can be specified from the current text without byte changes to its
+contract. Phase 3 must include the `token_id` field of INTRO (decision 5).
+Phase 5 needs a new specification (decisions 8 and 12). Phase 6 seals the
+final vectors and the manifest pin against the current revision.
 
 ## Design revisions
 
@@ -174,7 +187,8 @@ byte changes to their contracts. Phase 5 needs a new specification (decision
 | --- | --- | --- | --- | --- |
 | 2026-09-13 04:09 | v0.4 with section 13 Wire Profile | `7c99ffb2e03c0728128da7270754aa065148e263fdc7c3aef233ff9696fa8a9f` | `b1c0db4` | Gate 1 approval; phases 1 and 2 pinned here |
 | 2026-09-13 06:00 | CLI revision: sections 1.1, 7.5, 7.6, 8, 11, new 14 | `ff3337f1f9fa0d825fce505fde44d5a2b66bf60aeff02fca279f4343761df173` | `a4b98bc` | Metadata-only deviation, `affects=[1..6]`; not re-pinned before the pause |
-| 2026-09-13 07:20 | v0.5: UDP relay carrier; sections 5, 6.6, 8, 9, 11, 12, 13.2, 13.4, 13.5, 13.6, 7.5 step 2; decision records merged into the design | `173d4bf3ed25125822210e17c56ae31e172168098af7209d1d3486a5629b624e` | `c5f8309` | Substantive deviation `affects=[5,6]`; current pin for every future specification |
+| 2026-09-13 07:20 | v0.5: UDP relay carrier; sections 5, 6.6, 8, 9, 11, 12, 13.2, 13.4, 13.5, 13.6, 7.5 step 2; decision records merged into the design | `173d4bf3ed25125822210e17c56ae31e172168098af7209d1d3486a5629b624e` | `c5f8309` | Substantive deviation `affects=[5,6]` |
+| 2026-09-13 08:25 | v0.6: consistency revision after a full review; section 13.7 in-band control records; `token_id` in INTRO; Revocation record; STATUS, budget, cutover and recovery rules; corrected PSK, recovery, directory, nickname, size and placement statements | `494c50a12112aa88fe6fa084c0be9a14a2ca66415244ff202b72d89e08190fc1` | `0f56552` | Substantive deviation `affects=[3,5,6]` pending Architect confirmation; current pin for every future specification |
 
 The approved review records that produced the two revisions are archived
 under `docs/decisions/keynet/`.
