@@ -69,7 +69,7 @@ impl MeshV2RegistrationAllocation {
         if !(5..=super::MESH_V2_MAX_NAME_LABEL_LEN as u64).contains(&self.name_len) {
             return Err(Error::Payload("v2 name length"));
         }
-        if !valid_dns_root(&self.dns_root) {
+        if !mesh_v2_valid_dns_root(&self.dns_root) {
             return Err(Error::Payload("v2 DNS root"));
         }
         if self.native_ipv6 != mesh_v2_overlay_ipv6(&self.wg_pub, MeshV2AddressPurpose::Native)
@@ -194,7 +194,8 @@ impl Field for MeshV2Registered {
     }
 }
 
-fn valid_dns_root(root: &str) -> bool {
+/// Validate a canonical Mesh v2 DNS root with the registry allocation rules.
+pub fn mesh_v2_valid_dns_root(root: &str) -> bool {
     !root.is_empty()
         && root.len() <= 253
         && root.split('.').all(|label| {
