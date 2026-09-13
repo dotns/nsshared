@@ -230,6 +230,17 @@ record!(MeshV2PairSession {
 });
 
 impl MeshV2PairSession {
+    /// Authenticate a sender and exact grant for directed relay delivery only.
+    /// This does NOT verify WG possession, freshness, local consent or readiness.
+    pub fn verify_sender(&self, grant: &MeshV2PairGrant) -> Result<(), Error> {
+        grant.verify()?;
+        grant.binding.peer(&self.sender)?;
+        if self.grant_digest != grant.binding.digest()? {
+            return Err(Error::Payload("pair session grant binding"));
+        }
+        super::recovery::verify(&self.sender, &self.signing_input()?, &self.signature)
+    }
+
     fn validate(&self) -> Result<(), Error> {
         if self.sender_challenge == [0; 32]
             || self.receiver_challenge == [0; 32]
@@ -284,7 +295,7 @@ impl MeshV2PairSession {
         receiver_challenge: &[u8; 32],
         wg_shared_secret: &[u8; 32],
     ) -> Result<(), Error> {
-        grant.verify()?;
+        self.verify_sender(grant)?;
         if grant.binding.peer(&self.sender)?.signing_pub != *receiver
             || self.grant_digest != grant.binding.digest()?
             || &self.sender_challenge != sender_challenge
@@ -293,7 +304,6 @@ impl MeshV2PairSession {
         {
             return Err(Error::Payload("pair session binding"));
         }
-        super::recovery::verify(&self.sender, &self.signing_input()?, &self.signature)?;
         hmac::verify(
             &hmac::Key::new(hmac::HMAC_SHA256, wg_shared_secret),
             &self.proof_input()?,

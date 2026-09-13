@@ -28,6 +28,9 @@
 2. `MeshV2PairLookup`（`mesh.v2.pair.lookup`）：完整申请者身份、realm、PIN、
    随机 request_id 和可选 return-route cookie。Relay 仅对已认证、已登记且通过
    来源/限流门的节点查找；未知/关闭/过期 PIN 不返回身份目录。
+   UDP 首次使用现有原始 `Cookie` payload 应答（无签名 envelope），nonce 匹配
+   请求；重试保留 request_id、携带 cookie，并换新的 envelope nonce。cookie 只
+   证明来源可回传，不能作为身份/权限；WSS 使用已认证连接而不需要 UDP cookie。
    `MeshV2PairTarget` 返回准确目标身份、allocation、PIN generation 和有效期，
    绑定原 nonce/request_id/realm。客户端核对目标完整身份后才保存申请意图。
 3. `MeshV2PairRequest`（`mesh.v2.pair.request`）：申请者签名的定向意图，包含
@@ -45,6 +48,12 @@
 6. `MeshV2PairRejected`（`mesh.v2.pair.rejected`）只结束准确 operation/peer 的
    一次申请。reason：0 拒绝、1 过期、2 策略暂停、3 deny、4 容量、5 已处理、
    6 并发操作被替代、7 当前不可用。拒绝不会隐式拉黑或撤销其它关系。
+
+已持久准备的 offer 可在新的认证 envelope 中重新投递；Relay 验证原签名和原签发
+时间处的期限，不因自己的临时申请缓存丢失永久阻止恢复。接收端必须保留准确的
+本地申请/批准意图并重新检查 floor，才可调用
+`offer.verify_request(&saved_request, offer.issued_at)` 恢复原操作；没有该本地材料
+不能恢复。对新的申请/首次批准仍使用实际当前时间。
 
 重复请求按 `(realm, 完整双方身份, operation_id)` 幂等，不创建第二条关系。
 反向同时申请由两端 owner 采用同一规则：尚未产生持久批准时保留 signing 公钥
@@ -68,6 +77,8 @@
   `HMAC-SHA256(X25519(local_WG_secret, bound_peer_WG_pub), session_transcript)`；
   必须由本地 WG 密钥计算，不接收对端提供的 shared secret。全零 DH 结果拒绝。
   `sign`/`verify` 只接收该计算结果，调用者负责保密、清理与正确公钥来源。
+  Relay 的 `verify_sender` 仅核对发送者签名和准确 grant，用于定向投递；它不验证
+  WG possession，不得用它替代端点的完整 `verify` 或宣布业务 Ready。
 - 产生 session proof 前必须已持久保存完整 grant；验证使用本地准确 grant、
   当前双方挑战、当前 policy/floor，再检查签名和 WG proof。匹配业务代次才安装
   精确 peer 路由。该协议无需用户重新批准有效关系，且不能用旧 owner 结果恢复业务。
@@ -81,6 +92,8 @@
 delivery_id。`MeshV2PairDelivery`（`mesh.v2.pair.delivery`）每次最多投递一个原始
 签名 envelope，空收件箱不带 ID 或正文；原始正文最多 850 字节。消费方验证原始
 消息与本地状态后才确认。投递不是自动批准，Relay 也不成为 overlay WG peer。
+定向发送的接收确认也使用 `MeshV2PairDelivery`，nonce 匹配该发送请求，正文/ID
+均为空；此确认仅证明 Relay 接收了投递，不表示对端已批准、落盘或上线。
 
 本文件冻结共享表示及端点核验接缝。Relay 的 cookie/rate/容量/持久注册、队列生命周期、
 实际动态路由和 NS 的持久事务/owner/CLI 仍须分别实现并联合验证；它们未因本契约存在

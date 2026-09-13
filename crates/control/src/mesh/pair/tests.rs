@@ -172,6 +172,13 @@ fn pair_session_proves_wg_secret_and_current_bilateral_challenges() {
         )
     };
     verify(&session, &[12; 32]).unwrap();
+    let mut invalid_proof = session.clone();
+    invalid_proof.wg_proof[0] ^= 1;
+    invalid_proof.signature = keys()[0]
+        .sign(&invalid_proof.signing_input().unwrap())
+        .to_bytes();
+    invalid_proof.verify_sender(&grant).unwrap();
+    assert!(verify(&invalid_proof, &[12; 32]).is_err());
     assert!(verify(&session, &[13; 32]).is_err());
     assert!(verify(&session, &[0; 32]).is_err());
     assert!(session.sign(&keys()[0], &[0; 32]).is_err());
