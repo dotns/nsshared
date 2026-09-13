@@ -104,10 +104,11 @@ same revision digest until an explicitly approved later revision replaces it.
 |---|---|---|---|
 | 1 | Independent crate and address/name derivation foundation | None | Merged: head `bf61531b19821e728702d359e18bec03bcdfdcab`; merge base `49c257d71ed7e0387febeefbf1ab1fb15524bbd0`; merged-tree QA passed |
 | 2 | Canonical KeyBinding and generation decisions | 1 | Accepted against v0.6; focused, adversarial, crate, doctest, and repository quality gates passed |
-| 3 | PairingToken, PSK and INTRO | 1, 2 | Pending; spec must use the v0.6 six-field INTRO with `token_id` |
-| 4 | Labels, alias candidates and NameRecord | 1, 2, 3 | Pending |
-| 5 | Relay datagram, revocation and in-band control record codecs, registration signature and session MACs | 1, 2, 3, 4 | In progress in two parts: unchanged relay datagrams/cryptography/Revocation, then v0.7 identifier, control-record and limit additions |
-| 6 | Interoperability fixture release and final acceptance | 1, 2, 3, 4, 5 | Pending; seals vectors and the final manifest pin against the current revision |
+| 3 | PairingToken, PSK and INTRO | 1, 2 | Completed against v0.6 with the six-field INTRO and `token_id` |
+| 4 | Labels, alias candidates and NameRecord | 1, 2, 3 | Completed through the stateless 4A and stateful 4B parts |
+| 5A | Stable relay datagram and Revocation primitives | 1, 2, 3, 4 | Completed; byte profile pinned to v0.6 and unchanged in v0.7 |
+| 5B | Relay identifiers and in-band control records | 5A | Pending; owns identifier grammar, section 13.7 codecs, and v0.7-only constants |
+| 6 | Interoperability fixture release and final acceptance | 1, 2, 3, 4, 5A, 5B | Pending; seals vectors and the final manifest pin against the current revision |
 
 Each phase receives adversarial testing and an acceptance review. Only one
 phase runs at a time because build capacity is constrained. A phase is merged
@@ -173,12 +174,19 @@ are recorded here as phases are dispatched and merged.
   nextest, crate doctests, and `just qa` passed; the repository gate ran 732
   tests with zero skipped and included the actual `keynet-proto` suites.
 
-### Phases 3-6: not dispatched
+### Phases 3-4: completed
 
-Phase 4 can be specified from the current text without byte changes to its
-contract. Phase 3 must include the `token_id` field of INTRO (decision 5).
-Phase 5 needs a new specification (decisions 8 and 12). Phase 6 seals the
-final vectors and the manifest pin against the current revision.
+Phase 3 delivered PairingToken, PSK, and the six-field INTRO/INTRO_ACK profile.
+Phase 4 delivered both the stateless naming primitives and the v0.7 stateful
+default-nickname and per-owner NameRecord version-stream behavior.
+
+### Phases 5-6
+
+Phase 5 is split at the revision boundary. The completed 5A relay-wire and
+Revocation portion is pinned to v0.6 and is unchanged in v0.7. Identifier
+grammar and canonicalization, section 13.7 in-band control codecs, and
+constants introduced only in v0.7 remain pending in phase 5B. Phase 6 depends
+on both parts and seals the final vectors against the active revision.
 
 ## Design revisions
 

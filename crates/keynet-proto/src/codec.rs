@@ -83,6 +83,14 @@ impl<'a> CborReader<'a> {
         }
     }
 
+    pub(crate) fn null(&mut self) -> Result<(), CborError> {
+        if self.take()? == 0xf6 {
+            Ok(())
+        } else {
+            Err(CborError)
+        }
+    }
+
     pub(crate) fn binding(&mut self) -> Result<KeyBinding, CborError> {
         let start = self.position;
         self.array(8)?;
@@ -101,7 +109,7 @@ impl<'a> CborReader<'a> {
         self.position == self.input.len()
     }
 
-    fn peek(&self) -> Option<u8> {
+    pub(crate) fn peek(&self) -> Option<u8> {
         self.input.get(self.position).copied()
     }
 

@@ -17,6 +17,7 @@ hmac = "0.13.0"
 serde.workspace = true
 serde_bytes.workspace = true
 sha2 = "0.11.0"
+x25519-dalek.workspace = true
 
 [lints]
 workspace = true

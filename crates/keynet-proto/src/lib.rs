@@ -7,10 +7,14 @@ mod codec;
 mod intro;
 mod naming;
 mod pairing;
+mod relay;
+mod revocation;
 
 pub use intro::*;
 pub use naming::*;
 pub use pairing::*;
+pub use relay::*;
+pub use revocation::*;
 
 use blake2::{
     Blake2sMac,
