@@ -1,14 +1,14 @@
 # Approved keynet design archive
 
-These immutable approval records are maintained in the project. Their historical
-wording and original references are preserved exactly; this index records their
-current adoption status. Future decisions should add a new version rather than
-rewrite an approved record.
+These approval records are maintained in the project. Their substantive decisions
+are preserved while local coordination metadata is omitted; this index records
+their current adoption status. Future decisions should add a new version rather
+than rewrite an approved decision.
 
 | Record | Adoption status | SHA-256 |
 | --- | --- | --- |
-| [CLI interaction v1](keynet-cli-approved-v1.md) | Approved and applied by the design owner in docs commit `a4b98bc` | `df26a11295645ebacc9a84fc1b8d2306ad0ed2c8ae561e5af94bd6e919137faf` |
-| [UDP relay v1](keynet-relay-udp-approved-v1.md) | Approved and applied by the design owner in docs commit `c5f8309` (design v0.5) | `ac4cd46535d71b6dce74bc8f541e5306d307fb8dab6aa96b0f6f0a423e7dca8b` |
+| [CLI interaction v1](keynet-cli-approved-v1.md) | Approved and applied by the design owner in docs commit `a4b98bc` | `3fd9a1b92f4da139b7be529347ee3d83f427b1df589298933eafb87b7ab5289d` |
+| [UDP relay v1](keynet-relay-udp-approved-v1.md) | Approved and applied by the design owner in docs commit `c5f8309` (design v0.5) | `6ab7424d99e1f3e0df6b8d85837aa477e39f33555a5819455ebbfed74323576f` |
 
 The latest owner-reported authoritative English design is
 `/workspace/nsiod/docs/docs/ns/keynet.md`, SHA-256

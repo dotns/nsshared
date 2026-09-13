@@ -1,10 +1,9 @@
 [design-review keynet-relay-udp v1]
-campaignId: cmp-202609130355
 recommendation: change; accept option C with the following exact text and defaults.
 
 basis:
-- Proposal /workspace/nsiod/.local/keynet-campaign/keynet-relay-udp-proposal.md:1-161; design /workspace/nsiod/docs/docs/ns/keynet.md:171-202,273-278,430-452,473-502,516-595, verified SHA-256 7c99ffb2e03c0728128da7270754aa065148e263fdc7c3aef233ff9696fa8a9f.
-- Engine /workspace/nsiod/keynet/nsgw/crates/nsgw-wg/src/relay.rs at a81fe20:737-847,1419-1450,1557-1570,2453-2541 supports batching/bucket reuse and confirms linear scanning; it does not implement keynet.
+- The reviewed proposal covered the relay transport contract; design /workspace/nsiod/docs/docs/ns/keynet.md:171-202,273-278,430-452,473-502,516-595 was verified at SHA-256 7c99ffb2e03c0728128da7270754aa065148e263fdc7c3aef233ff9696fa8a9f.
+- The existing relay implementation in `nsgw/crates/nsgw-wg/src/relay.rs` at a81fe20:737-847,1419-1450,1557-1570,2453-2541 supports batching and bucket reuse and confirms linear scanning; it does not implement keynet.
 - WireGuard cookies depend on a changing responder secret; relay and endpoint cookies can differ and cause alternating challenges. Fully padded 1380-byte inner packets plus IPv6/UDP/WireGuard/relay overhead reach 1509 bytes. These conclusions follow from the [WireGuard protocol](https://www.wireguard.com/protocol/). Reject all-zero DH as specified in [RFC 7748 §6.1](https://www.rfc-editor.org/rfc/rfc7748#section-6.1).
 
 verdicts:

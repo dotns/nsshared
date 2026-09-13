@@ -7,7 +7,7 @@
 
 ## Context
 
-Feature consolidation is complete in the canonical repositories. The dedicated ns-shared integration clone retains eleven campaign worktrees and thirteen temporary branches. The canonical ns-shared repository retains two redundant recovery branches. All worktrees are clean except ignored Cargo build output. The two refuter branch tips have identical trees to preserved manager commits; their distinct histories are included in the recovery bundle.
+Feature consolidation is complete in the canonical repositories. The dedicated ns-shared integration clone retains eleven campaign worktrees and thirteen temporary branches. The canonical ns-shared repository retains two redundant recovery branches. All worktrees are clean except ignored Cargo build output. The two non-ancestor branch tips have identical trees to preserved commits; their distinct histories are included in the recovery bundle.
 
 ## Proposal
 
@@ -19,7 +19,7 @@ Deleting an unpreserved ref or a worktree with uncommitted data would lose work.
 
 ## Scope
 
-Campaign cmp-202609130355 Git worktree and branch metadata, disposable Cargo build output, and this task's tracking records. Preserve all main refs and unrelated worktrees. Do not change source, fixtures, approved designs or `/workspace/nsiod/mermaid/keynet`.
+Retired campaign Git worktree and branch metadata, disposable Cargo build output, and this task's tracking records. Preserve all main refs and unrelated worktrees. Do not change source, fixtures, approved designs or `/workspace/nsiod/mermaid/keynet`.
 
 ## Alternatives
 

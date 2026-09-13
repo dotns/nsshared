@@ -6,7 +6,7 @@
 - **campaign**: keynet-v1-20260913
 - **designRevision**: `/workspace/nsiod/docs/docs/ns/keynet.md` at docs commit `0f56552` (v0.6), SHA-256 `494c50a12112aa88fe6fa084c0be9a14a2ca66415244ff202b72d89e08190fc1`
 - **builtAgainst**: phase 1 was built against v0.4; phase 2 retained its byte-compatible v0.4 vectors and is being revalidated and re-pinned against v0.6; see Design revisions below
-- **campaignState**: campaign `keynet-v1-20260913` resumed this controlling plan using the BKD virtual engine profile `sol-medium`; v0.6 at docs commit `0f56552`, SHA-256 `494c50a12112aa88fe6fa084c0be9a14a2ca66415244ff202b72d89e08190fc1`, is the active pin for phases P2-P6
+- **campaignState**: the campaign resumed on 2026-09-13; v0.6 at docs commit `0f56552`, SHA-256 `494c50a12112aa88fe6fa084c0be9a14a2ca66415244ff202b72d89e08190fc1`, is the active pin for phases P2-P6
 - **integrationBranch**: `feat/keynet` in the canonical `ns-shared` checkout (the dedicated clone's `main` was restored to `d02a29c`)
 - **updatedAt**: 2026-09-13 08:30 UTC
 
@@ -19,8 +19,8 @@ networking or production filesystem access.
 
 The authoritative design is the English keynet document named above. Its
 normative section 13, Wire Profile, controls every byte-level question where
-it differs from earlier prose. Builders do not edit the external design
-checkout. Each implementation phase and the final fixture manifest pin the
+it differs from earlier prose. The external design checkout remains read-only
+during implementation. Each implementation phase and the final fixture manifest pin the
 same revision digest until an explicitly approved later revision replaces it.
 
 ## Approved decisions

@@ -15,7 +15,7 @@ repository already has its independent keynet design history on feat/keynet.
 
 ## Proposal
 
-Transfer the exact paused ns-shared manager tree and final project decision
+Transfer the exact paused ns-shared integration tree and final project decision
 archive to canonical ns-shared/feat/keynet through local object preservation.
 Add PMA tracking on that branch. Preserve design diagrams and original proposals
 on docs/feat/keynet without changing the authority digest or applying pending
