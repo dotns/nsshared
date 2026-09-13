@@ -35,7 +35,12 @@ fn altered_inventory(
 #[test]
 fn r1_empty_vector_families_must_be_rejected() -> Result<(), String> {
     altered_inventory("empty-families", |temp| {
-        for name in ["addresses.vec", "identities.vec", "conflicts.vec"] {
+        for name in [
+            "addresses.vec",
+            "identities.vec",
+            "conflicts.vec",
+            "key_bindings.vec",
+        ] {
             fs::write(temp.join(name), "").map_err(|error| error.to_string())?;
         }
         Ok(())
@@ -59,6 +64,20 @@ fn r1_missing_self_collision_case_must_be_rejected() -> Result<(), String> {
         let remaining = original
             .split("\n\n")
             .filter(|block| !block.contains("case=self_collision\n"))
+            .collect::<Vec<_>>()
+            .join("\n\n");
+        fs::write(path, remaining).map_err(|error| error.to_string())
+    })
+}
+
+#[test]
+fn r2_missing_key_binding_case_must_be_rejected() -> Result<(), String> {
+    altered_inventory("missing-key-binding", |temp| {
+        let path = temp.join("key_bindings.vec");
+        let original = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+        let remaining = original
+            .split("\n\n")
+            .filter(|block| !block.contains("case=maximum\n"))
             .collect::<Vec<_>>()
             .join("\n\n");
         fs::write(path, remaining).map_err(|error| error.to_string())

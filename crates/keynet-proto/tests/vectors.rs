@@ -5,9 +5,11 @@ use blake2::{
         consts::{U12, U15},
     },
 };
+use ed25519_dalek::{Signature, SigningKey, VerifyingKey};
 use keynet_proto::{
-    AddressGroup, GroupOwner, check_new_local_group, check_peer_group, derive_address_group,
-    group_bytes, group_ipv6, identity_label, n4, n4_bytes, n6, n6_bytes,
+    AddressGroup, CommittedKeyBinding, GroupOwner, InstallationDecision, KeyBinding,
+    KeyBindingScope, KeyBindingState, check_new_local_group, check_peer_group,
+    derive_address_group, group_bytes, group_ipv6, identity_label, n4, n4_bytes, n6, n6_bytes,
 };
 use sha2::{Digest, Sha256};
 use std::{
@@ -22,6 +24,7 @@ const ROOT: &str = "tests/fixtures/keynet-v1";
 const ADDRESS_CASES: &str = "ascending,zeros,reverse";
 const IDENTITY_CASES: &str = "ascending,zeros,reverse";
 const CONFLICT_CASES: &str = "idempotent_peer,self_collision,all_group_distinct_owner_collision,own_network_join_collision,own_network_join_clear";
+const BINDING_CASES: &str = "minimum,maximum";
 
 fn root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(ROOT)
@@ -141,10 +144,14 @@ fn load(root: &Path) -> Result<BTreeMap<String, String>, String> {
         ("suite_version", "keynet-v1"),
         ("section_13_revision", "13.1-13.6"),
         ("design_sha256", DESIGN_SHA256),
-        ("coverage", "addresses,identities,conflicts,integrity"),
+        (
+            "coverage",
+            "addresses,identities,conflicts,key_bindings,integrity",
+        ),
         ("address_cases", ADDRESS_CASES),
         ("identity_cases", IDENTITY_CASES),
         ("conflict_cases", CONFLICT_CASES),
+        ("key_binding_cases", BINDING_CASES),
     ]);
     let mut entries = BTreeMap::new();
     for line in manifest.lines().filter(|line| !line.is_empty()) {
@@ -188,7 +195,20 @@ fn load(root: &Path) -> Result<BTreeMap<String, String>, String> {
     validate_case_inventory(root, "addresses.vec", ADDRESS_CASES)?;
     validate_case_inventory(root, "identities.vec", IDENTITY_CASES)?;
     validate_case_inventory(root, "conflicts.vec", CONFLICT_CASES)?;
+    validate_case_inventory(root, "key_bindings.vec", BINDING_CASES)?;
     Ok(entries)
+}
+
+fn hex_bytes(input: &str) -> Result<Vec<u8>, String> {
+    if !input.len().is_multiple_of(2) {
+        return Err("odd hexadecimal length".to_owned());
+    }
+    (0..input.len() / 2)
+        .map(|index| {
+            u8::from_str_radix(&input[index * 2..index * 2 + 2], 16)
+                .map_err(|error| error.to_string())
+        })
+        .collect()
 }
 fn copy_root(destination: &Path) -> Result<(), String> {
     fs::create_dir_all(destination).map_err(|error| error.to_string())?;
@@ -311,6 +331,103 @@ fn owner_conflict_vectors_cover_peer_and_join_paths() -> Result<(), String> {
             ("conflict", Err(conflict))
                 if conflict.conflicting_owner == owner(field(&vector, "conflicting_owner")?)? => {}
             _ => return Err("unexpected owner-conflict result".to_owned()),
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn key_binding_vectors_are_literal_and_independently_verified() -> Result<(), String> {
+    load(&root())?;
+    let text =
+        fs::read_to_string(root().join("key_bindings.vec")).map_err(|error| error.to_string())?;
+    for vector in blocks(&text)? {
+        let seed = hex(field(&vector, "signing_seed")?)?;
+        let signing_key = SigningKey::from_bytes(&seed);
+        let identity = hex(field(&vector, "identity")?)?;
+        if signing_key.verifying_key().to_bytes() != identity {
+            return Err("literal public key does not match fixed seed".to_owned());
+        }
+        let binding = KeyBinding {
+            ver: field(&vector, "ver")?
+                .parse()
+                .map_err(|error: std::num::ParseIntError| error.to_string())?,
+            network_id: hex(field(&vector, "network_id")?)?,
+            identity,
+            wireguard_key: hex(field(&vector, "wireguard_key")?)?,
+            generation: field(&vector, "generation")?
+                .parse()
+                .map_err(|error: std::num::ParseIntError| error.to_string())?,
+            not_before: field(&vector, "not_before")?
+                .parse()
+                .map_err(|error: std::num::ParseIntError| error.to_string())?,
+            not_after: field(&vector, "not_after")?
+                .parse()
+                .map_err(|error: std::num::ParseIntError| error.to_string())?,
+            signature: hex(field(&vector, "signature")?)?,
+        };
+        let literal_unsigned = hex_bytes(field(&vector, "unsigned")?)?;
+        let literal_preimage = hex_bytes(field(&vector, "preimage")?)?;
+        let literal_signed = hex_bytes(field(&vector, "signed")?)?;
+        if binding.unsigned_bytes() != literal_unsigned
+            || binding.signing_preimage() != literal_preimage
+            || binding.encode() != literal_signed
+            || binding.unsigned_bytes().len().to_string() != field(&vector, "unsigned_size")?
+            || binding.encode().len().to_string() != field(&vector, "signed_size")?
+        {
+            return Err("literal KeyBinding encoding mismatch".to_owned());
+        }
+        let verifying_key =
+            VerifyingKey::from_bytes(&identity).map_err(|error| error.to_string())?;
+        verifying_key
+            .verify_strict(
+                &literal_preimage,
+                &Signature::from_bytes(&binding.signature),
+            )
+            .map_err(|error| error.to_string())?;
+        let checked = binding
+            .verify()
+            .map_err(|error| format!("verification failed: {error:?}"))?
+            .validate_current(
+                field(&vector, "now")?
+                    .parse()
+                    .map_err(|error: std::num::ParseIntError| error.to_string())?,
+            )
+            .map_err(|error| format!("current check failed: {error:?}"))?;
+        let state = match field(&vector, "state")? {
+            "empty" => KeyBindingState {
+                scope: KeyBindingScope {
+                    network_id: binding.network_id,
+                    identity: binding.identity,
+                },
+                committed: None,
+                revoked_through: None,
+                conflict: None,
+            },
+            "same" => KeyBindingState {
+                scope: KeyBindingScope {
+                    network_id: binding.network_id,
+                    identity: binding.identity,
+                },
+                committed: Some(CommittedKeyBinding {
+                    generation: binding.generation,
+                    wireguard_key: binding.wireguard_key,
+                }),
+                revoked_through: None,
+                conflict: None,
+            },
+            _ => return Err("unknown literal KeyBinding state".to_owned()),
+        };
+        match (
+            field(&vector, "expected_decision")?,
+            checked.installation_decision(&state),
+        ) {
+            ("install", Ok(InstallationDecision::Install(_)))
+            | ("idempotent", Ok(InstallationDecision::Idempotent)) => {}
+            _ => return Err("literal KeyBinding decision mismatch".to_owned()),
+        }
+        if field(&vector, "expected_error")? != "none" {
+            return Err("unexpected literal KeyBinding error expectation".to_owned());
         }
     }
     Ok(())
