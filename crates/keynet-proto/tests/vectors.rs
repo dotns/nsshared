@@ -19,6 +19,9 @@ use std::{
 
 const DESIGN_SHA256: &str = "7c99ffb2e03c0728128da7270754aa065148e263fdc7c3aef233ff9696fa8a9f";
 const ROOT: &str = "tests/fixtures/keynet-v1";
+const ADDRESS_CASES: &str = "ascending,zeros,reverse";
+const IDENTITY_CASES: &str = "ascending,zeros,reverse";
+const CONFLICT_CASES: &str = "idempotent_peer,self_collision,all_group_distinct_owner_collision,own_network_join_collision,own_network_join_clear";
 
 fn root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(ROOT)
@@ -105,6 +108,32 @@ fn owners(input: &str) -> Result<Vec<GroupOwner>, String> {
         input.split(';').map(owner).collect()
     }
 }
+fn inventory(value: &str) -> Result<BTreeSet<String>, String> {
+    let cases = value.split(',').map(str::to_owned).collect::<BTreeSet<_>>();
+    if cases.is_empty() || cases.contains("") || cases.len() != value.split(',').count() {
+        return Err("invalid required case inventory".to_owned());
+    }
+    Ok(cases)
+}
+fn validate_case_inventory(root: &Path, file: &str, required: &str) -> Result<(), String> {
+    let expected = inventory(required)?;
+    let text = fs::read_to_string(root.join(file)).map_err(|error| error.to_string())?;
+    let vectors = blocks(&text)?;
+    if vectors.is_empty() {
+        return Err(format!("empty required vector family: {file}"));
+    }
+    let mut actual = BTreeSet::new();
+    for vector in vectors {
+        let case = field(&vector, "case")?.to_owned();
+        if !actual.insert(case.clone()) {
+            return Err(format!("duplicate vector case in {file}: {case}"));
+        }
+    }
+    if actual != expected {
+        return Err(format!("missing or unlisted vector case in {file}"));
+    }
+    Ok(())
+}
 fn load(root: &Path) -> Result<BTreeMap<String, String>, String> {
     let manifest =
         fs::read_to_string(root.join("manifest.txt")).map_err(|error| error.to_string())?;
@@ -113,6 +142,9 @@ fn load(root: &Path) -> Result<BTreeMap<String, String>, String> {
         ("section_13_revision", "13.1-13.6"),
         ("design_sha256", DESIGN_SHA256),
         ("coverage", "addresses,identities,conflicts,integrity"),
+        ("address_cases", ADDRESS_CASES),
+        ("identity_cases", IDENTITY_CASES),
+        ("conflict_cases", CONFLICT_CASES),
     ]);
     let mut entries = BTreeMap::new();
     for line in manifest.lines().filter(|line| !line.is_empty()) {
@@ -153,6 +185,9 @@ fn load(root: &Path) -> Result<BTreeMap<String, String>, String> {
             return Err(format!("corrupted vector: {name}"));
         }
     }
+    validate_case_inventory(root, "addresses.vec", ADDRESS_CASES)?;
+    validate_case_inventory(root, "identities.vec", IDENTITY_CASES)?;
+    validate_case_inventory(root, "conflicts.vec", CONFLICT_CASES)?;
     Ok(entries)
 }
 fn copy_root(destination: &Path) -> Result<(), String> {
