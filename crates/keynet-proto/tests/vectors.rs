@@ -22,7 +22,7 @@ use std::{
 };
 
 const DESIGN_REVISION: &str = "v0.7";
-const DESIGN_COMMIT: &str = "4ae04faa";
+const DESIGN_COMMIT: &str = "4ae04faa06ca1f5d64e40aca58aa8e55a50c1e6e";
 const DESIGN_SHA256: &str = "ceeca74ab6dad33f34df36ef789c1d32014679c9592655439210c169b0bebce6";
 const ROOT: &str = "tests/fixtures/keynet-v1";
 const ADDRESS_CASES: &str = "ascending,zeros,reverse";
@@ -212,13 +212,21 @@ fn validate_identifier_inventory(root: &Path) -> Result<(), String> {
     Ok(())
 }
 fn load(root: &Path) -> Result<BTreeMap<String, String>, String> {
+    let root_metadata = fs::symlink_metadata(root).map_err(|error| error.to_string())?;
+    if root_metadata.file_type().is_symlink() || !root_metadata.is_dir() {
+        return Err("fixture root must be a local directory".to_owned());
+    }
     let manifest =
         fs::read_to_string(root.join("manifest.txt")).map_err(|error| error.to_string())?;
     let mut required = BTreeMap::from([
+        ("manifest_format", "keynet-fixture-manifest-v1"),
         ("suite_version", "keynet-v1"),
+        ("fixture_release", "keynet-v1-v0.7"),
         ("section_13_revision", DESIGN_REVISION),
+        ("design_path", "docs/ns/keynet.md"),
         ("design_commit", DESIGN_COMMIT),
         ("design_sha256", DESIGN_SHA256),
+        ("data_file_count", "12"),
         (
             "coverage",
             "addresses,identities,conflicts,key_bindings,pairing_tokens,introductions,aliases,labels,name_records,relay,revocation,relay_identifiers,control_records,integrity",
@@ -232,7 +240,9 @@ fn load(root: &Path) -> Result<BTreeMap<String, String>, String> {
         ("alias_cases", ALIAS_CASES),
         ("label_cases", LABEL_CASES),
         ("name_record_cases", NAME_RECORD_CASES),
+        ("relay_revocation_fields", RELAY_FIELDS),
         ("relay_identifier_cases", IDENTIFIER_CASES),
+        ("control_record_fields", CONTROL_FIELDS),
     ]);
     let mut entries = BTreeMap::new();
     for line in manifest.lines().filter(|line| !line.is_empty()) {
@@ -256,14 +266,21 @@ fn load(root: &Path) -> Result<BTreeMap<String, String>, String> {
     if !required.is_empty() || entries.is_empty() {
         return Err("incomplete manifest".to_owned());
     }
-    let actual = fs::read_dir(root)
-        .map_err(|error| error.to_string())?
-        .map(|entry| entry.map_err(|error| error.to_string()))
-        .collect::<Result<Vec<_>, _>>()?
-        .into_iter()
-        .filter_map(|entry| entry.file_name().into_string().ok())
-        .filter(|name| name != "manifest.txt")
-        .collect::<BTreeSet<_>>();
+    let mut actual = BTreeSet::new();
+    for entry in fs::read_dir(root).map_err(|error| error.to_string())? {
+        let entry = entry.map_err(|error| error.to_string())?;
+        let name = entry
+            .file_name()
+            .into_string()
+            .map_err(|_| "fixture filename must be UTF-8".to_owned())?;
+        let metadata = fs::symlink_metadata(entry.path()).map_err(|error| error.to_string())?;
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
+            return Err(format!("fixture entry must be a regular file: {name}"));
+        }
+        if name != "manifest.txt" && !actual.insert(name.clone()) {
+            return Err(format!("duplicate fixture entry: {name}"));
+        }
+    }
     if actual != entries.keys().cloned().collect() {
         return Err("missing or unlisted vector".to_owned());
     }

@@ -1,6 +1,6 @@
 # PLAN-017 Keynet-proto wire and derivation primitives for keynet v0.7
 
-- **status**: approved
+- **status**: completed
 - **createdAt**: 2026-09-13 03:55 UTC
 - **approvedAt**: 2026-09-13 04:09 UTC
 - **campaign**: keynet-v1-20260913
@@ -8,7 +8,7 @@
 - **builtAgainst**: phase 1 was built against v0.4; completed phases retained their reviewed vectors across later compatible revisions; see Design revisions below
 - **campaignState**: the campaign resumed on 2026-09-13; v0.7 at docs commit `4ae04faa06ca1f5d64e40aca58aa8e55a50c1e6e`, SHA-256 `ceeca74ab6dad33f34df36ef789c1d32014679c9592655439210c169b0bebce6`, is the active pin for the remaining phases
 - **integrationBranch**: `feat/keynet` in the canonical `ns-shared` checkout (the dedicated clone's `main` was restored to `d02a29c`)
-- **updatedAt**: 2026-09-13 12:40 UTC
+- **updatedAt**: 2026-09-13 13:03 UTC
 
 ## Context
 
@@ -108,7 +108,7 @@ same revision digest until an explicitly approved later revision replaces it.
 | 4 | Labels, alias candidates and NameRecord | 1, 2, 3 | Completed through the stateless 4A and stateful 4B parts |
 | 5A | Stable relay datagram and Revocation primitives | 1, 2, 3, 4 | Completed; byte profile pinned to v0.6 and unchanged in v0.7 |
 | 5B | Relay identifiers and in-band control records | 5A | Completed against v0.7; focused and crate gates passed, final repository gate recorded below |
-| 6 | Interoperability fixture release and final acceptance | 1, 2, 3, 4, 5A, 5B | Pending; seals vectors and the final manifest pin against the current revision |
+| 6 | Interoperability fixture release and final acceptance | 1, 2, 3, 4, 5A, 5B | Completed against v0.7; sealed manifest and final repository acceptance passed |
 
 Each phase receives adversarial testing and an acceptance review. Only one
 phase runs at a time because build capacity is constrained. A phase is merged
@@ -198,6 +198,22 @@ Revocation portion is pinned to v0.6 and is unchanged in v0.7. Phase 5B
 completed the v0.7 identifier grammar and canonicalization, section 13.7
 in-band control codecs, and relevant section 13.6 constants. Phase 6 depends
 on both parts and seals the final vectors against the active revision.
+
+### Phase 6: completed
+
+Phase 6 adds an implementation-independent release seal over the complete
+twelve-file fixture set. The initial positive release test failed against the
+pre-release manifest while its drift-rejection case passed. The completed
+manifest carries the full design pin and exact file, case, and field inventory;
+all normative vector files remain byte-identical to the accepted phase inputs.
+The implementation-independent release test pins manifest SHA-256
+`09c5184dfdd114151c6650c02eaca9d0710c6d321b1b5c72847d7fea506d13ea`
+and rejects missing, duplicate, unlisted, non-regular, symlinked, corrupted,
+and locally rehashed inputs. The full package passed 84 tests with zero skipped,
+and the repository gate passed 793 tests with zero skipped. Formatting,
+warning-denied lint, dependency policy, unused-dependency, typo, documentation,
+and whitespace checks passed. No protocol, production, or dependency input
+changed.
 
 ## Design revisions
 

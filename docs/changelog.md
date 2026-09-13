@@ -1,3 +1,10 @@
+## 2026-09-13 13:03 [progress]
+
+Sealed the complete keynet v0.7 interoperability fixture release. The manifest
+now carries the full design pin and exact file, case, and field inventories;
+an implementation-independent test pins its final digest and rejects filesystem
+or locally rehashed drift. All twelve normative vector files remain unchanged.
+
 ## 2026-09-13 06:58 [progress]
 
 Complete `20260913-0657-clean-keynet-campaign-worktrees`. Remove eleven retired keynet campaign worktrees and fifteen
