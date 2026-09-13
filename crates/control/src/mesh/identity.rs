@@ -22,6 +22,7 @@ pub const MESH_V2_DEFAULT_DNS_ROOT: &str = "mesh.ns.io";
 pub const MESH_V2_MAX_NAME_LABEL_LEN: usize = 52;
 
 const MESH_V2_ADDRESS_DOMAIN: &[u8] = b"nsmesh-v2-overlay-ip\0";
+const MESH_V2_REGISTRATION_PROOF_DOMAIN: &[u8] = b"nsmesh-v2-registration-proof\0";
 
 /// Two separately addressed paths share a stable identity but never a /128.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -98,6 +99,23 @@ fn base32_lower_no_pad(bytes: &[u8]) -> String {
         ));
     }
     output
+}
+
+/// Canonical bytes signed to prove one stable v2 node identity during
+/// registration. The group is intentionally absent: the proof establishes
+/// key possession, while group membership remains a separately authorized
+/// ledger concern.
+pub fn mesh_v2_registration_proof_input(
+    signing_pub: &[u8; 32],
+    wg_pub: &[u8; 32],
+    nonce: &[u8; 16],
+) -> Vec<u8> {
+    let mut input = MESH_V2_REGISTRATION_PROOF_DOMAIN.to_vec();
+    input.push(MESH_V2_PROTOCOL_VERSION);
+    input.extend_from_slice(signing_pub);
+    input.extend_from_slice(wg_pub);
+    input.extend_from_slice(nonce);
+    input
 }
 
 pub fn member_id(signing_pub: &[u8; 32]) -> [u8; 20] {
@@ -246,6 +264,27 @@ mod tests {
         assert_ne!(
             mesh_v2_name_label(&key, &salt, 5).unwrap(),
             mesh_v2_name_label(&key, &[0x12; 16], 5).unwrap()
+        );
+    }
+
+    #[test]
+    fn mesh_v2_registration_proof_binds_both_public_keys_and_nonce() {
+        let signing = [0x11; 32];
+        let wg = [0x22; 32];
+        let nonce = [0x33; 16];
+        let input = mesh_v2_registration_proof_input(&signing, &wg, &nonce);
+        assert_eq!(
+            &input[..MESH_V2_REGISTRATION_PROOF_DOMAIN.len()],
+            MESH_V2_REGISTRATION_PROOF_DOMAIN
+        );
+        assert_eq!(input[MESH_V2_REGISTRATION_PROOF_DOMAIN.len()], 2);
+        assert_eq!(
+            &input[MESH_V2_REGISTRATION_PROOF_DOMAIN.len() + 1..],
+            [&signing[..], &wg[..], &nonce[..]].concat()
+        );
+        assert_ne!(
+            input,
+            mesh_v2_registration_proof_input(&signing, &[0x23; 32], &nonce)
         );
     }
 }
