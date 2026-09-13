@@ -44,3 +44,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**PLAN-013 Causal scoped WG relay wire contract**](PLAN-013.md) `2026-07-13`
 - [x] [**PLAN-014 Structured framed-WSS tunnel task lifecycle**](PLAN-014.md) `2026-07-25`
 - [-] [**PLAN-015 Unified node capability and subnet-route contracts**](PLAN-015.md) `2026-08-16`
+- [x] [**Keynet approved design archive**](../../crates/keynet-proto/docs/design/README.md) `2026-09-13`
