@@ -58,14 +58,14 @@ same revision digest until an explicitly approved later revision replaces it.
 
 ## Roadmap
 
-| Phase | Name | Depends | Status |
-|---|---|---|---|
-| 1 | Independent crate and address/name derivation foundation | None | Awaiting refreshed final spec |
-| 2 | Canonical KeyBinding and generation decisions | 1 | Pending |
-| 3 | PairingToken, PSK and INTRO | 1, 2 | Pending |
-| 4 | Labels, alias candidates and NameRecord | 1, 2, 3 | Pending |
-| 5 | Bounded typed relay frames | 1, 2, 3, 4 | Pending |
-| 6 | Interoperability fixture release and final acceptance | 1, 2, 3, 4, 5 | Pending |
+| Phase | Name | Depends | Manager | Status |
+|---|---|---|---|---|
+| 1 | Independent crate and address/name derivation foundation | None | vkd2enid | Working |
+| 2 | Canonical KeyBinding and generation decisions | 1 | — | Pending |
+| 3 | PairingToken, PSK and INTRO | 1, 2 | — | Pending |
+| 4 | Labels, alias candidates and NameRecord | 1, 2, 3 | — | Pending |
+| 5 | Bounded typed relay frames | 1, 2, 3, 4 | — | Pending |
+| 6 | Interoperability fixture release and final acceptance | 1, 2, 3, 4, 5 | — | Pending |
 
 Each phase is refuted before its Architect review. Only one phase runs at a
 time because build capacity is constrained. A phase is merged automatically
@@ -98,4 +98,3 @@ design section; all code forbids unsafe code.
 
 Manager identifiers, merge bases, branch heads, refutation outcomes and final
 quality-gate evidence are recorded here as phases are dispatched and merged.
-
