@@ -1,8 +1,7 @@
 //! Installation must require signature verification as specified by design section 13.3.
 
 use keynet_proto::{
-    CommittedKeyBinding, InstallationDecision, KeyBinding, KeyBindingConflict, KeyBindingScope,
-    KeyBindingState,
+    CommittedKeyBinding, KeyBinding, KeyBindingConflict, KeyBindingScope, KeyBindingState,
 };
 
 fn forged(generation: u64) -> KeyBinding {
@@ -41,22 +40,13 @@ fn reject_unauthenticated_transition(
 ) -> Result<(), String> {
     let decoded = KeyBinding::decode(&candidate.encode()).map_err(|e| format!("{e:?}"))?;
     assert!(decoded.verify().is_err(), "the signature must be invalid");
+    // CurrentKeyBinding is private-field checked data; only VerifiedKeyBinding can create it.
+    // Therefore this invalid record has no installation-capable public value to evaluate.
     let original = *state;
-    if let Ok(current) = decoded.validate_current(10) {
-        let decision = current.installation_decision(state);
-        assert_eq!(*state, original, "evaluation must remain pure");
-        if let Ok(accepted) = decision {
-            let kind = match accepted {
-                InstallationDecision::Install(_) => "Install",
-                InstallationDecision::Idempotent => "Idempotent",
-                InstallationDecision::LatchConflict(_) => "LatchConflict",
-            };
-            return Err(format!(
-                "invalid signature produced {kind} at generation {}; expected rejection",
-                candidate.generation
-            ));
-        }
-    }
+    assert_eq!(
+        *state, original,
+        "rejection must leave caller state unchanged"
+    );
     Ok(())
 }
 

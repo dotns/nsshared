@@ -938,7 +938,10 @@ name = "keynet-proto"
 version = "0.1.0"
 dependencies = [
  "blake2",
+ "ciborium",
  "ed25519-dalek",
+ "serde",
+ "serde_bytes",
  "sha2",
 ]
 

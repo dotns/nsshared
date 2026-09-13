@@ -20,8 +20,11 @@ immediately followed by the canonical seven-field array.
 ## State transitions
 
 Cryptographic verification, explicit interval validation, and installation
-decisions are separate. Installation accepts only a checked current binding,
-returns a replacement-state proposal, and does not mutate caller state.
+decisions are separate. `CurrentKeyBinding` has private authenticated content
+and is constructed only by `VerifiedKeyBinding::validate_current`; a raw
+`KeyBinding` has no time-only route to installation. Installation accepts only
+that checked current binding, returns a replacement-state proposal, and does
+not mutate caller state.
 Generation zero is valid for an empty scope; equal-key replay is idempotent;
 an equal-generation different-key record latches a conflict until a strictly
 higher valid current nonrevoked record recovers it.
@@ -30,8 +33,8 @@ higher valid current nonrevoked record recovers it.
 
 The committed KeyBinding vectors contain public fixed signing seeds, literal
 canonical unsigned arrays, complete preimages, signatures, signed arrays,
-sizes, explicit current times, state inputs, decisions, and error outcomes.
-Tests independently verify the literal preimages and signatures with
-ed25519-dalek before exercising the crate API. The shared fixture loader also
-requires the KeyBinding case inventory and preserves missing, duplicate,
-unlisted, empty, and corruption defenses.
+sizes, explicit current times, scoped state inputs, decisions, and rejection
+outcomes. They include all CBOR integer-width boundaries and conflict and
+invalid-signature cases. Tests independently verify literal preimages and
+signatures before exercising the crate API, compare resulting typed state, and
+retain missing, duplicate, unlisted, empty, and corruption defenses.

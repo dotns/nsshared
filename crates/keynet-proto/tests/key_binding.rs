@@ -219,13 +219,21 @@ fn widths_sizes_and_intervals_are_exact() {
             .validate_current(u64::MAX - 1)
             .is_ok()
     );
-    assert_eq!(minimum.validate_current(0).unwrap().binding(), minimum);
     assert_eq!(
-        minimum.validate_current(1),
+        minimum
+            .verify()
+            .unwrap()
+            .validate_current(0)
+            .unwrap()
+            .binding(),
+        minimum
+    );
+    assert_eq!(
+        minimum.verify().unwrap().validate_current(1),
         Err(KeyBindingTimeError::NotCurrent)
     );
     assert_eq!(
-        minimum.validate_current(2),
+        minimum.verify().unwrap().validate_current(2),
         Err(KeyBindingTimeError::NotCurrent)
     );
     assert_eq!(
