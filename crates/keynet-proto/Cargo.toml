@@ -1,0 +1,21 @@
+[package]
+name = "keynet-proto"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+blake2 = "0.10.6"
+ciborium = "0.2.2"
+ed25519-dalek.workspace = true
+serde.workspace = true
+serde_bytes.workspace = true
+
+[dev-dependencies]
+sha2 = "0.10"
+
+[lints]
+workspace = true

@@ -1,6 +1,6 @@
 # ns-shared - Plan Index
 
-> Updated: 2026-08-16
+> Updated: 2026-09-13
 
 ## Usage
 
@@ -45,4 +45,6 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**PLAN-013 Causal scoped WG relay wire contract**](PLAN-013.md) `2026-07-13`
 - [x] [**PLAN-014 Structured framed-WSS tunnel task lifecycle**](PLAN-014.md) `2026-07-25`
 - [-] [**PLAN-015 Unified node capability and subnet-route contracts**](PLAN-015.md) `2026-08-16`
+- [-] [**PLAN-017 Keynet-proto wire and derivation primitives for keynet v0.4**](PLAN-017.md) `2026-09-13`
+- [-] [**Keynet-proto phase 2 KeyBinding outcome**](../../crates/keynet-proto/docs/plan/phase-2-key-binding.md) `2026-09-13`
 - [-] [**20260913-0641-consolidate-keynet-feature-branches Consolidate keynet feature branches**](20260913-0641-consolidate-keynet-feature-branches.md) `2026-09-13`

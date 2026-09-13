@@ -934,6 +934,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "keynet-proto"
+version = "0.1.0"
+dependencies = [
+ "blake2",
+ "ciborium",
+ "ed25519-dalek",
+ "serde",
+ "serde_bytes",
+ "sha2",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
