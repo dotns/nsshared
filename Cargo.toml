@@ -6,7 +6,12 @@ members = [
     "crates/acl",
     "crates/control",
     "crates/tunnel-ws",
+    "crates/keynet-proto",
 ]
+
+[workspace.lints.rust]
+warnings = { level = "deny", priority = -2 }
+unsafe_code = "forbid"
 
 [workspace.package]
 edition = "2024"
