@@ -1,4 +1,4 @@
-use crate::KeyBinding;
+use crate::{KeyBinding, NameRecord, Revocation};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct CborError;
@@ -14,9 +14,17 @@ impl<'a> CborReader<'a> {
     }
 
     pub(crate) fn array(&mut self, expected: u64) -> Result<(), CborError> {
-        let (major, value) = self.head()?;
-        if major == 4 && value == expected {
+        if self.array_len()? == expected {
             Ok(())
+        } else {
+            Err(CborError)
+        }
+    }
+
+    pub(crate) fn array_len(&mut self) -> Result<u64, CborError> {
+        let (major, value) = self.head()?;
+        if major == 4 {
+            Ok(value)
         } else {
             Err(CborError)
         }
@@ -103,6 +111,33 @@ impl<'a> CborReader<'a> {
         let _ = self.uint()?;
         let _ = self.fixed_bytes::<64>()?;
         KeyBinding::decode(&self.input[start..self.position]).map_err(|_| CborError)
+    }
+
+    pub(crate) fn revocation(&mut self) -> Result<Revocation, CborError> {
+        let start = self.position;
+        self.array(6)?;
+        let _ = self.uint()?;
+        let _ = self.fixed_bytes::<32>()?;
+        let _ = self.fixed_bytes::<32>()?;
+        let _ = self.uint()?;
+        let _ = self.uint()?;
+        let _ = self.fixed_bytes::<64>()?;
+        Revocation::decode(&self.input[start..self.position]).map_err(|_| CborError)
+    }
+
+    pub(crate) fn name_record(&mut self) -> Result<NameRecord, CborError> {
+        let start = self.position;
+        self.array(9)?;
+        let _ = self.uint()?;
+        let _ = self.fixed_bytes::<32>()?;
+        let _ = self.fixed_bytes::<32>()?;
+        let _ = self.text()?;
+        let _ = self.uint()?;
+        let _ = self.uint()?;
+        let _ = self.uint()?;
+        let _ = self.fixed_bytes::<64>()?;
+        let _ = self.fixed_bytes::<64>()?;
+        NameRecord::decode(&self.input[start..self.position]).map_err(|_| CborError)
     }
 
     pub(crate) fn finished(&self) -> bool {

@@ -21,9 +21,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-const DESIGN_REVISION: &str = "v0.6";
-const DESIGN_COMMIT: &str = "0f56552";
-const DESIGN_SHA256: &str = "494c50a12112aa88fe6fa084c0be9a14a2ca66415244ff202b72d89e08190fc1";
+const DESIGN_REVISION: &str = "v0.7";
+const DESIGN_COMMIT: &str = "4ae04faa";
+const DESIGN_SHA256: &str = "ceeca74ab6dad33f34df36ef789c1d32014679c9592655439210c169b0bebce6";
 const ROOT: &str = "tests/fixtures/keynet-v1";
 const ADDRESS_CASES: &str = "ascending,zeros,reverse";
 const IDENTITY_CASES: &str = "ascending,zeros,reverse";
@@ -35,6 +35,8 @@ const ALIAS_CASES: &str = "kind6_non_power_two,kind4_non_power_two";
 const LABEL_CASES: &str = "ascii_runs,uppercase_non_ascii,empty,one_byte,length_63,truncate_64,truncate_trailing_hyphen,reserved_id,reserved_v4";
 const NAME_RECORD_CASES: &str = "claim_width_boundaries";
 const RELAY_FIELDS: &str = "network,identity,slot,node_private,node_ephemeral,relay_private,relay_ephemeral,register_unsigned,register_signature,reg_hash,shared_secret,session_key,register_datagram,registered_mac,registered_datagram,presence_mac,presence_datagram,reflect_mac,reflect_datagram,reflected_mac,reflected_datagram,intro_datagram,intro_ack_datagram,data_datagram,status_datagram,revoke_mac,revoke_datagram,revocation_unsigned,revocation_signature,revocation";
+const CONTROL_FIELDS: &str = "ack,legacy_endpoints,binding,revocation,name,ordered_endpoints,probe_request,probe_reply,ordered_hash";
+const IDENTIFIER_CASES: &str = "relay_dns,relay_ipv4,relay_ipv6,relay_short,endpoint_dns,endpoint_ipv4,endpoint_ipv6,local_dns_case_dot,local_ipv6_case_zeros,invalid_scheme,invalid_port_zero,invalid_port_leading_zero,invalid_unbracketed_ipv6,invalid_zone,invalid_ipv4_leading_zero,invalid_dns_uppercase,invalid_dns_terminal_dot,invalid_short_uppercase,invalid_short_trailing_hyphen,invalid_short_endpoint,invalid_unicode,invalid_whitespace,invalid_mapped_ipv6,invalid_unspecified_ipv6,invalid_multicast_ipv6";
 
 fn root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(ROOT)
@@ -165,7 +167,10 @@ fn validate_flat_inventory(root: &Path, file: &str, required: &str) -> Result<()
     let expected = inventory(required)?;
     let text = fs::read_to_string(root.join(file)).map_err(|error| error.to_string())?;
     let mut actual = BTreeSet::new();
-    for line in text.lines().filter(|line| !line.is_empty()) {
+    for line in text
+        .lines()
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+    {
         let (name, value) = line
             .split_once('|')
             .ok_or_else(|| format!("invalid flat vector line in {file}"))?;
@@ -175,6 +180,34 @@ fn validate_flat_inventory(root: &Path, file: &str, required: &str) -> Result<()
     }
     if actual != expected {
         return Err(format!("missing or unlisted flat vector field in {file}"));
+    }
+    Ok(())
+}
+
+fn validate_identifier_inventory(root: &Path) -> Result<(), String> {
+    let text = fs::read_to_string(root.join("relay_identifiers.vec"))
+        .map_err(|error| error.to_string())?;
+    let actual = text
+        .lines()
+        .filter(|line| !line.starts_with('#') && !line.is_empty())
+        .map(|line| -> Result<String, String> {
+            let mut fields = line.split('|');
+            let kind = fields
+                .next()
+                .ok_or_else(|| "invalid relay identifier vector".to_owned())?;
+            let case = fields
+                .next()
+                .ok_or_else(|| "invalid relay identifier vector".to_owned())?;
+            Ok(format!("{kind}_{case}"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if actual
+        != IDENTIFIER_CASES
+            .split(',')
+            .map(str::to_owned)
+            .collect::<Vec<_>>()
+    {
+        return Err("missing or reordered relay identifier case".to_owned());
     }
     Ok(())
 }
@@ -188,7 +221,7 @@ fn load(root: &Path) -> Result<BTreeMap<String, String>, String> {
         ("design_sha256", DESIGN_SHA256),
         (
             "coverage",
-            "addresses,identities,conflicts,key_bindings,pairing_tokens,introductions,aliases,labels,name_records,relay,revocation,integrity",
+            "addresses,identities,conflicts,key_bindings,pairing_tokens,introductions,aliases,labels,name_records,relay,revocation,relay_identifiers,control_records,integrity",
         ),
         ("address_cases", ADDRESS_CASES),
         ("identity_cases", IDENTITY_CASES),
@@ -199,6 +232,7 @@ fn load(root: &Path) -> Result<BTreeMap<String, String>, String> {
         ("alias_cases", ALIAS_CASES),
         ("label_cases", LABEL_CASES),
         ("name_record_cases", NAME_RECORD_CASES),
+        ("relay_identifier_cases", IDENTIFIER_CASES),
     ]);
     let mut entries = BTreeMap::new();
     for line in manifest.lines().filter(|line| !line.is_empty()) {
@@ -249,6 +283,8 @@ fn load(root: &Path) -> Result<BTreeMap<String, String>, String> {
     validate_case_inventory(root, "labels.vec", LABEL_CASES)?;
     validate_case_inventory(root, "name_records.vec", NAME_RECORD_CASES)?;
     validate_flat_inventory(root, "relay_revocation.vec", RELAY_FIELDS)?;
+    validate_flat_inventory(root, "control_records.vec", CONTROL_FIELDS)?;
+    validate_identifier_inventory(root)?;
     Ok(entries)
 }
 

@@ -1,5 +1,6 @@
 use crate::{
-    CurrentKeyBinding, Identity, Intro, IntroAck, KeyBinding, NetworkId, codec::CborReader,
+    CurrentKeyBinding, Identity, Intro, IntroAck, KeyBinding, NetworkId, RelayIdentifier,
+    codec::CborReader,
 };
 use blake2::{
     Blake2sMac,
@@ -687,6 +688,8 @@ impl Register {
             return Err(RegisterValidationError::InvalidHeader);
         }
         validate_relay_name(&self.relay_name)
+            .map_err(|_| RegisterValidationError::RelayNameMismatch)?;
+        RelayIdentifier::parse(&self.relay_name)
             .map_err(|_| RegisterValidationError::RelayNameMismatch)?;
         if self.relay_name.as_bytes() != advertised_relay_name.as_bytes() {
             return Err(RegisterValidationError::RelayNameMismatch);

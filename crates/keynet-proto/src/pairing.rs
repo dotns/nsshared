@@ -1,6 +1,6 @@
 use crate::{
-    CurrentKeyBinding, Identity, InstallationDecision, KeyBinding, KeyBindingState,
-    KeyBindingTransitionError, NetworkId,
+    CurrentKeyBinding, EndpointHint, Identity, InstallationDecision, KeyBinding, KeyBindingState,
+    KeyBindingTransitionError, NetworkId, RelayIdentifier,
 };
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
@@ -74,6 +74,10 @@ pub enum PairingTokenEncodeError {
     UnsupportedVersion,
     /// A text field exceeds 255 UTF-8 bytes.
     TextTooLong,
+    /// The required relay is not a canonical section 13.5.1 identifier.
+    InvalidRelay,
+    /// The optional endpoint is not a canonical section 13.5.1 authority.
+    InvalidEndpoint,
     /// The embedded binding does not name the token's issuer and network.
     BindingScopeMismatch,
     /// The embedded binding has an empty or inverted interval.
@@ -93,6 +97,10 @@ pub enum PairingTokenDecodeError {
     UnsupportedVersion,
     /// A text field exceeds 255 UTF-8 bytes.
     TextTooLong,
+    /// The received relay is not a canonical section 13.5.1 identifier.
+    InvalidRelay,
+    /// The received endpoint is not a canonical section 13.5.1 authority.
+    InvalidEndpoint,
     /// The embedded binding does not name the token's issuer and network.
     BindingScopeMismatch,
     /// The embedded binding has an empty or inverted interval.
@@ -360,6 +368,10 @@ impl PairingToken {
         {
             return Err(PairingTokenEncodeError::TextTooLong);
         }
+        RelayIdentifier::parse(&self.relay).map_err(|_| PairingTokenEncodeError::InvalidRelay)?;
+        if let Some(endpoint) = &self.endpoint {
+            EndpointHint::parse(endpoint).map_err(|_| PairingTokenEncodeError::InvalidEndpoint)?;
+        }
         if self.binding.network_id != self.network_id || self.binding.identity != self.issuer {
             return Err(PairingTokenEncodeError::BindingScopeMismatch);
         }
@@ -418,6 +430,8 @@ fn map_encode_decode(error: PairingTokenEncodeError) -> PairingTokenDecodeError 
     match error {
         PairingTokenEncodeError::UnsupportedVersion => PairingTokenDecodeError::UnsupportedVersion,
         PairingTokenEncodeError::TextTooLong => PairingTokenDecodeError::TextTooLong,
+        PairingTokenEncodeError::InvalidRelay => PairingTokenDecodeError::InvalidRelay,
+        PairingTokenEncodeError::InvalidEndpoint => PairingTokenDecodeError::InvalidEndpoint,
         PairingTokenEncodeError::BindingScopeMismatch => {
             PairingTokenDecodeError::BindingScopeMismatch
         }
