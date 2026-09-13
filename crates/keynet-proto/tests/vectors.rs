@@ -24,7 +24,7 @@ const ROOT: &str = "tests/fixtures/keynet-v1";
 const ADDRESS_CASES: &str = "ascending,zeros,reverse";
 const IDENTITY_CASES: &str = "ascending,zeros,reverse";
 const CONFLICT_CASES: &str = "idempotent_peer,self_collision,all_group_distinct_owner_collision,own_network_join_collision,own_network_join_clear";
-const BINDING_CASES: &str = "minimum,maximum";
+const BINDING_CASES: &str = "minimum,maximum,width_23,width_24,width_255,width_256,width_65535,width_65536,width_4294967295,width_4294967296,conflict,invalid_signature";
 
 fn root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(ROOT)
@@ -379,12 +379,24 @@ fn key_binding_vectors_are_literal_and_independently_verified() -> Result<(), St
         }
         let verifying_key =
             VerifyingKey::from_bytes(&identity).map_err(|error| error.to_string())?;
-        verifying_key
+        let independently_valid = verifying_key
             .verify_strict(
                 &literal_preimage,
                 &Signature::from_bytes(&binding.signature),
             )
-            .map_err(|error| error.to_string())?;
+            .is_ok();
+        if field(&vector, "expected_error")? == "invalid_signature" {
+            if independently_valid
+                || binding.verify().is_ok()
+                || field(&vector, "expected_decision")? != "reject"
+            {
+                return Err("invalid-signature fixture was accepted".to_owned());
+            }
+            continue;
+        }
+        if !independently_valid {
+            return Err("literal signature mismatch".to_owned());
+        }
         let checked = binding
             .verify()
             .map_err(|error| format!("verification failed: {error:?}"))?
@@ -416,14 +428,66 @@ fn key_binding_vectors_are_literal_and_independently_verified() -> Result<(), St
                 revoked_through: None,
                 conflict: None,
             },
+            value if value.starts_with("committed:") => {
+                let mut values = value.split(':');
+                let _ = values.next();
+                let generation = values
+                    .next()
+                    .ok_or("missing committed generation")?
+                    .parse()
+                    .map_err(|error: std::num::ParseIntError| error.to_string())?;
+                let key = u8::from_str_radix(values.next().ok_or("missing committed key")?, 16)
+                    .map_err(|error| error.to_string())?;
+                if values.next().is_some() {
+                    return Err("extra committed state fields".to_owned());
+                }
+                KeyBindingState {
+                    scope: KeyBindingScope {
+                        network_id: binding.network_id,
+                        identity: binding.identity,
+                    },
+                    committed: Some(CommittedKeyBinding {
+                        generation,
+                        wireguard_key: [key; 32],
+                    }),
+                    revoked_through: None,
+                    conflict: None,
+                }
+            }
             _ => return Err("unknown literal KeyBinding state".to_owned()),
         };
         match (
             field(&vector, "expected_decision")?,
             checked.installation_decision(&state),
         ) {
-            ("install", Ok(InstallationDecision::Install(_)))
-            | ("idempotent", Ok(InstallationDecision::Idempotent)) => {}
+            ("install", Ok(InstallationDecision::Install(transition))) => {
+                if transition.next_state.committed
+                    != Some(CommittedKeyBinding {
+                        generation: binding.generation,
+                        wireguard_key: binding.wireguard_key,
+                    })
+                    || transition.next_state.conflict.is_some()
+                {
+                    return Err("literal install state mismatch".to_owned());
+                }
+            }
+            ("idempotent", Ok(InstallationDecision::Idempotent)) => {
+                if state.committed
+                    != Some(CommittedKeyBinding {
+                        generation: binding.generation,
+                        wireguard_key: binding.wireguard_key,
+                    })
+                {
+                    return Err("literal idempotent state mismatch".to_owned());
+                }
+            }
+            ("latch_conflict", Ok(InstallationDecision::LatchConflict(transition))) => {
+                if transition.next_state.committed.is_some()
+                    || transition.next_state.conflict.is_none()
+                {
+                    return Err("literal conflict state mismatch".to_owned());
+                }
+            }
             _ => return Err("literal KeyBinding decision mismatch".to_owned()),
         }
         if field(&vector, "expected_error")? != "none" {

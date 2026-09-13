@@ -9,7 +9,10 @@ publish.workspace = true
 
 [dependencies]
 blake2 = "0.10.6"
+ciborium = "0.2.2"
 ed25519-dalek.workspace = true
+serde.workspace = true
+serde_bytes.workspace = true
 
 [dev-dependencies]
 sha2 = "0.10"

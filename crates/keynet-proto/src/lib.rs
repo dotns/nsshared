@@ -11,6 +11,7 @@ use blake2::{
     },
 };
 use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
+use serde::{Deserialize, Serialize, ser::SerializeTuple};
 use std::net::Ipv6Addr;
 
 /// The Keynet address-format version defined by design section 13.6.
@@ -292,6 +293,12 @@ pub enum KeyBindingTimeError {
 pub struct VerifiedKeyBinding(KeyBinding);
 
 /// A KeyBinding verified cryptographically and current at an explicit Unix second.
+///
+/// The checked payload is private so callers cannot forge an installation-capable value.
+///
+/// ```compile_fail
+/// let _ = keynet_proto::CurrentKeyBinding(unimplemented!());
+/// ```
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct CurrentKeyBinding(KeyBinding);
 
@@ -299,9 +306,9 @@ impl KeyBinding {
     /// Encodes this record as the canonical eight-field signed array (§2.2, §13.1-13.2).
     #[must_use]
     pub fn encode(&self) -> Vec<u8> {
-        let mut encoded = self.unsigned_bytes();
-        encoded[0] = 0x88;
-        put_bytes(&mut encoded, &self.signature);
+        let mut encoded = Vec::with_capacity(KEY_BINDING_SIGNED_MAX_BYTES);
+        let result = ciborium::ser::into_writer(&SignedBindingWire(self), &mut encoded);
+        debug_assert!(result.is_ok());
         debug_assert!(
             (KEY_BINDING_SIGNED_MIN_BYTES..=KEY_BINDING_SIGNED_MAX_BYTES).contains(&encoded.len())
         );
@@ -312,14 +319,8 @@ impl KeyBinding {
     #[must_use]
     pub fn unsigned_bytes(&self) -> Vec<u8> {
         let mut encoded = Vec::with_capacity(KEY_BINDING_UNSIGNED_MAX_BYTES);
-        encoded.push(0x87);
-        put_uint(&mut encoded, u64::from(self.ver));
-        put_bytes(&mut encoded, &self.network_id);
-        put_bytes(&mut encoded, &self.identity);
-        put_bytes(&mut encoded, &self.wireguard_key);
-        put_uint(&mut encoded, self.generation);
-        put_uint(&mut encoded, self.not_before);
-        put_uint(&mut encoded, self.not_after);
+        let result = ciborium::ser::into_writer(&UnsignedBindingWire(self), &mut encoded);
+        debug_assert!(result.is_ok());
         debug_assert!(
             (KEY_BINDING_UNSIGNED_MIN_BYTES..=KEY_BINDING_UNSIGNED_MAX_BYTES)
                 .contains(&encoded.len())
@@ -371,7 +372,7 @@ impl KeyBinding {
         if ver != 1 {
             return Err(KeyBindingDecodeError::UnsupportedVersion);
         }
-        Ok(Self {
+        let binding = Self {
             ver,
             network_id,
             identity,
@@ -380,7 +381,13 @@ impl KeyBinding {
             not_before,
             not_after,
             signature,
-        })
+        };
+        let decoded: DecodedBindingWire = ciborium::de::from_reader(encoded)
+            .map_err(|_| KeyBindingDecodeError::InvalidEncoding)?;
+        if decoded.into_binding()? != binding {
+            return Err(KeyBindingDecodeError::InvalidEncoding);
+        }
+        Ok(binding)
     }
 
     /// Verifies this binding's Ed25519 signature without considering its interval (§2.2, §13.2-13.3).
@@ -414,15 +421,6 @@ impl KeyBinding {
         }
         Ok(())
     }
-
-    /// Checks whether this record is current at an explicit Unix second (§13.3).
-    pub fn validate_current(&self, now: u64) -> Result<CurrentKeyBinding, KeyBindingTimeError> {
-        self.validate_interval()?;
-        if now < self.not_before || now >= self.not_after {
-            return Err(KeyBindingTimeError::NotCurrent);
-        }
-        Ok(CurrentKeyBinding(*self))
-    }
 }
 
 /// A parse-or-signature failure returned by [`KeyBinding::decode_and_verify`] (§13.1-13.2).
@@ -443,7 +441,11 @@ impl VerifiedKeyBinding {
 
     /// Validates this verified record at an explicit Unix second (§13.3).
     pub fn validate_current(self, now: u64) -> Result<CurrentKeyBinding, KeyBindingTimeError> {
-        self.0.validate_current(now)
+        self.0.validate_interval()?;
+        if now < self.0.not_before || now >= self.0.not_after {
+            return Err(KeyBindingTimeError::NotCurrent);
+        }
+        Ok(CurrentKeyBinding(self.0))
     }
 }
 
@@ -599,6 +601,85 @@ pub fn evaluate_key_binding_installation(
     }))
 }
 
+struct UnsignedBindingWire<'a>(&'a KeyBinding);
+
+impl Serialize for UnsignedBindingWire<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let binding = self.0;
+        let mut array = serializer.serialize_tuple(7)?;
+        array.serialize_element(&binding.ver)?;
+        array.serialize_element(&serde_bytes::Bytes::new(&binding.network_id))?;
+        array.serialize_element(&serde_bytes::Bytes::new(&binding.identity))?;
+        array.serialize_element(&serde_bytes::Bytes::new(&binding.wireguard_key))?;
+        array.serialize_element(&binding.generation)?;
+        array.serialize_element(&binding.not_before)?;
+        array.serialize_element(&binding.not_after)?;
+        array.end()
+    }
+}
+
+struct SignedBindingWire<'a>(&'a KeyBinding);
+
+impl Serialize for SignedBindingWire<'_> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let binding = self.0;
+        let mut array = serializer.serialize_tuple(8)?;
+        array.serialize_element(&binding.ver)?;
+        array.serialize_element(&serde_bytes::Bytes::new(&binding.network_id))?;
+        array.serialize_element(&serde_bytes::Bytes::new(&binding.identity))?;
+        array.serialize_element(&serde_bytes::Bytes::new(&binding.wireguard_key))?;
+        array.serialize_element(&binding.generation)?;
+        array.serialize_element(&binding.not_before)?;
+        array.serialize_element(&binding.not_after)?;
+        array.serialize_element(&serde_bytes::Bytes::new(&binding.signature))?;
+        array.end()
+    }
+}
+
+#[derive(Deserialize)]
+struct DecodedBindingWire(
+    u8,
+    serde_bytes::ByteBuf,
+    serde_bytes::ByteBuf,
+    serde_bytes::ByteBuf,
+    u64,
+    u64,
+    u64,
+    serde_bytes::ByteBuf,
+);
+
+impl DecodedBindingWire {
+    fn into_binding(self) -> Result<KeyBinding, KeyBindingDecodeError> {
+        Ok(KeyBinding {
+            ver: self.0,
+            network_id: fixed_array(&self.1)?,
+            identity: fixed_array(&self.2)?,
+            wireguard_key: fixed_array(&self.3)?,
+            generation: self.4,
+            not_before: self.5,
+            not_after: self.6,
+            signature: fixed_array(&self.7)?,
+        })
+    }
+}
+
+fn fixed_array<const N: usize>(
+    bytes: &serde_bytes::ByteBuf,
+) -> Result<[u8; N], KeyBindingDecodeError> {
+    if bytes.len() != N {
+        return Err(KeyBindingDecodeError::InvalidEncoding);
+    }
+    let mut fixed = [0_u8; N];
+    fixed.copy_from_slice(bytes);
+    Ok(fixed)
+}
+
 struct BindingCborReader<'a> {
     input: &'a [u8],
     position: usize,
@@ -710,30 +791,5 @@ impl<'a> BindingCborReader<'a> {
 
     fn finished(&self) -> bool {
         self.position == self.input.len()
-    }
-}
-
-fn put_bytes<const N: usize>(encoded: &mut Vec<u8>, bytes: &[u8; N]) {
-    debug_assert!(N <= usize::from(u8::MAX));
-    encoded.extend_from_slice(&[0x58, N as u8]);
-    encoded.extend_from_slice(bytes);
-}
-
-fn put_uint(encoded: &mut Vec<u8>, value: u64) {
-    match value {
-        0..=23 => encoded.push(value as u8),
-        24..=255 => encoded.extend_from_slice(&[0x18, value as u8]),
-        256..=65_535 => {
-            encoded.push(0x19);
-            encoded.extend_from_slice(&(value as u16).to_be_bytes());
-        }
-        65_536..=4_294_967_295 => {
-            encoded.push(0x1a);
-            encoded.extend_from_slice(&(value as u32).to_be_bytes());
-        }
-        _ => {
-            encoded.push(0x1b);
-            encoded.extend_from_slice(&value.to_be_bytes());
-        }
     }
 }
