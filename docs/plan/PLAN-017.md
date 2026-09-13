@@ -8,7 +8,7 @@
 - **builtAgainst**: phase 1 was built against v0.4; completed phases retained their reviewed vectors across later compatible revisions; see Design revisions below
 - **campaignState**: the campaign resumed on 2026-09-13; v0.7 at docs commit `4ae04faa06ca1f5d64e40aca58aa8e55a50c1e6e`, SHA-256 `ceeca74ab6dad33f34df36ef789c1d32014679c9592655439210c169b0bebce6`, is the active pin for the remaining phases
 - **integrationBranch**: `feat/keynet` in the canonical `ns-shared` checkout (the dedicated clone's `main` was restored to `d02a29c`)
-- **updatedAt**: 2026-09-13 11:08 UTC
+- **updatedAt**: 2026-09-13 12:40 UTC
 
 ## Context
 
@@ -107,7 +107,7 @@ same revision digest until an explicitly approved later revision replaces it.
 | 3 | PairingToken, PSK and INTRO | 1, 2 | Completed against v0.6 with the six-field INTRO and `token_id` |
 | 4 | Labels, alias candidates and NameRecord | 1, 2, 3 | Completed through the stateless 4A and stateful 4B parts |
 | 5A | Stable relay datagram and Revocation primitives | 1, 2, 3, 4 | Completed; byte profile pinned to v0.6 and unchanged in v0.7 |
-| 5B | Relay identifiers and in-band control records | 5A | Pending; owns identifier grammar, section 13.7 codecs, and v0.7-only constants |
+| 5B | Relay identifiers and in-band control records | 5A | Completed against v0.7; focused and crate gates passed, final repository gate recorded below |
 | 6 | Interoperability fixture release and final acceptance | 1, 2, 3, 4, 5A, 5B | Pending; seals vectors and the final manifest pin against the current revision |
 
 Each phase receives adversarial testing and an acceptance review. Only one
@@ -180,12 +180,23 @@ Phase 3 delivered PairingToken, PSK, and the six-field INTRO/INTRO_ACK profile.
 Phase 4 delivered both the stateless naming primitives and the v0.7 stateful
 default-nickname and per-owner NameRecord version-stream behavior.
 
+### Phase 5B: completed
+
+Phase 5B delivered strict canonical relay identifiers and endpoint hints, all
+eight section 13.7 in-band control records, v0.7 constants and deterministic
+ordered-snapshot selection. Fixed literal vectors, adversarial checks, the
+80-test crate gate and the 789-test repository gate passed with zero skipped.
+Acceptance repair added explicit `fec0::/10` rejection and greedy relay fitting
+across the complete canonical input; focused and package gates passed.
+The completed task record is
+`crates/keynet-proto/docs/task/phase-5b-control-wire.md`.
+
 ### Phases 5-6
 
 Phase 5 is split at the revision boundary. The completed 5A relay-wire and
-Revocation portion is pinned to v0.6 and is unchanged in v0.7. Identifier
-grammar and canonicalization, section 13.7 in-band control codecs, and
-constants introduced only in v0.7 remain pending in phase 5B. Phase 6 depends
+Revocation portion is pinned to v0.6 and is unchanged in v0.7. Phase 5B
+completed the v0.7 identifier grammar and canonicalization, section 13.7
+in-band control codecs, and relevant section 13.6 constants. Phase 6 depends
 on both parts and seals the final vectors against the active revision.
 
 ## Design revisions

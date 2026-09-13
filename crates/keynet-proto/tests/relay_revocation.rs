@@ -189,7 +189,7 @@ fn datagram_and_data_bounds_are_enforced_before_body_parsing() {
 }
 
 #[test]
-fn relay_names_preserve_utf8_bytes_without_identifier_grammar() {
+fn relay_wire_preserves_legacy_bytes_until_strict_admission() {
     let RelayBody::Register(base) = datagram("register_datagram").body else {
         panic!("expected REGISTER body");
     };
@@ -353,18 +353,47 @@ fn register_signature_slot_shared_secret_hkdf_and_validation_match_literals() {
     );
     assert_eq!(register.signature, fixed("register_signature"));
     assert_eq!(register.reg_hash(), Ok(fixed("reg_hash")));
-    assert!(
-        register
-            .validate(header, "Relay.EXAMPLE:443/Path", 1500)
-            .is_ok()
+    assert_eq!(
+        register.validate(header, "Relay.EXAMPLE:443/Path", 1500),
+        Err(RegisterValidationError::RelayNameMismatch)
     );
-    assert!(
+    assert_eq!(
         RelayDatagram::decode_and_validate_register(
             &values["register_datagram"],
             "Relay.EXAMPLE:443/Path",
             1500,
-        )
-        .is_ok()
+        ),
+        Err(RegisterInputError::Validation(
+            RegisterValidationError::RelayNameMismatch
+        ))
+    );
+    let mut invalid_signature = values["register_datagram"].clone();
+    *invalid_signature.last_mut().expect("signature byte") ^= 1;
+    assert_eq!(
+        RelayDatagram::decode_and_validate_register(
+            &invalid_signature,
+            "Relay.EXAMPLE:443/Path",
+            1500,
+        ),
+        Err(RegisterInputError::Validation(
+            RegisterValidationError::RelayNameMismatch
+        ))
+    );
+    let signer = SigningKey::from_bytes(&std::array::from_fn(|index| (index + 1) as u8));
+    let mut canonical = register.clone();
+    canonical.relay_name = "relay.example:443".to_owned();
+    canonical.sign(&signer).expect("canonical REGISTER signs");
+    assert!(
+        canonical
+            .validate(header, &canonical.relay_name, 1500)
+            .is_ok()
+    );
+    let mut site_local = canonical.clone();
+    site_local.relay_name = "[fec0::1]:443".to_owned();
+    site_local.sign(&signer).expect("site-local REGISTER signs");
+    assert_eq!(
+        site_local.validate(header, &site_local.relay_name, 1500),
+        Err(RegisterValidationError::RelayNameMismatch)
     );
     let mut malformed = values["register_datagram"].clone();
     malformed[37] = 0x9f;
@@ -378,17 +407,17 @@ fn register_signature_slot_shared_secret_hkdf_and_validation_match_literals() {
             .is_err()
     );
     assert!(
-        register
-            .validate(header, &register.relay_name, 1380)
+        canonical
+            .validate(header, &canonical.relay_name, 1380)
             .is_ok()
     );
     assert!(
-        register
-            .validate(header, &register.relay_name, 1620)
+        canonical
+            .validate(header, &canonical.relay_name, 1620)
             .is_ok()
     );
     assert_eq!(
-        register.validate(header, &register.relay_name, 1379),
+        canonical.validate(header, &canonical.relay_name, 1379),
         Err(RegisterValidationError::TimestampOutsideWindow)
     );
     assert_eq!(
@@ -433,7 +462,7 @@ fn register_signature_slot_shared_secret_hkdf_and_validation_match_literals() {
         Err(RelayCryptoError::ReservedSlot)
     );
 
-    let mut tampered = register.clone();
+    let mut tampered = canonical.clone();
     tampered.node_ephemeral[0] ^= 1;
     assert_eq!(
         tampered.validate(header, &tampered.relay_name, 1500),
@@ -444,12 +473,11 @@ fn register_signature_slot_shared_secret_hkdf_and_validation_match_literals() {
         ..header
     };
     assert_eq!(
-        register.validate(wrong_header, &register.relay_name, 1500),
+        canonical.validate(wrong_header, &canonical.relay_name, 1500),
         Err(RegisterValidationError::SourceSlotMismatch)
     );
-    let mut stale = register.clone();
+    let mut stale = canonical;
     stale.binding.not_after = 1500;
-    let signer = SigningKey::from_bytes(&std::array::from_fn(|index| (index + 1) as u8));
     stale.binding.sign(&signer).expect("binding resigns");
     stale.sign(&signer).expect("REGISTER resigns");
     assert_eq!(

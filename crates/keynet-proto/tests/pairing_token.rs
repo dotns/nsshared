@@ -49,7 +49,7 @@ fn signed_twelve_field_token_round_trips_all_optional_combinations() {
     for mask in 0..8 {
         let mut value = base.clone();
         value.issuer_name = (mask & 1 != 0).then(|| "issuer".to_owned());
-        value.endpoint = (mask & 2 != 0).then(|| "endpoint".to_owned());
+        value.endpoint = (mask & 2 != 0).then(|| "direct.example:51820".to_owned());
         value.recipient = (mask & 4 != 0).then_some([0x33; 32]);
         value.sign(&signer).expect("optional token signs");
         let encoded = value.encode().expect("optional token encodes");
@@ -72,13 +72,21 @@ fn text_and_token_bounds_are_enforced() {
     assert_eq!(value.encode(), Err(PairingTokenEncodeError::TextTooLong));
 
     let (base, signer, _) = token();
+    let authority_255 = format!(
+        "{}.{}.{}.{}:1",
+        "a".repeat(63),
+        "b".repeat(63),
+        "c".repeat(63),
+        "d".repeat(61)
+    );
+    assert_eq!(authority_255.len(), 255);
     for field_index in 0..4 {
         let mut boundary_value = base.clone();
         match field_index {
             0 => boundary_value.net_name = "a".repeat(255),
             1 => boundary_value.issuer_name = Some("a".repeat(255)),
-            2 => boundary_value.relay = "a".repeat(255),
-            _ => boundary_value.endpoint = Some("a".repeat(255)),
+            2 => boundary_value.relay = authority_255.clone(),
+            _ => boundary_value.endpoint = Some(authority_255.clone()),
         }
         boundary_value.sign(&signer).expect("255-byte field signs");
         assert!(boundary_value.encode().is_ok());
@@ -101,8 +109,8 @@ fn text_and_token_bounds_are_enforced() {
     let (mut large, signer, _) = token();
     large.net_name = "n".repeat(255);
     large.issuer_name = Some("i".repeat(255));
-    large.relay = "r".repeat(255);
-    large.endpoint = Some("e".repeat(255));
+    large.relay = authority_255.clone();
+    large.endpoint = Some(authority_255);
     large.sign(&signer).expect("large token signs");
     assert_eq!(
         large.to_text(),
@@ -152,7 +160,7 @@ fn strict_acceptance_checks_signature_binding_time_scope_and_recipient() {
     );
 
     let mut tampered = value.clone();
-    tampered.relay.push('x');
+    tampered.relay = "relay.example:444".to_owned();
     assert!(matches!(
         tampered.validate(&recipient, 500),
         Err(PairingTokenAcceptanceError::InvalidSignature(_))
@@ -244,6 +252,65 @@ fn malformed_cbor_is_rejected_before_signature_acceptance() {
             ))
         ));
     }
+}
+
+#[test]
+fn signed_relay_and_endpoint_text_is_rejected_before_signature_verification() {
+    let (value, _, _) = token();
+    let mut encoded = value.encode().expect("canonical token");
+    let relay = encoded
+        .windows(b"relay.example:443".len())
+        .position(|window| window == b"relay.example:443")
+        .expect("relay text");
+    encoded[relay] = b'R';
+    assert_eq!(
+        PairingToken::decode(&encoded),
+        Err(PairingTokenDecodeError::InvalidRelay)
+    );
+
+    let mut encoded = value.encode().expect("canonical token");
+    let endpoint = encoded
+        .windows(b"[2001:db8::1]:51820".len())
+        .position(|window| window == b"[2001:db8::1]:51820")
+        .expect("endpoint text");
+    encoded[endpoint + 6] = b'D';
+    assert_eq!(
+        PairingToken::decode(&encoded),
+        Err(PairingTokenDecodeError::InvalidEndpoint)
+    );
+
+    let (mut value, signer, _) = token();
+    value.relay = "[fec0::1]:443".to_owned();
+    assert_eq!(
+        value.sign(&signer),
+        Err(keynet_proto::PairingTokenSignatureError::InvalidToken(
+            PairingTokenEncodeError::InvalidRelay
+        ))
+    );
+    let (mut value, signer, _) = token();
+    value.endpoint = Some("[fec0::1]:51820".to_owned());
+    assert_eq!(
+        value.sign(&signer),
+        Err(keynet_proto::PairingTokenSignatureError::InvalidToken(
+            PairingTokenEncodeError::InvalidEndpoint
+        ))
+    );
+
+    let (value, _, _) = token();
+    let mut encoded = value.encode().expect("canonical token");
+    let endpoint = encoded
+        .windows(b"[2001:db8::1]:51820".len())
+        .position(|window| window == b"[2001:db8::1]:51820")
+        .expect("endpoint text");
+    encoded[endpoint - 1] = 0x6f;
+    encoded.splice(
+        endpoint..endpoint + b"[2001:db8::1]:51820".len(),
+        b"[fec0::1]:51820".iter().copied(),
+    );
+    assert_eq!(
+        PairingToken::decode(&encoded),
+        Err(PairingTokenDecodeError::InvalidEndpoint)
+    );
 }
 
 #[test]

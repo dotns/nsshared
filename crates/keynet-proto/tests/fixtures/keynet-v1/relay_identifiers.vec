@@ -1,0 +1,27 @@
+# kind|case|input|canonical-or-error
+relay|dns|relay.example:51822|relay.example:51822
+relay|ipv4|192.0.2.10:51822|192.0.2.10:51822
+relay|ipv6|[2001:db8::10]:51822|[2001:db8::10]:51822
+relay|short|relay-a|relay-a
+endpoint|dns|relay.example:51822|relay.example:51822
+endpoint|ipv4|192.0.2.10:51822|192.0.2.10:51822
+endpoint|ipv6|[2001:db8::10]:51822|[2001:db8::10]:51822
+local|dns_case_dot|Relay.Example.:51822|relay.example:51822
+local|ipv6_case_zeros|[2001:0DB8:0000:0000:0000:0000:0000:0010]:51822|[2001:db8::10]:51822
+invalid|scheme|wss://relay.example:51822/keynet/v1|error
+invalid|port_zero|relay.example:0|error
+invalid|port_leading_zero|Relay.Example:051822|error
+invalid|unbracketed_ipv6|2001:db8::10:51822|error
+invalid|zone|[fe80::1%eth0]:51822|error
+invalid|ipv4_leading_zero|192.000.2.10:51822|error
+invalid|dns_uppercase|Relay.Example:51822|error
+invalid|dns_terminal_dot|relay.example.:51822|error
+invalid|short_uppercase|Relay-a|error
+invalid|short_trailing_hyphen|relay-|error
+invalid|short_endpoint|relay-a|error
+invalid|unicode|rélay.example:51822|error
+invalid|whitespace| relay.example:51822|error
+invalid|mapped_ipv6|[::ffff:192.0.2.1]:51822|error
+invalid|unspecified_ipv6|[::]:51822|error
+invalid|multicast_ipv6|[ff02::1]:51822|error
+invalid|site_local_ipv6|[fec0::1]:51822|error

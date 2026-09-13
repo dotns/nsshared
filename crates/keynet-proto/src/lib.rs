@@ -4,12 +4,16 @@
 //! Synchronous Keynet v1 wire, derivation, and validation primitives.
 
 mod codec;
+mod control;
+mod identifier;
 mod intro;
 mod naming;
 mod pairing;
 mod relay;
 mod revocation;
 
+pub use control::*;
+pub use identifier::*;
 pub use intro::*;
 pub use naming::*;
 pub use pairing::*;

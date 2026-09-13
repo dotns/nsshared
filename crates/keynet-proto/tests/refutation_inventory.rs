@@ -106,6 +106,30 @@ fn p5a_relay_fixture_field_inventory_must_be_exact() -> Result<(), String> {
 }
 
 #[test]
+fn p5b_rework_fixture_inventory_must_be_exact() -> Result<(), String> {
+    altered_inventory("missing-greedy-selection", |temp| {
+        let path = temp.join("control_records.vec");
+        let original = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+        let remaining = original
+            .lines()
+            .filter(|line| !line.starts_with("greedy_ordered_endpoints|"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(path, format!("{remaining}\n")).map_err(|error| error.to_string())
+    })?;
+    altered_inventory("missing-site-local-identifier", |temp| {
+        let path = temp.join("relay_identifiers.vec");
+        let original = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+        let remaining = original
+            .lines()
+            .filter(|line| !line.starts_with("invalid|site_local_ipv6|"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(path, format!("{remaining}\n")).map_err(|error| error.to_string())
+    })
+}
+
+#[test]
 fn r1_duplicate_vector_cases_must_be_rejected() -> Result<(), String> {
     altered_inventory("duplicate-cases", |temp| {
         let path = temp.join("identities.vec");
