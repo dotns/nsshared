@@ -13,6 +13,14 @@ pub const MESH_V2_PROTOCOL_VERSION: u8 = 2;
 /// than generated during installation or group creation.
 pub const MESH_V2_OVERLAY_PREFIX: [u8; 6] = [0xfd, 0x3b, 0x98, 0x58, 0x77, 0x36];
 
+/// The relay may authenticate and pin a different root, but absent that
+/// descriptor Mesh v2 names live under this product-owned split-DNS zone.
+pub const MESH_V2_DEFAULT_DNS_ROOT: &str = "mesh.ns.io";
+
+/// BLAKE2s-256 has exactly this many lowercase base32 characters without
+/// padding. A name record stores its chosen length so it never changes later.
+pub const MESH_V2_MAX_NAME_LABEL_LEN: usize = 52;
+
 const MESH_V2_ADDRESS_DOMAIN: &[u8] = b"nsmesh-v2-overlay-ip\0";
 
 /// Two separately addressed paths share a stable identity but never a /128.
@@ -49,6 +57,47 @@ pub fn mesh_v2_overlay_ipv6(wg_pub: &[u8; 32], purpose: MeshV2AddressPurpose) ->
     address[6..8].copy_from_slice(&subnet.to_be_bytes());
     address[8..].copy_from_slice(&digest[2..10]);
     address
+}
+
+/// Derive a stable, unpadded lowercase base32 Mesh v2 node label.
+///
+/// `name_salt` comes from the registration authority; callers must persist
+/// both it and the selected length rather than regenerate either on reconnect.
+pub fn mesh_v2_name_label(
+    wg_pub: &[u8; 32],
+    name_salt: &[u8; 16],
+    length: usize,
+) -> Result<String, Error> {
+    if length == 0 || length > MESH_V2_MAX_NAME_LABEL_LEN {
+        return Err(Error::Payload("Mesh v2 name label length"));
+    }
+    let mut hash = Blake2s::<blake2::digest::consts::U32>::new();
+    hash.update(b"nsmesh-v2-name\0");
+    hash.update(wg_pub);
+    hash.update(name_salt);
+    let encoded = base32_lower_no_pad(&hash.finalize());
+    Ok(encoded[..length].to_owned())
+}
+
+fn base32_lower_no_pad(bytes: &[u8]) -> String {
+    const ALPHABET: &[u8; 32] = b"abcdefghijklmnopqrstuvwxyz234567";
+    let mut output = String::with_capacity(MESH_V2_MAX_NAME_LABEL_LEN);
+    let mut buffer = 0u64;
+    let mut bits = 0u8;
+    for byte in bytes {
+        buffer = (buffer << 8) | u64::from(*byte);
+        bits += 8;
+        while bits >= 5 {
+            bits -= 5;
+            output.push(char::from(ALPHABET[((buffer >> bits) & 0x1f) as usize]));
+        }
+    }
+    if bits > 0 {
+        output.push(char::from(
+            ALPHABET[((buffer << (5 - bits)) & 0x1f) as usize],
+        ));
+    }
+    output
 }
 
 pub fn member_id(signing_pub: &[u8; 32]) -> [u8; 20] {
@@ -179,6 +228,24 @@ mod tests {
         assert_ne!(
             native,
             mesh_v2_overlay_ipv6(&[7; 32], MeshV2AddressPurpose::Ipv4Translated)
+        );
+    }
+
+    #[test]
+    fn mesh_v2_name_labels_are_stable_lowercase_base32_golden_vectors() {
+        let key = [0x42; 32];
+        let salt = [0x11; 16];
+        assert_eq!(MESH_V2_DEFAULT_DNS_ROOT, "mesh.ns.io");
+        assert_eq!(mesh_v2_name_label(&key, &salt, 5).unwrap(), "dmhbv");
+        assert_eq!(
+            mesh_v2_name_label(&key, &salt, MESH_V2_MAX_NAME_LABEL_LEN).unwrap(),
+            "dmhbvyp2pdgknug7sfhm5ml6x7wixzl5ac3x655jlzjtam3yoijq"
+        );
+        assert!(mesh_v2_name_label(&key, &salt, 0).is_err());
+        assert!(mesh_v2_name_label(&key, &salt, MESH_V2_MAX_NAME_LABEL_LEN + 1).is_err());
+        assert_ne!(
+            mesh_v2_name_label(&key, &salt, 5).unwrap(),
+            mesh_v2_name_label(&key, &[0x12; 16], 5).unwrap()
         );
     }
 }
