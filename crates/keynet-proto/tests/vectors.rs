@@ -34,6 +34,7 @@ const INTRODUCTION_CASES: &str = "full";
 const ALIAS_CASES: &str = "kind6_non_power_two,kind4_non_power_two";
 const LABEL_CASES: &str = "ascii_runs,uppercase_non_ascii,empty,one_byte,length_63,truncate_64,truncate_trailing_hyphen,reserved_id,reserved_v4";
 const NAME_RECORD_CASES: &str = "claim_width_boundaries";
+const RELAY_FIELDS: &str = "network,identity,slot,node_private,node_ephemeral,relay_private,relay_ephemeral,register_unsigned,register_signature,reg_hash,shared_secret,session_key,register_datagram,registered_mac,registered_datagram,presence_mac,presence_datagram,reflect_mac,reflect_datagram,reflected_mac,reflected_datagram,intro_datagram,intro_ack_datagram,data_datagram,status_datagram,revoke_mac,revoke_datagram,revocation_unsigned,revocation_signature,revocation";
 
 fn root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(ROOT)
@@ -160,6 +161,23 @@ fn validate_case_inventory(root: &Path, file: &str, required: &str) -> Result<()
     }
     Ok(())
 }
+fn validate_flat_inventory(root: &Path, file: &str, required: &str) -> Result<(), String> {
+    let expected = inventory(required)?;
+    let text = fs::read_to_string(root.join(file)).map_err(|error| error.to_string())?;
+    let mut actual = BTreeSet::new();
+    for line in text.lines().filter(|line| !line.is_empty()) {
+        let (name, value) = line
+            .split_once('|')
+            .ok_or_else(|| format!("invalid flat vector line in {file}"))?;
+        if value.is_empty() || !actual.insert(name.to_owned()) {
+            return Err(format!("invalid flat vector field in {file}: {name}"));
+        }
+    }
+    if actual != expected {
+        return Err(format!("missing or unlisted flat vector field in {file}"));
+    }
+    Ok(())
+}
 fn load(root: &Path) -> Result<BTreeMap<String, String>, String> {
     let manifest =
         fs::read_to_string(root.join("manifest.txt")).map_err(|error| error.to_string())?;
@@ -170,7 +188,7 @@ fn load(root: &Path) -> Result<BTreeMap<String, String>, String> {
         ("design_sha256", DESIGN_SHA256),
         (
             "coverage",
-            "addresses,identities,conflicts,key_bindings,pairing_tokens,introductions,aliases,labels,name_records,integrity",
+            "addresses,identities,conflicts,key_bindings,pairing_tokens,introductions,aliases,labels,name_records,relay,revocation,integrity",
         ),
         ("address_cases", ADDRESS_CASES),
         ("identity_cases", IDENTITY_CASES),
@@ -230,6 +248,7 @@ fn load(root: &Path) -> Result<BTreeMap<String, String>, String> {
     validate_case_inventory(root, "aliases.vec", ALIAS_CASES)?;
     validate_case_inventory(root, "labels.vec", LABEL_CASES)?;
     validate_case_inventory(root, "name_records.vec", NAME_RECORD_CASES)?;
+    validate_flat_inventory(root, "relay_revocation.vec", RELAY_FIELDS)?;
     Ok(entries)
 }
 

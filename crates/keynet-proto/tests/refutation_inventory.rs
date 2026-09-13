@@ -43,6 +43,7 @@ fn r1_empty_vector_families_must_be_rejected() -> Result<(), String> {
             "aliases.vec",
             "labels.vec",
             "name_records.vec",
+            "relay_revocation.vec",
         ] {
             fs::write(temp.join(name), "").map_err(|error| error.to_string())?;
         }
@@ -76,6 +77,31 @@ fn p4a_duplicate_missing_and_unlisted_cases_must_be_rejected() -> Result<(), Str
             .ok_or("missing label vector")?
             .replacen("case=ascii_runs", "case=unlisted", 1);
         fs::write(path, format!("{original}\n\n{unlisted}\n")).map_err(|error| error.to_string())
+    })
+}
+
+#[test]
+fn p5a_relay_fixture_field_inventory_must_be_exact() -> Result<(), String> {
+    altered_inventory("missing-relay-field", |temp| {
+        let path = temp.join("relay_revocation.vec");
+        let original = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+        let remaining = original
+            .lines()
+            .filter(|line| !line.starts_with("status_datagram|"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(path, format!("{remaining}\n")).map_err(|error| error.to_string())
+    })?;
+    altered_inventory("duplicate-relay-field", |temp| {
+        let path = temp.join("relay_revocation.vec");
+        let original = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+        let first = original.lines().next().ok_or("missing relay vector")?;
+        fs::write(path, format!("{original}{first}\n")).map_err(|error| error.to_string())
+    })?;
+    altered_inventory("unlisted-relay-field", |temp| {
+        let path = temp.join("relay_revocation.vec");
+        let original = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+        fs::write(path, format!("{original}unexpected|00\n")).map_err(|error| error.to_string())
     })
 }
 
