@@ -15,6 +15,7 @@ mod owner;
 mod recovery;
 mod restore_result;
 mod sync;
+mod v2;
 mod validity;
 mod vouch;
 mod winner;
@@ -33,6 +34,7 @@ pub use owner::*;
 pub use recovery::*;
 pub use restore_result::*;
 pub use sync::*;
+pub use v2::*;
 pub use validity::*;
 pub use winner::*;
 
