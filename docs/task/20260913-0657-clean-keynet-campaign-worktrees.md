@@ -1,4 +1,4 @@
-# 20260913-0657-clean-keynet-campaign-worktrees Clean keynet campaign worktrees
+# 20260913-0657-clean-keynet-campaign-worktrees Clean retired keynet worktrees
 
 - **status**: completed
 - **priority**: P1
@@ -6,11 +6,11 @@
 
 ## Description
 
-Remove the retired keynet campaign worktrees and temporary branches after preserving their history. Keep feat/keynet, every main ref, unrelated branches and worktrees, and the canonical diagrams unchanged. Verify the exact cleanup inventory and record the result.
+Remove the retired keynet worktrees and temporary branches after preserving their history. Keep feat/keynet, every main ref, unrelated branches and worktrees, and the canonical diagrams unchanged. Verify the exact cleanup inventory and record the result.
 
 ## ActiveForm
 
-Cleaning retired keynet campaign branches and worktrees.
+Cleaning retired keynet branches and worktrees.
 
 ## Dependencies
 
@@ -19,8 +19,8 @@ Cleaning retired keynet campaign branches and worktrees.
 
 ## Notes
 
-The user explicitly requested this cleanup after feature consolidation. No campaign execution is active except this cleanup. Recovery inventory and a verified standalone Git bundle are stored in `/workspace/nsiod/ns-shared/tmp/20260913-0657-clean-keynet-campaign-worktrees`. Source files and protocol artifacts are outside this task.
+The user explicitly requested this cleanup after feature consolidation. No other keynet implementation work is active. Recovery inventory and a verified standalone Git bundle are stored in the repository-relative `tmp/20260913-0657-clean-keynet-campaign-worktrees/` directory. Source files and protocol artifacts are outside this task.
 
-Removed eleven campaign worktrees and fifteen temporary branch refs. Preserved all main refs, every unrelated branch and worktree, the seven feature refs, and all fourteen canonical diagram hashes. The two non-ancestor branch tips were tree-equivalent to preserved commits and remain recoverable from the bundle. All dedicated primary checkouts now use feat/keynet. No protocol or source changes were made.
+Removed eleven temporary worktrees and fifteen temporary branch refs. Preserved all main refs, every unrelated branch and worktree, the seven feature refs, and all fourteen canonical diagram hashes. The two non-ancestor branch tips were tree-equivalent to preserved commits and remain recoverable from the bundle. All dedicated primary checkouts now use feat/keynet. No protocol or source changes were made.
 
 - complete: Verified branch inventory, worktree removal, retained refs, baseline main tree, diagram hashes and recovery bundle.

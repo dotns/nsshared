@@ -3,10 +3,10 @@
 - **status**: completed
 - **createdAt**: 2026-09-13 03:55 UTC
 - **approvedAt**: 2026-09-13 04:09 UTC
-- **campaign**: keynet-v1-20260913
+- **delivery**: keynet-v1-20260913
 - **designRevision**: `docs/ns/keynet.md` in the documentation repository at commit `7f6090d340bb22d2c61f992e5e7b72666e21ae3e` (v0.7 clarification), SHA-256 `82818d8345c81736a7c8d65c82d07e3c785ac9d542ef0b1ef2acca3a51378e76`
 - **builtAgainst**: phase 1 was built against v0.4; completed phases retained their reviewed vectors across later compatible revisions; see Design revisions below
-- **campaignState**: the campaign resumed on 2026-09-13; the v0.7 clarification at docs commit `7f6090d340bb22d2c61f992e5e7b72666e21ae3e`, SHA-256 `82818d8345c81736a7c8d65c82d07e3c785ac9d542ef0b1ef2acca3a51378e76`, is the active pin for remaining work
+- **deliveryState**: implementation resumed on 2026-09-13; the v0.7 clarification at docs commit `7f6090d340bb22d2c61f992e5e7b72666e21ae3e`, SHA-256 `82818d8345c81736a7c8d65c82d07e3c785ac9d542ef0b1ef2acca3a51378e76`, is the active pin for remaining work
 - **integrationBranch**: `feat/keynet` in the canonical `ns-shared` checkout (the dedicated clone's `main` was restored to `d02a29c`)
 - **updatedAt**: 2026-09-13 13:03 UTC
 
@@ -32,7 +32,7 @@ same revision digest until an explicitly approved later revision replaces it.
    panic/unwrap/expect restrictions locally.
 2. Keep implementation-facing plan and task tracking in
    `crates/keynet-proto/docs/plan/` and `crates/keynet-proto/docs/task/`.
-   The root plan index links to the campaign plan only.
+   The root plan index links to this project plan only.
 3. KeyBinding uses ordinary Ed25519 over `keynet/key-binding/v1` immediately
    followed by the canonical unsigned seven-field CBOR array. Validity is
    `not_before <= now < not_after`; generation state is scoped by
@@ -129,7 +129,7 @@ crates. `just qa`, crate-focused nextest and crate doctests are required at
 the applicable phase boundaries. All public functions document their keynet
 design section; all code forbids unsafe code.
 
-## Campaign settings
+## Verification settings
 
 - Merge gate: enabled when the documented adversarial checks and review
   conditions are met.
@@ -141,7 +141,7 @@ design section; all code forbids unsafe code.
 ## Phase status
 
 Merge bases, branch heads, adversarial outcomes and final quality-gate evidence
-are recorded here as phases are dispatched and merged.
+are recorded here as phases begin and are merged.
 
 ### Phase 1: merged
 
@@ -157,8 +157,8 @@ are recorded here as phases are dispatched and merged.
 
 ### Phase 2: accepted
 
-- Rework rounds R1-R3 were consolidated at `6091f10` and dispatched on
-  2026-09-13 05:26 UTC against the v0.4 pin. The campaign was paused before
+- Rework rounds R1-R3 were consolidated at `6091f10` and began on
+  2026-09-13 05:26 UTC against the v0.4 pin. The work was paused before
   acceptance review of that head; no merged-tree QA record exists for it. The
   migration QA on `feat/keynet` (732 tests, `KEYNET_QA_EXIT=0`) verified
   preservation only and does not accept the phase.
@@ -217,7 +217,7 @@ changed.
 
 ## Design revisions
 
-| Date (UTC) | Revision | SHA-256 | Docs commit | Campaign effect |
+| Date (UTC) | Revision | SHA-256 | Docs commit | Plan effect |
 | --- | --- | --- | --- | --- |
 | 2026-09-13 04:09 | v0.4 with section 13 Wire Profile | `7c99ffb2e03c0728128da7270754aa065148e263fdc7c3aef233ff9696fa8a9f` | `b1c0db4` | Gate 1 approval; phases 1 and 2 pinned here |
 | 2026-09-13 06:00 | CLI revision: sections 1.1, 7.5, 7.6, 8, 11, new 14 | `ff3337f1f9fa0d825fce505fde44d5a2b66bf60aeff02fca279f4343761df173` | `a4b98bc` | Metadata-only deviation, `affects=[1..6]`; not re-pinned before the pause |

@@ -52,8 +52,8 @@ behavior remain unchanged except where v0.7 makes relay identifiers strict.
   checks also passed. The dependency policy retained its existing duplicate,
   wildcard, and yanked `chacha20 0.10.1` warnings. No acceptance check was
   skipped. Before/after the final gate, anonymous memory was 3494002688 /
-  6480814080 bytes, `oom_kill` remained 15, and `/workspace` had 100803916 /
-  100673316 KiB available.
+  6480814080 bytes, `oom_kill` remained 15, and available workspace storage was
+  100803916 / 100673316 KiB.
 
 ## Acceptance repair
 
@@ -78,5 +78,5 @@ behavior remain unchanged except where v0.7 makes relay identifiers strict.
   `manifest.txt`
   `f666d5b3befe54471713475db8ab811becc93136dc904f15175abd81c960e49b`.
 - Before/after verification, anonymous memory was 3585540096 / 3608588288
-  bytes, `oom_kill` remained 15, and `/workspace` had 95791504 / 95790820 KiB
-  available. The prior repository quality-gate evidence remains applicable.
+  bytes, `oom_kill` remained 15, and available workspace storage was 95791504 /
+  95790820 KiB. The prior repository quality-gate evidence remains applicable.

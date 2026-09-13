@@ -1,7 +1,7 @@
 [design-review keynet-cli v1]
 basis:
 - The reviewed proposal covered the CLI interaction contract.
-- Authority remains /workspace/nsiod/docs/docs/ns/keynet.md at SHA-256 7c99ffb2e03c0728128da7270754aa065148e263fdc7c3aef233ff9696fa8a9f, verified during this review. Relevant contracts: sections 1.1 (23-35), 7.4-7.6 (328-379), and 13.2-13.6 (524-595).
+- Authority remains `docs/ns/keynet.md` in the documentation repository at SHA-256 7c99ffb2e03c0728128da7270754aa065148e263fdc7c3aef233ff9696fa8a9f, verified during this review. Relevant contracts: sections 1.1 (23-35), 7.4-7.6 (328-379), and 13.2-13.6 (524-595).
 - This is a proposal review, not adoption or implementation authorization. Phase 1 continues. Only the design owner applies approved text and reports the new digest.
 
 subsection_verdicts:

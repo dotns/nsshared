@@ -2,7 +2,7 @@
 recommendation: change; accept option C with the following exact text and defaults.
 
 basis:
-- The reviewed proposal covered the relay transport contract; design /workspace/nsiod/docs/docs/ns/keynet.md:171-202,273-278,430-452,473-502,516-595 was verified at SHA-256 7c99ffb2e03c0728128da7270754aa065148e263fdc7c3aef233ff9696fa8a9f.
+- The reviewed proposal covered the relay transport contract; `docs/ns/keynet.md` in the documentation repository, lines 171-202, 273-278, 430-452, 473-502, and 516-595, was verified at SHA-256 7c99ffb2e03c0728128da7270754aa065148e263fdc7c3aef233ff9696fa8a9f.
 - The existing relay implementation in `nsgw/crates/nsgw-wg/src/relay.rs` at a81fe20:737-847,1419-1450,1557-1570,2453-2541 supports batching and bucket reuse and confirms linear scanning; it does not implement keynet.
 - WireGuard cookies depend on a changing responder secret; relay and endpoint cookies can differ and cause alternating challenges. Fully padded 1380-byte inner packets plus IPv6/UDP/WireGuard/relay overhead reach 1509 bytes. These conclusions follow from the [WireGuard protocol](https://www.wireguard.com/protocol/). Reject all-zero DH as specified in [RFC 7748 §6.1](https://www.rfc-editor.org/rfc/rfc7748#section-6.1).
 
@@ -36,7 +36,7 @@ open_points:
 3. DATA authentication. default: No per-DATA MAC; accept source-spoofing/on-path availability risks explicitly, enforce fixed-source sessions and budgets, retain end-to-end WireGuard. Reject the claim that a MAC gains nothing: it would limit injection, but cost is a deliberate tradeoff. Defer relay-minted cookies and reuse hard buckets.
 4. MTU. default: Per-path enforcement, existing interface MTUs, default relayed ceiling 1376 and actual-PMTU/padding checks; no silent encrypted-datagram splitting or false IPv6 MTU below 1280.
 5. WSS convention. default: Same host/port, /keynet/v1, keynet-relay-v1, normal TLS verification, bounded binary messages, no UDP candidate from WSS. Migration requires confirmation; failed UDP probes retain active WSS.
-6. Roadmap. default: Substantive deviation affects=[5,6]; phases 2-4 implementation/contracts/vector payloads remain unchanged. Full-design re-pinning also changes campaign acceptance metadata: combined bookkeeping deviation affects=[1,2,3,4,5,6], with 1-4 metadata only, matching the CLI-review distinction.
+6. Roadmap. default: Substantive deviation affects=[5,6]; phases 2-4 implementation/contracts/vector payloads remain unchanged. Full-design re-pinning also changes plan acceptance metadata: combined bookkeeping deviation affects=[1,2,3,4,5,6], with 1-4 metadata only, matching the CLI-review distinction.
 
 roadmap_impact:
 - Phase 5 replaces the stream/header schemas with pure exact-datagram/header/control codecs, slot derivation, REGISTER sign/verify, X25519/HKDF and directional MACs; caller-supplied state supports freshness/correlation/replay decisions. Fixtures cover all types/directions, canonicalization, complete preimages, all-zero DH, tentative/committed decisions, timestamp/generation/incarnation/sequence edges, collisions, UDP/WSS observations and encoded bounds.

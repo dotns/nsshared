@@ -39,7 +39,7 @@ parent cancellation aborts the set through structured drop ownership.
 
 ## Consumers
 
-The sibling `Cargo.toml` manifests in `/workspace/nsiod/ns`, `/workspace/nsiod/nsd`, and `/workspace/nsiod/nsgw` consume these crates through path dependencies rooted at `../ns-shared/crates/*`.
+The sibling `Cargo.toml` manifests in the `ns`, `nsd`, and `nsgw` repositories consume these crates through path dependencies rooted at `../ns-shared/crates/*`.
 
 | Consumer | Verified path dependencies |
 |----------|----------------------------|
