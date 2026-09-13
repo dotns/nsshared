@@ -1,0 +1,14 @@
+case=ascending
+identity=a0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf
+identity_digest=713ddca243e47216c7182816
+name=oe65zisd4rzbnryyfala
+
+case=zeros
+identity=ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+identity_digest=6c6eec178fc7bcc2e05e241c
+name=nrxoyf4py66mfyc6eqoa
+
+case=reverse
+identity=0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+identity_digest=0d6e03f8caddf45f6d1407bf
+name=bvxah6gk3x2f63iua67q

@@ -45,3 +45,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**PLAN-014 Structured framed-WSS tunnel task lifecycle**](PLAN-014.md) `2026-07-25`
 - [-] [**PLAN-015 Unified node capability and subnet-route contracts**](PLAN-015.md) `2026-08-16`
 - [-] [**PLAN-017 Keynet-proto wire and derivation primitives for keynet v0.4**](PLAN-017.md) `2026-09-13`
+- [-] [**Keynet-proto phase 1 foundation**](../../crates/keynet-proto/docs/plan/phase-1-foundation.md) `2026-09-13`
