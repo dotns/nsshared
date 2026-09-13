@@ -64,3 +64,17 @@ fn r1_missing_self_collision_case_must_be_rejected() -> Result<(), String> {
         fs::write(path, remaining).map_err(|error| error.to_string())
     })
 }
+
+#[test]
+fn r1_unlisted_vector_case_must_be_rejected() -> Result<(), String> {
+    altered_inventory("unlisted-case", |temp| {
+        let path = temp.join("addresses.vec");
+        let original = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+        let unlisted = original
+            .split("\n\n")
+            .next()
+            .ok_or("missing address vector")?
+            .replacen("case=ascending", "case=unlisted", 1);
+        fs::write(path, format!("{original}\n\n{unlisted}\n")).map_err(|error| error.to_string())
+    })
+}
