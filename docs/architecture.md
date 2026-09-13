@@ -55,6 +55,13 @@ The workspace package configuration sets `publish = false`, and all member crate
 
 Docs-only changes and additive Rust API changes can land in this repository after local quality gates pass. Breaking API or behavior changes require a coordinated cascade across the affected consumers before landing, because the sibling path dependencies resolve against this working tree.
 
+## Keynet Design Decisions
+
+The [approved keynet decisions](decisions/keynet/README.md) record the CLI
+interaction and UDP relay designs, their approval status and immutable hashes.
+Project-level design decisions live under `docs/decisions/`; implementation
+plans and tasks retain their existing tracking locations.
+
 ## Quality Gates
 
 The root `justfile` defines the full local gate as:

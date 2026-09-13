@@ -1,3 +1,14 @@
+## 2026-09-13 06:13 [decision]
+
+Relocate the Keynet approved design archive from
+`crates/keynet-proto/docs/design/` to `docs/decisions/keynet/`.
+CLI interaction and relay transport are project-level approved decisions, not
+crate implementation tracking. Preserve both approved records byte for byte.
+The architecture document links to the new decision index. Mark the former
+"Keynet approved design archive" plan-index entry deleted while retaining its
+original title and path as history. Design authority, fixture pins and phase
+execution are unchanged.
+
 ## 2026-09-06 [fix]
 
 Add an explicit gateway relay index scheme (COMPAT-001). Preserve the omitted
