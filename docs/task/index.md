@@ -82,3 +82,4 @@ Each task is a single line linking to its detail file. All detailed information 
 
 - [x] [**COMPAT-001 Restore relay interoperability with current NS nodes**](COMPAT-001.md) `P0`
 - [x] [**20260913-0641-consolidate-keynet-feature-branches Consolidate keynet feature branches**](20260913-0641-consolidate-keynet-feature-branches.md) `P0`
+- [x] [**20260913-0657-clean-keynet-campaign-worktrees Clean keynet campaign worktrees**](20260913-0657-clean-keynet-campaign-worktrees.md) `P1`

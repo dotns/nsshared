@@ -1,3 +1,13 @@
+## 2026-09-13 06:58 [progress]
+
+Complete `20260913-0657-clean-keynet-campaign-worktrees`. Remove eleven retired keynet campaign worktrees and fifteen
+temporary branch refs after feature consolidation. Preserve `feat/keynet`, all
+`main` refs, unrelated worktrees and branches, and the fourteen canonical diagrams
+in `/workspace/nsiod/mermaid/keynet`. Keep a verified standalone history bundle
+and the before-cleanup inventory in `tmp/20260913-0657-clean-keynet-campaign-worktrees/`. Dedicated primary checkouts
+now use `feat/keynet`. Source, fixtures and approved design text are unchanged;
+this cleanup does not change the campaign's paused status or phase acceptance.
+
 ## 2026-09-13 06:13 [decision]
 
 Relocate the Keynet approved design archive from
