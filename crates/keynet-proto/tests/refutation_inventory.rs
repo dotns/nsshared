@@ -40,10 +40,42 @@ fn r1_empty_vector_families_must_be_rejected() -> Result<(), String> {
             "identities.vec",
             "conflicts.vec",
             "key_bindings.vec",
+            "aliases.vec",
+            "labels.vec",
+            "name_records.vec",
         ] {
             fs::write(temp.join(name), "").map_err(|error| error.to_string())?;
         }
         Ok(())
+    })
+}
+
+#[test]
+fn p4a_duplicate_missing_and_unlisted_cases_must_be_rejected() -> Result<(), String> {
+    altered_inventory("duplicate-name-record", |temp| {
+        let path = temp.join("name_records.vec");
+        let original = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+        fs::write(path, format!("{original}\n{original}")).map_err(|error| error.to_string())
+    })?;
+    altered_inventory("missing-alias-kind", |temp| {
+        let path = temp.join("aliases.vec");
+        let original = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+        let remaining = original
+            .split("\n\n")
+            .filter(|block| !block.contains("case=kind4_non_power_two\n"))
+            .collect::<Vec<_>>()
+            .join("\n\n");
+        fs::write(path, remaining).map_err(|error| error.to_string())
+    })?;
+    altered_inventory("unlisted-label", |temp| {
+        let path = temp.join("labels.vec");
+        let original = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+        let unlisted = original
+            .split("\n\n")
+            .next()
+            .ok_or("missing label vector")?
+            .replacen("case=ascii_runs", "case=unlisted", 1);
+        fs::write(path, format!("{original}\n\n{unlisted}\n")).map_err(|error| error.to_string())
     })
 }
 

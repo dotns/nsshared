@@ -9,9 +9,9 @@ use ed25519_dalek::{Signature, SigningKey, VerifyingKey};
 use hmac::{Hmac, KeyInit as HmacKeyInit, Mac as HmacMac};
 use keynet_proto::{
     AddressGroup, CommittedKeyBinding, GroupOwner, InstallationDecision, Intro, IntroAck,
-    KeyBinding, KeyBindingScope, KeyBindingState, PairingToken, check_new_local_group,
-    check_peer_group, derive_address_group, derive_pair_psk, group_bytes, group_ipv6,
-    identity_label, n4, n4_bytes, n6, n6_bytes,
+    KeyBinding, KeyBindingConflict, KeyBindingScope, KeyBindingState, KeyBindingTransitionError,
+    PairingToken, check_new_local_group, check_peer_group, derive_address_group, derive_pair_psk,
+    group_bytes, group_ipv6, identity_label, n4, n4_bytes, n6, n6_bytes,
 };
 use sha2::{Digest, Sha256};
 use std::{
@@ -27,10 +27,13 @@ const DESIGN_SHA256: &str = "494c50a12112aa88fe6fa084c0be9a14a2ca66415244ff202b7
 const ROOT: &str = "tests/fixtures/keynet-v1";
 const ADDRESS_CASES: &str = "ascending,zeros,reverse";
 const IDENTITY_CASES: &str = "ascending,zeros,reverse";
-const CONFLICT_CASES: &str = "idempotent_peer,self_collision,all_group_distinct_owner_collision,own_network_join_collision,own_network_join_clear";
-const BINDING_CASES: &str = "minimum,maximum,width_23,width_24,width_255,width_256,width_65535,width_65536,width_4294967295,width_4294967296,conflict,invalid_signature";
+const CONFLICT_CASES: &str = "idempotent_peer,peer_exact_local_owner,self_collision,all_group_distinct_owner_collision,own_network_join_collision,own_network_join_clear";
+const BINDING_CASES: &str = "minimum,maximum,width_23,width_24,width_255,width_256,width_65535,width_65536,width_4294967295,width_4294967296,conflict,latched_committed_rejected,latched_conflicting_rejected,latched_lower_rejected,latched_higher_installs,invalid_signature";
 const PAIRING_CASES: &str = "full";
 const INTRODUCTION_CASES: &str = "full";
+const ALIAS_CASES: &str = "kind6_non_power_two,kind4_non_power_two";
+const LABEL_CASES: &str = "ascii_runs,uppercase_non_ascii,empty,one_byte,length_63,truncate_64,truncate_trailing_hyphen,reserved_id,reserved_v4";
+const NAME_RECORD_CASES: &str = "claim_width_boundaries";
 
 fn root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(ROOT)
@@ -167,7 +170,7 @@ fn load(root: &Path) -> Result<BTreeMap<String, String>, String> {
         ("design_sha256", DESIGN_SHA256),
         (
             "coverage",
-            "addresses,identities,conflicts,key_bindings,pairing_tokens,introductions,integrity",
+            "addresses,identities,conflicts,key_bindings,pairing_tokens,introductions,aliases,labels,name_records,integrity",
         ),
         ("address_cases", ADDRESS_CASES),
         ("identity_cases", IDENTITY_CASES),
@@ -175,6 +178,9 @@ fn load(root: &Path) -> Result<BTreeMap<String, String>, String> {
         ("key_binding_cases", BINDING_CASES),
         ("pairing_token_cases", PAIRING_CASES),
         ("introduction_cases", INTRODUCTION_CASES),
+        ("alias_cases", ALIAS_CASES),
+        ("label_cases", LABEL_CASES),
+        ("name_record_cases", NAME_RECORD_CASES),
     ]);
     let mut entries = BTreeMap::new();
     for line in manifest.lines().filter(|line| !line.is_empty()) {
@@ -221,6 +227,9 @@ fn load(root: &Path) -> Result<BTreeMap<String, String>, String> {
     validate_case_inventory(root, "key_bindings.vec", BINDING_CASES)?;
     validate_case_inventory(root, "pairing_tokens.vec", PAIRING_CASES)?;
     validate_case_inventory(root, "introductions.vec", INTRODUCTION_CASES)?;
+    validate_case_inventory(root, "aliases.vec", ALIAS_CASES)?;
+    validate_case_inventory(root, "labels.vec", LABEL_CASES)?;
+    validate_case_inventory(root, "name_records.vec", NAME_RECORD_CASES)?;
     Ok(entries)
 }
 
@@ -479,19 +488,57 @@ fn key_binding_vectors_are_literal_and_independently_verified() -> Result<(), St
                     conflict: None,
                 }
             }
+            value if value.starts_with("latched:") => {
+                let mut values = value.split(':');
+                let _ = values.next();
+                let generation = values
+                    .next()
+                    .ok_or("missing conflict generation")?
+                    .parse()
+                    .map_err(|error: std::num::ParseIntError| error.to_string())?;
+                let first_key =
+                    u8::from_str_radix(values.next().ok_or("missing committed conflict key")?, 16)
+                        .map_err(|error| error.to_string())?;
+                let second_key =
+                    u8::from_str_radix(values.next().ok_or("missing opposing conflict key")?, 16)
+                        .map_err(|error| error.to_string())?;
+                if values.next().is_some() {
+                    return Err("extra latched state fields".to_owned());
+                }
+                KeyBindingState {
+                    scope: KeyBindingScope {
+                        network_id: binding.network_id,
+                        identity: binding.identity,
+                    },
+                    committed: Some(CommittedKeyBinding {
+                        generation,
+                        wireguard_key: [first_key; 32],
+                    }),
+                    revoked_through: None,
+                    conflict: Some(KeyBindingConflict {
+                        generation,
+                        first_key: [first_key; 32],
+                        second_key: [second_key; 32],
+                    }),
+                }
+            }
             _ => return Err("unknown literal KeyBinding state".to_owned()),
         };
+        let original_state = state;
         match (
             field(&vector, "expected_decision")?,
             checked.installation_decision(&state),
         ) {
             ("install", Ok(InstallationDecision::Install(transition))) => {
-                if transition.next_state.committed
-                    != Some(CommittedKeyBinding {
-                        generation: binding.generation,
-                        wireguard_key: binding.wireguard_key,
+                if transition.next_state
+                    != (KeyBindingState {
+                        committed: Some(CommittedKeyBinding {
+                            generation: binding.generation,
+                            wireguard_key: binding.wireguard_key,
+                        }),
+                        conflict: None,
+                        ..state
                     })
-                    || transition.next_state.conflict.is_some()
                 {
                     return Err("literal install state mismatch".to_owned());
                 }
@@ -507,16 +554,35 @@ fn key_binding_vectors_are_literal_and_independently_verified() -> Result<(), St
                 }
             }
             ("latch_conflict", Ok(InstallationDecision::LatchConflict(transition))) => {
-                if transition.next_state.committed != state.committed
-                    || transition.next_state.conflict.is_none()
+                let Some(committed) = state.committed else {
+                    return Err("literal conflict lacked committed state".to_owned());
+                };
+                if transition.next_state
+                    != (KeyBindingState {
+                        conflict: Some(KeyBindingConflict {
+                            generation: binding.generation,
+                            first_key: committed.wireguard_key,
+                            second_key: binding.wireguard_key,
+                        }),
+                        ..state
+                    })
                 {
                     return Err("literal conflict state mismatch".to_owned());
                 }
             }
+            ("reject", Err(KeyBindingTransitionError::ConflictLatched)) => {
+                if field(&vector, "expected_error")? != "conflict_latched"
+                    || state != original_state
+                {
+                    return Err("literal conflict-latch rejection mismatch".to_owned());
+                }
+            }
             _ => return Err("literal KeyBinding decision mismatch".to_owned()),
         }
-        if field(&vector, "expected_error")? != "none" {
-            return Err("unexpected literal KeyBinding error expectation".to_owned());
+        match field(&vector, "expected_error")? {
+            "none" if field(&vector, "expected_decision")? != "reject" => {}
+            "conflict_latched" if field(&vector, "expected_decision")? == "reject" => {}
+            _ => return Err("unexpected literal KeyBinding error expectation".to_owned()),
         }
     }
     Ok(())
