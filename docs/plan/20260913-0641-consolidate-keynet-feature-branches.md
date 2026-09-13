@@ -39,3 +39,10 @@ ns-shared main only.
 
 Keeping the work only in campaign branches leaves the intended feature branches
 without the paused work and keeps main as an implicit integration branch.
+
+## Completion note
+
+The maintained diagram location is `/workspace/nsiod/mermaid/keynet/`. The
+documentation feature branch removed only identical copied diagrams in commit
+`7da63a0`; approved records, proposals, authority digest, source code, fixture
+pins, and main restoration remain unchanged.

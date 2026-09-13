@@ -27,3 +27,6 @@ The migration uses the verified preservation map from campaign cmp-202609130355.
 No remote fetch, push, or history rewrite is permitted.
 
 - complete: Canonical feature preservation, additive main restoration, and migration QA completed; Phase 2 remains paused rework.
+- 2026-09-13: Corrected the maintained diagram location to
+  `/workspace/nsiod/mermaid/keynet/`. The fourteen duplicate copies were removed
+  from docs/feat/keynet in commit `7da63a0`; its README now points to that source.
