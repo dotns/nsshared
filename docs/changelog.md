@@ -223,3 +223,12 @@ Added the GatewayEgress selected-owner route hint.
 - The field is byte-additive: legacy payloads without the field deserialize to
   `None`, and routes without an owner omit the field when serialized.
 - Verification passed with `just qa`.
+## 2026-09-13 06:45 [progress]
+
+Consolidated paused Keynet work onto canonical feature branches. The canonical
+ns-shared feature branch preserves the complete Phase 2 rework tree and
+project decision archive; the canonical documentation feature branch preserves
+approved records, historical proposals, and diagrams. Dedicated ns-shared main
+was restored with four additive reverts and has the same tracked tree as
+`d02a29c`. Migration QA passed with 732 tests and no skipped tests. Phase 2
+remains paused and unreviewed.

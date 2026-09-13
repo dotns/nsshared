@@ -47,5 +47,5 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [-] [**PLAN-015 Unified node capability and subnet-route contracts**](PLAN-015.md) `2026-08-16`
 - [-] [**PLAN-017 Keynet-proto wire and derivation primitives for keynet v0.4**](PLAN-017.md) `2026-09-13`
 - [-] [**Keynet-proto phase 2 KeyBinding outcome**](../../crates/keynet-proto/docs/plan/phase-2-key-binding.md) `2026-09-13`
-- [-] [**20260913-0641-consolidate-keynet-feature-branches Consolidate keynet feature branches**](20260913-0641-consolidate-keynet-feature-branches.md) `2026-09-13`
+- [x] [**20260913-0641-consolidate-keynet-feature-branches Consolidate keynet feature branches**](20260913-0641-consolidate-keynet-feature-branches.md) `2026-09-13`
 - [d] [**Keynet approved design archive**](../../crates/keynet-proto/docs/design/README.md) `2026-09-13`
