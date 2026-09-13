@@ -4,9 +4,11 @@ use blake2::{
 };
 use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 use keynet_proto::{
-    AliasCandidateError, AliasPool, LabelError, NameOperation, NameRecord, NameRecordDecodeError,
-    NameRecordSignatureError, NameRecordValidationError, OwnerSignedNameRecord, alias_candidate,
-    alias_candidates, alias_h22, identity_label, normalize_label, validate_label,
+    AliasCandidateError, AliasPool, DefaultNicknameOutcome, LabelError, NameOperation, NameRecord,
+    NameRecordDecodeError, NameRecordInstallationDecision, NameRecordScope,
+    NameRecordSignatureError, NameRecordState, NameRecordTransitionError,
+    NameRecordValidationError, OwnerSignedNameRecord, alias_candidate, alias_candidates, alias_h22,
+    default_nickname, identity_label, normalize_label, validate_label,
 };
 use std::{collections::BTreeMap, fs, path::PathBuf};
 
@@ -15,22 +17,43 @@ fn signer(byte: u8) -> SigningKey {
 }
 
 fn signed_record(op: NameOperation) -> NameRecord {
-    let network_signer = signer(3);
-    let owner_signer = signer(7);
+    signed_record_for(3, 7, "node-one", op, 24, 1_u64 << 32)
+}
+
+fn signed_record_for(
+    network_seed: u8,
+    owner_seed: u8,
+    label: &str,
+    op: NameOperation,
+    version: u64,
+    not_after: u64,
+) -> NameRecord {
+    let network_signer = signer(network_seed);
+    let owner_signer = signer(owner_seed);
     let mut record = NameRecord {
         ver: 1,
         network_id: network_signer.verifying_key().to_bytes(),
         identity: owner_signer.verifying_key().to_bytes(),
-        label: "node-one".to_owned(),
+        label: label.to_owned(),
         op,
-        version: 24,
-        not_after: 1_u64 << 32,
+        version,
+        not_after,
         signature_owner: [0; 64],
         signature_network: [0; 64],
     };
     record.sign_owner(&owner_signer).unwrap();
     record.sign_network(&network_signer).unwrap();
     record
+}
+
+fn current(record: &NameRecord, now: u64) -> keynet_proto::CurrentNameRecord {
+    NameRecord::decode_and_validate(
+        &record.encode().unwrap(),
+        &record.network_id,
+        &record.identity,
+        now,
+    )
+    .unwrap()
 }
 
 fn fixtures() -> PathBuf {
@@ -598,4 +621,213 @@ fn invalid_in_memory_name_shapes_never_sign_or_encode() {
     let mut wrong_version = signed_record(NameOperation::Claim);
     wrong_version.ver = 2;
     assert!(wrong_version.encode().is_err());
+}
+
+#[test]
+fn default_nickname_preserves_exact_h96_suffix_and_prefix_boundary() {
+    let identity = [0_u8; 32];
+    assert_eq!(
+        default_nickname("database_server", &identity, &[]),
+        Ok(DefaultNicknameOutcome::Assigned {
+            nickname: "database-server-2bb2".to_owned(),
+        })
+    );
+    assert_eq!(
+        default_nickname(&"a".repeat(63), &identity, &[]),
+        Ok(DefaultNicknameOutcome::Assigned {
+            nickname: format!("{}-2bb2", "a".repeat(58)),
+        })
+    );
+    assert_eq!(
+        default_nickname(&format!("{}___ignored", "a".repeat(58)), &identity, &[]),
+        Ok(DefaultNicknameOutcome::Assigned {
+            nickname: format!("{}-2bb2", "a".repeat(58)),
+        })
+    );
+}
+
+#[test]
+fn default_nickname_falls_back_and_reports_collision_without_assignment() {
+    let identity = [0_u8; 32];
+    let identity_label = "fozb5yeuvyc67ixhrt4a".to_owned();
+    for issuer_name in ["", "___", "id", "v4"] {
+        assert_eq!(
+            default_nickname(issuer_name, &identity, &[]),
+            Ok(DefaultNicknameOutcome::IdentityLabel {
+                identity_label: identity_label.clone(),
+            })
+        );
+    }
+
+    let existing = ["other", "database-server-2bb2"];
+    assert_eq!(
+        default_nickname("database_server", &identity, &existing),
+        Ok(DefaultNicknameOutcome::Collision {
+            attempted_nickname: "database-server-2bb2".to_owned(),
+            identity_label,
+        })
+    );
+}
+
+#[test]
+fn name_record_state_is_one_owner_stream_across_labels() {
+    let first = signed_record_for(3, 7, "alpha", NameOperation::Claim, 9, 100);
+    let scope = NameRecordScope {
+        network_id: first.network_id,
+        identity: first.identity,
+    };
+    let empty = NameRecordState::new(scope);
+    let installed = match current(&first, 1).installation_decision(&empty).unwrap() {
+        NameRecordInstallationDecision::Install(transition) => transition.into_next_state(),
+        other => panic!("unexpected initial decision: {other:?}"),
+    };
+
+    let second = signed_record_for(3, 7, "beta", NameOperation::Rename, 9, 100);
+    let before = installed.clone();
+    let conflicted = match current(&second, 1)
+        .installation_decision(&installed)
+        .unwrap()
+    {
+        NameRecordInstallationDecision::LatchConflict(transition) => transition.into_next_state(),
+        other => panic!("unexpected equal-version decision: {other:?}"),
+    };
+    assert_eq!(installed, before);
+    assert_eq!(conflicted.high_water().unwrap().version(), 9);
+    assert_eq!(conflicted.conflict().unwrap().version(), 9);
+    assert_ne!(
+        conflicted.high_water().unwrap().canonical_record(),
+        conflicted
+            .conflict()
+            .unwrap()
+            .conflicting_canonical_record()
+    );
+}
+
+#[test]
+fn name_record_versions_reject_replay_latch_and_recover_strictly() {
+    let first = signed_record_for(3, 7, "alpha", NameOperation::Claim, 5, 100);
+    let mut state = NameRecordState::new(NameRecordScope {
+        network_id: first.network_id,
+        identity: first.identity,
+    });
+    state = match current(&first, 1).installation_decision(&state).unwrap() {
+        NameRecordInstallationDecision::Install(transition) => transition.into_next_state(),
+        other => panic!("unexpected initial decision: {other:?}"),
+    };
+
+    assert_eq!(
+        current(&first, 1).installation_decision(&state),
+        Ok(NameRecordInstallationDecision::Idempotent)
+    );
+    let lower = signed_record_for(3, 7, "lower", NameOperation::Rename, 4, 100);
+    let before_lower = state.clone();
+    assert_eq!(
+        current(&lower, 1).installation_decision(&state),
+        Err(NameRecordTransitionError::Rollback)
+    );
+    assert_eq!(state, before_lower);
+
+    let conflict = signed_record_for(3, 7, "beta", NameOperation::Rename, 5, 100);
+    state = match current(&conflict, 1).installation_decision(&state).unwrap() {
+        NameRecordInstallationDecision::LatchConflict(transition) => transition.into_next_state(),
+        other => panic!("unexpected conflict decision: {other:?}"),
+    };
+    for rejected in [&first, &conflict, &lower] {
+        let before = state.clone();
+        assert_eq!(
+            current(rejected, 1).installation_decision(&state),
+            Err(NameRecordTransitionError::ConflictLatched)
+        );
+        assert_eq!(state, before);
+    }
+
+    let higher = signed_record_for(3, 7, "gamma", NameOperation::Rename, 6, 100);
+    state = match current(&higher, 1).installation_decision(&state).unwrap() {
+        NameRecordInstallationDecision::Install(transition) => transition.into_next_state(),
+        other => panic!("unexpected recovery decision: {other:?}"),
+    };
+    assert_eq!(state.high_water().unwrap().version(), 6);
+    assert!(state.conflict().is_none());
+}
+
+#[test]
+fn name_record_state_scopes_and_prevalidation_leave_state_unchanged() {
+    let record = signed_record_for(3, 7, "alpha", NameOperation::Claim, u64::MAX, 100);
+    let state = NameRecordState::new(NameRecordScope {
+        network_id: record.network_id,
+        identity: record.identity,
+    });
+    let before = state.clone();
+
+    for other in [
+        signed_record_for(4, 7, "alpha", NameOperation::Claim, u64::MAX, 100),
+        signed_record_for(3, 8, "alpha", NameOperation::Claim, u64::MAX, 100),
+    ] {
+        assert_eq!(
+            current(&other, 1).installation_decision(&state),
+            Err(NameRecordTransitionError::ScopeMismatch)
+        );
+        assert_eq!(state, before);
+    }
+
+    for independent in [
+        signed_record_for(4, 7, "network", NameOperation::Claim, 0, 100),
+        signed_record_for(3, 8, "identity", NameOperation::Claim, 0, 100),
+    ] {
+        let independent_state = NameRecordState::new(NameRecordScope {
+            network_id: independent.network_id,
+            identity: independent.identity,
+        });
+        assert!(matches!(
+            current(&independent, 1).installation_decision(&independent_state),
+            Ok(NameRecordInstallationDecision::Install(_))
+        ));
+    }
+
+    let maximum_state = match current(&record, 1).installation_decision(&state).unwrap() {
+        NameRecordInstallationDecision::Install(transition) => transition.into_next_state(),
+        other => panic!("unexpected maximum-version decision: {other:?}"),
+    };
+    let below_maximum = signed_record_for(
+        3,
+        7,
+        "below-maximum",
+        NameOperation::Rename,
+        u64::MAX - 1,
+        100,
+    );
+    assert_eq!(
+        current(&below_maximum, 1).installation_decision(&maximum_state),
+        Err(NameRecordTransitionError::Rollback)
+    );
+
+    let encoded = record.encode().unwrap();
+    let mut noncanonical = encoded.clone();
+    noncanonical.push(0);
+    assert!(matches!(
+        NameRecord::decode_and_validate(&noncanonical, &record.network_id, &record.identity, 1),
+        Err(NameRecordValidationError::Decode(_))
+    ));
+    let mut invalid_signature = encoded;
+    let last = invalid_signature.len() - 1;
+    invalid_signature[last] ^= 1;
+    assert!(matches!(
+        NameRecord::decode_and_validate(
+            &invalid_signature,
+            &record.network_id,
+            &record.identity,
+            1
+        ),
+        Err(NameRecordValidationError::Signature(_))
+    ));
+    assert_eq!(
+        NameRecord::decode_and_validate(
+            &record.encode().unwrap(),
+            &record.network_id,
+            &record.identity,
+            record.not_after,
+        ),
+        Err(NameRecordValidationError::Expired)
+    );
+    assert_eq!(state, before);
 }

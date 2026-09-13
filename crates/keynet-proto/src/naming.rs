@@ -1,4 +1,6 @@
-use crate::{Identity, NetworkId, codec::CborReader};
+use crate::{
+    DerivationError, Identity, NetworkId, codec::CborReader, identity_digest, identity_label,
+};
 use blake2::{
     Blake2sMac,
     digest::{KeyInit, Mac, consts::U3},
@@ -10,6 +12,63 @@ const ALIAS_KEY: &[u8] = b"keynet-alias-v1";
 const NAME_OWNER_CONTEXT: &[u8] = b"keynet/name-record/v1";
 const NAME_NETWORK_CONTEXT: &[u8] = b"keynet/name-record-network/v1";
 const MAX_NAME_RECORD_BYTES: usize = 286;
+const DEFAULT_NICKNAME_PREFIX_BYTES: usize = 58;
+
+/// The pure result of constructing a token-import default nickname (§§7.2, 13.4).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum DefaultNicknameOutcome {
+    /// The normalized, H96-suffixed nickname can be assigned.
+    Assigned {
+        /// The complete nickname, including its preserved five-byte suffix.
+        nickname: String,
+    },
+    /// Invalid normalization leaves the peer on its immutable identity label.
+    IdentityLabel {
+        /// The immutable H96 identity label retained by the peer.
+        identity_label: String,
+    },
+    /// The constructed nickname is already present in the caller-selected network.
+    Collision {
+        /// The nickname that must not be assigned to the newcomer.
+        attempted_nickname: String,
+        /// The immutable label retained by the newcomer.
+        identity_label: String,
+    },
+}
+
+/// Constructs a token-import default nickname within one caller-selected network (§§7.2, 13.4).
+///
+/// `existing_nicknames` must contain only nicknames from the candidate's network.
+pub fn default_nickname(
+    issuer_name: &str,
+    identity: &Identity,
+    existing_nicknames: &[&str],
+) -> Result<DefaultNicknameOutcome, DerivationError> {
+    let identity_label = identity_label(identity)?;
+    let mut prefix = match normalize_label(issuer_name) {
+        Ok(prefix) => prefix,
+        Err(LabelError::Empty | LabelError::Reserved) => {
+            return Ok(DefaultNicknameOutcome::IdentityLabel { identity_label });
+        }
+        Err(
+            LabelError::TooLong
+            | LabelError::InvalidCharacter
+            | LabelError::LeadingOrTrailingHyphen,
+        ) => {
+            return Ok(DefaultNicknameOutcome::IdentityLabel { identity_label });
+        }
+    };
+    prefix.truncate(DEFAULT_NICKNAME_PREFIX_BYTES);
+    let digest = identity_digest(identity)?;
+    let nickname = format!("{prefix}-{:02x}{:02x}", digest[0], digest[1]);
+    if existing_nicknames.contains(&nickname.as_str()) {
+        return Ok(DefaultNicknameOutcome::Collision {
+            attempted_nickname: nickname,
+            identity_label,
+        });
+    }
+    Ok(DefaultNicknameOutcome::Assigned { nickname })
+}
 
 /// A configured IPv4 alias-pool range expressed as a base and address count (§13.4).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -319,13 +378,224 @@ pub enum NameRecordValidationError {
 
 /// A canonical NameRecord with both signatures, scope, and currentness checked.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct CurrentNameRecord(NameRecord);
+pub struct CurrentNameRecord {
+    record: NameRecord,
+    canonical_record: Vec<u8>,
+}
 
 impl CurrentNameRecord {
     /// Returns the checked record without granting any version or installation decision.
     #[must_use]
     pub fn record(&self) -> &NameRecord {
-        &self.0
+        &self.record
+    }
+
+    /// Returns the canonical signed nine-field bytes checked before state evaluation.
+    #[must_use]
+    pub fn canonical_record(&self) -> &[u8] {
+        &self.canonical_record
+    }
+
+    /// Evaluates installation without modifying the supplied owner-stream state (§§7.7, 13.3).
+    pub fn installation_decision(
+        self,
+        state: &NameRecordState,
+    ) -> Result<NameRecordInstallationDecision, NameRecordTransitionError> {
+        evaluate_name_record_installation(state, self)
+    }
+}
+
+/// A full `(network_id, I)` NameRecord owner-stream scope (§§7.7, 13.3).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct NameRecordScope {
+    /// The network whose key sequences the stream.
+    pub network_id: NetworkId,
+    /// The identity that owns every entry in the stream.
+    pub identity: Identity,
+}
+
+/// The single accepted NameRecord version high-water for an owner stream (§§7.7, 13.3).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct NameRecordHighWater {
+    version: u64,
+    canonical_record: Vec<u8>,
+}
+
+impl NameRecordHighWater {
+    /// Returns the highest accepted version in the owner stream.
+    #[must_use]
+    pub fn version(&self) -> u64 {
+        self.version
+    }
+
+    /// Returns the accepted canonical signed record bytes at the high-water.
+    #[must_use]
+    pub fn canonical_record(&self) -> &[u8] {
+        &self.canonical_record
+    }
+}
+
+/// A latched same-version canonical-byte disagreement for an owner stream (§§7.7, 13.3).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct NameRecordConflict {
+    version: u64,
+    conflicting_canonical_record: Vec<u8>,
+}
+
+impl NameRecordConflict {
+    /// Returns the disputed owner-stream version.
+    #[must_use]
+    pub fn version(&self) -> u64 {
+        self.version
+    }
+
+    /// Returns the canonical signed bytes that disagreed with the high-water record.
+    #[must_use]
+    pub fn conflicting_canonical_record(&self) -> &[u8] {
+        &self.conflicting_canonical_record
+    }
+}
+
+/// Caller-owned pure NameRecord state for exactly one owner stream (§§7.7, 13.3).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct NameRecordState {
+    scope: NameRecordScope,
+    high_water: Option<NameRecordHighWater>,
+    conflict: Option<NameRecordConflict>,
+}
+
+impl NameRecordState {
+    /// Creates an empty state for one full owner-stream scope.
+    #[must_use]
+    pub fn new(scope: NameRecordScope) -> Self {
+        Self {
+            scope,
+            high_water: None,
+            conflict: None,
+        }
+    }
+
+    /// Returns the full owner-stream scope.
+    #[must_use]
+    pub fn scope(&self) -> NameRecordScope {
+        self.scope
+    }
+
+    /// Returns the single accepted version high-water, if any.
+    #[must_use]
+    pub fn high_water(&self) -> Option<&NameRecordHighWater> {
+        self.high_water.as_ref()
+    }
+
+    /// Returns the owner-stream conflict latch, if any.
+    #[must_use]
+    pub fn conflict(&self) -> Option<&NameRecordConflict> {
+        self.conflict.as_ref()
+    }
+}
+
+/// A proposed complete replacement for caller-owned NameRecord state (§§7.7, 13.3).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct NameRecordTransition {
+    next_state: NameRecordState,
+}
+
+impl NameRecordTransition {
+    /// Consumes the proposal and returns the complete replacement state.
+    #[must_use]
+    pub fn into_next_state(self) -> NameRecordState {
+        self.next_state
+    }
+}
+
+/// The pure installation result for a checked current NameRecord (§§7.7, 13.3).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum NameRecordInstallationDecision {
+    /// A first or strictly higher record advances the stream.
+    Install(NameRecordTransition),
+    /// The same version and canonical signed bytes are already installed.
+    Idempotent,
+    /// Different canonical bytes at the high-water latch a stream-wide conflict.
+    LatchConflict(NameRecordTransition),
+}
+
+/// A rejected NameRecord owner-stream transition (§§7.7, 13.3).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum NameRecordTransitionError {
+    /// The checked record belongs to a different full owner stream.
+    ScopeMismatch,
+    /// The checked record version is below the high-water.
+    Rollback,
+    /// The stream remains conflicted until a strictly greater record arrives.
+    ConflictLatched,
+}
+
+/// Evaluates one checked NameRecord without mutating caller-owned state (§§7.7, 13.3).
+pub fn evaluate_name_record_installation(
+    state: &NameRecordState,
+    candidate: CurrentNameRecord,
+) -> Result<NameRecordInstallationDecision, NameRecordTransitionError> {
+    let scope = NameRecordScope {
+        network_id: candidate.record.network_id,
+        identity: candidate.record.identity,
+    };
+    if state.scope != scope {
+        return Err(NameRecordTransitionError::ScopeMismatch);
+    }
+    if let Some(conflict) = &state.conflict {
+        if candidate.record.version <= conflict.version {
+            return Err(NameRecordTransitionError::ConflictLatched);
+        }
+        return Ok(NameRecordInstallationDecision::Install(
+            NameRecordTransition {
+                next_state: advanced_name_record_state(state, candidate),
+            },
+        ));
+    }
+    let Some(high_water) = &state.high_water else {
+        return Ok(NameRecordInstallationDecision::Install(
+            NameRecordTransition {
+                next_state: advanced_name_record_state(state, candidate),
+            },
+        ));
+    };
+    if candidate.record.version < high_water.version {
+        return Err(NameRecordTransitionError::Rollback);
+    }
+    if candidate.record.version == high_water.version {
+        if candidate.canonical_record == high_water.canonical_record {
+            return Ok(NameRecordInstallationDecision::Idempotent);
+        }
+        return Ok(NameRecordInstallationDecision::LatchConflict(
+            NameRecordTransition {
+                next_state: NameRecordState {
+                    conflict: Some(NameRecordConflict {
+                        version: candidate.record.version,
+                        conflicting_canonical_record: candidate.canonical_record,
+                    }),
+                    ..state.clone()
+                },
+            },
+        ));
+    }
+    Ok(NameRecordInstallationDecision::Install(
+        NameRecordTransition {
+            next_state: advanced_name_record_state(state, candidate),
+        },
+    ))
+}
+
+fn advanced_name_record_state(
+    state: &NameRecordState,
+    candidate: CurrentNameRecord,
+) -> NameRecordState {
+    NameRecordState {
+        scope: state.scope,
+        high_water: Some(NameRecordHighWater {
+            version: candidate.record.version,
+            canonical_record: candidate.canonical_record,
+        }),
+        conflict: None,
     }
 }
 
@@ -461,7 +731,13 @@ impl NameRecord {
         if now >= self.not_after {
             return Err(NameRecordValidationError::Expired);
         }
-        Ok(CurrentNameRecord(self))
+        let canonical_record = self.encode().map_err(|error| {
+            NameRecordValidationError::Signature(NameRecordSignatureError::InvalidRecord(error))
+        })?;
+        Ok(CurrentNameRecord {
+            record: self,
+            canonical_record,
+        })
     }
 
     /// Decodes canonically before checking signatures, caller scope, and expiry (§§13.1-13.2).
