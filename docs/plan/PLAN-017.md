@@ -3,10 +3,10 @@
 - **status**: approved
 - **createdAt**: 2026-09-13 03:55 UTC
 - **approvedAt**: 2026-09-13 04:09 UTC
-- **campaign**: cmp-202609130355
+- **campaign**: keynet-v1-20260913
 - **designRevision**: `/workspace/nsiod/docs/docs/ns/keynet.md` at docs commit `0f56552` (v0.6), SHA-256 `494c50a12112aa88fe6fa084c0be9a14a2ca66415244ff202b72d89e08190fc1`
-- **builtAgainst**: phases 1 and 2 were built and their fixture manifests pinned against v0.4, SHA-256 `7c99ffb2e03c0728128da7270754aa065148e263fdc7c3aef233ff9696fa8a9f`; see Design revisions below
-- **campaignState**: paused since 2026-09-13 06:59 UTC; worktrees and `bkd/*` branches removed; resuming requires an explicit new owner and a re-pin to the current design revision
+- **builtAgainst**: phase 1 was built against v0.4; phase 2 retained its byte-compatible v0.4 vectors and is being revalidated and re-pinned against v0.6; see Design revisions below
+- **campaignState**: campaign `keynet-v1-20260913` resumed this controlling plan using the BKD virtual engine profile `sol-medium`; v0.6 at docs commit `0f56552`, SHA-256 `494c50a12112aa88fe6fa084c0be9a14a2ca66415244ff202b72d89e08190fc1`, is the active pin for phases P2-P6
 - **integrationBranch**: `feat/keynet` in the canonical `ns-shared` checkout (the dedicated clone's `main` was restored to `d02a29c`)
 - **updatedAt**: 2026-09-13 08:30 UTC
 
@@ -73,18 +73,18 @@ same revision digest until an explicitly approved later revision replaces it.
 9. This document and the fixture suite use the pinned authoritative revision;
    a later revision requires a recorded approval and a replacement digest.
 10. The CLI interaction revision (design sections 1.1, 7.5, 7.6, 8, 11 and
-    14; Architect review `keynet-cli v1`) adds no crate scope. It is a
+    14; approved review `keynet-cli v1`) adds no crate scope. It is a
     metadata-only deviation, `affects=[1,2,3,4,5,6]`: only design-digest pins
     and fixture manifest metadata change.
 11. The UDP relay revision (design sections 5, 6.6, 8, 9, 11, 12, 13.2,
-    13.4, 13.5, 13.6 and 7.5 step 2; Architect review `keynet-relay-udp v1`)
+    13.4, 13.5, 13.6 and 7.5 step 2; approved review `keynet-relay-udp v1`)
     is a substantive deviation, `affects=[5,6]`: phase 5 is re-specified
     against the datagram profile in decision 8 and phase 6 seals vectors
     against the current revision. Phases 2-4 keep their contracts and
     vector payloads; their pins change as metadata only.
-12. The v0.6 consistency revision (owner review, docs commit `0f56552`) is
-    a further substantive deviation, `affects=[3,5,6]`, pending Architect
-    confirmation on resume: phase 3 gains the `token_id` field in INTRO
+12. The v0.6 consistency revision (docs commit `0f56552`) is a further
+    approved substantive deviation, `affects=[3,5,6]`: phase 3 gains the
+    `token_id` field in INTRO
     (decision 5); phase 5 additionally covers the Revocation record
     (context `keynet/revocation/v1`) and the section 13.7 in-band control
     record codecs (ACK, ENDPOINTS, BINDING, REVOCATION, NAME) as pure
@@ -94,20 +94,19 @@ same revision digest until an explicitly approved later revision replaces it.
 
 ## Roadmap
 
-| Phase | Name | Depends | Manager | Status |
-|---|---|---|---|---|
-| 1 | Independent crate and address/name derivation foundation | None | vkd2enid | Merged: head `bf61531b19821e728702d359e18bec03bcdfdcab`; merge base `49c257d71ed7e0387febeefbf1ab1fb15524bbd0`; merged-tree QA passed |
-| 2 | Canonical KeyBinding and generation decisions | 1 | xu8nz412 | Paused, not accepted: rework R1-R3 at manager head `6091f10`, preserved on `feat/keynet` by merge `26711e6`; no Architect review, no merged-tree QA record for that head |
-| 3 | PairingToken, PSK and INTRO | 1, 2 | — | Pending; spec must use the v0.6 six-field INTRO with `token_id` |
-| 4 | Labels, alias candidates and NameRecord | 1, 2, 3 | — | Pending |
-| 5 | Relay datagram, revocation and in-band control record codecs, registration signature and session MACs | 1, 2, 3, 4 | — | Pending; spec must be issued against v0.6 sections 13.5 and 13.7 |
-| 6 | Interoperability fixture release and final acceptance | 1, 2, 3, 4, 5 | — | Pending; seals vectors and the final manifest pin against the current revision |
+| Phase | Name | Depends | Status |
+|---|---|---|---|
+| 1 | Independent crate and address/name derivation foundation | None | Merged: head `bf61531b19821e728702d359e18bec03bcdfdcab`; merge base `49c257d71ed7e0387febeefbf1ab1fb15524bbd0`; merged-tree QA passed |
+| 2 | Canonical KeyBinding and generation decisions | 1 | Accepted against v0.6; focused, adversarial, crate, doctest, and repository quality gates passed |
+| 3 | PairingToken, PSK and INTRO | 1, 2 | Pending; spec must use the v0.6 six-field INTRO with `token_id` |
+| 4 | Labels, alias candidates and NameRecord | 1, 2, 3 | Pending |
+| 5 | Relay datagram, revocation and in-band control record codecs, registration signature and session MACs | 1, 2, 3, 4 | Pending; spec must be issued against v0.6 sections 13.5 and 13.7 |
+| 6 | Interoperability fixture release and final acceptance | 1, 2, 3, 4, 5 | Pending; seals vectors and the final manifest pin against the current revision |
 
-Each phase is refuted before its Architect review. Only one phase runs at a
-time because build capacity is constrained. A phase is merged automatically
-only after a passing review, a completed refutation report, no unresolved
-blocker or major finding, no still-failing finding and a successful merged-tree
-quality gate.
+Each phase receives adversarial testing and an acceptance review. Only one
+phase runs at a time because build capacity is constrained. A phase is merged
+only after a passing review, completed adversarial checks, no unresolved major
+finding, no still-failing finding and a successful merged-tree quality gate.
 
 ## Scope and acceptance
 
@@ -125,54 +124,48 @@ design section; all code forbids unsafe code.
 
 ## Campaign settings
 
-- Merge gate: automatic when the documented refutation and review conditions
-  are met.
+- Merge gate: enabled when the documented adversarial checks and review
+  conditions are met.
 - Parallel phase limit: one.
 - Debug escalation threshold: two unresolved normal attempts.
-- Engines: Operator and Builders on the codex terra profile, Architect and
-  Refuter on astra, Scout on luna.
-- Quality gate: the background heartbeat wrapper around `just qa`; the QA log
-  must show its `Starting N tests` line and `KEYNET_QA_EXIT=0` before a phase
-  is credited.
-- Campaign issues (BKD project `48doa1tb`): Operator `fcpkehpe`, Architect
-  `jh4ax121`, phase 1 Manager `vkd2enid`, phase 2 Manager `xu8nz412`. All
-  worktrees and `bkd/*` branches were removed on 2026-09-13; the recovery
-  bundle is `tmp/20260913-0657-clean-keynet-campaign-worktrees/campaign-branches.bundle`.
+- Quality gate: `just qa`; its output must include the actual
+  `keynet-proto` tests before a phase is credited.
 
 ## Phase status
 
-Manager identifiers, merge bases, branch heads, refutation outcomes and final
-quality-gate evidence are recorded here as phases are dispatched and merged.
+Merge bases, branch heads, adversarial outcomes and final quality-gate evidence
+are recorded here as phases are dispatched and merged.
 
 ### Phase 1: merged
 
-- Manager `vkd2enid`; builders `ic400fcq` (foundation) and `1nr1osxq` (R1
-  repair); integration `7fzpkoa1` and `0vmpvcje`; refuter `1969p18t`.
-- Refutation R1 (major): the fixture inventory accepted empty, duplicate and
+- Adversarial finding R1 (major): the fixture inventory accepted empty, duplicate and
   unlisted cases. Fixed by explicit required case lists and pre-execution
   inventory validation; the original regression source is retained under
   `crates/keynet-proto/tests/refutation_inventory.rs`.
-- Architect review: pass at head `bf61531b19821e728702d359e18bec03bcdfdcab`.
+- Acceptance review passed at head `bf61531b19821e728702d359e18bec03bcdfdcab`.
 - Merge base `49c257d71ed7e0387febeefbf1ab1fb15524bbd0`; merged-tree QA
   passed (719 tests, zero skipped, `KEYNET_QA_EXIT=0`).
 - Delivered: address and identity-name derivation, owner-aware collision
   checks, committed fixture files and the manifest loader, pinned to v0.4.
 
-### Phase 2: paused before acceptance
+### Phase 2: accepted
 
-- Manager `xu8nz412`; builder `fjmp2xn2`; integration `ydgnwzxd`; refuter
-  `5s2uj988`. Dispatched 2026-09-13 05:26 UTC against the v0.4 pin.
-- Rework rounds R1-R3 are merged into the manager branch at `6091f10`
-  (`L2 merge: phase 2 rework R1-R3`). The campaign was paused before the
-  Architect review of that head; no merged-tree QA record exists for it. The
+- Rework rounds R1-R3 were consolidated at `6091f10` and dispatched on
+  2026-09-13 05:26 UTC against the v0.4 pin. The campaign was paused before
+  acceptance review of that head; no merged-tree QA record exists for it. The
   migration QA on `feat/keynet` (732 tests, `KEYNET_QA_EXIT=0`) verified
   preservation only and does not accept the phase.
 - The tree is preserved on `feat/keynet` by merge `26711e6`. Task and plan
   records: `crates/keynet-proto/docs/task/phase-2-key-binding.md` and
   `crates/keynet-proto/docs/plan/phase-2-key-binding.md`.
-- On resume: re-run the refutation and the Architect review against the
-  preserved head, re-pin the manifest metadata to v0.5 (the KeyBinding bytes
-  and section 13.3 rules are unchanged between v0.4 and v0.5), then merge.
+- The `keynet-v1-20260913` resume revalidates the preserved bytes and behavior
+  against v0.6, repairs only demonstrated phase-2 defects, re-pins phase-2
+  metadata, and reruns focused and repository quality gates.
+- Acceptance repaired the conflict transition so it retains the committed
+  generation and key while the equal-generation disagreement is latched.
+  Focused tests, literal vectors, authentication and codec refutations, crate
+  nextest, crate doctests, and `just qa` passed; the repository gate ran 732
+  tests with zero skipped and included the actual `keynet-proto` suites.
 
 ### Phases 3-6: not dispatched
 
@@ -188,7 +181,7 @@ final vectors and the manifest pin against the current revision.
 | 2026-09-13 04:09 | v0.4 with section 13 Wire Profile | `7c99ffb2e03c0728128da7270754aa065148e263fdc7c3aef233ff9696fa8a9f` | `b1c0db4` | Gate 1 approval; phases 1 and 2 pinned here |
 | 2026-09-13 06:00 | CLI revision: sections 1.1, 7.5, 7.6, 8, 11, new 14 | `ff3337f1f9fa0d825fce505fde44d5a2b66bf60aeff02fca279f4343761df173` | `a4b98bc` | Metadata-only deviation, `affects=[1..6]`; not re-pinned before the pause |
 | 2026-09-13 07:20 | v0.5: UDP relay carrier; sections 5, 6.6, 8, 9, 11, 12, 13.2, 13.4, 13.5, 13.6, 7.5 step 2; decision records merged into the design | `173d4bf3ed25125822210e17c56ae31e172168098af7209d1d3486a5629b624e` | `c5f8309` | Substantive deviation `affects=[5,6]` |
-| 2026-09-13 08:25 | v0.6: consistency revision after a full review; section 13.7 in-band control records; `token_id` in INTRO; Revocation record; STATUS, budget, cutover and recovery rules; corrected PSK, recovery, directory, nickname, size and placement statements | `494c50a12112aa88fe6fa084c0be9a14a2ca66415244ff202b72d89e08190fc1` | `0f56552` | Substantive deviation `affects=[3,5,6]` pending Architect confirmation; current pin for every future specification |
+| 2026-09-13 08:25 | v0.6: consistency revision after a full review; section 13.7 in-band control records; `token_id` in INTRO; Revocation record; STATUS, budget, cutover and recovery rules; corrected PSK, recovery, directory, nickname, size and placement statements | `494c50a12112aa88fe6fa084c0be9a14a2ca66415244ff202b72d89e08190fc1` | `0f56552` | Approved substantive deviation `affects=[3,5,6]`; active pin for phases P2-P6 |
 
 The approved review records that produced the two revisions are archived
 under `docs/decisions/keynet/`.

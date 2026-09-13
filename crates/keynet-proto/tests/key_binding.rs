@@ -278,7 +278,7 @@ fn installation_is_scoped_pure_and_handles_conflicts() {
         InstallationDecision::LatchConflict(proposal) => proposal.next_state,
         _ => panic!("different equal generation must conflict"),
     };
-    assert!(conflict_state.committed.is_none());
+    assert_eq!(conflict_state.committed, after_first.committed);
     for candidate in [current(0, 3), current(0, 4)] {
         assert_eq!(
             candidate.installation_decision(&conflict_state),

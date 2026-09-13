@@ -19,7 +19,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-const DESIGN_SHA256: &str = "7c99ffb2e03c0728128da7270754aa065148e263fdc7c3aef233ff9696fa8a9f";
+const DESIGN_REVISION: &str = "v0.6";
+const DESIGN_COMMIT: &str = "0f56552";
+const DESIGN_SHA256: &str = "494c50a12112aa88fe6fa084c0be9a14a2ca66415244ff202b72d89e08190fc1";
 const ROOT: &str = "tests/fixtures/keynet-v1";
 const ADDRESS_CASES: &str = "ascending,zeros,reverse";
 const IDENTITY_CASES: &str = "ascending,zeros,reverse";
@@ -142,7 +144,8 @@ fn load(root: &Path) -> Result<BTreeMap<String, String>, String> {
         fs::read_to_string(root.join("manifest.txt")).map_err(|error| error.to_string())?;
     let mut required = BTreeMap::from([
         ("suite_version", "keynet-v1"),
-        ("section_13_revision", "13.1-13.6"),
+        ("section_13_revision", DESIGN_REVISION),
+        ("design_commit", DESIGN_COMMIT),
         ("design_sha256", DESIGN_SHA256),
         (
             "coverage",
@@ -482,7 +485,7 @@ fn key_binding_vectors_are_literal_and_independently_verified() -> Result<(), St
                 }
             }
             ("latch_conflict", Ok(InstallationDecision::LatchConflict(transition))) => {
-                if transition.next_state.committed.is_some()
+                if transition.next_state.committed != state.committed
                     || transition.next_state.conflict.is_none()
                 {
                     return Err("literal conflict state mismatch".to_owned());

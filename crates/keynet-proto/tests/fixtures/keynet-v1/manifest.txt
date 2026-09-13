@@ -1,6 +1,7 @@
 suite_version=keynet-v1
-section_13_revision=13.1-13.6
-design_sha256=7c99ffb2e03c0728128da7270754aa065148e263fdc7c3aef233ff9696fa8a9f
+section_13_revision=v0.6
+design_commit=0f56552
+design_sha256=494c50a12112aa88fe6fa084c0be9a14a2ca66415244ff202b72d89e08190fc1
 coverage=addresses,identities,conflicts,key_bindings,integrity
 address_cases=ascending,zeros,reverse
 identity_cases=ascending,zeros,reverse

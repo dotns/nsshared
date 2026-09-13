@@ -578,7 +578,6 @@ pub fn evaluate_key_binding_installation(
             }
             return Ok(InstallationDecision::LatchConflict(KeyBindingTransition {
                 next_state: KeyBindingState {
-                    committed: None,
                     conflict: Some(KeyBindingConflict {
                         generation: binding.generation,
                         first_key: committed.wireguard_key,
