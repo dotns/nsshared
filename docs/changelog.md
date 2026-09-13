@@ -1,3 +1,9 @@
+## 2026-09-13 [fix]
+
+Reject authenticated Mesh v2 allocations whose complete label and DNS root
+exceed 253 characters. Cover the exact accepted boundary and longer roots or
+labels with a focused contract test.
+
 ## 2026-09-13 [feat]
 
 Add short-lived registration challenges and WG private-key possession proofs

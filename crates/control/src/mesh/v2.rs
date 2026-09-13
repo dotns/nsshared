@@ -69,7 +69,9 @@ impl MeshV2RegistrationAllocation {
         if !(5..=super::MESH_V2_MAX_NAME_LABEL_LEN as u64).contains(&self.name_len) {
             return Err(Error::Payload("v2 name length"));
         }
-        if !mesh_v2_valid_dns_root(&self.dns_root) {
+        if !mesh_v2_valid_dns_root(&self.dns_root)
+            || self.name_len + 1 + self.dns_root.len() as u64 > 253
+        {
             return Err(Error::Payload("v2 DNS root"));
         }
         if self.native_ipv6 != mesh_v2_overlay_ipv6(&self.wg_pub, MeshV2AddressPurpose::Native)
@@ -304,6 +306,26 @@ mod tests {
             name_len: 5,
             dns_root: super::super::MESH_V2_DEFAULT_DNS_ROOT.to_string(),
         }
+    }
+
+    #[test]
+    fn v2_allocation_limits_the_complete_dns_name() {
+        let mut entry = allocation([0x33; 32]);
+        entry.dns_root = [
+            "a".repeat(63),
+            "b".repeat(63),
+            "c".repeat(63),
+            "d".repeat(55),
+        ]
+        .join(".");
+        assert_eq!(entry.dns_root.len(), 247);
+        entry.validate().unwrap();
+        entry.name_len = 6;
+        assert!(entry.validate().is_err());
+        entry.name_len = 5;
+        entry.dns_root.push('d');
+        assert!(mesh_v2_valid_dns_root(&entry.dns_root));
+        assert!(entry.validate().is_err());
     }
 
     #[test]
