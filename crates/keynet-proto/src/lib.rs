@@ -1,7 +1,14 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs, clippy::panic, clippy::unwrap_used, clippy::expect_used)]
 
-//! Synchronous Keynet v0.4 address, identity-label, and local-conflict primitives.
+//! Synchronous Keynet v0.6 wire, derivation, and validation primitives.
+
+mod codec;
+mod intro;
+mod pairing;
+
+pub use intro::*;
+pub use pairing::*;
 
 use blake2::{
     Blake2sMac,

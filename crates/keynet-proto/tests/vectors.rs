@@ -6,10 +6,12 @@ use blake2::{
     },
 };
 use ed25519_dalek::{Signature, SigningKey, VerifyingKey};
+use hmac::{Hmac, KeyInit as HmacKeyInit, Mac as HmacMac};
 use keynet_proto::{
-    AddressGroup, CommittedKeyBinding, GroupOwner, InstallationDecision, KeyBinding,
-    KeyBindingScope, KeyBindingState, check_new_local_group, check_peer_group,
-    derive_address_group, group_bytes, group_ipv6, identity_label, n4, n4_bytes, n6, n6_bytes,
+    AddressGroup, CommittedKeyBinding, GroupOwner, InstallationDecision, Intro, IntroAck,
+    KeyBinding, KeyBindingScope, KeyBindingState, PairingToken, check_new_local_group,
+    check_peer_group, derive_address_group, derive_pair_psk, group_bytes, group_ipv6,
+    identity_label, n4, n4_bytes, n6, n6_bytes,
 };
 use sha2::{Digest, Sha256};
 use std::{
@@ -27,12 +29,17 @@ const ADDRESS_CASES: &str = "ascending,zeros,reverse";
 const IDENTITY_CASES: &str = "ascending,zeros,reverse";
 const CONFLICT_CASES: &str = "idempotent_peer,self_collision,all_group_distinct_owner_collision,own_network_join_collision,own_network_join_clear";
 const BINDING_CASES: &str = "minimum,maximum,width_23,width_24,width_255,width_256,width_65535,width_65536,width_4294967295,width_4294967296,conflict,invalid_signature";
+const PAIRING_CASES: &str = "full";
+const INTRODUCTION_CASES: &str = "full";
 
 fn root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(ROOT)
 }
 fn sha256(bytes: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(bytes))
+    Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 fn blocks(text: &str) -> Result<Vec<BTreeMap<&str, &str>>, String> {
     text.split("\n\n")
@@ -83,6 +90,17 @@ fn independent_blake2s_12(input: &[u8]) -> Result<[u8; 12], String> {
     let mut output = [0; 12];
     output.copy_from_slice(&hash.finalize().into_bytes());
     Ok(output)
+}
+fn independent_hmac(
+    secret: &[u8; 32],
+    context: &[u8],
+    unsigned: &[u8],
+) -> Result<[u8; 32], String> {
+    let mut mac =
+        <Hmac<Sha256> as HmacKeyInit>::new_from_slice(secret).map_err(|error| error.to_string())?;
+    mac.update(context);
+    mac.update(unsigned);
+    Ok(mac.finalize().into_bytes().into())
 }
 fn owner(input: &str) -> Result<GroupOwner, String> {
     let mut fields = input.split('|');
@@ -149,12 +167,14 @@ fn load(root: &Path) -> Result<BTreeMap<String, String>, String> {
         ("design_sha256", DESIGN_SHA256),
         (
             "coverage",
-            "addresses,identities,conflicts,key_bindings,integrity",
+            "addresses,identities,conflicts,key_bindings,pairing_tokens,introductions,integrity",
         ),
         ("address_cases", ADDRESS_CASES),
         ("identity_cases", IDENTITY_CASES),
         ("conflict_cases", CONFLICT_CASES),
         ("key_binding_cases", BINDING_CASES),
+        ("pairing_token_cases", PAIRING_CASES),
+        ("introduction_cases", INTRODUCTION_CASES),
     ]);
     let mut entries = BTreeMap::new();
     for line in manifest.lines().filter(|line| !line.is_empty()) {
@@ -199,6 +219,8 @@ fn load(root: &Path) -> Result<BTreeMap<String, String>, String> {
     validate_case_inventory(root, "identities.vec", IDENTITY_CASES)?;
     validate_case_inventory(root, "conflicts.vec", CONFLICT_CASES)?;
     validate_case_inventory(root, "key_bindings.vec", BINDING_CASES)?;
+    validate_case_inventory(root, "pairing_tokens.vec", PAIRING_CASES)?;
+    validate_case_inventory(root, "introductions.vec", INTRODUCTION_CASES)?;
     Ok(entries)
 }
 
@@ -497,5 +519,82 @@ fn key_binding_vectors_are_literal_and_independently_verified() -> Result<(), St
             return Err("unexpected literal KeyBinding error expectation".to_owned());
         }
     }
+    Ok(())
+}
+
+#[test]
+fn pairing_and_introduction_vectors_are_literal() -> Result<(), String> {
+    load(&root())?;
+    let pairing_text =
+        fs::read_to_string(root().join("pairing_tokens.vec")).map_err(|error| error.to_string())?;
+    let pairing = blocks(&pairing_text)?;
+    let vector = pairing
+        .first()
+        .ok_or_else(|| "missing pairing vector".to_owned())?;
+    let signed = hex_bytes(field(vector, "signed")?)?;
+    let unsigned = hex_bytes(field(vector, "unsigned")?)?;
+    let token_text = String::from_utf8(hex_bytes(field(vector, "text_hex")?)?)
+        .map_err(|error| error.to_string())?;
+    let token = PairingToken::decode(&signed).map_err(|error| format!("{error:?}"))?;
+    if token
+        .unsigned_bytes()
+        .map_err(|error| format!("{error:?}"))?
+        != unsigned
+        || token.encode().map_err(|error| format!("{error:?}"))? != signed
+        || token.to_text().map_err(|error| format!("{error:?}"))? != token_text
+        || token.token_id().map_err(|error| format!("{error:?}"))?
+            != hex(field(vector, "token_id")?)?
+        || derive_pair_psk(
+            &token.secret,
+            &token.network_id,
+            &token.issuer,
+            &hex(field(vector, "recipient")?)?,
+        ) != hex(field(vector, "psk")?)?
+    {
+        return Err("literal PairingToken or PSK mismatch".to_owned());
+    }
+    let mut preimage = b"keynet/pairing-token/v1".to_vec();
+    preimage.extend_from_slice(&unsigned);
+    VerifyingKey::from_bytes(&token.issuer)
+        .map_err(|error| error.to_string())?
+        .verify_strict(&preimage, &Signature::from_bytes(&token.signature))
+        .map_err(|error| error.to_string())?;
+
+    let introduction_text =
+        fs::read_to_string(root().join("introductions.vec")).map_err(|error| error.to_string())?;
+    let introductions = blocks(&introduction_text)?;
+    let vector = introductions
+        .first()
+        .ok_or_else(|| "missing introduction vector".to_owned())?;
+    let intro = Intro::decode(&hex_bytes(field(vector, "intro")?)?)
+        .map_err(|error| format!("{error:?}"))?;
+    let ack = IntroAck::decode(&hex_bytes(field(vector, "ack")?)?)
+        .map_err(|error| format!("{error:?}"))?;
+    let intro_unsigned = hex_bytes(field(vector, "intro_unsigned")?)?;
+    let ack_unsigned = hex_bytes(field(vector, "ack_unsigned")?)?;
+    let secret = hex(field(vector, "secret")?)?;
+    if intro
+        .unsigned_bytes()
+        .map_err(|error| format!("{error:?}"))?
+        != intro_unsigned
+        || intro.mac != hex(field(vector, "intro_mac")?)?
+        || independent_hmac(&secret, b"keynet/intro/v1", &intro_unsigned)? != intro.mac
+        || ack.unsigned_bytes().map_err(|error| format!("{error:?}"))? != ack_unsigned
+        || ack.mac != hex(field(vector, "ack_mac")?)?
+        || independent_hmac(&secret, b"keynet/intro-ack/v1", &ack_unsigned)? != ack.mac
+    {
+        return Err("literal INTRO or INTRO_ACK mismatch".to_owned());
+    }
+    intro
+        .validate(
+            &secret,
+            &intro.network_id,
+            &intro.recipient,
+            &intro.token_id,
+            500,
+        )
+        .map_err(|error| format!("{error:?}"))?;
+    ack.validate(&secret, &ack.network_id, &ack.issuer, &ack.nonce, 500)
+        .map_err(|error| format!("{error:?}"))?;
     Ok(())
 }
