@@ -1,3 +1,12 @@
+## 2026-09-13 [feat]
+
+Add closed Mesh v2 node-pair credentials and directed pairing messages. Both
+endpoint signatures bind one registry realm, complete signing/WG identities,
+operation and independent revocation generations. Fresh bilateral session
+proofs bind WG possession and capabilities; PIN debug output is redacted.
+The [pair contract](design/mesh-v2-pair-contract.md) records consumer persistence,
+revocation and runtime obligations; codec validation does not grant access.
+
 ## 2026-09-06 [fix]
 
 Add an explicit gateway relay index scheme (COMPAT-001). Preserve the omitted
