@@ -13,6 +13,8 @@ use super::{Error, MeshV2RegistrationAllocation};
 
 mod messages;
 pub use messages::*;
+mod registration;
+pub use registration::*;
 
 /// Pair payloads have their own closed schema, separate from v1 group records.
 pub const MESH_V2_PAIR_SCHEMA: u64 = 2;
@@ -315,3 +317,6 @@ impl MeshV2PairSession {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod registration_tests;

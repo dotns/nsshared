@@ -1,5 +1,14 @@
 ## 2026-09-13 [feat]
 
+Add short-lived registration challenges and WG private-key possession proofs
+before permanent Mesh v2 allocation. Bind the authenticated registry realm,
+complete node identity, operation and deadline; retain stable retries and the
+existing allocation response. Document the UDP cookie and WSS identity gates.
+The full workspace gate passed 820 tests with no skips, formatting, Clippy,
+dependency checks, shear and typos; existing advisory warnings remain reported.
+
+## 2026-09-13 [feat]
+
 Add closed Mesh v2 node-pair credentials and directed pairing messages. Both
 endpoint signatures bind one registry realm, complete signing/WG identities,
 operation and independent revocation generations. Fresh bilateral session

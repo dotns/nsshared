@@ -129,3 +129,48 @@ live session capabilities and grants no business permission.
 The directory contract test checks query/grant and response/nonce/identity
 mismatches, invalid allocation and closed-map decoding. All 10 pairing contract
 tests pass; consumer transport and native DNS acceptance remain separate gates.
+
+
+## Registration WG possession (PLAN-223 C6)
+
+Before any permanent allocation or recovered registration is returned, use the
+closed schema-2 `mesh.v2.registration.begin` and `.finish` exchange. The old
+schema-1 `mesh.v2.register` signature binds public keys only and must not bypass
+this proof. Existing permanent allocations remain unchanged.
+
+Begin carries `node`, random nonzero 16-byte `request_id`, and optional `cookie`.
+The signed `mesh.v2.registration.challenge` carries response `nonce`, pinned
+`realm`, exact `node` and `request_id`, `relay_ephemeral_wg`, random 32-byte
+`challenge`, `issued_at` and `expires_at` (maximum 60 seconds). Verify the enclosing
+relay signature against the pinned authority, then call `verify_begin` before DH.
+Compute X25519 with the local WG private key and the verified relay ephemeral
+public key. Reject all-zero agreement. Never accept a shared secret from the
+network, persist it, or log it. The relay's ephemeral key is only a possession
+verifier, not an overlay WG peer or business-data decryption key.
+
+The HMAC-SHA256 transcript is the bytes `nsmesh-v2-registration-wg-proof\0`, schema
+2 as big-endian u64, realm[32], signing public key[32], WG public key[32], request
+ID[16], ephemeral relay WG key[32], challenge[32], issued-at u64 and expires-at
+u64. The response nonce is excluded so Begin retries can return the same
+challenge with fresh response correlation. Every wire retry has a fresh signed
+envelope nonce. Finish carries the exact `node`, `request_id`, `challenge`,
+`wg_proof` and optional `cookie`. Successful Finish returns the existing signed
+`mesh.v2.registered` result, whose payload nonce matches the Finish request.
+No intermediate challenge is an allocation, identity reservation or pair grant.
+
+UDP Begin and Finish require the same source/signing-key/request-ID cookie
+namespace, separate from pair lookup and legacy join cookies. Cookies retain
+the raw schema-1 `Cookie` reply within UDP framing, as used by pair lookup.
+Authenticated WSS binds both keys and needs no UDP cookie. A relay retains only
+bounded short-lived ephemeral challenges, with no more than two per signing
+identity. Retry a committed Finish within its challenge lifetime to recover a
+lost result; after expiry or relay restart, repeat Begin/Finish and recover the
+same committed allocation. Wrong identity, expired proof or rollback cannot
+publish an allocation. Mixed versions must not fall back to unproved allocation.
+
+The independent 232-byte transcript fixture uses signing seed `[1;32]`, WG key
+`[3;32]`, request ID `[4;16]`, realm `[6;32]`, relay key `[7;32]`, challenge `[8;32]`,
+times 1000/1060 and HMAC key `[9;32]`; its tag is
+`139a4a3c323fffefa2e64bed852359f821449fce91a7a88a4a1cc58424c260e5`.
+A separate test uses real X25519 keys at both ends and rejects altered transcript,
+realm, correlation, deadlines, zero agreement and closed-map violations.
