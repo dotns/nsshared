@@ -8,6 +8,9 @@ pub(super) trait Field: Sized {
     fn to_value(&self) -> Value;
     fn from_value(value: Value) -> Result<Self, Error>;
     fn sign_into(&self, out: &mut Vec<u8>);
+    fn missing() -> Result<Self, Error> {
+        Err(Error::Payload("missing field"))
+    }
 }
 
 impl Field for u64 {
@@ -24,6 +27,21 @@ impl Field for u64 {
     }
     fn sign_into(&self, out: &mut Vec<u8>) {
         out.extend_from_slice(&self.to_be_bytes());
+    }
+}
+
+impl Field for bool {
+    fn to_value(&self) -> Value {
+        Value::Bool(*self)
+    }
+    fn from_value(value: Value) -> Result<Self, Error> {
+        match value {
+            Value::Bool(value) => Ok(value),
+            _ => Err(Error::Payload("boolean")),
+        }
+    }
+    fn sign_into(&self, out: &mut Vec<u8>) {
+        out.push(u8::from(*self));
     }
 }
 
@@ -176,7 +194,7 @@ pub(super) fn fields(value: Value) -> Result<BTreeMap<u64, Value>, Error> {
 }
 
 pub(super) fn take<T: Field>(fields: &mut BTreeMap<u64, Value>, key: u64) -> Result<T, Error> {
-    T::from_value(fields.remove(&key).ok_or(Error::Payload("missing field"))?)
+    fields.remove(&key).map_or_else(T::missing, T::from_value)
 }
 
 macro_rules! payload {

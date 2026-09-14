@@ -246,9 +246,33 @@ impl ControlEnvelope {
     where
         F: FnOnce(&[u8]) -> [u8; 64],
     {
-        let ts = now_secs()?;
         let mut nonce = [0u8; 16];
         OsRng.fill_bytes(&mut nonce);
+
+        Self::sign_request_with_nonce(api, machine_id, machine_key_pub, nonce, payload_cbor, sign)
+    }
+
+    /// Build and sign a request envelope with a caller-provided replay nonce.
+    ///
+    /// The nonce must be freshly generated and not reused for this machine
+    /// within the server replay window. This variant exists when a payload
+    /// signature needs to bind the enclosing request nonce before the
+    /// envelope itself is signed (for example, `mesh.register` network
+    /// proofs). It preserves the ordinary request signing domain and wire
+    /// format; callers that do not need that binding should use
+    /// [`Self::sign_request`].
+    pub fn sign_request_with_nonce<F>(
+        api: impl Into<String>,
+        machine_id: Option<String>,
+        machine_key_pub: [u8; 32],
+        nonce: [u8; 16],
+        payload_cbor: Vec<u8>,
+        sign: F,
+    ) -> Result<Self, Error>
+    where
+        F: FnOnce(&[u8]) -> [u8; 64],
+    {
+        let ts = now_secs()?;
         let api_str = api.into();
 
         let sig_input = build_sig_input(SigInput {

@@ -1,3 +1,27 @@
+## 2026-09-13 [fix]
+
+Reject authenticated Mesh v2 allocations whose complete label and DNS root
+exceed 253 characters. Cover the exact accepted boundary and longer roots or
+labels with a focused contract test.
+
+## 2026-09-13 [feat]
+
+Add short-lived registration challenges and WG private-key possession proofs
+before permanent Mesh v2 allocation. Bind the authenticated registry realm,
+complete node identity, operation and deadline; retain stable retries and the
+existing allocation response. Document the UDP cookie and WSS identity gates.
+The full workspace gate passed 820 tests with no skips, formatting, Clippy,
+dependency checks, shear and typos; existing advisory warnings remain reported.
+
+## 2026-09-13 [feat]
+
+Add closed Mesh v2 node-pair credentials and directed pairing messages. Both
+endpoint signatures bind one registry realm, complete signing/WG identities,
+operation and independent revocation generations. Fresh bilateral session
+proofs bind WG possession and capabilities; PIN debug output is redacted.
+The [pair contract](design/mesh-v2-pair-contract.md) records consumer persistence,
+revocation and runtime obligations; codec validation does not grant access.
+
 ## 2026-09-06 [fix]
 
 Add an explicit gateway relay index scheme (COMPAT-001). Preserve the omitted

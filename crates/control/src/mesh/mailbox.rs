@@ -12,11 +12,16 @@ payload!(PinInfo, "", { 1_u64 => value: String, 2_u64 => expires_in_secs: u64 })
 payload!(AnchorChallenge, "", {
     1_u64 => anchor_seq: u64, 2_u64 => state_digest: [u8; 32], 3_u64 => format_version: u64,
 });
-payload!(Register, "mesh.register", {
-    1_u64 => network_pub: [u8; 32], 2_u64 => wg_pub: [u8; 32],
-    3_u64 => member_incarnation: u64, 4_u64 => allocate_pin: Option<PinRequest>,
-    5_u64 => network_proof: Option<[u8; 64]>, 6_u64 => vouch: Option<Vec<u8>>,
-});
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Register {
+    pub network_pub: [u8; 32],
+    pub wg_pub: [u8; 32],
+    pub member_incarnation: u64,
+    pub allocate_pin: Option<PinRequest>,
+    pub network_proof: Option<[u8; 64]>,
+    pub vouch: Option<Vec<u8>>,
+    pub recovery_intent: Option<bool>,
+}
 payload!(Registered, "mesh.registered", {
     1_u64 => nonce: [u8; 16], 2_u64 => status: u64, 3_u64 => network_pub: [u8; 32],
     4_u64 => pin: Option<PinInfo>, 5_u64 => admins: Vec<u8>, 6_u64 => admins_revision: u64,
@@ -146,6 +151,17 @@ impl AnchorChallenge {
     }
 }
 impl Register {
+    pub const API: &'static str = "mesh.register";
+
+    pub fn encode(&self) -> Result<Vec<u8>, Error> {
+        self.validate()?;
+        super::codec::encode(&self.to_value())
+    }
+
+    pub fn decode(bytes: &[u8]) -> Result<Self, Error> {
+        Self::from_value(super::codec::decode(bytes)?)
+    }
+
     fn validate(&self) -> Result<(), Error> {
         ensure(self.member_incarnation > 0, "incarnation")?;
         if let Some(pin) = &self.allocate_pin {
@@ -154,6 +170,7 @@ impl Register {
         if let Some(credential) = &self.vouch {
             ensure(!credential.is_empty(), "empty vouch")?;
         }
+        ensure(self.recovery_intent != Some(false), "recovery intent")?;
         Ok(())
     }
 
@@ -169,6 +186,11 @@ impl Register {
         self.wg_pub.sign_into(&mut out);
         self.member_incarnation.sign_into(&mut out);
         signer.sign_into(&mut out);
+        // Keep the v1 proof input byte-for-byte stable for ordinary registration.
+        // The validated only non-default value carries an explicit presence/value marker.
+        if self.recovery_intent.is_some() {
+            out.extend_from_slice(&[1, 1]);
+        }
         Ok(out)
     }
 
@@ -181,6 +203,51 @@ impl Register {
             &self.network_proof_input(nonce, signer)?,
             &proof,
         )
+    }
+}
+
+impl Field for Register {
+    fn to_value(&self) -> ciborium::value::Value {
+        let mut fields = vec![
+            (0_u64.to_value(), 1_u64.to_value()),
+            (1_u64.to_value(), self.network_pub.to_value()),
+            (2_u64.to_value(), self.wg_pub.to_value()),
+            (3_u64.to_value(), self.member_incarnation.to_value()),
+            (4_u64.to_value(), self.allocate_pin.to_value()),
+            (5_u64.to_value(), self.network_proof.to_value()),
+            (6_u64.to_value(), self.vouch.to_value()),
+        ];
+        if let Some(intent) = self.recovery_intent {
+            fields.push((7_u64.to_value(), intent.to_value()));
+        }
+        ciborium::value::Value::Map(fields)
+    }
+
+    fn from_value(value: ciborium::value::Value) -> Result<Self, Error> {
+        let mut fields = super::codec::fields(value)?;
+        let result = Self {
+            network_pub: super::codec::take(&mut fields, 1)?,
+            wg_pub: super::codec::take(&mut fields, 2)?,
+            member_incarnation: super::codec::take(&mut fields, 3)?,
+            allocate_pin: super::codec::take(&mut fields, 4)?,
+            network_proof: super::codec::take(&mut fields, 5)?,
+            vouch: super::codec::take(&mut fields, 6)?,
+            recovery_intent: fields
+                .remove(&7)
+                .map_or_else(|| Ok(None), Option::<bool>::from_value)?,
+        };
+        result.validate()?;
+        Ok(result)
+    }
+
+    fn sign_into(&self, out: &mut Vec<u8>) {
+        self.network_pub.sign_into(out);
+        self.wg_pub.sign_into(out);
+        self.member_incarnation.sign_into(out);
+        self.allocate_pin.sign_into(out);
+        self.network_proof.sign_into(out);
+        self.vouch.sign_into(out);
+        self.recovery_intent.sign_into(out);
     }
 }
 impl Registered {

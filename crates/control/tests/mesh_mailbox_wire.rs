@@ -139,6 +139,7 @@ fn mesh_network_proof_and_vouch_bind_registration_nonce() {
         allocate_pin: None,
         network_proof: None,
         vouch: None,
+        recovery_intent: None,
     };
     registration.network_proof = Some(
         key.sign(
@@ -151,6 +152,8 @@ fn mesh_network_proof_and_vouch_bind_registration_nonce() {
     registration
         .verify_network_proof(&[3; 16], &[4; 32])
         .unwrap();
+    // Ordinary registration remains byte-for-byte on the pre-intent map shape.
+    assert_eq!(registration.encode().unwrap()[0], 0xa7);
     assert!(
         registration
             .verify_network_proof(&[5; 16], &[4; 32])
@@ -177,6 +180,70 @@ fn mesh_network_proof_and_vouch_bind_registration_nonce() {
     value.register_nonce[0] ^= 1;
     let modified = envelope(Vouch::API, 100, value.encode().unwrap(), &key);
     assert!(Vouch::verify_historical(&modified).is_err());
+}
+
+#[test]
+fn register_network_proof_can_bind_the_nonce_of_its_signed_envelope() {
+    let network_key = SigningKey::from_bytes(&[1; 32]);
+    let machine_key = SigningKey::from_bytes(&[4; 32]);
+    let nonce = [3; 16];
+    let mut registration = Register {
+        network_pub: network_key.verifying_key().to_bytes(),
+        wg_pub: [2; 32],
+        member_incarnation: 1,
+        allocate_pin: None,
+        network_proof: None,
+        vouch: None,
+        recovery_intent: Some(true),
+    };
+    registration.network_proof = Some(
+        network_key
+            .sign(
+                &registration
+                    .network_proof_input(&nonce, &machine_key.verifying_key().to_bytes())
+                    .unwrap(),
+            )
+            .to_bytes(),
+    );
+    assert!(
+        registration
+            .network_proof_input(&nonce, &machine_key.verifying_key().to_bytes())
+            .unwrap()
+            .ends_with(&[1, 1])
+    );
+    let encoded = registration.encode().unwrap();
+    assert_eq!(encoded[0], 0xa8);
+    assert_eq!(&encoded[encoded.len() - 2..], &[7, 0xf5]);
+    assert_eq!(Register::decode(&encoded).unwrap(), registration);
+
+    let request = ControlEnvelope::sign_request_with_nonce(
+        Register::API,
+        Some("member-1".into()),
+        machine_key.verifying_key().to_bytes(),
+        nonce,
+        encoded,
+        |input| machine_key.sign(input).to_bytes(),
+    )
+    .unwrap();
+
+    assert_eq!(request.nonce, nonce);
+    request.verify_request(request.ts).unwrap();
+    let decoded = Register::decode(&request.payload).unwrap();
+    decoded
+        .verify_network_proof(&request.nonce, &request.machine_key_pub)
+        .unwrap();
+    assert!(
+        decoded
+            .verify_network_proof(&[9; 16], &request.machine_key_pub)
+            .is_err()
+    );
+    let mut altered = decoded;
+    altered.recovery_intent = None;
+    assert!(
+        altered
+            .verify_network_proof(&request.nonce, &request.machine_key_pub)
+            .is_err()
+    );
 }
 
 fn admins() -> Vec<u8> {
@@ -326,6 +393,7 @@ fn mesh_mailbox_vectors_and_registration_budget() {
         allocate_pin: Some(PinRequest { ttl_secs: u64::MAX }),
         network_proof: None,
         vouch: Some(original),
+        recovery_intent: None,
     };
     let registered = Registered {
         nonce: [1; 16],
