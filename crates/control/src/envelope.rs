@@ -246,33 +246,9 @@ impl ControlEnvelope {
     where
         F: FnOnce(&[u8]) -> [u8; 64],
     {
+        let ts = now_secs()?;
         let mut nonce = [0u8; 16];
         OsRng.fill_bytes(&mut nonce);
-
-        Self::sign_request_with_nonce(api, machine_id, machine_key_pub, nonce, payload_cbor, sign)
-    }
-
-    /// Build and sign a request envelope with a caller-provided replay nonce.
-    ///
-    /// The nonce must be freshly generated and not reused for this machine
-    /// within the server replay window. This variant exists when a payload
-    /// signature needs to bind the enclosing request nonce before the
-    /// envelope itself is signed (for example, `mesh.register` network
-    /// proofs). It preserves the ordinary request signing domain and wire
-    /// format; callers that do not need that binding should use
-    /// [`Self::sign_request`].
-    pub fn sign_request_with_nonce<F>(
-        api: impl Into<String>,
-        machine_id: Option<String>,
-        machine_key_pub: [u8; 32],
-        nonce: [u8; 16],
-        payload_cbor: Vec<u8>,
-        sign: F,
-    ) -> Result<Self, Error>
-    where
-        F: FnOnce(&[u8]) -> [u8; 64],
-    {
-        let ts = now_secs()?;
         let api_str = api.into();
 
         let sig_input = build_sig_input(SigInput {
@@ -339,37 +315,6 @@ impl ControlEnvelope {
             payload: ByteBuf::from(payload_cbor),
             signature,
         })
-    }
-
-    /// Sign fields already held by a caller-owned envelope guard. Secret callers
-    /// must establish that guard before clock/RNG/signing can fail or unwind.
-    pub(crate) fn sign_response_in_place<F>(&mut self, sign: F) -> Result<(), Error>
-    where
-        F: FnOnce(&[u8]) -> [u8; 64],
-    {
-        let ts = now_secs()?;
-        let mut nonce = [0; 16];
-        OsRng.fill_bytes(&mut nonce);
-        self.sign_response_at(ts, nonce, sign);
-        Ok(())
-    }
-
-    pub(crate) fn sign_response_at<F>(&mut self, ts: u64, nonce: [u8; 16], sign: F)
-    where
-        F: FnOnce(&[u8]) -> [u8; 64],
-    {
-        self.ts = ts;
-        self.nonce = nonce;
-        self.signature = sign(&build_sig_input(SigInput {
-            domain: DOMAIN_RESPONSE,
-            v: self.v,
-            api: &self.api,
-            ts,
-            nonce: &nonce,
-            machine_id: self.machine_id.as_deref(),
-            machine_key_pub: &self.machine_key_pub,
-            payload_cbor: &self.payload,
-        }));
     }
 
     /// Verify a request envelope against the embedded `machine_key_pub`.

@@ -1,3 +1,17 @@
+## 2026-09-16 [decision]
+
+Remove the standalone Mesh v1/v2 shared protocol, its dedicated tests/fixtures,
+current design document, and unused control-envelope signing helpers. Account
+registration, authentication, relay leases, gateway index schemes, DNS,
+subnet-route contracts, and existing transports remain unchanged. No Keynet
+code is integrated. Historical records and the original tree are preserved in
+`archive/main-before-mesh-removal-20260916` and the existing feature branches.
+
+Verification: 709 workspace tests passed with zero skips; Clippy, formatting,
+shear, and changed-file spelling checks passed. The offline advisory check
+still fails on unchanged `rustls 0.23.41` (RUSTSEC-2026-0285); this removal does
+not claim a full-QA pass or upgrade dependencies.
+
 ## 2026-09-13 [fix]
 
 Reject authenticated Mesh v2 allocations whose complete label and DNS root

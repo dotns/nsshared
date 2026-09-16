@@ -1,8 +1,8 @@
 # ns-shared - Task List
 
-> Mesh 双设备分工：A 负责 NS，B 负责 NSGW/shared；统一见 [PLAN-218](../../../ns/docs/plan/PLAN-218.md#双设备分工与交接)。既有状态以正文与实际证据为准。
+> Historical Mesh task entries are retained as implementation records. Standalone Mesh removal is tracked in [SH-MESH-003](SH-MESH-003.md).
 
-> Updated: 2026-09-10
+> Updated: 2026-09-16
 
 ## Usage
 
@@ -86,3 +86,5 @@ Each task is a single line linking to its detail file. All detailed information 
 
 - [-] [**SH-MESH-001：定义 Mesh wire 类型与兼容向量**](SH-MESH-001.md) `P1`
 - [-] [**SH-MESH-002：实现确定性成员归约与恢复摘要**](SH-MESH-002.md) `P1`
+
+- [x] [**SH-MESH-003 Remove the standalone Mesh shared protocol**](SH-MESH-003.md) `P1`

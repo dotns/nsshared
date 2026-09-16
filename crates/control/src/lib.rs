@@ -22,7 +22,6 @@ pub mod bootstrap;
 pub mod device_flow;
 pub mod envelope;
 pub mod merge;
-pub mod mesh;
 pub mod messages;
 pub mod multi;
 pub mod retry;

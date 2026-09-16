@@ -10,6 +10,13 @@
 
 `control` contains the control-plane client. Its crate-level source docs describe machine registration/authentication, server-sent event control streams, control-envelope handling, control message types, retry and merge helpers, multi-NSD support, and Noise/QUIC/SSE transport modules.
 
+Standalone Mesh v1/v2 is not part of this workspace. Its protocol module,
+dedicated fixtures, and Mesh-only signing helpers were removed by
+[SH-MESH-003](task/SH-MESH-003.md); account-mode node/relay contracts remain.
+Historical Mesh task and plan records describe the removed implementation,
+which is preserved at `archive/main-before-mesh-removal-20260916` and in the
+existing Mesh feature branches. This removal does not integrate Keynet.
+
 `control::messages::GatewayWgRelayPair` carries both authoritative node tunnel
 addresses and an explicit `GatewayWgRelayIndexScheme`. Omitted/default
 `address_xor` preserves existing serialized defaults; NSD emits `device_key` to
