@@ -1,8 +1,8 @@
 # ns-shared - Plan Index
 
-> Mesh 双设备分工：A 负责 NS，B 负责 NSGW/shared；统一见 [PLAN-218](../../../ns/docs/plan/PLAN-218.md#双设备分工与交接)。既有状态以正文与实际证据为准。
+> Historical Mesh plan entries are retained as implementation records. Standalone Mesh removal is tracked in [PLAN-019](PLAN-019.md).
 
-> Updated: 2026-09-10
+> Updated: 2026-09-16
 
 ## Usage
 
@@ -47,3 +47,5 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**PLAN-014 Structured framed-WSS tunnel task lifecycle**](PLAN-014.md) `2026-07-25`
 - [-] [**PLAN-015 Unified node capability and subnet-route contracts**](PLAN-015.md) `2026-08-16`
 - [-] [**PLAN-016：Mesh v1 共享 wire 与确定性状态契约**](PLAN-016.md) `2026-09-07`
+
+- [x] [**PLAN-019 Remove the standalone Mesh shared protocol**](PLAN-019.md) `2026-09-16`
