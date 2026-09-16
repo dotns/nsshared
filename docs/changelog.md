@@ -1,3 +1,13 @@
+## 2026-09-16 [feature]
+
+Define the public default wire context for Keynet clients without shared network
+keys or owner permissions. Preserve the v1 codecs and sealed conformance suite;
+add separately generated address/slot vectors and device-signed pairing checks.
+Record the coordinated client profile and its remaining integration obligations.
+Update rustls to 0.23.45 and rustls-webpki to 0.103.15 to clear
+RUSTSEC-2026-0285 without weakening the advisory gate. The full shared QA passes
+with 795 tests.
+
 ## 2026-09-13 13:03 [progress]
 
 Sealed the complete keynet v0.7 interoperability fixture release. The manifest

@@ -23,9 +23,9 @@ const MAX_TOKEN_CBOR_BYTES: usize = 1536;
 pub struct PairingToken {
     /// The record version, which is one.
     pub ver: u8,
-    /// The network public key.
+    /// The v1 wire scope; default-context clients use `crate::DEFAULT_NETWORK_ID`.
     pub network_id: NetworkId,
-    /// The network display name.
+    /// The legacy display name; default-context clients emit an empty string.
     pub net_name: String,
     /// The issuer identity public key.
     pub issuer: Identity,
