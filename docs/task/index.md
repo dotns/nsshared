@@ -31,6 +31,7 @@ Each task is a single line linking to its detail file. All detailed information 
 
 ## Tasks
 
+
 - [x] [**OBS-001 Add proxy path labels**](OBS-001.md) `P1`
 - [x] [**EDGE-001 Define public edge shared contract**](EDGE-001.md) `P0`
 - [x] [**EDGE-002 Define gateway certificate distribution contract**](EDGE-002.md) `P0`
@@ -83,3 +84,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**COMPAT-001 Restore relay interoperability with current NS nodes**](COMPAT-001.md) `P0`
 - [x] [**20260913-0641-consolidate-keynet-feature-branches Consolidate keynet feature branches**](20260913-0641-consolidate-keynet-feature-branches.md) `P0`
 - [x] [**20260913-0657-clean-keynet-campaign-worktrees Clean retired keynet worktrees**](20260913-0657-clean-keynet-campaign-worktrees.md) `P1`
+- [x] [**20260916 Define the Keynet default context**](20260916-keynet-default-context.md) `P1`

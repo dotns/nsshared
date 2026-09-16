@@ -1,5 +1,9 @@
 # Approved keynet design archive
 
+The [default-context profile v1](default-context-v1.md) records the 2026-09-16
+client profile decision and shared identifier. It supersedes the network-facing
+product behavior below while preserving the original wire conformance release.
+
 These approval records are maintained in the project. Their substantive decisions
 are preserved while local coordination metadata is omitted; this index records
 their current adoption status. Future decisions should add a new version rather

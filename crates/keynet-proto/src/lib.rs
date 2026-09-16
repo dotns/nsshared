@@ -39,8 +39,18 @@ const ADDRESS_DIGEST_BYTES: usize = 15;
 const IDENTITY_DIGEST_BYTES: usize = 12;
 const BASE32: &[u8; 32] = b"abcdefghijklmnopqrstuvwxyz234567";
 
-/// A Keynet network identifier from design sections 3.2 and 13.6.
+/// A Keynet v1 wire scope identifier (legacy scopes are network public keys).
 pub type NetworkId = [u8; 32];
+/// Public wire context shared by devices using the default-context profile.
+///
+/// The bytes are SHA-256 of the ASCII string `keynet-default-context-v1`, with
+/// no trailing newline. This is an identifier, not a signing key or an access
+/// grant. Devices still sign bindings and explicitly authorize each peer.
+/// Network-signed name publication is disabled for this profile.
+pub const DEFAULT_NETWORK_ID: NetworkId = [
+    0x95, 0x3e, 0xad, 0x48, 0xb5, 0x3d, 0x57, 0xf0, 0x72, 0x70, 0x6b, 0x6a, 0x5d, 0x40, 0x00, 0x37,
+    0xc8, 0xba, 0xf0, 0x2f, 0x1f, 0x51, 0x6c, 0xef, 0x60, 0xa8, 0x3b, 0x17, 0xb6, 0x90, 0x2c, 0x02,
+];
 /// A Keynet identity public key from design sections 3.2 and 13.4.
 pub type Identity = [u8; 32];
 
