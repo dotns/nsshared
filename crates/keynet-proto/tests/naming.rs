@@ -61,16 +61,23 @@ fn fixtures() -> PathBuf {
 }
 
 fn blocks(text: &str) -> Vec<BTreeMap<&str, &str>> {
-    text.split("\n\n")
-        .filter(|block| !block.trim().is_empty())
-        .map(|block| {
-            block
-                .lines()
-                .filter(|line| !line.starts_with('#'))
-                .map(|line| line.split_once('=').unwrap())
-                .collect()
-        })
-        .collect()
+    let mut blocks = Vec::new();
+    let mut block = BTreeMap::new();
+    for line in text.lines() {
+        let line = line.trim_end_matches('\r');
+        if line.trim().is_empty() {
+            if !block.is_empty() {
+                blocks.push(std::mem::take(&mut block));
+            }
+        } else if !line.starts_with('#') {
+            let (name, value) = line.split_once('=').unwrap();
+            block.insert(name, value);
+        }
+    }
+    if !block.is_empty() {
+        blocks.push(block);
+    }
+    blocks
 }
 
 fn field<'a>(block: &'a BTreeMap<&str, &str>, name: &str) -> &'a str {
