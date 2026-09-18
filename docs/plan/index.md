@@ -2,7 +2,7 @@
 
 > Historical Mesh plan entries are retained as implementation records. Standalone Mesh removal is tracked in [PLAN-019](PLAN-019.md).
 
-> Updated: 2026-09-16
+> Updated: 2026-09-18
 
 ## Usage
 
@@ -20,6 +20,7 @@ Each plan is a single line linking to its detail file. All detailed information 
 | `[-]`  | Approved / Implementing |
 | `[x]`  | Completed |
 | `[~]`  | Rejected / Abandoned |
+| `[d]`  | Deleted detail file; index entry retained |
 
 ### Rules
 
@@ -49,3 +50,8 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [-] [**PLAN-016：Mesh v1 共享 wire 与确定性状态契约**](PLAN-016.md) `2026-09-07`
 
 - [x] [**PLAN-019 Remove the standalone Mesh shared protocol**](PLAN-019.md) `2026-09-16`
+- [x] [**PLAN-017 Keynet-proto wire and derivation primitives for keynet v0.6**](PLAN-017.md) `2026-09-13`
+- [x] [**Keynet-proto phase 2 KeyBinding outcome**](../../crates/keynet-proto/docs/plan/phase-2-key-binding.md) `2026-09-13`
+- [x] [**20260913-0641-consolidate-keynet-feature-branches Consolidate keynet feature branches**](20260913-0641-consolidate-keynet-feature-branches.md) `2026-09-13`
+- [d] [**Keynet approved design archive**](../decisions/keynet/README.md) `2026-09-13`
+- [x] [**20260913-0657-clean-keynet-campaign-worktrees Clean retired keynet worktrees**](20260913-0657-clean-keynet-campaign-worktrees.md) `2026-09-13`

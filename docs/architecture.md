@@ -46,7 +46,7 @@ parent cancellation aborts the set through structured drop ownership.
 
 ## Consumers
 
-The sibling `Cargo.toml` manifests in `/workspace/nsiod/ns`, `/workspace/nsiod/nsd`, and `/workspace/nsiod/nsgw` consume these crates through path dependencies rooted at `../ns-shared/crates/*`.
+The sibling `Cargo.toml` manifests in the `ns`, `nsd`, and `nsgw` repositories consume these crates through path dependencies rooted at `../ns-shared/crates/*`.
 
 | Consumer | Verified path dependencies |
 |----------|----------------------------|
@@ -61,6 +61,13 @@ This checkout is a live dependency root for the sibling workspaces listed above 
 The workspace package configuration sets `publish = false`, and all member crates inherit that setting. These crates are therefore consumed from source through path dependencies or immutable repository refs rather than as published package artifacts.
 
 Docs-only changes and additive Rust API changes can land in this repository after local quality gates pass. Breaking API or behavior changes require a coordinated cascade across the affected consumers before landing, because the sibling path dependencies resolve against this working tree.
+
+## Keynet Design Decisions
+
+The [approved keynet decisions](decisions/keynet/README.md) record the CLI
+interaction and UDP relay designs, their approval status and immutable hashes.
+Project-level design decisions live under `docs/decisions/`; implementation
+plans and tasks retain their existing tracking locations.
 
 ## Quality Gates
 

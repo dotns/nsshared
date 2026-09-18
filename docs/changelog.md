@@ -35,6 +35,43 @@ operation and independent revocation generations. Fresh bilateral session
 proofs bind WG possession and capabilities; PIN debug output is redacted.
 The [pair contract](design/mesh-v2-pair-contract.md) records consumer persistence,
 revocation and runtime obligations; codec validation does not grant access.
+## 2026-09-16 [feature]
+
+Define the public default wire context for Keynet clients without shared network
+keys or owner permissions. Preserve the v1 codecs and sealed conformance suite;
+add separately generated address/slot vectors and device-signed pairing checks.
+Record the coordinated client profile and its remaining integration obligations.
+Update rustls to 0.23.45 and rustls-webpki to 0.103.15 to clear
+RUSTSEC-2026-0285 without weakening the advisory gate. The full shared QA passes
+with 795 tests.
+
+## 2026-09-13 13:03 [progress]
+
+Sealed the complete keynet v0.7 interoperability fixture release. The manifest
+now carries the full design pin and exact file, case, and field inventories;
+an implementation-independent test pins its final digest and rejects filesystem
+or locally rehashed drift. All twelve normative vector files remain unchanged.
+
+## 2026-09-13 06:58 [progress]
+
+Complete `20260913-0657-clean-keynet-campaign-worktrees`. Remove eleven retired keynet worktrees and fifteen
+temporary branch refs after feature consolidation. Preserve `feat/keynet`, all
+`main` refs, unrelated worktrees and branches, and the fourteen canonical diagrams
+in the external diagram repository's `mermaid/keynet/` directory. Keep a verified standalone history bundle
+and the before-cleanup inventory in `tmp/20260913-0657-clean-keynet-campaign-worktrees/`. Dedicated primary checkouts
+now use `feat/keynet`. Source, fixtures and approved design text are unchanged;
+this cleanup does not change the implementation's paused status or phase acceptance.
+
+## 2026-09-13 06:13 [decision]
+
+Relocate the Keynet approved design archive from
+`crates/keynet-proto/docs/design/` to `docs/decisions/keynet/`.
+CLI interaction and relay transport are project-level approved decisions, not
+crate implementation tracking. Preserve both approved records byte for byte.
+The architecture document links to the new decision index. Mark the former
+"Keynet approved design archive" plan-index entry deleted while retaining its
+original title and path as history. Design authority, fixture pins and phase
+execution are unchanged.
 
 ## 2026-09-06 [fix]
 
@@ -250,3 +287,12 @@ Added the GatewayEgress selected-owner route hint.
 - The field is byte-additive: legacy payloads without the field deserialize to
   `None`, and routes without an owner omit the field when serialized.
 - Verification passed with `just qa`.
+## 2026-09-13 06:45 [progress]
+
+Consolidated paused Keynet work onto canonical feature branches. The canonical
+ns-shared feature branch preserves the complete Phase 2 rework tree and
+project decision archive; the canonical documentation feature branch preserves
+approved records, historical proposals, and diagrams. Dedicated ns-shared main
+was restored with four additive reverts and has the same tracked tree as
+`d02a29c`. Migration QA passed with 732 tests and no skipped tests. Phase 2
+remains paused and unreviewed.

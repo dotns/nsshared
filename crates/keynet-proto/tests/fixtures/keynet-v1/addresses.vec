@@ -1,0 +1,27 @@
+# Raw sixteen-byte values are authoritative; text is separately recorded.
+case=ascending
+network_id=000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
+identity=a0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf
+address_digest=14ebb9185cd2a2ee890d7fcc4da0a1
+group_bytes=fd14ebb9185cd2a2ee890d7fcc4da0a0
+n4_bytes=fd14ebb9185cd2a2ee890d7fcc4da0a1
+n6_text=fd14:ebb9:185c:d2a2:ee89:d7f:cc4d:a0a0
+n4_text=fd14:ebb9:185c:d2a2:ee89:d7f:cc4d:a0a1
+
+case=zeros
+network_id=0000000000000000000000000000000000000000000000000000000000000000
+identity=ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+address_digest=42e76fa7be93e19cc06f9892e9d4ea
+group_bytes=fd42e76fa7be93e19cc06f9892e9d4ea
+n4_bytes=fd42e76fa7be93e19cc06f9892e9d4eb
+n6_text=fd42:e76f:a7be:93e1:9cc0:6f98:92e9:d4ea
+n4_text=fd42:e76f:a7be:93e1:9cc0:6f98:92e9:d4eb
+
+case=reverse
+network_id=1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100
+identity=0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+address_digest=15a4c01485743070382c2fb10a8300
+group_bytes=fd15a4c01485743070382c2fb10a8300
+n4_bytes=fd15a4c01485743070382c2fb10a8301
+n6_text=fd15:a4c0:1485:7430:7038:2c2f:b10a:8300
+n4_text=fd15:a4c0:1485:7430:7038:2c2f:b10a:8301
