@@ -27,6 +27,8 @@ Failing test evidence: `region_frame_contract_is_available` initially failed bec
 
 Regression evidence: `hello_encoder_rejects_zero_connection_generation` and `hello_decoder_rejects_zero_connection_generation` initially failed because zero connection generation was accepted. `control_hello_is_not_legal_after_handshake` initially failed because control HELLO remained legal after the handshake.
 
+The region-frame test module keeps the encoder, decoder, and post-handshake control HELLO regressions with the frame contract coverage.
+
 Acceptance: all frame types, nested schemas, enum ranges, canonical CBOR rejections, first-frame-only HELLO channel typing, nonzero HELLO connection generation, allocation-safe prefix validation, limits, carried-datagram separation, and sealed-fixture refutations are covered.
 
-Checks: `cargo fmt --all -- --check && cargo clippy --workspace --all-targets --locked -- -D warnings && cargo nextest run -p keynet-proto --locked` passed with both HELLO regression tests and the complete package suite.
+Checks: `cargo fmt --all -- --check && cargo clippy --workspace --all-targets --locked -- -D warnings && cargo nextest run -p keynet-proto --locked` passed with the HELLO regression tests and the complete package suite.

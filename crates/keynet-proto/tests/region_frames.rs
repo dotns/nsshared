@@ -311,6 +311,35 @@ fn region_frame_contract_is_available() -> Result<(), String> {
 }
 
 #[test]
+fn hello_encoder_rejects_zero_connection_generation() {
+    let hello = RegionFrame::Hello(RegionHello {
+        region_name: "relay-a".to_owned(),
+        member_id: 1,
+        boot_epoch: 2,
+        channel: RegionChannel::Control,
+        conn_gen: 0,
+    });
+
+    assert!(
+        hello.encode(RegionChannel::Control).is_err(),
+        "HELLO connection generation zero is reserved"
+    );
+}
+
+#[test]
+fn hello_decoder_rejects_zero_connection_generation() {
+    let encoded = [
+        0x00, 0x00, 0x00, 0x10, 0x83, 0x01, 0x01, 0x85, 0x67, b'r', b'e', b'l', b'a', b'y', b'-',
+        b'a', 0x01, 0x02, 0x00, 0x00,
+    ];
+
+    assert!(
+        RegionFrame::decode(&encoded, RegionChannel::Control).is_err(),
+        "HELLO connection generation zero is reserved"
+    );
+}
+
+#[test]
 fn all_region_frame_types_and_nested_bodies_round_trip() -> Result<(), String> {
     for (channel, frame) in sample_frames() {
         let _ = round_trip(&frame, channel)?;
@@ -660,6 +689,14 @@ fn channel_contract_rejects_wrong_channels_and_exposes_post_hello_rules() -> Res
         return Err("HELLO channel mismatch was accepted".to_owned());
     }
     Ok(())
+}
+
+#[test]
+fn control_hello_is_not_legal_after_handshake() {
+    assert!(
+        !RegionFrameType::Hello.is_legal_after_hello_on(RegionChannel::Control),
+        "HELLO is only legal as the first frame on a control channel"
+    );
 }
 
 fn capped_snapshot(extra_wide_generations: usize) -> RegionFrame {
