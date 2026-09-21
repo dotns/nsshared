@@ -57,3 +57,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**20260913-0657-clean-keynet-campaign-worktrees Clean retired keynet worktrees**](20260913-0657-clean-keynet-campaign-worktrees.md) `2026-09-13`
 - [-] [**20260918-0951-keynet-cascaded-relays Keynet cascaded relays: multi-member relay regions**](20260918-0951-keynet-cascaded-relays.md) `2026-09-18`
 - [x] [**20260921-0309-region-frame-codec Region frame codec**](20260921-0309-region-frame-codec.md) `2026-09-21`
+- [x] [**20260921-0541-region-marks-join Add region marks join**](20260921-0541-region-marks-join.md) `2026-09-21`

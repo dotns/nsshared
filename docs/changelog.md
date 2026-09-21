@@ -307,3 +307,14 @@ Added the strict inter-member region frame codec and sealed v0.9 fixture.
   canonical-CBOR validation at the codec boundary.
 - Added sealed fixture vectors, independent inventory witnesses, and focused
   regression coverage while preserving every prior vector byte.
+
+## 2026-09-21 06:18 [feat]
+
+Added the pure retained-marks join and its sealed fixture family.
+
+- Joined revocation floors independently of generation while resetting
+  generation-specific key, conflict, and incarnation state on advancement.
+- Made equal-generation conflicts deterministic, associative, commutative,
+  and idempotent with exact directional change reporting.
+- Rejected cross-owner joins and sealed the exact marks cases through
+  independent fixture inventories while preserving prior vector bytes.
