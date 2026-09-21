@@ -602,6 +602,7 @@ pub fn decide_region_presence(
         };
     }
 
+    let refreshed_table = next.clone();
     next.origins[origin_index].revision_high_water = event.revision();
 
     match event {
@@ -667,7 +668,7 @@ pub fn decide_region_presence(
                             input.local_gone_revision,
                         ) else {
                             return unchanged_presence_decision(
-                                table,
+                                &refreshed_table,
                                 RegionPresenceDisposition::MissingLocalRetirementRevision,
                             );
                         };
@@ -690,7 +691,7 @@ pub fn decide_region_presence(
                             input.local_gone_revision,
                         ) else {
                             return unchanged_presence_decision(
-                                table,
+                                &refreshed_table,
                                 RegionPresenceDisposition::MissingLocalRetirementRevision,
                             );
                         };
