@@ -1,6 +1,6 @@
 //! Canonical inter-member relay-region frames from design section 13.8.
 
-use crate::{Identity, NetworkId, RelayIdentifier, SlotId, codec::CborReader};
+use crate::{Identity, NetworkId, RelayIdentifier, SlotId, codec::CborReader, derive_slot_id};
 
 /// The sole supported region-frame version.
 pub const REGION_FRAME_VERSION: u8 = 1;
@@ -940,18 +940,20 @@ pub struct RegionSnapshotStage {
     pub next_chunk_index: u32,
     /// Presence records retained until durable completion.
     pub presence_entries: Vec<RegionPresence>,
-    /// Mark records retained until durable completion.
+    /// Full owners observed in all mark batches for whole-snapshot uniqueness.
+    pub mark_owners: Vec<RegionOwner>,
+    /// The one mark batch retained until caller input proves it durable.
     pub mark_entries: Vec<RegionMarks>,
     /// Whether the final chunk has arrived and awaits durable completion.
     pub final_received: bool,
 }
 
-/// The completed snapshot identifier retained for one authenticated origin.
+/// The greatest accepted snapshot identifier retained for one authenticated origin.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RegionSnapshotCursor {
-    /// The origin that completed the snapshot.
+    /// The origin that accepted the snapshot identifier.
     pub origin: RegionPresenceOrigin,
-    /// The greatest completed snapshot identifier for the origin epoch.
+    /// The greatest accepted snapshot identifier for the origin epoch.
     pub snapshot_id: u64,
 }
 
@@ -960,7 +962,7 @@ pub struct RegionSnapshotCursor {
 pub struct RegionSnapshotStagingTable {
     /// At most one active or final-awaiting stage per origin.
     pub stages: Vec<RegionSnapshotStage>,
-    /// The final identifiers used to reject stale or post-completion chunks.
+    /// The high-water identifiers used to reject stale or reused chunks.
     pub cursors: Vec<RegionSnapshotCursor>,
 }
 
@@ -969,8 +971,10 @@ pub struct RegionSnapshotStagingTable {
 pub struct RegionSnapshotStagingCapacity {
     /// The greatest number of member origins tracked by staging state.
     pub maximum_origins: usize,
-    /// The greatest combined count of staged presence and mark records per origin.
+    /// The greatest count of staged presence records per origin.
     pub maximum_entries: usize,
+    /// The greatest count of retained mark-owner identities per origin.
+    pub maximum_mark_owners: usize,
 }
 
 /// Inputs for accepting one incoming SNAPSHOT chunk.
@@ -981,14 +985,14 @@ pub struct RegionSnapshotStagingInput<'a> {
     pub durable_marks: &'a [RegionMarks],
     /// Explicit bounds for caller-owned staging allocations.
     pub capacity: RegionSnapshotStagingCapacity,
-    /// The canonical slot derivation for a full owner.
-    pub slot_for_owner: fn(RegionOwner) -> SlotId,
 }
 
 /// Inputs for finishing a staged snapshot after durable mark persistence.
 pub struct RegionSnapshotCompletionInput<'a> {
-    /// The authenticated origin whose final stage is being completed.
-    pub origin: RegionPresenceOrigin,
+    /// The current authenticated stream that owns the completion callback.
+    pub stream: RegionPresenceStream,
+    /// The snapshot identifier captured with the completion callback.
+    pub snapshot_id: u64,
     /// The mark union after every requested snapshot join has been persisted.
     pub durable_marks: &'a [RegionMarks],
     /// The current paired-channel state used for route eligibility.
@@ -1025,6 +1029,8 @@ pub enum RegionSnapshotDisposition {
     IgnoredInvalidOrigin,
     /// The chunk did not arrive from the current authenticated stream.
     IgnoredStaleStream,
+    /// A durable completion callback named a different active snapshot.
+    IgnoredStaleSnapshotCompletion,
     /// A sender supplied the reserved zero snapshot identifier.
     InvalidSnapshotId,
     /// The first chunk did not start at index zero.
@@ -1039,7 +1045,7 @@ pub enum RegionSnapshotDisposition {
     UnexpectedSnapshotId,
     /// A later chunk changed either captured revision cut.
     ChangedSnapshotCuts,
-    /// A completed snapshot identifier was used again.
+    /// A previously accepted snapshot identifier was used again.
     ChunkAfterCompletion,
     /// A snapshot identifier preceded a completed identifier for the epoch.
     StaleSnapshotId,
@@ -1192,7 +1198,7 @@ pub fn stage_region_snapshot(
         );
     }
 
-    let stage_index = match next_staging
+    let (stage_index, begins_snapshot) = match next_staging
         .stages
         .iter()
         .position(|stage| stage.origin == origin)
@@ -1248,7 +1254,7 @@ pub fn stage_region_snapshot(
                     RegionSnapshotDisposition::SkippedChunkIndex,
                 );
             }
-            index
+            (index, false)
         }
         None => {
             if let Some(cursor) = next_staging
@@ -1298,10 +1304,11 @@ pub fn stage_region_snapshot(
                 marks_revision: snapshot.marks_revision,
                 next_chunk_index: 0,
                 presence_entries: Vec::new(),
+                mark_owners: Vec::new(),
                 mark_entries: Vec::new(),
                 final_received: false,
             });
-            next_staging.stages.len() - 1
+            (next_staging.stages.len() - 1, true)
         }
     };
 
@@ -1334,12 +1341,10 @@ pub fn stage_region_snapshot(
             RegionSnapshotDisposition::Interrupted,
         );
     };
-    let Some(staged_count) = stage
+    let Some(staged_presence_count) = stage
         .presence_entries
         .len()
-        .checked_add(stage.mark_entries.len())
-        .and_then(|count| count.checked_add(snapshot.presence_entries.len()))
-        .and_then(|count| count.checked_add(snapshot.mark_entries.len()))
+        .checked_add(snapshot.presence_entries.len())
     else {
         return invalidate_snapshot(
             &next_table,
@@ -1348,7 +1353,27 @@ pub fn stage_region_snapshot(
             RegionSnapshotDisposition::CapacityExhausted,
         );
     };
-    if staged_count > input.capacity.maximum_entries {
+    if staged_presence_count > input.capacity.maximum_entries {
+        return invalidate_snapshot(
+            &next_table,
+            &next_staging,
+            origin,
+            RegionSnapshotDisposition::CapacityExhausted,
+        );
+    }
+    let Some(staged_mark_owner_count) = stage
+        .mark_owners
+        .len()
+        .checked_add(snapshot.mark_entries.len())
+    else {
+        return invalidate_snapshot(
+            &next_table,
+            &next_staging,
+            origin,
+            RegionSnapshotDisposition::CapacityExhausted,
+        );
+    };
+    if staged_mark_owner_count > input.capacity.maximum_mark_owners {
         return invalidate_snapshot(
             &next_table,
             &next_staging,
@@ -1374,11 +1399,15 @@ pub fn stage_region_snapshot(
                 RegionSnapshotDisposition::InvalidPresenceRevision,
             );
         }
-        let owner = RegionOwner {
-            network_id: presence.network_id,
-            identity: presence.identity,
+        let Ok(slot) = derive_slot_id(&presence.network_id, &presence.identity) else {
+            return invalidate_snapshot(
+                &next_table,
+                &next_staging,
+                origin,
+                RegionSnapshotDisposition::InvalidPresenceSlot,
+            );
         };
-        if presence.slot != (input.slot_for_owner)(owner) {
+        if presence.slot != slot {
             return invalidate_snapshot(
                 &next_table,
                 &next_staging,
@@ -1410,16 +1439,26 @@ pub fn stage_region_snapshot(
         }
     }
     for marks in &snapshot.mark_entries {
-        if stage
+        let owner = RegionOwner {
+            network_id: marks.network_id,
+            identity: marks.identity,
+        };
+        if stage.mark_owners.iter().any(|candidate| {
+            same_region_owner(
+                candidate.network_id,
+                candidate.identity,
+                owner.network_id,
+                owner.identity,
+            )
+        }) || snapshot
             .mark_entries
             .iter()
-            .chain(snapshot.mark_entries.iter())
             .filter(|candidate| {
                 same_region_owner(
                     candidate.network_id,
                     candidate.identity,
-                    marks.network_id,
-                    marks.identity,
+                    owner.network_id,
+                    owner.identity,
                 )
             })
             .count()
@@ -1442,9 +1481,9 @@ pub fn stage_region_snapshot(
         );
     }
 
-    if !snapshot.mark_entries.is_empty()
-        && !snapshot_marks_are_durable(&stage.mark_entries, input.durable_marks)
-    {
+    let prior_mark_batch_is_durable =
+        snapshot_marks_are_durable(&stage.mark_entries, input.durable_marks);
+    if !snapshot.mark_entries.is_empty() && !prior_mark_batch_is_durable {
         return RegionSnapshotDecision {
             table: next_table,
             staging: next_staging,
@@ -1465,42 +1504,53 @@ pub fn stage_region_snapshot(
         }
     };
 
-    let Some(stage) = next_staging.stages.get_mut(stage_index) else {
-        return invalidate_snapshot(
-            &next_table,
-            &next_staging,
-            origin,
-            RegionSnapshotDisposition::Interrupted,
-        );
-    };
-    stage
-        .presence_entries
-        .extend_from_slice(&snapshot.presence_entries);
-    stage.mark_entries.extend_from_slice(&snapshot.mark_entries);
-    if snapshot.more {
-        let Some(next_index) = snapshot.chunk_index.checked_add(1) else {
+    let disposition = {
+        let Some(stage) = next_staging.stages.get_mut(stage_index) else {
             return invalidate_snapshot(
                 &next_table,
                 &next_staging,
                 origin,
-                RegionSnapshotDisposition::ChunkIndexExhausted,
+                RegionSnapshotDisposition::Interrupted,
             );
         };
-        stage.next_chunk_index = next_index;
-        return RegionSnapshotDecision {
-            table: next_table,
-            staging: next_staging,
-            effects,
-            disposition: RegionSnapshotDisposition::Staged,
-        };
+        if prior_mark_batch_is_durable {
+            stage.mark_entries.clear();
+        }
+        stage
+            .presence_entries
+            .extend_from_slice(&snapshot.presence_entries);
+        stage
+            .mark_owners
+            .extend(snapshot.mark_entries.iter().map(|marks| RegionOwner {
+                network_id: marks.network_id,
+                identity: marks.identity,
+            }));
+        stage.mark_entries.extend_from_slice(&snapshot.mark_entries);
+        if snapshot.more {
+            let Some(next_index) = snapshot.chunk_index.checked_add(1) else {
+                return invalidate_snapshot(
+                    &next_table,
+                    &next_staging,
+                    origin,
+                    RegionSnapshotDisposition::ChunkIndexExhausted,
+                );
+            };
+            stage.next_chunk_index = next_index;
+            RegionSnapshotDisposition::Staged
+        } else {
+            stage.final_received = true;
+            RegionSnapshotDisposition::AwaitingDurableMarks
+        }
+    };
+    if begins_snapshot {
+        record_snapshot_cursor(&mut next_staging, origin, snapshot.snapshot_id);
     }
 
-    stage.final_received = true;
     RegionSnapshotDecision {
         table: next_table,
         staging: next_staging,
         effects,
-        disposition: RegionSnapshotDisposition::AwaitingDurableMarks,
+        disposition,
     }
 }
 
@@ -1511,17 +1561,25 @@ pub fn complete_region_snapshot(
     staging: &RegionSnapshotStagingTable,
     input: RegionSnapshotCompletionInput<'_>,
 ) -> RegionSnapshotDecision {
-    if !valid_region_member(input.origin.member_id) {
+    if !valid_region_member(input.stream.origin.member_id) {
         return unchanged_snapshot_decision(
             table,
             staging,
             RegionSnapshotDisposition::IgnoredInvalidOrigin,
         );
     }
+    if !input.stream.is_current {
+        return unchanged_snapshot_decision(
+            table,
+            staging,
+            RegionSnapshotDisposition::IgnoredStaleStream,
+        );
+    }
+    let origin = input.stream.origin;
     let Some(stage_index) = staging
         .stages
         .iter()
-        .position(|stage| stage.origin == input.origin)
+        .position(|stage| stage.origin == origin)
     else {
         return unchanged_snapshot_decision(
             table,
@@ -1536,6 +1594,13 @@ pub fn complete_region_snapshot(
             RegionSnapshotDisposition::MissingSnapshot,
         );
     };
+    if stage.snapshot_id != input.snapshot_id {
+        return unchanged_snapshot_decision(
+            table,
+            staging,
+            RegionSnapshotDisposition::IgnoredStaleSnapshotCompletion,
+        );
+    }
     if !stage.final_received {
         return unchanged_snapshot_decision(
             table,
@@ -1544,25 +1609,19 @@ pub fn complete_region_snapshot(
         );
     }
     if table.origins.iter().any(|state| {
-        state.origin.member_id == input.origin.member_id
-            && state.origin.boot_epoch != input.origin.boot_epoch
+        state.origin.member_id == origin.member_id && state.origin.boot_epoch != origin.boot_epoch
     }) {
-        let mut next_staging = staging.clone();
-        next_staging
-            .stages
-            .retain(|candidate| candidate.origin != input.origin);
-        return RegionSnapshotDecision {
-            table: table.clone(),
-            staging: next_staging,
-            effects: Vec::new(),
-            disposition: RegionSnapshotDisposition::IgnoredStaleStream,
-        };
+        return unchanged_snapshot_decision(
+            table,
+            staging,
+            RegionSnapshotDisposition::IgnoredStaleStream,
+        );
     }
     if !snapshot_marks_are_durable(&stage.mark_entries, input.durable_marks) {
         return invalidate_snapshot(
             table,
             staging,
-            input.origin,
+            origin,
             RegionSnapshotDisposition::DurableMarksNotPersisted,
         );
     }
@@ -1574,22 +1633,22 @@ pub fn complete_region_snapshot(
         return invalidate_snapshot(
             table,
             staging,
-            input.origin,
+            origin,
             RegionSnapshotDisposition::IncompatiblePresence,
         );
     }
 
     let mut next_table = table.clone();
-    require_snapshot(&mut next_table, input.origin);
+    require_snapshot(&mut next_table, origin);
     let Some(state) = next_table
         .origins
         .iter_mut()
-        .find(|state| state.origin == input.origin)
+        .find(|state| state.origin == origin)
     else {
         return invalidate_snapshot(
             table,
             staging,
-            input.origin,
+            origin,
             RegionSnapshotDisposition::Interrupted,
         );
     };
@@ -1597,7 +1656,7 @@ pub fn complete_region_snapshot(
         return invalidate_snapshot(
             table,
             staging,
-            input.origin,
+            origin,
             RegionSnapshotDisposition::CutRegression,
         );
     }
@@ -1605,12 +1664,12 @@ pub fn complete_region_snapshot(
     state.snapshot_required = false;
     next_table
         .entries
-        .retain(|entry| entry.session.origin != input.origin);
+        .retain(|entry| entry.session.origin != origin);
 
     for presence in &stage.presence_entries {
         let candidate = RegionPresenceRecord {
             session: RegionPresenceSession {
-                origin: input.origin,
+                origin,
                 presence: *presence,
             },
             eligible: false,
@@ -1625,7 +1684,7 @@ pub fn complete_region_snapshot(
                 return invalidate_snapshot(
                     table,
                     staging,
-                    input.origin,
+                    origin,
                     RegionSnapshotDisposition::CapacityExhausted,
                 );
             }
@@ -1650,12 +1709,12 @@ pub fn complete_region_snapshot(
     if let Some(cursor) = next_staging
         .cursors
         .iter_mut()
-        .find(|cursor| cursor.origin == input.origin)
+        .find(|cursor| cursor.origin == origin)
     {
-        cursor.snapshot_id = stage.snapshot_id;
+        cursor.snapshot_id = cursor.snapshot_id.max(stage.snapshot_id);
     } else {
         next_staging.cursors.push(RegionSnapshotCursor {
-            origin: input.origin,
+            origin,
             snapshot_id: stage.snapshot_id,
         });
     }
@@ -1718,6 +1777,25 @@ fn clear_other_snapshot_epochs(
     staging
         .cursors
         .retain(|cursor| cursor.origin.member_id != origin.member_id || cursor.origin == origin);
+}
+
+fn record_snapshot_cursor(
+    staging: &mut RegionSnapshotStagingTable,
+    origin: RegionPresenceOrigin,
+    snapshot_id: u64,
+) {
+    if let Some(cursor) = staging
+        .cursors
+        .iter_mut()
+        .find(|cursor| cursor.origin == origin)
+    {
+        cursor.snapshot_id = cursor.snapshot_id.max(snapshot_id);
+    } else {
+        staging.cursors.push(RegionSnapshotCursor {
+            origin,
+            snapshot_id,
+        });
+    }
 }
 
 fn require_snapshot(table: &mut RegionPresenceTable, origin: RegionPresenceOrigin) {

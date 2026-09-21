@@ -1,12 +1,9 @@
 use keynet_proto::{
-    RegionMarks, RegionOwner, RegionPresenceOrigin, RegionPresenceStream, RegionPresenceTable,
-    RegionSnapshot, RegionSnapshotDisposition, RegionSnapshotStagingCapacity,
-    RegionSnapshotStagingInput, RegionSnapshotStagingTable, stage_region_snapshot,
+    RegionMarks, RegionPresenceCapacity, RegionPresenceChannels, RegionPresenceOrigin,
+    RegionPresenceStream, RegionPresenceTable, RegionSnapshot, RegionSnapshotCompletionInput,
+    RegionSnapshotDisposition, RegionSnapshotStagingCapacity, RegionSnapshotStagingInput,
+    RegionSnapshotStagingTable, complete_region_snapshot, stage_region_snapshot,
 };
-
-fn slot_for_owner(_: RegionOwner) -> [u8; 16] {
-    [0; 16]
-}
 
 fn mark(index: u16) -> RegionMarks {
     let mut identity = [0; 32];
@@ -35,8 +32,8 @@ fn input(
         capacity: RegionSnapshotStagingCapacity {
             maximum_origins: 15,
             maximum_entries: 10_000,
+            maximum_mark_owners: 10_000,
         },
-        slot_for_owner,
     }
 }
 
@@ -90,6 +87,55 @@ fn persisted_mark_batches_do_not_accumulate_in_snapshot_staging() -> Result<(), 
         return Err(format!(
             "snapshot staging retained {retained} mark records after the first batch was durable"
         ));
+    }
+    let channels = [RegionPresenceChannels {
+        origin,
+        control_up: true,
+        data_up: true,
+    }];
+    let incomplete = complete_region_snapshot(
+        &second.table,
+        &second.staging,
+        RegionSnapshotCompletionInput {
+            stream: RegionPresenceStream {
+                origin,
+                is_current: true,
+            },
+            snapshot_id: 1,
+            durable_marks: &first_batch,
+            channel_states: &channels,
+            capacity: RegionPresenceCapacity {
+                maximum_entries: 10_000,
+            },
+        },
+    );
+    if incomplete.disposition != RegionSnapshotDisposition::DurableMarksNotPersisted {
+        return Err("final completion accepted an undurable snapshot cut".to_owned());
+    }
+    Ok(())
+}
+
+#[test]
+fn drained_mark_owners_remain_unique_across_the_snapshot() -> Result<(), String> {
+    let origin = RegionPresenceOrigin {
+        member_id: 2,
+        boot_epoch: 9,
+    };
+    let first_mark = mark(1);
+    let first = stage_region_snapshot(
+        &RegionPresenceTable::default(),
+        &RegionSnapshotStagingTable::default(),
+        snapshot(0, vec![first_mark], true),
+        input(origin, &[]),
+    );
+    let duplicate = stage_region_snapshot(
+        &first.table,
+        &first.staging,
+        snapshot(1, vec![first_mark], false),
+        input(origin, &[first_mark]),
+    );
+    if duplicate.disposition != RegionSnapshotDisposition::DuplicateMarkOwner {
+        return Err("a drained mark owner was accepted twice in one snapshot".to_owned());
     }
     Ok(())
 }

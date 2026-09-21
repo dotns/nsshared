@@ -1,12 +1,8 @@
 use keynet_proto::{
-    RegionCarrier, RegionOwner, RegionPresence, RegionPresenceOrigin, RegionPresenceStream,
-    RegionPresenceTable, RegionSnapshot, RegionSnapshotDisposition, RegionSnapshotStagingCapacity,
+    RegionCarrier, RegionPresence, RegionPresenceOrigin, RegionPresenceStream, RegionPresenceTable,
+    RegionSnapshot, RegionSnapshotDisposition, RegionSnapshotStagingCapacity,
     RegionSnapshotStagingInput, RegionSnapshotStagingTable, derive_slot_id, stage_region_snapshot,
 };
-
-fn accept_claimed_slot(_: RegionOwner) -> [u8; 16] {
-    [0xaa; 16]
-}
 
 #[test]
 fn snapshot_slot_validation_uses_the_protocol_derivation() -> Result<(), String> {
@@ -53,8 +49,8 @@ fn snapshot_slot_validation_uses_the_protocol_derivation() -> Result<(), String>
             capacity: RegionSnapshotStagingCapacity {
                 maximum_origins: 15,
                 maximum_entries: 10_000,
+                maximum_mark_owners: 10_000,
             },
-            slot_for_owner: accept_claimed_slot,
         },
     );
 

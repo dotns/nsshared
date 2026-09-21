@@ -6,7 +6,7 @@ use keynet_proto::{
     RegionSnapshotCompletionInput, RegionSnapshotDisposition, RegionSnapshotEffect,
     RegionSnapshotStage, RegionSnapshotStagingCapacity, RegionSnapshotStagingInput,
     RegionSnapshotStagingTable, begin_region_snapshot_control, complete_region_snapshot,
-    decide_region_presence, interrupt_region_snapshot, stage_region_snapshot,
+    decide_region_presence, derive_slot_id, interrupt_region_snapshot, stage_region_snapshot,
 };
 use std::{collections::BTreeMap, fs, path::PathBuf};
 
@@ -182,10 +182,7 @@ fn gone_for(presence: RegionPresence, revision: u64) -> RegionGone {
 }
 
 fn snapshot_slot(owner: RegionOwner) -> [u8; 16] {
-    let mut slot = [0; 16];
-    slot[..8].copy_from_slice(&owner.network_id[..8]);
-    slot[8..].copy_from_slice(&owner.identity[..8]);
-    slot
+    derive_slot_id(&owner.network_id, &owner.identity).map_or([0; 16], |slot| slot)
 }
 
 fn snapshot_input<'a>(
@@ -198,18 +195,20 @@ fn snapshot_input<'a>(
         capacity: RegionSnapshotStagingCapacity {
             maximum_origins: 16,
             maximum_entries: 16,
+            maximum_mark_owners: 16,
         },
-        slot_for_owner: snapshot_slot,
     }
 }
 
 fn snapshot_completion_input<'a>(
     origin: RegionPresenceOrigin,
+    snapshot_id: u64,
     durable_marks: &'a [RegionMarks],
     channel_states: &'a [RegionPresenceChannels],
 ) -> RegionSnapshotCompletionInput<'a> {
     RegionSnapshotCompletionInput {
-        origin,
+        stream: current_stream(origin),
+        snapshot_id,
         durable_marks,
         channel_states,
         capacity: RegionPresenceCapacity {
@@ -324,7 +323,7 @@ fn empty_snapshot_completes_only_after_durable_finalization() -> Result<(), Stri
     let completed = complete_region_snapshot(
         &staged.table,
         &staged.staging,
-        snapshot_completion_input(authenticated, &[], &channel_states),
+        snapshot_completion_input(authenticated, 1, &[], &channel_states),
     );
     if completed.disposition != RegionSnapshotDisposition::Completed
         || !completed.table.entries.is_empty()
@@ -371,7 +370,7 @@ fn snapshot_stages_contiguous_chunks_before_replacing_one_origin() -> Result<(),
     let incomplete = complete_region_snapshot(
         &first.table,
         &first.staging,
-        snapshot_completion_input(incoming, &initial_marks, &channel_states),
+        snapshot_completion_input(incoming, 7, &initial_marks, &channel_states),
     );
     if incomplete.disposition != RegionSnapshotDisposition::IncompleteSnapshot
         || incomplete.table != first.table
@@ -397,7 +396,7 @@ fn snapshot_stages_contiguous_chunks_before_replacing_one_origin() -> Result<(),
     let completed = complete_region_snapshot(
         &final_chunk.table,
         &final_chunk.staging,
-        snapshot_completion_input(incoming, &persisted_marks, &channel_states),
+        snapshot_completion_input(incoming, 7, &persisted_marks, &channel_states),
     );
     if completed.disposition != RegionSnapshotDisposition::Completed
         || entry_for_owner(&completed.table, 0x22)?.session.presence != replacement
@@ -577,6 +576,7 @@ fn changed_or_noncontiguous_chunks_discard_partial_presence() -> Result<(), Stri
             marks_revision: 8,
             next_chunk_index: u32::MAX,
             presence_entries: Vec::new(),
+            mark_owners: Vec::new(),
             mark_entries: Vec::new(),
             final_received: false,
         }],
@@ -746,7 +746,7 @@ fn interruption_reconnect_and_completed_ids_require_a_fresh_snapshot() -> Result
     let completed = complete_region_snapshot(
         &fresh.table,
         &fresh.staging,
-        snapshot_completion_input(authenticated, &[], &channels),
+        snapshot_completion_input(authenticated, 10, &[], &channels),
     );
     let repeated = stage_region_snapshot(
         &completed.table,
@@ -822,12 +822,12 @@ fn snapshot_capacity_and_floor_failures_are_explicit_and_route_closed() -> Resul
     let missing_marks = complete_region_snapshot(
         &staged.table,
         &staged.staging,
-        snapshot_completion_input(authenticated, &[], &channels),
+        snapshot_completion_input(authenticated, 2, &[], &channels),
     );
     let floor_rejected = complete_region_snapshot(
         &staged.table,
         &staged.staging,
-        snapshot_completion_input(authenticated, &[joined_mark], &channels),
+        snapshot_completion_input(authenticated, 2, &[joined_mark], &channels),
     );
     if staged.disposition != RegionSnapshotDisposition::AwaitingDurableMarks
         || missing_marks.disposition != RegionSnapshotDisposition::DurableMarksNotPersisted

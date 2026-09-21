@@ -1,14 +1,10 @@
 use keynet_proto::{
-    RegionMarks, RegionOwner, RegionPresenceCapacity, RegionPresenceChannels, RegionPresenceOrigin,
+    RegionMarks, RegionPresenceCapacity, RegionPresenceChannels, RegionPresenceOrigin,
     RegionPresenceStream, RegionPresenceTable, RegionSnapshot, RegionSnapshotCompletionInput,
     RegionSnapshotDisposition, RegionSnapshotStagingCapacity, RegionSnapshotStagingInput,
     RegionSnapshotStagingTable, begin_region_snapshot_control, complete_region_snapshot,
     interrupt_region_snapshot, stage_region_snapshot,
 };
-
-fn slot_for_owner(_: RegionOwner) -> [u8; 16] {
-    [0; 16]
-}
 
 fn mark(identity: u8) -> RegionMarks {
     RegionMarks {
@@ -35,8 +31,8 @@ fn staging_input(
         capacity: RegionSnapshotStagingCapacity {
             maximum_origins: 15,
             maximum_entries: 10_000,
+            maximum_mark_owners: 10_000,
         },
-        slot_for_owner,
     }
 }
 
@@ -98,7 +94,11 @@ fn delayed_completion_cannot_invalidate_a_reconnected_snapshot() -> Result<(), S
         &current.table,
         &current.staging,
         RegionSnapshotCompletionInput {
-            origin,
+            stream: RegionPresenceStream {
+                origin,
+                is_current: true,
+            },
+            snapshot_id: 1,
             durable_marks: &[old_mark],
             channel_states: &channels,
             capacity: RegionPresenceCapacity {
@@ -107,8 +107,32 @@ fn delayed_completion_cannot_invalidate_a_reconnected_snapshot() -> Result<(), S
         },
     );
 
-    if delayed_old_completion.staging != current.staging {
+    if delayed_old_completion.disposition
+        != RegionSnapshotDisposition::IgnoredStaleSnapshotCompletion
+        || delayed_old_completion.staging != current.staging
+    {
         return Err("an old persistence completion discarded the reconnected snapshot".to_owned());
+    }
+    let stale_stream_completion = complete_region_snapshot(
+        &current.table,
+        &current.staging,
+        RegionSnapshotCompletionInput {
+            stream: RegionPresenceStream {
+                origin,
+                is_current: false,
+            },
+            snapshot_id: 2,
+            durable_marks: &[new_mark],
+            channel_states: &channels,
+            capacity: RegionPresenceCapacity {
+                maximum_entries: 160_000,
+            },
+        },
+    );
+    if stale_stream_completion.disposition != RegionSnapshotDisposition::IgnoredStaleStream
+        || stale_stream_completion.staging != current.staging
+    {
+        return Err("a stale stream completion changed the active snapshot".to_owned());
     }
     Ok(())
 }

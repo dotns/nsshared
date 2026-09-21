@@ -27,6 +27,19 @@ changed durable-mark joins immediately. A later mark-bearing chunk is refused
 until caller-owned durable marks prove the prior batch durable; neither path
 publishes routes.
 
+Retain full mark records only for the one batch awaiting durable proof. Once a
+later valid input proves that batch durable, discard those records and retain
+only a separately bounded full-owner index for duplicate detection across the
+snapshot. Keep staged presence under its own bound. Completion validates the
+remaining batch and the already-proved prefix, rather than relying on an
+unbounded in-memory mark union.
+
+Use the protocol slot derivation directly for every staged presence. Require a
+completion callback to name the current authenticated stream and exact
+snapshot id, returning unchanged state for a stale callback. Record the
+greatest accepted snapshot id when a transfer begins and preserve it across
+interruption and reconnect until the origin boot epoch changes.
+
 Add a completion decision that accepts only marks which already include every
 requested durable join, validates staged presence against those resulting
 floors, and then replaces the completed origin's presence while preserving
@@ -45,7 +58,8 @@ Completion must not make staged entries eligible before the caller has
 persisted every returned mark join. A mark-bearing continuation must not grow
 staging before the prior batch drains. Capacity checks must precede
 staged-vector growth. A snapshot origin must not erase another origin's
-published presence.
+published presence. A stale completion must never invalidate a replacement
+stage, and an abandoned snapshot identifier must not become reusable.
 
 ## Scope
 
@@ -75,5 +89,19 @@ did not request durable persistence while routes remained closed`. It passes
 with immediate mark join effects, unchanged staging under batch backpressure,
 and caller-owned durable floors retained after invalidation.
 
+The focused refutations were run before the corrected model:
+`persisted_mark_batches_do_not_accumulate_in_snapshot_staging` reported
+`snapshot staging retained 257 mark records after the first batch was durable`;
+`snapshot_slot_validation_uses_the_protocol_derivation` reported
+`noncanonical slot was accepted with disposition AwaitingDurableMarks`;
+`delayed_completion_cannot_invalidate_a_reconnected_snapshot` reported
+`an old persistence completion discarded the reconnected snapshot`; and
+`an_abandoned_snapshot_id_cannot_be_reused_after_reconnect` reported
+`an abandoned snapshot id was accepted after reconnect`.
+
 Formatting, warning-denied workspace linting, and the locked package test run
 passed. The package test run executed 136 tests with zero skipped.
+
+The corrected refutation targets, region presence suite, release inventories,
+format check, warning-denied workspace lint, and locked package test run
+passed. The package test run executed 141 tests with zero skipped or ignored.

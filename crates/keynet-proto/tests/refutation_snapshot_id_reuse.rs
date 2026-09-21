@@ -1,13 +1,9 @@
 use keynet_proto::{
-    RegionOwner, RegionPresenceOrigin, RegionPresenceStream, RegionPresenceTable, RegionSnapshot,
+    RegionPresenceOrigin, RegionPresenceStream, RegionPresenceTable, RegionSnapshot,
     RegionSnapshotDisposition, RegionSnapshotStagingCapacity, RegionSnapshotStagingInput,
     RegionSnapshotStagingTable, begin_region_snapshot_control, interrupt_region_snapshot,
     stage_region_snapshot,
 };
-
-fn slot_for_owner(_: RegionOwner) -> [u8; 16] {
-    [0; 16]
-}
 
 fn input(origin: RegionPresenceOrigin) -> RegionSnapshotStagingInput<'static> {
     RegionSnapshotStagingInput {
@@ -19,8 +15,8 @@ fn input(origin: RegionPresenceOrigin) -> RegionSnapshotStagingInput<'static> {
         capacity: RegionSnapshotStagingCapacity {
             maximum_origins: 15,
             maximum_entries: 10_000,
+            maximum_mark_owners: 10_000,
         },
-        slot_for_owner,
     }
 }
 
@@ -64,6 +60,18 @@ fn an_abandoned_snapshot_id_cannot_be_reused_after_reconnect() -> Result<(), Str
         chunk(7, false),
         input(origin),
     );
+    let stale = stage_region_snapshot(
+        &restarted.table,
+        &restarted.staging,
+        chunk(6, false),
+        input(origin),
+    );
+    let fresh = stage_region_snapshot(
+        &restarted.table,
+        &restarted.staging,
+        chunk(8, false),
+        input(origin),
+    );
 
     if reused.disposition == RegionSnapshotDisposition::AwaitingDurableMarks {
         return Err("an abandoned snapshot id was accepted after reconnect".to_owned());
@@ -75,6 +83,13 @@ fn an_abandoned_snapshot_id_cannot_be_reused_after_reconnect() -> Result<(), Str
         .any(|state| state.origin == origin && !state.snapshot_required)
     {
         return Err("reused snapshot id restored synchronization".to_owned());
+    }
+    if stale.disposition != RegionSnapshotDisposition::StaleSnapshotId
+        || fresh.disposition != RegionSnapshotDisposition::AwaitingDurableMarks
+    {
+        return Err(
+            "fresh snapshot ids did not advance past the abandoned high-water mark".to_owned(),
+        );
     }
     Ok(())
 }
