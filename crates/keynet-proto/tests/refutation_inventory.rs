@@ -45,6 +45,7 @@ fn r1_empty_vector_families_must_be_rejected() -> Result<(), String> {
             "name_records.vec",
             "region_frames.vec",
             "region_marks.vec",
+            "region_presence.vec",
             "relay_revocation.vec",
         ] {
             fs::write(temp.join(name), "").map_err(|error| error.to_string())?;
@@ -250,6 +251,42 @@ fn region_marks_fixture_and_case_inventory_must_be_exact() -> Result<(), String>
         let path = temp.join("region_marks.vec");
         let original = fs::read_to_string(&path).map_err(|error| error.to_string())?;
         let updated = original.replacen("case=permutations\n", "case=unlisted\n", 1);
+        fs::write(path, updated).map_err(|error| error.to_string())
+    })
+}
+
+#[test]
+fn region_presence_fixture_and_case_inventory_must_be_exact() -> Result<(), String> {
+    altered_inventory("missing-region-presence-fixture", |temp| {
+        fs::remove_file(temp.join("region_presence.vec")).map_err(|error| error.to_string())?;
+        let manifest_path = temp.join("manifest.txt");
+        let manifest = fs::read_to_string(&manifest_path).map_err(|error| error.to_string())?;
+        let updated = manifest
+            .lines()
+            .filter(|line| !line.starts_with("file=region_presence.vec|"))
+            .map(|line| {
+                if line == "data_file_count=15" {
+                    "data_file_count=14"
+                } else {
+                    line
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(manifest_path, format!("{updated}\n")).map_err(|error| error.to_string())
+    })?;
+    altered_inventory("empty-region-presence-fixture", |temp| {
+        fs::write(temp.join("region_presence.vec"), "").map_err(|error| error.to_string())
+    })?;
+    altered_inventory("duplicate-region-presence-case", |temp| {
+        let path = temp.join("region_presence.vec");
+        let original = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+        fs::write(path, format!("{original}\n{original}")).map_err(|error| error.to_string())
+    })?;
+    altered_inventory("unlisted-region-presence-case", |temp| {
+        let path = temp.join("region_presence.vec");
+        let original = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+        let updated = original.replacen("case=origin_ownership\n", "case=unlisted\n", 1);
         fs::write(path, updated).map_err(|error| error.to_string())
     })
 }

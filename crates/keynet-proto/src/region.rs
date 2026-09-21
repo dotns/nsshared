@@ -365,6 +365,502 @@ pub fn join_region_marks(
     })
 }
 
+/// An authenticated origin identity for one region-member process epoch.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub struct RegionPresenceOrigin {
+    /// The configured member identifier for the authenticated mesh peer.
+    pub member_id: u8,
+    /// The peer process epoch authenticated by the current mesh stream.
+    pub boot_epoch: u64,
+}
+
+/// A presence session together with its authenticated origin identity.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RegionPresenceSession {
+    /// The authenticated member and process epoch that own this session.
+    pub origin: RegionPresenceOrigin,
+    /// The origin-owned session announced in a PRESENT frame.
+    pub presence: RegionPresence,
+}
+
+/// A retained origin-owned presence entry and its current routing eligibility.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RegionPresenceRecord {
+    /// The origin-owned relay session.
+    pub session: RegionPresenceSession,
+    /// Whether the session is currently usable for routing.
+    pub eligible: bool,
+    /// Whether the entry is being retained only during a disconnected-peer grace period.
+    pub grace_cached: bool,
+}
+
+/// The scalar revision and synchronization state retained for one origin epoch.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RegionPresenceOriginState {
+    /// The authenticated origin epoch described by this state.
+    pub origin: RegionPresenceOrigin,
+    /// The greatest accepted PRESENT or GONE revision from this origin epoch.
+    pub revision_high_water: u64,
+    /// Whether a completed snapshot is required before the epoch can supply usable routes.
+    pub snapshot_required: bool,
+}
+
+/// The complete explicit input and output table for region-presence decisions.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct RegionPresenceTable {
+    /// The one selected presence record for each full owner.
+    pub entries: Vec<RegionPresenceRecord>,
+    /// The per-member origin epoch and revision state.
+    pub origins: Vec<RegionPresenceOriginState>,
+}
+
+/// The authenticated-stream status supplied to a region-presence decision.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RegionPresenceStream {
+    /// The authenticated member and boot epoch for the event source.
+    pub origin: RegionPresenceOrigin,
+    /// Whether this stream is still the current authenticated stream for its origin.
+    pub is_current: bool,
+}
+
+/// The two mesh channels required for a peer's presence to be forwardable.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RegionPresenceChannels {
+    /// The member and boot epoch of the current authenticated channel pair.
+    pub origin: RegionPresenceOrigin,
+    /// Whether the current control channel is up.
+    pub control_up: bool,
+    /// Whether the current data channel is up.
+    pub data_up: bool,
+}
+
+/// The explicit retained-presence capacity applied by a decision.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RegionPresenceCapacity {
+    /// The maximum number of retained selected presence entries.
+    pub maximum_entries: usize,
+}
+
+/// An event accepted from an authenticated region control stream.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RegionPresenceEvent {
+    /// A current active session announcement.
+    Present(RegionPresence),
+    /// An exact active-session retirement announcement.
+    Gone(RegionGone),
+}
+
+impl RegionPresenceEvent {
+    const fn boot_epoch(self) -> u64 {
+        match self {
+            Self::Present(presence) => presence.boot_epoch,
+            Self::Gone(gone) => gone.boot_epoch,
+        }
+    }
+
+    const fn revision(self) -> u64 {
+        match self {
+            Self::Present(presence) => presence.revision,
+            Self::Gone(gone) => gone.revision,
+        }
+    }
+}
+
+/// The explicit inputs that constrain a region-presence decision.
+pub struct RegionPresenceInput<'a> {
+    /// The current authenticated stream that delivered the event.
+    pub stream: RegionPresenceStream,
+    /// The complete retained durable mark union used to filter presence.
+    pub durable_marks: &'a [RegionMarks],
+    /// The current control/data state for each authenticated member pair.
+    pub channel_states: &'a [RegionPresenceChannels],
+    /// The retained-presence capacity available to the decision.
+    pub capacity: RegionPresenceCapacity,
+    /// The local member identifier, used only to emit local supersession effects.
+    pub local_member_id: u8,
+    /// The next local presence revision available for a mesh-only superseding GONE.
+    pub local_gone_revision: Option<u64>,
+}
+
+/// The result category for a pure region-presence decision.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RegionPresenceDisposition {
+    /// The event was applied to the returned table.
+    Applied,
+    /// The authenticated origin member identifier was outside the configured range.
+    IgnoredInvalidOrigin,
+    /// The event did not arrive from the origin's current authenticated stream.
+    IgnoredStaleStream,
+    /// The event revision was zero or did not exceed the origin high-water revision.
+    IgnoredStaleRevision,
+    /// The origin has no completed snapshot and cannot yet supply a usable route.
+    AwaitingSnapshot,
+    /// A different boot epoch invalidated the prior origin routes and now needs a snapshot.
+    ReplacedEpoch,
+    /// A new selected presence would exceed the explicit capacity.
+    CapacityExhausted,
+    /// Local supersession could not emit a strictly newer mesh-only GONE.
+    MissingLocalRetirementRevision,
+}
+
+/// A local action required after deterministic presence supersession.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RegionPresenceEffect {
+    /// Stop authenticated acknowledgments for the retired local session.
+    StopAuthenticatedAcknowledgments(RegionPresenceSession),
+    /// Stop forwarding through the retired local session.
+    StopForwarding(RegionPresenceSession),
+    /// Drop output queued for the retired local session.
+    DropQueuedOutput(RegionPresenceSession),
+    /// Publish a mesh-only GONE with reason superseded; this is not a node STATUS or WSS close.
+    EmitMeshGone(RegionGone),
+}
+
+/// The replacement table, ordered local effects, and disposition of one presence event.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RegionPresenceDecision {
+    /// The complete next presence table.
+    pub table: RegionPresenceTable,
+    /// The local effects required by the decision, in execution order.
+    pub effects: Vec<RegionPresenceEffect>,
+    /// Whether and how the event changed the table.
+    pub disposition: RegionPresenceDisposition,
+}
+
+/// Applies one authenticated presence event without I/O, persistence, or hidden mutable state.
+///
+/// The caller supplies the current table, authenticated origin, durable marks, channel state,
+/// capacity, and local retirement revision. The result retains only selected presence entries;
+/// durable marks are read-only inputs and are never removed by a presence decision.
+#[must_use]
+pub fn decide_region_presence(
+    table: &RegionPresenceTable,
+    event: RegionPresenceEvent,
+    input: RegionPresenceInput<'_>,
+) -> RegionPresenceDecision {
+    if !valid_region_member(input.stream.origin.member_id) {
+        return unchanged_presence_decision(table, RegionPresenceDisposition::IgnoredInvalidOrigin);
+    }
+    if !input.stream.is_current || event.boot_epoch() != input.stream.origin.boot_epoch {
+        return unchanged_presence_decision(table, RegionPresenceDisposition::IgnoredStaleStream);
+    }
+
+    if table.origins.iter().any(|state| {
+        state.origin.member_id == input.stream.origin.member_id
+            && state.origin.boot_epoch != input.stream.origin.boot_epoch
+    }) {
+        let mut next = table.clone();
+        next.entries
+            .retain(|entry| entry.session.origin.member_id != input.stream.origin.member_id);
+        next.origins
+            .retain(|state| state.origin.member_id != input.stream.origin.member_id);
+        next.origins.push(RegionPresenceOriginState {
+            origin: input.stream.origin,
+            revision_high_water: 0,
+            snapshot_required: true,
+        });
+        return RegionPresenceDecision {
+            table: next,
+            effects: Vec::new(),
+            disposition: RegionPresenceDisposition::ReplacedEpoch,
+        };
+    }
+
+    let mut next = table.clone();
+    let Some(origin_index) = next
+        .origins
+        .iter()
+        .position(|state| state.origin == input.stream.origin)
+    else {
+        next.origins.push(RegionPresenceOriginState {
+            origin: input.stream.origin,
+            revision_high_water: 0,
+            snapshot_required: true,
+        });
+        return RegionPresenceDecision {
+            table: next,
+            effects: Vec::new(),
+            disposition: RegionPresenceDisposition::AwaitingSnapshot,
+        };
+    };
+    if next.origins[origin_index].snapshot_required {
+        return unchanged_presence_decision(table, RegionPresenceDisposition::AwaitingSnapshot);
+    }
+    if event.revision() == 0 || event.revision() <= next.origins[origin_index].revision_high_water {
+        return unchanged_presence_decision(table, RegionPresenceDisposition::IgnoredStaleRevision);
+    }
+
+    next.origins[origin_index].revision_high_water = event.revision();
+    refresh_presence_eligibility(&mut next, input.durable_marks, input.channel_states);
+
+    match event {
+        RegionPresenceEvent::Gone(gone) => {
+            next.entries
+                .retain(|entry| !matches_exact_gone(*entry, input.stream.origin, gone));
+            RegionPresenceDecision {
+                table: next,
+                effects: Vec::new(),
+                disposition: RegionPresenceDisposition::Applied,
+            }
+        }
+        RegionPresenceEvent::Present(presence) => {
+            let candidate = RegionPresenceRecord {
+                session: RegionPresenceSession {
+                    origin: input.stream.origin,
+                    presence,
+                },
+                eligible: presence_is_eligible(
+                    RegionPresenceSession {
+                        origin: input.stream.origin,
+                        presence,
+                    },
+                    &next.origins,
+                    input.durable_marks,
+                    input.channel_states,
+                ),
+                grace_cached: false,
+            };
+            let existing_index = next
+                .entries
+                .iter()
+                .position(|entry| same_presence_owner(entry.session.presence, presence));
+            let Some(existing_index) = existing_index else {
+                if next.entries.len() >= input.capacity.maximum_entries {
+                    return RegionPresenceDecision {
+                        table: next,
+                        effects: Vec::new(),
+                        disposition: RegionPresenceDisposition::CapacityExhausted,
+                    };
+                }
+                next.entries.push(candidate);
+                return RegionPresenceDecision {
+                    table: next,
+                    effects: Vec::new(),
+                    disposition: RegionPresenceDisposition::Applied,
+                };
+            };
+
+            let existing = next.entries[existing_index];
+            if existing.session.origin == candidate.session.origin {
+                next.entries[existing_index] = candidate;
+                return RegionPresenceDecision {
+                    table: next,
+                    effects: Vec::new(),
+                    disposition: RegionPresenceDisposition::Applied,
+                };
+            }
+
+            if candidate_wins(existing, candidate) {
+                let effects = if existing.session.origin.member_id == input.local_member_id {
+                    let Some(effects) = local_retirement_effects(
+                        &mut next,
+                        existing.session,
+                        input.local_gone_revision,
+                    ) else {
+                        return unchanged_presence_decision(
+                            table,
+                            RegionPresenceDisposition::MissingLocalRetirementRevision,
+                        );
+                    };
+                    effects
+                } else {
+                    Vec::new()
+                };
+                next.entries[existing_index] = candidate;
+                RegionPresenceDecision {
+                    table: next,
+                    effects,
+                    disposition: RegionPresenceDisposition::Applied,
+                }
+            } else {
+                let effects = if candidate.session.origin.member_id == input.local_member_id {
+                    let Some(effects) = local_retirement_effects(
+                        &mut next,
+                        candidate.session,
+                        input.local_gone_revision,
+                    ) else {
+                        return unchanged_presence_decision(
+                            table,
+                            RegionPresenceDisposition::MissingLocalRetirementRevision,
+                        );
+                    };
+                    effects
+                } else {
+                    Vec::new()
+                };
+                RegionPresenceDecision {
+                    table: next,
+                    effects,
+                    disposition: RegionPresenceDisposition::Applied,
+                }
+            }
+        }
+    }
+}
+
+fn unchanged_presence_decision(
+    table: &RegionPresenceTable,
+    disposition: RegionPresenceDisposition,
+) -> RegionPresenceDecision {
+    RegionPresenceDecision {
+        table: table.clone(),
+        effects: Vec::new(),
+        disposition,
+    }
+}
+
+fn valid_region_member(member_id: u8) -> bool {
+    (1..=16).contains(&member_id)
+}
+
+fn refresh_presence_eligibility(
+    table: &mut RegionPresenceTable,
+    durable_marks: &[RegionMarks],
+    channel_states: &[RegionPresenceChannels],
+) {
+    for entry in &mut table.entries {
+        entry.eligible =
+            presence_is_eligible(entry.session, &table.origins, durable_marks, channel_states);
+    }
+}
+
+fn presence_is_eligible(
+    session: RegionPresenceSession,
+    origins: &[RegionPresenceOriginState],
+    durable_marks: &[RegionMarks],
+    channel_states: &[RegionPresenceChannels],
+) -> bool {
+    origin_is_ready(origins, session.origin)
+        && has_live_channel_pair(channel_states, session.origin)
+        && marks_are_compatible(durable_marks, session.presence)
+}
+
+fn origin_is_ready(origins: &[RegionPresenceOriginState], origin: RegionPresenceOrigin) -> bool {
+    let mut matching = None;
+    for state in origins {
+        if state.origin == origin && matching.replace(!state.snapshot_required).is_some() {
+            return false;
+        }
+    }
+    matching.unwrap_or(false)
+}
+
+fn has_live_channel_pair(
+    channel_states: &[RegionPresenceChannels],
+    origin: RegionPresenceOrigin,
+) -> bool {
+    let mut matching = None;
+    for state in channel_states {
+        if state.origin == origin
+            && matching
+                .replace(state.control_up && state.data_up)
+                .is_some()
+        {
+            return false;
+        }
+    }
+    matching.unwrap_or(false)
+}
+
+fn marks_are_compatible(durable_marks: &[RegionMarks], presence: RegionPresence) -> bool {
+    let mut matching = None;
+    for marks in durable_marks {
+        if marks.network_id == presence.network_id
+            && marks.identity == presence.identity
+            && matching.replace(marks).is_some()
+        {
+            return false;
+        }
+    }
+    let Some(marks) = matching else {
+        return false;
+    };
+    if presence.generation < marks.committed_generation
+        || marks
+            .revoked_through
+            .is_some_and(|revoked| presence.generation <= revoked)
+    {
+        return false;
+    }
+    if presence.generation == marks.committed_generation {
+        !marks.conflicted && presence.incarnation >= marks.incarnation_high_water
+    } else {
+        true
+    }
+}
+
+fn same_presence_owner(left: RegionPresence, right: RegionPresence) -> bool {
+    left.network_id == right.network_id && left.identity == right.identity
+}
+
+fn matches_exact_gone(
+    entry: RegionPresenceRecord,
+    origin: RegionPresenceOrigin,
+    gone: RegionGone,
+) -> bool {
+    let presence = entry.session.presence;
+    entry.session.origin == origin
+        && presence.slot == gone.slot
+        && presence.network_id == gone.network_id
+        && presence.identity == gone.identity
+        && presence.generation == gone.generation
+        && presence.incarnation == gone.incarnation
+        && presence.boot_epoch == gone.boot_epoch
+}
+
+fn candidate_wins(existing: RegionPresenceRecord, candidate: RegionPresenceRecord) -> bool {
+    match (existing.eligible, candidate.eligible) {
+        (false, true) => true,
+        (true, false) | (false, false) => false,
+        (true, true) => {
+            let existing_presence = existing.session.presence;
+            let candidate_presence = candidate.session.presence;
+            candidate_presence.generation > existing_presence.generation
+                || (candidate_presence.generation == existing_presence.generation
+                    && (candidate_presence.incarnation > existing_presence.incarnation
+                        || (candidate_presence.incarnation == existing_presence.incarnation
+                            && candidate.session.origin.member_id
+                                < existing.session.origin.member_id)))
+        }
+    }
+}
+
+fn local_retirement_effects(
+    table: &mut RegionPresenceTable,
+    session: RegionPresenceSession,
+    revision: Option<u64>,
+) -> Option<Vec<RegionPresenceEffect>> {
+    let revision = revision?;
+    if revision == 0 {
+        return None;
+    }
+    let state = table
+        .origins
+        .iter_mut()
+        .find(|state| state.origin == session.origin)?;
+    if revision <= state.revision_high_water {
+        return None;
+    }
+    state.revision_high_water = revision;
+    let presence = session.presence;
+    let gone = RegionGone {
+        slot: presence.slot,
+        network_id: presence.network_id,
+        identity: presence.identity,
+        generation: presence.generation,
+        incarnation: presence.incarnation,
+        reason: RegionGoneReason::Superseded,
+        boot_epoch: presence.boot_epoch,
+        revision,
+    };
+    Some(vec![
+        RegionPresenceEffect::StopAuthenticatedAcknowledgments(session),
+        RegionPresenceEffect::StopForwarding(session),
+        RegionPresenceEffect::DropQueuedOutput(session),
+        RegionPresenceEffect::EmitMeshGone(gone),
+    ])
+}
+
 /// A SNAPSHOT frame body.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RegionSnapshot {
