@@ -215,6 +215,117 @@ fn generation_precedes_incarnation_in_presence_selection() -> Result<(), String>
 }
 
 #[test]
+fn higher_generation_stays_selected_when_its_required_channel_is_down() -> Result<(), String> {
+    fixture_expect("higher_generation_channel_down", "selected-ineligible")?;
+    let local = origin(2, 10);
+    let remote = origin(3, 20);
+    let existing = presence_for(local, 0x22, 0x31, 4, 99, 1);
+    let candidate = presence_for(remote, 0x22, 0x32, 5, 1, 1);
+    let table = table(
+        vec![record(local, existing, false)],
+        vec![state(local, 1), state(remote, 0)],
+    );
+    let durable_marks = [marks(0x22, 4, 0)];
+    let channel_states = [
+        RegionPresenceChannels {
+            origin: local,
+            control_up: true,
+            data_up: true,
+        },
+        RegionPresenceChannels {
+            origin: remote,
+            control_up: true,
+            data_up: false,
+        },
+    ];
+
+    let decision = decide_region_presence(
+        &table,
+        RegionPresenceEvent::Present(candidate),
+        input(
+            current_stream(remote),
+            &durable_marks,
+            &channel_states,
+            2,
+            Some(2),
+        ),
+    );
+    let expected_effects = vec![
+        RegionPresenceEffect::StopAuthenticatedAcknowledgments(RegionPresenceSession {
+            origin: local,
+            presence: existing,
+        }),
+        RegionPresenceEffect::StopForwarding(RegionPresenceSession {
+            origin: local,
+            presence: existing,
+        }),
+        RegionPresenceEffect::DropQueuedOutput(RegionPresenceSession {
+            origin: local,
+            presence: existing,
+        }),
+        RegionPresenceEffect::EmitMeshGone(gone_for(existing, 2)),
+    ];
+    let selected = entry_for_owner(&decision.table, 0x22)?;
+    if selected.session.origin != remote
+        || selected.eligible
+        || decision.effects != expected_effects
+    {
+        return Err("channel eligibility overrode higher-generation selection".to_owned());
+    }
+    Ok(())
+}
+
+#[test]
+fn same_origin_lower_generation_cannot_replace_the_selected_session() -> Result<(), String> {
+    fixture_expect("same_origin_lower_generation", "retired-lower-generation")?;
+    let local = origin(2, 10);
+    let existing = presence_for(local, 0x22, 0x31, 5, 1, 1);
+    let candidate = presence_for(local, 0x22, 0x32, 4, 99, 2);
+    let table = table(vec![record(local, existing, false)], vec![state(local, 1)]);
+    let durable_marks = [marks(0x22, 5, 0)];
+    let channel_states = channels(&[local]);
+
+    let decision = decide_region_presence(
+        &table,
+        RegionPresenceEvent::Present(candidate),
+        input(
+            current_stream(local),
+            &durable_marks,
+            &channel_states,
+            2,
+            Some(3),
+        ),
+    );
+    let expected_effects = vec![
+        RegionPresenceEffect::StopAuthenticatedAcknowledgments(RegionPresenceSession {
+            origin: local,
+            presence: candidate,
+        }),
+        RegionPresenceEffect::StopForwarding(RegionPresenceSession {
+            origin: local,
+            presence: candidate,
+        }),
+        RegionPresenceEffect::DropQueuedOutput(RegionPresenceSession {
+            origin: local,
+            presence: candidate,
+        }),
+        RegionPresenceEffect::EmitMeshGone(gone_for(candidate, 3)),
+    ];
+    let selected = entry_for_owner(&decision.table, 0x22)?;
+    if selected.session
+        != (RegionPresenceSession {
+            origin: local,
+            presence: existing,
+        })
+        || !selected.eligible
+        || decision.effects != expected_effects
+    {
+        return Err("same-origin lower generation replaced the selected session".to_owned());
+    }
+    Ok(())
+}
+
+#[test]
 fn incarnation_precedes_member_id_in_presence_selection() -> Result<(), String> {
     fixture_expect("incarnation_before_member_id", "higher-incarnation")?;
     let lower_id = origin(1, 10);

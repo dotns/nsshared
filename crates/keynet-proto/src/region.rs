@@ -641,58 +641,57 @@ pub fn decide_region_presence(
             };
 
             let existing = next.entries[existing_index];
-            if existing.session.origin == candidate.session.origin {
-                next.entries[existing_index] = candidate;
-                return RegionPresenceDecision {
+            match select_presence(existing, candidate, input.durable_marks) {
+                PresenceSelection::Candidate => {
+                    let effects = if existing.session.origin.member_id == input.local_member_id {
+                        let Some(effects) = local_retirement_effects(
+                            &mut next,
+                            existing.session,
+                            input.local_gone_revision,
+                        ) else {
+                            return unchanged_presence_decision(
+                                table,
+                                RegionPresenceDisposition::MissingLocalRetirementRevision,
+                            );
+                        };
+                        effects
+                    } else {
+                        Vec::new()
+                    };
+                    next.entries[existing_index] = candidate;
+                    RegionPresenceDecision {
+                        table: next,
+                        effects,
+                        disposition: RegionPresenceDisposition::Applied,
+                    }
+                }
+                PresenceSelection::Existing => {
+                    let effects = if candidate.session.origin.member_id == input.local_member_id {
+                        let Some(effects) = local_retirement_effects(
+                            &mut next,
+                            candidate.session,
+                            input.local_gone_revision,
+                        ) else {
+                            return unchanged_presence_decision(
+                                table,
+                                RegionPresenceDisposition::MissingLocalRetirementRevision,
+                            );
+                        };
+                        effects
+                    } else {
+                        Vec::new()
+                    };
+                    RegionPresenceDecision {
+                        table: next,
+                        effects,
+                        disposition: RegionPresenceDisposition::Applied,
+                    }
+                }
+                PresenceSelection::EqualIneligible => RegionPresenceDecision {
                     table: next,
                     effects: Vec::new(),
                     disposition: RegionPresenceDisposition::Applied,
-                };
-            }
-
-            if candidate_wins(existing, candidate) {
-                let effects = if existing.session.origin.member_id == input.local_member_id {
-                    let Some(effects) = local_retirement_effects(
-                        &mut next,
-                        existing.session,
-                        input.local_gone_revision,
-                    ) else {
-                        return unchanged_presence_decision(
-                            table,
-                            RegionPresenceDisposition::MissingLocalRetirementRevision,
-                        );
-                    };
-                    effects
-                } else {
-                    Vec::new()
-                };
-                next.entries[existing_index] = candidate;
-                RegionPresenceDecision {
-                    table: next,
-                    effects,
-                    disposition: RegionPresenceDisposition::Applied,
-                }
-            } else {
-                let effects = if candidate.session.origin.member_id == input.local_member_id {
-                    let Some(effects) = local_retirement_effects(
-                        &mut next,
-                        candidate.session,
-                        input.local_gone_revision,
-                    ) else {
-                        return unchanged_presence_decision(
-                            table,
-                            RegionPresenceDisposition::MissingLocalRetirementRevision,
-                        );
-                    };
-                    effects
-                } else {
-                    Vec::new()
-                };
-                RegionPresenceDecision {
-                    table: next,
-                    effects,
-                    disposition: RegionPresenceDisposition::Applied,
-                }
+                },
             }
         }
     }
@@ -808,20 +807,52 @@ fn matches_exact_gone(
         && presence.boot_epoch == gone.boot_epoch
 }
 
-fn candidate_wins(existing: RegionPresenceRecord, candidate: RegionPresenceRecord) -> bool {
-    match (existing.eligible, candidate.eligible) {
-        (false, true) => true,
-        (true, false) | (false, false) => false,
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum PresenceSelection {
+    Candidate,
+    Existing,
+    EqualIneligible,
+}
+
+fn select_presence(
+    existing: RegionPresenceRecord,
+    candidate: RegionPresenceRecord,
+    durable_marks: &[RegionMarks],
+) -> PresenceSelection {
+    let existing_presence = existing.session.presence;
+    let candidate_presence = candidate.session.presence;
+    if candidate_presence.generation != existing_presence.generation {
+        return if candidate_presence.generation > existing_presence.generation {
+            PresenceSelection::Candidate
+        } else {
+            PresenceSelection::Existing
+        };
+    }
+    if candidate_presence.incarnation != existing_presence.incarnation {
+        return if candidate_presence.incarnation > existing_presence.incarnation {
+            PresenceSelection::Candidate
+        } else {
+            PresenceSelection::Existing
+        };
+    }
+    if existing.session.origin == candidate.session.origin {
+        return PresenceSelection::Candidate;
+    }
+
+    match (
+        marks_are_compatible(durable_marks, existing_presence),
+        marks_are_compatible(durable_marks, candidate_presence),
+    ) {
         (true, true) => {
-            let existing_presence = existing.session.presence;
-            let candidate_presence = candidate.session.presence;
-            candidate_presence.generation > existing_presence.generation
-                || (candidate_presence.generation == existing_presence.generation
-                    && (candidate_presence.incarnation > existing_presence.incarnation
-                        || (candidate_presence.incarnation == existing_presence.incarnation
-                            && candidate.session.origin.member_id
-                                < existing.session.origin.member_id)))
+            if candidate.session.origin.member_id < existing.session.origin.member_id {
+                PresenceSelection::Candidate
+            } else {
+                PresenceSelection::Existing
+            }
         }
+        (true, false) => PresenceSelection::Existing,
+        (false, true) => PresenceSelection::Candidate,
+        (false, false) => PresenceSelection::EqualIneligible,
     }
 }
 

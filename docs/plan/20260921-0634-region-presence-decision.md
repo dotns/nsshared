@@ -11,13 +11,13 @@ The region codec models frames and retained marks but does not yet model the pur
 
 ## Proposal
 
-Introduce a side-effect-free transition with an explicit presence table, authenticated stream, event, retained marks, channel states, capacity, and local retirement revision. It will retain scalar high-water revisions per origin, reject stale streams and revisions, require compatible marks and a live channel pair for eligibility, apply generation then incarnation ordering, and use member id only for equal eligible state. Local supersession produces exactly four mesh-local actions.
+Introduce a side-effect-free transition with an explicit presence table, authenticated stream, event, retained marks, channel states, capacity, and local retirement revision. It retains scalar high-water revisions per origin, rejects stale streams and revisions, selects generation before incarnation regardless of channel eligibility, and uses compatible durable marks and a live channel pair only to determine whether the selected record is eligible. Member id resolves only an equal generation and incarnation with compatible marks. Local supersession produces exactly four mesh-local actions.
 
 Add fixture cases for origin ownership, full-owner collisions, ordering, mark filtering, retirement precision, revision watermarks, stale streams, epoch replacement, local supersession, grace eligibility, and retained floors. Declare the family independently in the fixture loader and release inventory.
 
 ## Risks
 
-The state table must preserve retained marks outside the transition and must not let an ineligible higher-generation record displace an eligible record. Boot epochs must be treated as opaque identities rather than numeric versions.
+The state table must preserve retained marks outside the transition and must keep a higher-generation record selected even when a required channel makes it ineligible. Boot epochs must be treated as opaque identities rather than numeric versions.
 
 ## Scope
 
@@ -29,6 +29,6 @@ Keeping opaque mutable state would hide origin, channel, and capacity inputs and
 
 ## Annotations
 
-The requested change authorizes implementation after this investigation and proposal.
+Separating deterministic session selection from route eligibility prevents temporary channel loss from changing ownership while retaining durable-mark floors as the eligibility boundary.
 
-Implementation completed with a sealed region-presence family, independent loader and release inventory declarations, and pure state-transition coverage for the documented ordering and retirement rules.
+The completed table has a sealed region-presence family, independent loader and release inventory declarations, and pure state-transition coverage for ordering and retirement rules.

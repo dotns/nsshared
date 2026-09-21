@@ -7,7 +7,7 @@ use std::{
 
 const ROOT: &str = "tests/fixtures/keynet-v1";
 const EXPECTED_MANIFEST_SHA256: &str =
-    "067144b050d4238f34bf0ff975b14a10d8c32425a9bf84135f7bcd6cba352e4f";
+    "de37541c2fdd128ec164ce92e6f40bb823719736fa516f62f6c767307333eb40";
 
 const METADATA: &[(&str, &str)] = &[
     ("manifest_format", "keynet-fixture-manifest-v1"),
@@ -65,7 +65,7 @@ const METADATA: &[(&str, &str)] = &[
     ),
     (
         "region_presence_cases",
-        "origin_ownership,full_owner_collision,generation_before_incarnation,incarnation_before_member_id,durable_mark_filtering,member_id_tie_break,exact_gone_removal,revision_high_water,stale_stream,epoch_replacement,local_loser_effects,grace_channel_down,durable_floors_retained,capacity_bound",
+        "origin_ownership,full_owner_collision,generation_before_incarnation,incarnation_before_member_id,durable_mark_filtering,member_id_tie_break,exact_gone_removal,revision_high_water,stale_stream,epoch_replacement,local_loser_effects,grace_channel_down,durable_floors_retained,capacity_bound,higher_generation_channel_down,same_origin_lower_generation",
     ),
 ];
 
@@ -128,7 +128,7 @@ const FILES: &[(&str, &str)] = &[
     ),
     (
         "region_presence.vec",
-        "e8fd7124c456efeb836c744d9662351063f1d63d1250201d9bbdfd3f46c520d5",
+        "f8579b0b997cb75745c6381637fecb0fe44a6713a133307d288d58b734c50452",
     ),
 ];
 

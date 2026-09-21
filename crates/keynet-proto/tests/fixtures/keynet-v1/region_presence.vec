@@ -41,3 +41,9 @@ expected=preserved
 
 case=capacity_bound
 expected=no-growth
+
+case=higher_generation_channel_down
+expected=selected-ineligible
+
+case=same_origin_lower_generation
+expected=retired-lower-generation
