@@ -21,6 +21,11 @@ can be checked with the existing full join-domination predicate, but drained
 values cannot safely be reconstructed at completion. A complete-cut receipt is
 needed to cover those drained values.
 
+While a changed batch is still retained, matching local acknowledgment evidence
+must also prove that its full joins dominate the current durable floors. After
+that batch drains, the final decision validates the scoped complete-cut receipt
+instead of attempting to recreate the released joins.
+
 Keeping every mark owner in the stage would make a streamed cut grow with the
 whole retained union. Exact scoped requests to a bounded local owner index
 retain only scalar progress in the stage while still rejecting a duplicate from
@@ -64,7 +69,20 @@ The preserved durability diagnostic was executed before this rework. It ran
 nine cases with two passing controls and seven failures: five non-dominating
 drained floors completed instead of returning `DurableMarksNotPersisted`, and
 two capacity refusals admitted a reused identifier instead of returning
-`ChunkAfterCompletion`.
+`ChunkAfterCompletion`. These are historical observations from before typed
+local durable evidence; they do not assert that final completion reconstructs
+or rechecks released mark joins.
+
+Corrected regression coverage in
+`crates/keynet-proto/tests/snapshot_durability_fencing.rs` applies the five
+same-owner regressions at retained pending-batch acknowledgment with matching
+typed acknowledgment and store evidence. Each returns
+`DurableMarksNotPersisted` before the batch drains, while identical and
+dominating floors acknowledge successfully. The companion
+`refutation_snapshot_prior_mark_durability.rs` coverage keeps this retained
+floor boundary distinct from completion: a drained cut needs an explicit
+receipt with matching scope, progress, commitments, lineage, and revision;
+missing or mismatched receipt evidence fails closed.
 
 The unchanged-floor control was written before its final implementation and
 failed with `an identical durable floor requested a no-op durable write`. It
@@ -76,9 +94,11 @@ and no durable-revision change.
 - Non-final changed joins request local persistence before another mark batch
   or completion; interruption or malformed continuation discards staged
   presence but not caller-owned floors.
-- Batch acknowledgments and final receipts reject mismatched commitments,
-  stale control streams, rollback, incomplete progress, missing evidence, and
-  incompatible durable state.
+- Retained batch acknowledgments reject non-dominating durable floors before
+  drain and reject mismatched commitments, stale control streams, rollback,
+  and incomplete progress. Final receipts reject missing or mismatched local
+  scope, progress, commitments, lineage, and revision without reconstructing
+  drained joins.
 - Exact owner-index results reject duplicate owners across a drained boundary
   and reject non-exact allocation accounting; drained batches leave zero
   mark-staging bytes in the stage.
@@ -89,8 +109,9 @@ and no durable-revision change.
 
 ## Verification
 
-Focused staging and release inventory suites passed. The locked self-check
-passed formatting, warning-denied workspace linting, and package tests: 159
-executed, 159 passed, zero skipped, and zero ignored. The release inventory
-also passed with the fixture manifest, per-file digests, independent witnesses,
-and unchanged v0.9 design pin in agreement.
+The corrected durability-focused targets passed: 17 executed, 17 passed, zero
+skipped, and zero ignored. The locked self-check passed formatting,
+warning-denied workspace linting, and package tests: 160 executed, 160 passed,
+zero skipped, and zero ignored. The release inventory also passed with the
+fixture manifest, per-file digests, independent witnesses, and unchanged v0.9
+design pin in agreement.

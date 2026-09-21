@@ -409,18 +409,31 @@ fn rejects_regression(current: RegionMarks) -> Result<(), String> {
         joined.state, current,
         "the supplied record must not dominate the cut"
     );
-    let stage = drained(required)?;
-    let completed = complete_without_receipt(&stage, &[current]);
-    assert_eq!(
-        completed.disposition,
-        RegionSnapshotDisposition::InvalidDurableCutReceipt,
-        "a same-owner record lost part of the previously persisted cut"
+    let control = snapshot_test_support::control(origin());
+    let (pending, batch) = pending_batch(required)?;
+    let rejected = acknowledge_region_snapshot_durable_batch(
+        &pending.table,
+        &pending.staging,
+        RegionSnapshotDurableBatchAcknowledgmentInput {
+            control,
+            acknowledgment: snapshot_test_support::acknowledgment(
+                &batch,
+                snapshot_test_support::store(1),
+            ),
+            durable_marks: &[current],
+            durable_store: snapshot_test_support::store(1),
+        },
     );
-    assert_eq!(completed.table, stage.table);
-    assert!(completed.staging.stages.is_empty());
-    assert!(completed.effects.is_empty());
+    assert_eq!(
+        rejected.disposition,
+        RegionSnapshotDisposition::DurableMarksNotPersisted,
+        "a same-owner record that does not dominate a pending batch must not drain it"
+    );
+    assert_eq!(rejected.table, pending.table);
+    assert!(rejected.staging.stages.is_empty());
+    assert!(rejected.effects.is_empty());
     assert!(
-        completed
+        rejected
             .table
             .origins
             .iter()
@@ -430,7 +443,7 @@ fn rejects_regression(current: RegionMarks) -> Result<(), String> {
 }
 
 #[test]
-fn drained_generation_must_remain_durable() -> Result<(), String> {
+fn retained_generation_must_be_durable_before_batch_drain() -> Result<(), String> {
     rejects_regression(RegionMarks {
         committed_generation: 3,
         ..mark()
@@ -438,7 +451,7 @@ fn drained_generation_must_remain_durable() -> Result<(), String> {
 }
 
 #[test]
-fn drained_incarnation_must_remain_durable() -> Result<(), String> {
+fn retained_incarnation_must_be_durable_before_batch_drain() -> Result<(), String> {
     rejects_regression(RegionMarks {
         incarnation_high_water: 6,
         ..mark()
@@ -446,7 +459,7 @@ fn drained_incarnation_must_remain_durable() -> Result<(), String> {
 }
 
 #[test]
-fn drained_revocation_must_remain_durable() -> Result<(), String> {
+fn retained_revocation_must_be_durable_before_batch_drain() -> Result<(), String> {
     rejects_regression(RegionMarks {
         revoked_through: None,
         ..mark()
@@ -454,7 +467,7 @@ fn drained_revocation_must_remain_durable() -> Result<(), String> {
 }
 
 #[test]
-fn drained_conflict_must_remain_durable() -> Result<(), String> {
+fn retained_conflict_must_be_durable_before_batch_drain() -> Result<(), String> {
     rejects_regression(RegionMarks {
         conflicted: false,
         ..mark()
@@ -462,7 +475,7 @@ fn drained_conflict_must_remain_durable() -> Result<(), String> {
 }
 
 #[test]
-fn drained_key_representative_must_remain_durable() -> Result<(), String> {
+fn retained_key_representative_must_be_durable_before_batch_drain() -> Result<(), String> {
     rejects_regression(RegionMarks {
         committed_key: [8; 32],
         ..mark()
@@ -470,12 +483,30 @@ fn drained_key_representative_must_remain_durable() -> Result<(), String> {
 }
 
 #[test]
-fn unchanged_and_dominating_durable_records_complete() -> Result<(), String> {
-    let stage = drained(mark())?;
-    assert_eq!(
-        complete(&stage, &[mark()])?.disposition,
-        RegionSnapshotDisposition::Completed
+fn identical_and_dominating_durable_records_acknowledge() -> Result<(), String> {
+    let required = mark();
+    let control = snapshot_test_support::control(origin());
+    let (pending, batch) = pending_batch(required)?;
+    let identical = acknowledge_region_snapshot_durable_batch(
+        &pending.table,
+        &pending.staging,
+        RegionSnapshotDurableBatchAcknowledgmentInput {
+            control,
+            acknowledgment: snapshot_test_support::acknowledgment(
+                &batch,
+                snapshot_test_support::store(1),
+            ),
+            durable_marks: &[required],
+            durable_store: snapshot_test_support::store(1),
+        },
     );
+    if identical.disposition != RegionSnapshotDisposition::Staged
+        || !identical.effects.is_empty()
+        || identical.staging.stages.len() != 1
+    {
+        return Err("an identical durable record did not acknowledge the pending batch".to_owned());
+    }
+
     let stronger = RegionMarks {
         committed_generation: 5,
         committed_key: [9; 32],
@@ -483,15 +514,42 @@ fn unchanged_and_dominating_durable_records_complete() -> Result<(), String> {
         incarnation_high_water: 1,
         ..mark()
     };
-    assert_eq!(
-        complete(&stage, &[stronger])?.disposition,
-        RegionSnapshotDisposition::Completed
+    let (pending, batch) = pending_batch(required)?;
+    let dominating = acknowledge_region_snapshot_durable_batch(
+        &pending.table,
+        &pending.staging,
+        RegionSnapshotDurableBatchAcknowledgmentInput {
+            control,
+            acknowledgment: snapshot_test_support::acknowledgment(
+                &batch,
+                snapshot_test_support::store(1),
+            ),
+            durable_marks: &[stronger],
+            durable_store: snapshot_test_support::store(1),
+        },
     );
+    if dominating.disposition != RegionSnapshotDisposition::Staged
+        || !dominating.effects.is_empty()
+        || dominating.staging.stages.len() != 1
+    {
+        return Err("a dominating durable record did not acknowledge the pending batch".to_owned());
+    }
     Ok(())
 }
 
 #[test]
-fn losing_a_required_record_is_rejected() -> Result<(), String> {
+fn matching_complete_cut_receipt_completes_drained_batch() -> Result<(), String> {
+    let stage = drained(mark())?;
+    if complete(&stage, &[mark()])?.disposition != RegionSnapshotDisposition::Completed {
+        return Err(
+            "a matching complete-cut receipt did not complete the drained batch".to_owned(),
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn missing_complete_cut_receipt_is_rejected() -> Result<(), String> {
     let stage = drained(mark())?;
     assert_eq!(
         complete_without_receipt(&stage, &[]).disposition,

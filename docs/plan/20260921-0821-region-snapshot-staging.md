@@ -40,6 +40,11 @@ neither a write nor a revision advance. A final receipt binds the complete
 ordered cut commitment and final progress, so completion covers drained values
 without reconstructing them in memory.
 
+Before a changed batch drains, its matching acknowledgment also checks the full
+join-domination predicate against the durable floors. Once it has drained,
+completion relies on the explicitly scoped receipt for that released batch and
+does not attempt to reconstruct it from the current mark union.
+
 Acknowledgments, receipts, and exact owner-index results are local integration
 inputs rather than peer claims or wire fields. The pure decision validates
 their scope and monotonicity, but cannot detect a false assertion from a
@@ -85,7 +90,19 @@ cases: two controls passed and seven cases failed. Five failures reported
 `Completed` where `DurableMarksNotPersisted` was required after a drained
 generation, incarnation, revocation, conflict, or key representative regressed.
 Two capacity-fence failures reported `AwaitingDurableMarks` where
-`ChunkAfterCompletion` was required for a reused identifier.
+`ChunkAfterCompletion` was required for a reused identifier. These seven
+results are historical diagnostic observations; they do not describe a current
+completion-time reconstruction of already drained joins.
+
+The corrected diagnostic keeps the five same-owner variants at the retained
+batch-acknowledgment boundary, with matching typed local acknowledgment and
+store evidence. Non-dominating floors return `DurableMarksNotPersisted` before
+drain, while identical and legitimately dominating floors acknowledge
+successfully. Separate complete-cut receipt coverage checks missing and
+mismatched control scope, contiguous progress, commitments, store lineage, and
+durable revision. A structurally valid receipt remains a trusted local-storage
+boundary rather than a peer assertion the pure decision can independently
+verify.
 
 The unchanged-floor control was added before the final streaming refinement and
 failed with `an identical durable floor requested a no-op durable write`. It
@@ -94,8 +111,9 @@ effect or durable-revision change.
 
 ## Verification
 
-Focused durability, streaming, byte-budget, replay-fence, staging, and release
-inventory suites passed. The locked self-check passed formatting, warning-denied
-workspace linting, and the package test suite: 159 tests executed, 159 passed,
-zero skipped, and zero ignored. Release inventory validation confirms the
-fixture manifest, per-file digests, independent witnesses, and v0.9 design pin.
+The corrected durability-focused targets passed: 17 executed, 17 passed, zero
+skipped, and zero ignored. The locked self-check passed formatting,
+warning-denied workspace linting, and the package test suite: 160 tests
+executed, 160 passed, zero skipped, and zero ignored. Release inventory
+validation confirms the fixture manifest, per-file digests, independent
+witnesses, and v0.9 design pin.
