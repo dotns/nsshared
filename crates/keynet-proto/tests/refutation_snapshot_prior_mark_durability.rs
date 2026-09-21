@@ -31,6 +31,7 @@ fn staging_input(
             maximum_origins: 15,
             maximum_entries: 10_000,
             maximum_mark_owners: 1_000_000,
+            maximum_mark_staging_bytes: 64 * 1024,
         },
     }
 }
@@ -96,7 +97,21 @@ fn completion_rechecks_marks_from_every_durable_batch() -> Result<(), String> {
         },
     );
 
-    if completed_without_prior_mark.disposition == RegionSnapshotDisposition::Completed {
+    if completed_without_prior_mark.disposition
+        != RegionSnapshotDisposition::DurableMarksNotPersisted
+        || completed_without_prior_mark.table != final_chunk.table
+        || completed_without_prior_mark
+            .staging
+            .stages
+            .iter()
+            .any(|stage| stage.origin == origin)
+        || !completed_without_prior_mark.effects.is_empty()
+        || !completed_without_prior_mark
+            .table
+            .origins
+            .iter()
+            .any(|state| state.origin == origin && state.snapshot_required)
+    {
         return Err("snapshot completed after an earlier durable floor disappeared".to_owned());
     }
     Ok(())

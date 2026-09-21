@@ -16,6 +16,7 @@ fn input(origin: RegionPresenceOrigin) -> RegionSnapshotStagingInput<'static> {
             maximum_origins: 15,
             maximum_entries: 10_000,
             maximum_mark_owners: 10_000,
+            maximum_mark_staging_bytes: 64 * 1024,
         },
     }
 }

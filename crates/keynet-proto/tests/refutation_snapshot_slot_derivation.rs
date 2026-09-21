@@ -50,6 +50,7 @@ fn snapshot_slot_validation_uses_the_protocol_derivation() -> Result<(), String>
                 maximum_origins: 15,
                 maximum_entries: 10_000,
                 maximum_mark_owners: 10_000,
+                maximum_mark_staging_bytes: 64 * 1024,
             },
         },
     );

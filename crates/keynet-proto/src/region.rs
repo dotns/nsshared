@@ -10,6 +10,8 @@ pub const MAX_REGION_FRAME_BYTES: usize = 4096;
 pub const MAX_REGION_FORWARD_DATAGRAM_BYTES: usize = 2048;
 /// The maximum combined number of nested presence and mark records in a snapshot.
 pub const MAX_REGION_SNAPSHOT_ENTRIES: usize = 256;
+/// The protocol limit for retained incoming snapshot mark staging per origin.
+pub const MAX_REGION_SNAPSHOT_MARK_STAGING_BYTES: usize = 64 * 1024;
 
 /// Frame types permitted on a control connection.
 pub const CONTROL_REGION_FRAME_TYPES: &[RegionFrameType] = &[
@@ -221,7 +223,7 @@ pub struct RegionHello {
 }
 
 /// A complete owner identifier used in a forwarded source owner.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct RegionOwner {
     /// The wire scope identifier.
     pub network_id: NetworkId,
@@ -940,12 +942,20 @@ pub struct RegionSnapshotStage {
     pub next_chunk_index: u32,
     /// Presence records retained until durable completion.
     pub presence_entries: Vec<RegionPresence>,
-    /// Full owners observed in all mark batches for whole-snapshot uniqueness.
+    /// Full owners observed in all mark batches, kept in canonical order for whole-snapshot checks.
     pub mark_owners: Vec<RegionOwner>,
     /// The one mark batch retained until caller input proves it durable.
     pub mark_entries: Vec<RegionMarks>,
     /// Whether the final chunk has arrived and awaits durable completion.
     pub final_received: bool,
+}
+
+impl RegionSnapshotStage {
+    /// Returns the retained bytes charged to the incoming mark-staging budget.
+    #[must_use]
+    pub fn mark_staging_bytes(&self) -> Option<usize> {
+        snapshot_mark_staging_bytes(self.mark_owners.capacity(), self.mark_entries.capacity())
+    }
 }
 
 /// The greatest accepted snapshot identifier retained for one authenticated origin.
@@ -975,6 +985,8 @@ pub struct RegionSnapshotStagingCapacity {
     pub maximum_entries: usize,
     /// The greatest count of retained mark-owner identities per origin.
     pub maximum_mark_owners: usize,
+    /// The greatest retained mark-staging bytes per origin, capped at the protocol maximum.
+    pub maximum_mark_staging_bytes: usize,
 }
 
 /// Inputs for accepting one incoming SNAPSHOT chunk.
@@ -1198,7 +1210,7 @@ pub fn stage_region_snapshot(
         );
     }
 
-    let (stage_index, begins_snapshot) = match next_staging
+    let stage_index = match next_staging
         .stages
         .iter()
         .position(|stage| stage.origin == origin)
@@ -1254,7 +1266,7 @@ pub fn stage_region_snapshot(
                     RegionSnapshotDisposition::SkippedChunkIndex,
                 );
             }
-            (index, false)
+            index
         }
         None => {
             if let Some(cursor) = next_staging
@@ -1297,6 +1309,7 @@ pub fn stage_region_snapshot(
                     RegionSnapshotDisposition::CapacityExhausted,
                 );
             }
+            record_snapshot_cursor(&mut next_staging, origin, snapshot.snapshot_id);
             next_staging.stages.push(RegionSnapshotStage {
                 origin,
                 snapshot_id: snapshot.snapshot_id,
@@ -1308,7 +1321,7 @@ pub fn stage_region_snapshot(
                 mark_entries: Vec::new(),
                 final_received: false,
             });
-            (next_staging.stages.len() - 1, true)
+            next_staging.stages.len() - 1
         }
     };
 
@@ -1443,26 +1456,20 @@ pub fn stage_region_snapshot(
             network_id: marks.network_id,
             identity: marks.identity,
         };
-        if stage.mark_owners.iter().any(|candidate| {
-            same_region_owner(
-                candidate.network_id,
-                candidate.identity,
-                owner.network_id,
-                owner.identity,
-            )
-        }) || snapshot
-            .mark_entries
-            .iter()
-            .filter(|candidate| {
-                same_region_owner(
-                    candidate.network_id,
-                    candidate.identity,
-                    owner.network_id,
-                    owner.identity,
-                )
-            })
-            .count()
-            > 1
+        if stage.mark_owners.binary_search(&owner).is_ok()
+            || snapshot
+                .mark_entries
+                .iter()
+                .filter(|candidate| {
+                    same_region_owner(
+                        candidate.network_id,
+                        candidate.identity,
+                        owner.network_id,
+                        owner.identity,
+                    )
+                })
+                .count()
+                > 1
         {
             return invalidate_snapshot(
                 &next_table,
@@ -1492,6 +1499,35 @@ pub fn stage_region_snapshot(
         };
     }
 
+    let retained_mark_entry_capacity = if prior_mark_batch_is_durable {
+        snapshot.mark_entries.len()
+    } else {
+        stage.mark_entries.capacity()
+    };
+    let retained_mark_owner_capacity = stage.mark_owners.capacity().max(staged_mark_owner_count);
+    let Some(planned_mark_staging_bytes) =
+        snapshot_mark_staging_bytes(retained_mark_owner_capacity, retained_mark_entry_capacity)
+    else {
+        return invalidate_snapshot(
+            &next_table,
+            &next_staging,
+            origin,
+            RegionSnapshotDisposition::CapacityExhausted,
+        );
+    };
+    let maximum_mark_staging_bytes = input
+        .capacity
+        .maximum_mark_staging_bytes
+        .min(MAX_REGION_SNAPSHOT_MARK_STAGING_BYTES);
+    if planned_mark_staging_bytes > maximum_mark_staging_bytes {
+        return invalidate_snapshot(
+            &next_table,
+            &next_staging,
+            origin,
+            RegionSnapshotDisposition::CapacityExhausted,
+        );
+    }
+
     let effects = match snapshot_mark_effects(&snapshot.mark_entries, input.durable_marks) {
         Some(effects) => effects,
         None => {
@@ -1504,6 +1540,25 @@ pub fn stage_region_snapshot(
         }
     };
 
+    let replacement_mark_entries = if prior_mark_batch_is_durable {
+        let mut entries = Vec::new();
+        if entries
+            .try_reserve_exact(snapshot.mark_entries.len())
+            .is_err()
+        {
+            return invalidate_snapshot(
+                &next_table,
+                &next_staging,
+                origin,
+                RegionSnapshotDisposition::CapacityExhausted,
+            );
+        }
+        entries.extend_from_slice(&snapshot.mark_entries);
+        Some(entries)
+    } else {
+        None
+    };
+
     let disposition = {
         let Some(stage) = next_staging.stages.get_mut(stage_index) else {
             return invalidate_snapshot(
@@ -1513,19 +1568,63 @@ pub fn stage_region_snapshot(
                 RegionSnapshotDisposition::Interrupted,
             );
         };
-        if prior_mark_batch_is_durable {
-            stage.mark_entries.clear();
+        if stage
+            .mark_owners
+            .try_reserve_exact(snapshot.mark_entries.len())
+            .is_err()
+        {
+            return invalidate_snapshot(
+                &next_table,
+                &next_staging,
+                origin,
+                RegionSnapshotDisposition::CapacityExhausted,
+            );
+        }
+        let retained_mark_entry_capacity = replacement_mark_entries
+            .as_ref()
+            .map_or(stage.mark_entries.capacity(), Vec::capacity);
+        let Some(actual_mark_staging_bytes) =
+            snapshot_mark_staging_bytes(stage.mark_owners.capacity(), retained_mark_entry_capacity)
+        else {
+            return invalidate_snapshot(
+                &next_table,
+                &next_staging,
+                origin,
+                RegionSnapshotDisposition::CapacityExhausted,
+            );
+        };
+        if actual_mark_staging_bytes > maximum_mark_staging_bytes {
+            return invalidate_snapshot(
+                &next_table,
+                &next_staging,
+                origin,
+                RegionSnapshotDisposition::CapacityExhausted,
+            );
         }
         stage
             .presence_entries
             .extend_from_slice(&snapshot.presence_entries);
-        stage
-            .mark_owners
-            .extend(snapshot.mark_entries.iter().map(|marks| RegionOwner {
+        for marks in &snapshot.mark_entries {
+            let owner = RegionOwner {
                 network_id: marks.network_id,
                 identity: marks.identity,
-            }));
-        stage.mark_entries.extend_from_slice(&snapshot.mark_entries);
+            };
+            let insertion_index = match stage.mark_owners.binary_search(&owner) {
+                Ok(_) => {
+                    return invalidate_snapshot(
+                        &next_table,
+                        &next_staging,
+                        origin,
+                        RegionSnapshotDisposition::DuplicateMarkOwner,
+                    );
+                }
+                Err(index) => index,
+            };
+            stage.mark_owners.insert(insertion_index, owner);
+        }
+        if let Some(entries) = replacement_mark_entries {
+            stage.mark_entries = entries;
+        }
         if snapshot.more {
             let Some(next_index) = snapshot.chunk_index.checked_add(1) else {
                 return invalidate_snapshot(
@@ -1542,9 +1641,6 @@ pub fn stage_region_snapshot(
             RegionSnapshotDisposition::AwaitingDurableMarks
         }
     };
-    if begins_snapshot {
-        record_snapshot_cursor(&mut next_staging, origin, snapshot.snapshot_id);
-    }
 
     RegionSnapshotDecision {
         table: next_table,
@@ -1617,7 +1713,9 @@ pub fn complete_region_snapshot(
             RegionSnapshotDisposition::IgnoredStaleStream,
         );
     }
-    if !snapshot_marks_are_durable(&stage.mark_entries, input.durable_marks) {
+    if !snapshot_mark_owners_are_durable(&stage.mark_owners, input.durable_marks)
+        || !snapshot_marks_are_durable(&stage.mark_entries, input.durable_marks)
+    {
         return invalidate_snapshot(
             table,
             staging,
@@ -1862,6 +1960,18 @@ fn same_region_owner(
     left_network == right_network && left_identity == right_identity
 }
 
+fn snapshot_mark_staging_bytes(owner_capacity: usize, mark_entry_capacity: usize) -> Option<usize> {
+    let owner_bytes = owner_capacity.checked_mul(core::mem::size_of::<RegionOwner>())?;
+    let mark_entry_bytes = mark_entry_capacity.checked_mul(core::mem::size_of::<RegionMarks>())?;
+    let allocated_bytes = owner_bytes.checked_add(mark_entry_bytes)?;
+    if allocated_bytes == 0 {
+        return Some(0);
+    }
+    allocated_bytes
+        .checked_add(core::mem::size_of::<Vec<RegionOwner>>())?
+        .checked_add(core::mem::size_of::<Vec<RegionMarks>>())
+}
+
 fn snapshot_mark_effects(
     staged: &[RegionMarks],
     durable: &[RegionMarks],
@@ -1889,6 +1999,28 @@ fn snapshot_mark_effects(
         }
     }
     Some(effects)
+}
+
+fn snapshot_mark_owners_are_durable(staged: &[RegionOwner], durable: &[RegionMarks]) -> bool {
+    let mut seen = Vec::new();
+    if seen.try_reserve_exact(staged.len()).is_err() {
+        return false;
+    }
+    seen.resize(staged.len(), false);
+    for marks in durable {
+        let owner = RegionOwner {
+            network_id: marks.network_id,
+            identity: marks.identity,
+        };
+        let Ok(index) = staged.binary_search(&owner) else {
+            continue;
+        };
+        if seen[index] {
+            return false;
+        }
+        seen[index] = true;
+    }
+    seen.into_iter().all(|owner_is_durable| owner_is_durable)
 }
 
 fn snapshot_marks_are_durable(staged: &[RegionMarks], durable: &[RegionMarks]) -> bool {

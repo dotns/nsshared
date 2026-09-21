@@ -1,7 +1,8 @@
 use keynet_proto::{
-    RegionMarks, RegionOwner, RegionPresenceOrigin, RegionPresenceStream, RegionPresenceTable,
-    RegionSnapshot, RegionSnapshotDisposition, RegionSnapshotStagingCapacity,
-    RegionSnapshotStagingInput, RegionSnapshotStagingTable, stage_region_snapshot,
+    MAX_REGION_SNAPSHOT_MARK_STAGING_BYTES, RegionMarks, RegionOwner, RegionPresenceOrigin,
+    RegionPresenceStream, RegionPresenceTable, RegionSnapshot, RegionSnapshotDisposition,
+    RegionSnapshotStagingCapacity, RegionSnapshotStagingInput, RegionSnapshotStagingTable,
+    stage_region_snapshot,
 };
 
 fn mark(index: u16) -> RegionMarks {
@@ -21,6 +22,7 @@ fn mark(index: u16) -> RegionMarks {
 fn input(
     origin: RegionPresenceOrigin,
     durable_marks: &[RegionMarks],
+    maximum_mark_staging_bytes: usize,
 ) -> RegionSnapshotStagingInput<'_> {
     RegionSnapshotStagingInput {
         stream: RegionPresenceStream {
@@ -32,6 +34,7 @@ fn input(
             maximum_origins: 15,
             maximum_entries: 10_000,
             maximum_mark_owners: 1_000_000,
+            maximum_mark_staging_bytes,
         },
     }
 }
@@ -46,45 +49,27 @@ fn mark_owner_index_obeys_the_snapshot_staging_byte_cap() -> Result<(), String> 
         member_id: 2,
         boot_epoch: 9,
     };
-    let mut table = RegionPresenceTable::default();
-    let mut staging = RegionSnapshotStagingTable::default();
-    let mut durable_marks = Vec::new();
-
-    for chunk_index in 0..5_u32 {
-        let start = chunk_index as u16 * 256;
-        let count = if chunk_index == 4 { 1 } else { 256 };
-        let batch = (start..start + count).map(mark).collect::<Vec<_>>();
-        let decision = stage_region_snapshot(
-            &table,
-            &staging,
-            RegionSnapshot {
-                snapshot_id: 1,
-                base_revision: 0,
-                marks_revision: 1_025,
-                chunk_index,
-                presence_entries: Vec::new(),
-                mark_entries: batch.clone(),
-                more: chunk_index != 4,
-            },
-            input(origin, &durable_marks),
-        );
-        let expected = if chunk_index == 4 {
-            RegionSnapshotDisposition::AwaitingDurableMarks
-        } else {
-            RegionSnapshotDisposition::Staged
-        };
-        if decision.disposition != expected {
-            return Err(format!(
-                "snapshot stopped before the byte cap with disposition {:?}",
-                decision.disposition
-            ));
-        }
-        durable_marks.extend(batch);
-        table = decision.table;
-        staging = decision.staging;
+    let first_batch = (0..256).map(mark).collect::<Vec<_>>();
+    let first = stage_region_snapshot(
+        &RegionPresenceTable::default(),
+        &RegionSnapshotStagingTable::default(),
+        RegionSnapshot {
+            snapshot_id: 1,
+            base_revision: 0,
+            marks_revision: 512,
+            chunk_index: 0,
+            presence_entries: Vec::new(),
+            mark_entries: first_batch.clone(),
+            more: true,
+        },
+        input(origin, &[], MAX_REGION_SNAPSHOT_MARK_STAGING_BYTES),
+    );
+    if first.disposition != RegionSnapshotDisposition::Staged || first.effects.len() != 256 {
+        return Err("the initial mark batch did not fit the explicit byte budget".to_owned());
     }
 
-    let retained_owners = staging
+    let retained_owners = first
+        .staging
         .stages
         .iter()
         .find(|stage| stage.origin == origin)
@@ -98,6 +83,73 @@ fn mark_owner_index_obeys_the_snapshot_staging_byte_cap() -> Result<(), String> 
         return Err(format!(
             "snapshot retained {retained_owner_bytes} bytes of mark-owner index"
         ));
+    }
+
+    let retained_mark_bytes = first
+        .staging
+        .stages
+        .iter()
+        .find(|stage| stage.origin == origin)
+        .ok_or_else(|| "accepted snapshot lost its stage".to_owned())?
+        .mark_staging_bytes()
+        .ok_or_else(|| "mark byte accounting overflowed".to_owned())?;
+    if retained_mark_bytes > MAX_REGION_SNAPSHOT_MARK_STAGING_BYTES {
+        return Err(format!(
+            "snapshot retained {retained_mark_bytes} staged mark bytes"
+        ));
+    }
+
+    let lower_mark_budget = retained_mark_bytes
+        .checked_sub(1)
+        .ok_or_else(|| "mark byte control did not reserve any bytes".to_owned())?;
+    let lower_budget = stage_region_snapshot(
+        &RegionPresenceTable::default(),
+        &RegionSnapshotStagingTable::default(),
+        RegionSnapshot {
+            snapshot_id: 1,
+            base_revision: 0,
+            marks_revision: 512,
+            chunk_index: 0,
+            presence_entries: Vec::new(),
+            mark_entries: first_batch.clone(),
+            more: true,
+        },
+        input(origin, &[], lower_mark_budget),
+    );
+    if lower_budget.disposition != RegionSnapshotDisposition::CapacityExhausted
+        || lower_budget
+            .staging
+            .stages
+            .iter()
+            .any(|stage| stage.origin == origin)
+    {
+        return Err("the caller-supplied mark byte budget was not enforced".to_owned());
+    }
+
+    let second_batch = (256..512).map(mark).collect::<Vec<_>>();
+    let overflow = stage_region_snapshot(
+        &first.table,
+        &first.staging,
+        RegionSnapshot {
+            snapshot_id: 1,
+            base_revision: 0,
+            marks_revision: 512,
+            chunk_index: 1,
+            presence_entries: Vec::new(),
+            mark_entries: second_batch,
+            more: false,
+        },
+        input(origin, &first_batch, MAX_REGION_SNAPSHOT_MARK_STAGING_BYTES),
+    );
+    if overflow.disposition != RegionSnapshotDisposition::CapacityExhausted
+        || overflow
+            .staging
+            .stages
+            .iter()
+            .any(|stage| stage.origin == origin)
+        || !overflow.table.entries.is_empty()
+    {
+        return Err("mark staging did not fail closed at the explicit byte cap".to_owned());
     }
     Ok(())
 }

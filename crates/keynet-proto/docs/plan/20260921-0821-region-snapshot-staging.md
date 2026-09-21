@@ -30,15 +30,23 @@ publishes routes.
 Retain full mark records only for the one batch awaiting durable proof. Once a
 later valid input proves that batch durable, discard those records and retain
 only a separately bounded full-owner index for duplicate detection across the
-snapshot. Keep staged presence under its own bound. Completion validates the
-remaining batch and the already-proved prefix, rather than relying on an
-unbounded in-memory mark union.
+snapshot. Keep staged presence under its own bound. Completion rechecks that
+the current durable state contains every owner from the drained prefix as well
+as the complete floors in the remaining batch, rather than relying on an
+unbounded in-memory mark union or an earlier observation.
 
 Use the protocol slot derivation directly for every staged presence. Require a
 completion callback to name the current authenticated stream and exact
 snapshot id, returning unchanged state for a stale callback. Record the
-greatest accepted snapshot id when a transfer begins and preserve it across
-interruption and reconnect until the origin boot epoch changes.
+greatest syntactically valid initial snapshot id before later capacity checks,
+then preserve it across interruption and reconnect until the origin boot epoch
+changes.
+
+Apply an explicit per-origin mark-staging byte ceiling, capped by the protocol
+64 KiB maximum. Charge the pending durable batch, the retained whole-snapshot
+owner index, and their retained vector allocation overhead against that
+ceiling. A count limit remains an additional bound, never a substitute for
+byte accounting.
 
 Add a completion decision that accepts only marks which already include every
 requested durable join, validates staged presence against those resulting
@@ -55,11 +63,13 @@ digests.
 ## Risks
 
 Completion must not make staged entries eligible before the caller has
-persisted every returned mark join. A mark-bearing continuation must not grow
-staging before the prior batch drains. Capacity checks must precede
-staged-vector growth. A snapshot origin must not erase another origin's
-published presence. A stale completion must never invalidate a replacement
-stage, and an abandoned snapshot identifier must not become reusable.
+persisted every returned mark join and the current durable input still contains
+the drained owners. A mark-bearing continuation must not grow staging before
+the prior batch drains. Byte capacity checks must include retained allocation
+capacity before staged-vector growth. A snapshot origin must not erase another
+origin's published presence. A stale completion must never invalidate a
+replacement stage, and an overflowed snapshot identifier must not become
+reusable.
 
 ## Scope
 
@@ -105,3 +115,15 @@ passed. The package test run executed 136 tests with zero skipped.
 The corrected refutation targets, region presence suite, release inventories,
 format check, warning-denied workspace lint, and locked package test run
 passed. The package test run executed 141 tests with zero skipped or ignored.
+
+The next focused refutations ran before the new invariant repairs:
+`completion_rechecks_marks_from_every_durable_batch` failed with `snapshot
+completed after an earlier durable floor disappeared`;
+`mark_owner_index_obeys_the_snapshot_staging_byte_cap` failed with `snapshot
+retained 65600 bytes of mark-owner index`; and
+`an_overflowed_snapshot_id_cannot_restart_the_same_epoch` failed with
+`capacity-invalidated snapshot id was accepted again`.
+
+The final format check, warning-denied workspace lint, and locked package test
+run passed. The package test run executed 144 tests with zero skipped, and no
+package test is marked ignored.

@@ -196,6 +196,7 @@ fn snapshot_input<'a>(
             maximum_origins: 16,
             maximum_entries: 16,
             maximum_mark_owners: 16,
+            maximum_mark_staging_bytes: 64 * 1024,
         },
     }
 }

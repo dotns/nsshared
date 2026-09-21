@@ -37,8 +37,15 @@ An accepted mark batch retains complete mark records only until caller input
 proves that batch durable. Drained batches retain a separately bounded set of
 full owners for whole-snapshot uniqueness, not their complete mark records or
 the presence-stage allocation. Completion accepts a final stage only after its
-undrained batch is durable and every earlier batch has already been proved
-durable at the same snapshot cut.
+undrained batch is durable and the completion-time durable input contains every
+owner from each drained batch at the named cut.
+
+The per-origin mark staging budget is explicitly supplied as bytes and is
+limited to the protocol 64 KiB maximum. It charges pending full records,
+whole-snapshot duplicate-owner storage, and retained vector allocation
+overhead; the owner-count limit is a separate additional bound. A syntactically
+valid initial identifier advances the same-epoch high-water before capacity
+validation, so every later invalidation still requires a strictly greater id.
 
 Snapshot presence slots use the protocol `derive_slot_id` function directly.
 Durable completion names the current authenticated stream and snapshot id, so
@@ -57,6 +64,10 @@ reconnect for the same boot epoch.
   separately bounded owner index still rejects duplicates across the snapshot.
 - Completion callbacks match both the current stream and snapshot id.
 - An accepted snapshot id cannot be reused within its boot epoch.
+- Completion rechecks each drained mark owner in its current durable input.
+- Mark staging accounts for bytes and retained allocation capacity, not just
+  owner count.
+- A first-chunk capacity failure consumes its snapshot identifier.
 - Snapshot staging, fixture inventory, and release digest checks pass.
 
 ## Notes
@@ -88,3 +99,15 @@ package test run passed; 136 tests executed with zero skipped.
 The corrected refutation targets, region presence suite, release inventories,
 format check, warning-denied workspace lint, and locked package test run
 passed. The package test run executed 141 tests with zero skipped or ignored.
+
+The latest failing-first refutations recorded these failures before the repair:
+`completion_rechecks_marks_from_every_durable_batch` failed with `snapshot
+completed after an earlier durable floor disappeared`;
+`mark_owner_index_obeys_the_snapshot_staging_byte_cap` failed with `snapshot
+retained 65600 bytes of mark-owner index`; and
+`an_overflowed_snapshot_id_cannot_restart_the_same_epoch` failed with
+`capacity-invalidated snapshot id was accepted again`.
+
+The final format check, warning-denied workspace lint, and locked package test
+run passed. The package test run executed 144 tests with zero skipped, and no
+package test is marked ignored.
