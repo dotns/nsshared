@@ -290,6 +290,81 @@ pub struct RegionMarks {
     pub incarnation_high_water: u64,
 }
 
+/// The side-effect-free result of joining two retained marks for one owner.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RegionMarksJoin {
+    /// The monotonic mark state produced by the join.
+    pub state: RegionMarks,
+    /// Whether `state` differs from the caller's current mark state.
+    pub changed: bool,
+}
+
+/// A failure to join retained marks.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RegionMarksJoinError {
+    /// The inputs name different retained owners.
+    ScopeMismatch,
+}
+
+/// Joins two retained marks for the same owner without applying persistence or other effects.
+///
+/// The returned `changed` flag compares the joined state with `current`, so a caller can persist
+/// an updated state before any dependent route change or publication.
+pub fn join_region_marks(
+    current: RegionMarks,
+    incoming: RegionMarks,
+) -> Result<RegionMarksJoin, RegionMarksJoinError> {
+    if current.network_id != incoming.network_id || current.identity != incoming.identity {
+        return Err(RegionMarksJoinError::ScopeMismatch);
+    }
+
+    let revoked_through = match (current.revoked_through, incoming.revoked_through) {
+        (Some(current), Some(incoming)) => Some(current.max(incoming)),
+        (Some(current), None) => Some(current),
+        (None, Some(incoming)) => Some(incoming),
+        (None, None) => None,
+    };
+    let (committed_generation, committed_key, conflicted, incarnation_high_water) =
+        if current.committed_generation > incoming.committed_generation {
+            (
+                current.committed_generation,
+                current.committed_key,
+                current.conflicted,
+                current.incarnation_high_water,
+            )
+        } else if current.committed_generation < incoming.committed_generation {
+            (
+                incoming.committed_generation,
+                incoming.committed_key,
+                incoming.conflicted,
+                incoming.incarnation_high_water,
+            )
+        } else {
+            let keys_differ = current.committed_key != incoming.committed_key;
+            (
+                current.committed_generation,
+                current.committed_key.min(incoming.committed_key),
+                current.conflicted || incoming.conflicted || keys_differ,
+                current
+                    .incarnation_high_water
+                    .max(incoming.incarnation_high_water),
+            )
+        };
+    let state = RegionMarks {
+        network_id: current.network_id,
+        identity: current.identity,
+        committed_generation,
+        committed_key,
+        conflicted,
+        revoked_through,
+        incarnation_high_water,
+    };
+    Ok(RegionMarksJoin {
+        changed: state != current,
+        state,
+    })
+}
+
 /// A SNAPSHOT frame body.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RegionSnapshot {
