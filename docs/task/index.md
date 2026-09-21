@@ -93,3 +93,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20260913-0657-clean-keynet-campaign-worktrees Clean retired keynet worktrees**](20260913-0657-clean-keynet-campaign-worktrees.md) `P1`
 - [x] [**20260916 Define the Keynet default context**](20260916-keynet-default-context.md) `P1`
 - [ ] [**20260918-0951-keynet-cascaded-relays Keynet cascaded relays: multi-member relay regions**](20260918-0951-keynet-cascaded-relays.md) `P1`
+- [x] [**20260921-0309-region-frame-codec Region frame codec**](20260921-0309-region-frame-codec.md) `P1`

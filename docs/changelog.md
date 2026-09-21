@@ -296,3 +296,14 @@ approved records, historical proposals, and diagrams. Dedicated ns-shared main
 was restored with four additive reverts and has the same tracked tree as
 `d02a29c`. Migration QA passed with 732 tests and no skipped tests. Phase 2
 remains paused and unreviewed.
+
+## 2026-09-21 05:08 [feat]
+
+Added the strict inter-member region frame codec and sealed v0.9 fixture.
+
+- Added canonical encoding and decoding for all nine region frame types and
+  their nested snapshot schemas.
+- Enforced frame, datagram, entry, channel, connection-generation, and
+  canonical-CBOR validation at the codec boundary.
+- Added sealed fixture vectors, independent inventory witnesses, and focused
+  regression coverage while preserving every prior vector byte.
