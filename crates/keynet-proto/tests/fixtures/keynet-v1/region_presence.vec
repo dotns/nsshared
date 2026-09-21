@@ -66,6 +66,15 @@ expected=more-false-only
 case=snapshot_deferred_routes
 expected=no-route-before-completion
 
+case=snapshot_chunk_mark_persistence
+expected=persist-before-final
+
+case=snapshot_mark_batch_backpressure
+expected=drain-before-next-batch
+
+case=snapshot_persisted_marks_survive_invalidation
+expected=preserved
+
 case=snapshot_changed_cuts
 expected=discard-partial
 

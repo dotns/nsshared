@@ -977,7 +977,7 @@ pub struct RegionSnapshotStagingCapacity {
 pub struct RegionSnapshotStagingInput<'a> {
     /// The authenticated stream that supplied the chunk.
     pub stream: RegionPresenceStream,
-    /// The currently durable mark union used to prepare joins at the final chunk.
+    /// The currently durable mark union used to drain prior batches and prepare this chunk's joins.
     pub durable_marks: &'a [RegionMarks],
     /// Explicit bounds for caller-owned staging allocations.
     pub capacity: RegionSnapshotStagingCapacity,
@@ -989,7 +989,7 @@ pub struct RegionSnapshotStagingInput<'a> {
 pub struct RegionSnapshotCompletionInput<'a> {
     /// The authenticated origin whose final stage is being completed.
     pub origin: RegionPresenceOrigin,
-    /// The mark union after the final chunk's requested joins have been persisted.
+    /// The mark union after every requested snapshot join has been persisted.
     pub durable_marks: &'a [RegionMarks],
     /// The current paired-channel state used for route eligibility.
     pub channel_states: &'a [RegionPresenceChannels],
@@ -997,7 +997,7 @@ pub struct RegionSnapshotCompletionInput<'a> {
     pub capacity: RegionPresenceCapacity,
 }
 
-/// A durable action requested by an accepted final snapshot chunk.
+/// A durable action requested by an accepted snapshot chunk.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RegionSnapshotEffect {
     /// Persist this joined retained-owner mark before snapshot completion.
@@ -1013,6 +1013,8 @@ pub enum RegionSnapshotDisposition {
     Staged,
     /// The final chunk is retained and must wait for durable mark persistence.
     AwaitingDurableMarks,
+    /// A mark-bearing chunk was refused until the prior batch becomes durable.
+    DurableMarkBatchPending,
     /// The final stage passed durable-floor validation and replaced one origin's presence.
     Completed,
     /// No final stage is available for completion.
@@ -1074,7 +1076,7 @@ pub struct RegionSnapshotDecision {
     pub table: RegionPresenceTable,
     /// The next caller-owned snapshot staging state.
     pub staging: RegionSnapshotStagingTable,
-    /// Durable mark joins required before completion; never a route or acknowledgment.
+    /// Durable mark joins requested by this accepted chunk; never a route or acknowledgment.
     pub effects: Vec<RegionSnapshotEffect>,
     /// The one outcome selected for the input.
     pub disposition: RegionSnapshotDisposition,
@@ -1440,6 +1442,29 @@ pub fn stage_region_snapshot(
         );
     }
 
+    if !snapshot.mark_entries.is_empty()
+        && !snapshot_marks_are_durable(&stage.mark_entries, input.durable_marks)
+    {
+        return RegionSnapshotDecision {
+            table: next_table,
+            staging: next_staging,
+            effects: Vec::new(),
+            disposition: RegionSnapshotDisposition::DurableMarkBatchPending,
+        };
+    }
+
+    let effects = match snapshot_mark_effects(&snapshot.mark_entries, input.durable_marks) {
+        Some(effects) => effects,
+        None => {
+            return invalidate_snapshot(
+                &next_table,
+                &next_staging,
+                origin,
+                RegionSnapshotDisposition::InvalidDurableMarks,
+            );
+        }
+    };
+
     let Some(stage) = next_staging.stages.get_mut(stage_index) else {
         return invalidate_snapshot(
             &next_table,
@@ -1465,23 +1490,12 @@ pub fn stage_region_snapshot(
         return RegionSnapshotDecision {
             table: next_table,
             staging: next_staging,
-            effects: Vec::new(),
+            effects,
             disposition: RegionSnapshotDisposition::Staged,
         };
     }
 
     stage.final_received = true;
-    let effects = match snapshot_mark_effects(&stage.mark_entries, input.durable_marks) {
-        Some(effects) => effects,
-        None => {
-            return invalidate_snapshot(
-                &next_table,
-                &next_staging,
-                origin,
-                RegionSnapshotDisposition::InvalidDurableMarks,
-            );
-        }
-    };
     RegionSnapshotDecision {
         table: next_table,
         staging: next_staging,

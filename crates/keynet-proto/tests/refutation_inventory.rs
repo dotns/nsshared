@@ -299,6 +299,16 @@ fn region_presence_fixture_and_case_inventory_must_be_exact() -> Result<(), Stri
             .join("\n\n");
         fs::write(path, remaining).map_err(|error| error.to_string())
     })?;
+    altered_inventory("missing-snapshot-chunk-mark-persistence-case", |temp| {
+        let path = temp.join("region_presence.vec");
+        let original = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+        let remaining = original
+            .split("\n\n")
+            .filter(|block| !block.contains("case=snapshot_chunk_mark_persistence\n"))
+            .collect::<Vec<_>>()
+            .join("\n\n");
+        fs::write(path, remaining).map_err(|error| error.to_string())
+    })?;
     altered_inventory("unlisted-snapshot-staging-case", |temp| {
         let path = temp.join("region_presence.vec");
         let original = fs::read_to_string(&path).map_err(|error| error.to_string())?;

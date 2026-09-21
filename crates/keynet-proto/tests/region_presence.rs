@@ -413,6 +413,94 @@ fn snapshot_stages_contiguous_chunks_before_replacing_one_origin() -> Result<(),
 }
 
 #[test]
+fn nonfinal_mark_joins_stream_before_invalidation_and_backpressure() -> Result<(), String> {
+    fixture_expect("snapshot_chunk_mark_persistence", "persist-before-final")?;
+    fixture_expect(
+        "snapshot_mark_batch_backpressure",
+        "drain-before-next-batch",
+    )?;
+    fixture_expect("snapshot_persisted_marks_survive_invalidation", "preserved")?;
+    let authenticated = origin(2, 10);
+    let initial_marks = [marks(0x22, 5, 0)];
+    let joined_mark = marks(0x22, 6, 0);
+    let first = stage_region_snapshot(
+        &RegionPresenceTable::default(),
+        &RegionSnapshotStagingTable::default(),
+        snapshot(
+            15,
+            1,
+            8,
+            0,
+            vec![snapshot_presence_for(authenticated, 0x22, 6, 1, 1)],
+            vec![joined_mark],
+            true,
+        ),
+        snapshot_input(authenticated, &initial_marks),
+    );
+    if first.disposition != RegionSnapshotDisposition::Staged
+        || first.effects != vec![RegionSnapshotEffect::PersistDurableMark(joined_mark)]
+        || !first.table.entries.is_empty()
+    {
+        return Err(
+            "a non-final mark chunk did not request durable persistence while routes remained closed"
+                .to_owned(),
+        );
+    }
+
+    let blocked = stage_region_snapshot(
+        &first.table,
+        &first.staging,
+        snapshot(15, 1, 8, 1, Vec::new(), vec![marks(0x23, 5, 0)], false),
+        snapshot_input(authenticated, &initial_marks),
+    );
+    if blocked.table != first.table
+        || blocked.staging != first.staging
+        || !blocked.effects.is_empty()
+        || blocked.disposition != RegionSnapshotDisposition::DurableMarkBatchPending
+    {
+        return Err("a second mark batch was accepted before the prior batch drained".to_owned());
+    }
+
+    let durable_after_first = [joined_mark];
+    let next_mark = marks(0x23, 5, 0);
+    let drained = stage_region_snapshot(
+        &first.table,
+        &first.staging,
+        snapshot(15, 1, 8, 1, Vec::new(), vec![next_mark], false),
+        snapshot_input(authenticated, &durable_after_first),
+    );
+    if drained.disposition != RegionSnapshotDisposition::AwaitingDurableMarks
+        || drained.effects != vec![RegionSnapshotEffect::PersistDurableMark(next_mark)]
+        || !drained.table.entries.is_empty()
+    {
+        return Err(
+            "a drained mark batch did not remain route-closed before completion".to_owned(),
+        );
+    }
+
+    let durable_before_failure = durable_after_first;
+    let malformed = stage_region_snapshot(
+        &first.table,
+        &first.staging,
+        snapshot(15, 2, 8, 1, Vec::new(), Vec::new(), false),
+        snapshot_input(authenticated, &durable_after_first),
+    );
+    let interrupted = interrupt_region_snapshot(&first.table, &first.staging, authenticated);
+    if malformed.disposition != RegionSnapshotDisposition::ChangedSnapshotCuts
+        || !partial_stage_was_discarded(&malformed, authenticated)
+        || interrupted.disposition != RegionSnapshotDisposition::Interrupted
+        || !partial_stage_was_discarded(&interrupted, authenticated)
+        || durable_after_first != durable_before_failure
+    {
+        return Err(
+            "snapshot invalidation did not discard staged presence while preserving persisted marks"
+                .to_owned(),
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn changed_or_noncontiguous_chunks_discard_partial_presence() -> Result<(), String> {
     fixture_expect("snapshot_changed_cuts", "discard-partial")?;
     fixture_expect("snapshot_changed_id", "discard-partial")?;

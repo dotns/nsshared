@@ -22,8 +22,10 @@ single bounded partial snapshot per origin and separately retains the last
 completed identifier for stale-id rejection. Chunk decisions validate the
 initial index, contiguous progression without wrap, stable identifier and
 cuts, record ownership, sender epoch, revision range, derived slots, and
-bounded staged entry count. A final chunk returns only durable-mark join
-effects; it does not publish routes.
+bounded staged entry count. Each accepted mark-bearing chunk returns its
+changed durable-mark joins immediately. A later mark-bearing chunk is refused
+until caller-owned durable marks prove the prior batch durable; neither path
+publishes routes.
 
 Add a completion decision that accepts only marks which already include every
 requested durable join, validates staged presence against those resulting
@@ -40,8 +42,10 @@ digests.
 ## Risks
 
 Completion must not make staged entries eligible before the caller has
-persisted the returned mark joins. Capacity checks must precede staged-vector
-growth. A snapshot origin must not erase another origin's published presence.
+persisted every returned mark join. A mark-bearing continuation must not grow
+staging before the prior batch drains. Capacity checks must precede
+staged-vector growth. A snapshot origin must not erase another origin's
+published presence.
 
 ## Scope
 
@@ -64,5 +68,12 @@ failed before implementation because the snapshot staging decision symbols did
 not exist. The focused region presence, release inventory, refutation
 inventory, and vector suites passed after implementation.
 
+The focused regression
+`nonfinal_mark_joins_stream_before_invalidation_and_backpressure` was run
+before the per-chunk ordering change and failed with `a non-final mark chunk
+did not request durable persistence while routes remained closed`. It passes
+with immediate mark join effects, unchanged staging under batch backpressure,
+and caller-owned durable floors retained after invalidation.
+
 Formatting, warning-denied workspace linting, and the locked package test run
-passed. The package test run executed 135 tests with zero skipped.
+passed. The package test run executed 136 tests with zero skipped.
