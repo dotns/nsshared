@@ -23,10 +23,8 @@ The codec, focused tests, sealed fixture, manifest, and the two independent inve
 
 ## Alternatives
 
-No alternative can add the physical fixture and preserve the existing loader's exact-file check without modifying `tests/vectors.rs`.
+Fixture sealing requires an explicit declared file set and case inventory; directory discovery cannot prove the release contents.
 
 ## Annotations
 
-Implementation is blocked pending expansion of the allowed edit set.
-
-The fixture loader now declares the region fixture and its case inventory explicitly. The release inventory independently declares the same facts, so neither witness derives its allowlist from the other or from directory contents.
+The fixture loader and release inventory independently declare matching v0.9 metadata, file digest, and region-frame case inventory. The loader validates the declared file and case sets directly; neither witness derives its allowlist from directory contents or from the other witness.

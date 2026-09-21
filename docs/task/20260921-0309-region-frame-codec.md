@@ -13,16 +13,11 @@ Add the region frame codec and its sealed fixture while preserving the existing 
 
 Completing the region frame codec and sealed fixture.
 
-## Dependencies
-
-- **blocked by**: (none)
-- **blocks**: (none)
-
 ## Notes
 
-The required fixture changes the manifest metadata to the v0.9 release and adds `region_frames.vec`. `tests/vectors.rs` independently fixes the v0.7 metadata, the twelve-file count, and the complete allowed file set. Its loader therefore rejects the required fixture and manifest before the requested release inventory can pass. The file is outside the allowed edit set.
+The v0.9 fixture release declares `region_frames.vec` alongside the existing fixture files, with its digest and exact case inventory. The sealed loader validates the declared files, metadata, and case family directly.
 
-The loader and release inventory now independently pin the v0.9 metadata, file list, digest, and region-frame case inventory. The loader remains an explicit allowlist and validates the case family directly.
+The loader and release inventory independently declare matching v0.9 metadata, file digests, and region-frame case inventory. This duplication prevents either witness from inheriting an unverified allowlist from directory contents or from the other witness.
 
 Failing test evidence: `region_frame_contract_is_available` initially failed because `RegionChannel`, `RegionFrame`, and `RegionPing` were unresolved imports.
 
