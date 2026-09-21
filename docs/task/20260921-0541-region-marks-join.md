@@ -44,3 +44,8 @@ marks and inventory tests passed after implementation. `cargo fmt --all --
 --check`, `cargo clippy --workspace --all-targets --locked -- -D warnings`,
 and `cargo nextest run -p keynet-proto --locked` completed without failures,
 skips, or ignored cases.
+
+Regression verification: independent direct assertions confirm that changing
+either `network_id` or `identity` returns exactly
+`RegionMarksJoinError::ScopeMismatch`. The complete suite ran 108 tests with
+zero skipped or ignored cases.

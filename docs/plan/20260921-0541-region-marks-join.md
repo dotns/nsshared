@@ -41,7 +41,8 @@ completion and violate the pure state boundary, so the join returns data only.
 
 ## Annotations
 
-The supplied specification approves this implementation.
+Owner scope is validated before marks are combined so retained floors cannot
+cross network or identity boundaries.
 
 ## Results
 

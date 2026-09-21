@@ -1,4 +1,4 @@
-use keynet_proto::{RegionMarks, join_region_marks};
+use keynet_proto::{RegionMarks, RegionMarksJoinError, join_region_marks};
 use std::{collections::BTreeMap, fs, path::PathBuf};
 
 const ROOT: &str = "tests/fixtures/keynet-v1";
@@ -118,6 +118,30 @@ fn region_marks_join_latches_equal_generation_key_conflicts() -> Result<(), Stri
     assert_eq!(joined(smaller_key, larger_key)?, expected);
     assert_eq!(joined(expected, smaller_key)?, expected);
     Ok(())
+}
+
+#[test]
+fn region_marks_join_rejects_a_different_network_id() {
+    let current = marks(7, 0x20, false, Some(3), 9);
+    let mut incoming = current;
+    incoming.network_id = [0x12; 32];
+
+    assert_eq!(
+        join_region_marks(current, incoming),
+        Err(RegionMarksJoinError::ScopeMismatch)
+    );
+}
+
+#[test]
+fn region_marks_join_rejects_a_different_identity() {
+    let current = marks(7, 0x20, false, Some(3), 9);
+    let mut incoming = current;
+    incoming.identity = [0x23; 32];
+
+    assert_eq!(
+        join_region_marks(current, incoming),
+        Err(RegionMarksJoinError::ScopeMismatch)
+    );
 }
 
 fn root() -> PathBuf {
