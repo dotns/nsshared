@@ -541,15 +541,20 @@ pub fn decide_region_presence(
     if !valid_region_member(input.stream.origin.member_id) {
         return unchanged_presence_decision(table, RegionPresenceDisposition::IgnoredInvalidOrigin);
     }
+    let mut next = table.clone();
+    refresh_presence_eligibility(&mut next, input.durable_marks, input.channel_states);
     if !input.stream.is_current || event.boot_epoch() != input.stream.origin.boot_epoch {
-        return unchanged_presence_decision(table, RegionPresenceDisposition::IgnoredStaleStream);
+        return RegionPresenceDecision {
+            table: next,
+            effects: Vec::new(),
+            disposition: RegionPresenceDisposition::IgnoredStaleStream,
+        };
     }
 
-    if table.origins.iter().any(|state| {
+    if next.origins.iter().any(|state| {
         state.origin.member_id == input.stream.origin.member_id
             && state.origin.boot_epoch != input.stream.origin.boot_epoch
     }) {
-        let mut next = table.clone();
         next.entries
             .retain(|entry| entry.session.origin.member_id != input.stream.origin.member_id);
         next.origins
@@ -566,7 +571,6 @@ pub fn decide_region_presence(
         };
     }
 
-    let mut next = table.clone();
     let Some(origin_index) = next
         .origins
         .iter()
@@ -584,14 +588,21 @@ pub fn decide_region_presence(
         };
     };
     if next.origins[origin_index].snapshot_required {
-        return unchanged_presence_decision(table, RegionPresenceDisposition::AwaitingSnapshot);
+        return RegionPresenceDecision {
+            table: next,
+            effects: Vec::new(),
+            disposition: RegionPresenceDisposition::AwaitingSnapshot,
+        };
     }
     if event.revision() == 0 || event.revision() <= next.origins[origin_index].revision_high_water {
-        return unchanged_presence_decision(table, RegionPresenceDisposition::IgnoredStaleRevision);
+        return RegionPresenceDecision {
+            table: next,
+            effects: Vec::new(),
+            disposition: RegionPresenceDisposition::IgnoredStaleRevision,
+        };
     }
 
     next.origins[origin_index].revision_high_water = event.revision();
-    refresh_presence_eligibility(&mut next, input.durable_marks, input.channel_states);
 
     match event {
         RegionPresenceEvent::Gone(gone) => {
@@ -626,6 +637,12 @@ pub fn decide_region_presence(
                 .position(|entry| same_presence_owner(entry.session.presence, presence));
             let Some(existing_index) = existing_index else {
                 if next.entries.len() >= input.capacity.maximum_entries {
+                    next.origins[origin_index].snapshot_required = true;
+                    refresh_presence_eligibility(
+                        &mut next,
+                        input.durable_marks,
+                        input.channel_states,
+                    );
                     return RegionPresenceDecision {
                         table: next,
                         effects: Vec::new(),
@@ -774,18 +791,14 @@ fn marks_are_compatible(durable_marks: &[RegionMarks], presence: RegionPresence)
     let Some(marks) = matching else {
         return false;
     };
-    if presence.generation < marks.committed_generation
+    if presence.generation != marks.committed_generation
         || marks
             .revoked_through
             .is_some_and(|revoked| presence.generation <= revoked)
     {
         return false;
     }
-    if presence.generation == marks.committed_generation {
-        !marks.conflicted && presence.incarnation >= marks.incarnation_high_water
-    } else {
-        true
-    }
+    !marks.conflicted && presence.incarnation >= marks.incarnation_high_water
 }
 
 fn same_presence_owner(left: RegionPresence, right: RegionPresence) -> bool {

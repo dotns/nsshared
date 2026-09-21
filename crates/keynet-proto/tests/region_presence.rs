@@ -188,7 +188,7 @@ fn generation_precedes_incarnation_in_presence_selection() -> Result<(), String>
         vec![record(first, existing, false)],
         vec![state(first, 1), state(second, 0)],
     );
-    let durable_marks = [marks(0x22, 4, 0)];
+    let durable_marks = [marks(0x22, 5, 0)];
     let channel_states = channels(&[first, second]);
 
     let decision = decide_region_presence(
@@ -225,7 +225,7 @@ fn higher_generation_stays_selected_when_its_required_channel_is_down() -> Resul
         vec![record(local, existing, false)],
         vec![state(local, 1), state(remote, 0)],
     );
-    let durable_marks = [marks(0x22, 4, 0)];
+    let durable_marks = [marks(0x22, 5, 0)];
     let channel_states = [
         RegionPresenceChannels {
             origin: local,
