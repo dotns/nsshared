@@ -7,7 +7,7 @@ use std::{
 
 const ROOT: &str = "tests/fixtures/keynet-v1";
 const EXPECTED_MANIFEST_SHA256: &str =
-    "de37541c2fdd128ec164ce92e6f40bb823719736fa516f62f6c767307333eb40";
+    "ce4e8dd9a10dd7ee845553cb3d092ea4b3203d94c37cf0c0bb7836f764682fad";
 
 const METADATA: &[(&str, &str)] = &[
     ("manifest_format", "keynet-fixture-manifest-v1"),
@@ -65,7 +65,7 @@ const METADATA: &[(&str, &str)] = &[
     ),
     (
         "region_presence_cases",
-        "origin_ownership,full_owner_collision,generation_before_incarnation,incarnation_before_member_id,durable_mark_filtering,member_id_tie_break,exact_gone_removal,revision_high_water,stale_stream,epoch_replacement,local_loser_effects,grace_channel_down,durable_floors_retained,capacity_bound,higher_generation_channel_down,same_origin_lower_generation",
+        "origin_ownership,full_owner_collision,generation_before_incarnation,incarnation_before_member_id,durable_mark_filtering,member_id_tie_break,exact_gone_removal,revision_high_water,stale_stream,epoch_replacement,local_loser_effects,grace_channel_down,durable_floors_retained,capacity_bound,higher_generation_channel_down,same_origin_lower_generation,snapshot_empty,snapshot_size_bound,snapshot_unchanged_cuts,snapshot_contiguous_indices,snapshot_final_chunk,snapshot_deferred_routes,snapshot_chunk_mark_persistence,snapshot_mark_batch_backpressure,snapshot_persisted_marks_survive_invalidation,snapshot_changed_cuts,snapshot_changed_id,snapshot_duplicate_index,snapshot_gap,snapshot_exhaustion,snapshot_duplicate_presence_owner,snapshot_duplicate_mark_owner,snapshot_wrong_epoch,snapshot_wrong_slot,snapshot_invalid_revision,snapshot_cut_regression,snapshot_mark_compatibility,snapshot_interruption,snapshot_completion,snapshot_reconnect_restart,snapshot_post_completion,snapshot_stale_id,snapshot_owner_index_scope,snapshot_batch_acknowledgment,snapshot_cut_receipt,snapshot_unchanged_batch,snapshot_replay_fence_capacity",
     ),
 ];
 
@@ -128,7 +128,7 @@ const FILES: &[(&str, &str)] = &[
     ),
     (
         "region_presence.vec",
-        "f8579b0b997cb75745c6381637fecb0fe44a6713a133307d288d58b734c50452",
+        "faf16e12bbc7b4f94cea2ea4af35e0713b48e25f837e6a49ee150ce39cdfd6bd",
     ),
 ];
 
