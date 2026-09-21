@@ -331,3 +331,15 @@ Added the pure region-presence decision and its sealed fixture family.
 - Added strict fixture inventory witnesses and regression coverage for
   generation marks, capacity resynchronization, stale channels, and retirement
   failures while preserving all prior vector bytes.
+
+## 2026-09-21 14:00 [feat]
+
+Added bounded region snapshot staging and closed the sealed v0.9 fixture release.
+
+- Kept partial presence unpublished until contiguous staging, exact owner
+  validation, durable mark acknowledgments, and a scoped complete-cut receipt
+  all succeed.
+- Separated replay fences from active staging capacity and retained exact
+  cross-batch duplicate detection without accumulating the whole owner cut.
+- Preserved the existing batch and owner limits while adding positive and
+  adversarial coverage for durable evidence, capacity recovery, and replay.

@@ -96,3 +96,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20260921-0309-region-frame-codec Region frame codec**](20260921-0309-region-frame-codec.md) `P1`
 - [x] [**20260921-0541-region-marks-join Add region marks join**](20260921-0541-region-marks-join.md) `P1`
 - [x] [**20260921-0634-region-presence-decision Add region presence decision**](20260921-0634-region-presence-decision.md) `P1`
+- [x] [**20260921-0821-region-snapshot-staging Region snapshot staging and durable-cut evidence**](20260921-0821-region-snapshot-staging.md) `P1`
