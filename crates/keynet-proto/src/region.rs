@@ -51,11 +51,14 @@ impl RegionChannel {
         }
     }
 
-    /// Returns whether `frame_type` is permitted after this channel's HELLO exchange.
+    /// Returns whether `frame_type` is permitted after this channel's initial HELLO exchange.
     #[must_use]
     pub const fn permits_after_hello(self, frame_type: RegionFrameType) -> bool {
         match self {
-            Self::Control => self.permits(frame_type),
+            Self::Control => !matches!(
+                frame_type,
+                RegionFrameType::Hello | RegionFrameType::Forward
+            ),
             Self::Data => matches!(frame_type, RegionFrameType::Forward),
         }
     }
@@ -213,7 +216,7 @@ pub struct RegionHello {
     pub boot_epoch: u64,
     /// The channel this HELLO establishes.
     pub channel: RegionChannel,
-    /// The per-channel connection generation.
+    /// The nonzero per-channel connection generation.
     pub conn_gen: u32,
 }
 
@@ -518,6 +521,7 @@ fn validate_frame(frame: &RegionFrame, channel: RegionChannel) -> Result<(), Reg
 fn validate_hello(hello: &RegionHello) -> Result<(), RegionEncodeError> {
     if !(1..=255).contains(&hello.region_name.len())
         || !(1..=16).contains(&hello.member_id)
+        || hello.conn_gen == 0
         || RelayIdentifier::parse(&hello.region_name).is_err()
     {
         return Err(RegionEncodeError::InvalidFrame);

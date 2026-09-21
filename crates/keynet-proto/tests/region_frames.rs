@@ -598,6 +598,16 @@ fn channel_contract_rejects_wrong_channels_and_exposes_post_hello_rules() -> Res
         RegionFrameType::Ping,
         RegionFrameType::Pong,
     ] {
+        let control_post_hello = matches!(
+            frame_type,
+            RegionFrameType::Snapshot
+                | RegionFrameType::Present
+                | RegionFrameType::Gone
+                | RegionFrameType::Marks
+                | RegionFrameType::Miss
+                | RegionFrameType::Ping
+                | RegionFrameType::Pong
+        );
         if frame_type.is_legal_on(RegionChannel::Control)
             != (frame_type != RegionFrameType::Forward)
             || frame_type.is_legal_on(RegionChannel::Data)
@@ -605,6 +615,7 @@ fn channel_contract_rejects_wrong_channels_and_exposes_post_hello_rules() -> Res
                     frame_type,
                     RegionFrameType::Hello | RegionFrameType::Forward
                 )
+            || frame_type.is_legal_after_hello_on(RegionChannel::Control) != control_post_hello
             || frame_type.is_legal_after_hello_on(RegionChannel::Data)
                 != (frame_type == RegionFrameType::Forward)
         {
