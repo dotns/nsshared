@@ -1,6 +1,6 @@
 # 20260921-0309-region-frame-codec Region frame codec
 
-- **status**: draft
+- **status**: completed
 - **createdAt**: 2026-09-21 03:09
 - **approvedAt**: 2026-09-21 03:09
 - **relatedTask**: 20260921-0309-region-frame-codec
@@ -19,7 +19,7 @@ Without updating the existing loader, the required fixture turns an otherwise pa
 
 ## Scope
 
-The required loader update is outside the allowed file list.
+The codec, focused tests, sealed fixture, manifest, and the two independent inventory witnesses were updated.
 
 ## Alternatives
 
@@ -28,3 +28,5 @@ No alternative can add the physical fixture and preserve the existing loader's e
 ## Annotations
 
 Implementation is blocked pending expansion of the allowed edit set.
+
+The fixture loader now declares the region fixture and its case inventory explicitly. The release inventory independently declares the same facts, so neither witness derives its allowlist from the other or from directory contents.

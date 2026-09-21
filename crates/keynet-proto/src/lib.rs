@@ -9,6 +9,7 @@ mod identifier;
 mod intro;
 mod naming;
 mod pairing;
+pub mod region;
 mod relay;
 mod revocation;
 
@@ -17,6 +18,7 @@ pub use identifier::*;
 pub use intro::*;
 pub use naming::*;
 pub use pairing::*;
+pub use region::*;
 pub use relay::*;
 pub use revocation::*;
 

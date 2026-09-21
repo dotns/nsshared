@@ -7,23 +7,23 @@ use std::{
 
 const ROOT: &str = "tests/fixtures/keynet-v1";
 const EXPECTED_MANIFEST_SHA256: &str =
-    "09c5184dfdd114151c6650c02eaca9d0710c6d321b1b5c72847d7fea506d13ea";
+    "d6ef7a9d354f3daeb3597d7eebdc5b9ae5d49f5644165e181ec0c76d95d3bfde";
 
 const METADATA: &[(&str, &str)] = &[
     ("manifest_format", "keynet-fixture-manifest-v1"),
     ("suite_version", "keynet-v1"),
-    ("fixture_release", "keynet-v1-v0.7"),
-    ("section_13_revision", "v0.7"),
+    ("fixture_release", "keynet-v1-v0.9"),
+    ("section_13_revision", "v0.9"),
     ("design_path", "docs/ns/keynet.md"),
-    ("design_commit", "4ae04faa06ca1f5d64e40aca58aa8e55a50c1e6e"),
+    ("design_commit", "abb1dad"),
     (
         "design_sha256",
-        "ceeca74ab6dad33f34df36ef789c1d32014679c9592655439210c169b0bebce6",
+        "a763e6db341b429361558df9ae81ca7d130cda7fb63ae912c2cf1f77638e27f2",
     ),
-    ("data_file_count", "12"),
+    ("data_file_count", "13"),
     (
         "coverage",
-        "addresses,identities,conflicts,key_bindings,pairing_tokens,introductions,aliases,labels,name_records,relay,revocation,relay_identifiers,control_records,integrity",
+        "addresses,identities,conflicts,key_bindings,pairing_tokens,introductions,aliases,labels,name_records,relay,revocation,relay_identifiers,control_records,region_frames,integrity",
     ),
     ("address_cases", "ascending,zeros,reverse"),
     ("identity_cases", "ascending,zeros,reverse"),
@@ -54,6 +54,10 @@ const METADATA: &[(&str, &str)] = &[
     (
         "control_record_fields",
         "ack,legacy_endpoints,binding,revocation,name,ordered_endpoints,probe_request,probe_reply,ordered_hash,greedy_ordered_endpoints,greedy_omitted_relays",
+    ),
+    (
+        "region_frame_cases",
+        "hello_control,hello_data,snapshot_nested,present,gone,marks,forward,miss,ping,pong,non_shortest,indefinite_length,wrong_arity,wrong_type,wrong_width,trailing_bytes,wrong_channel,zero_prefix,oversized_prefix,frame_limit,datagram_limit,snapshot_entry_limit",
     ),
 ];
 
@@ -106,6 +110,10 @@ const FILES: &[(&str, &str)] = &[
         "relay_identifiers.vec",
         "d5b3c2a0a5ded38201ad8f57ac437f8067d6461125086a0fa5bd854de1183595",
     ),
+    (
+        "region_frames.vec",
+        "ecae34dc8a6818422c8328dc5a64494b0d01134069267da0ddf00563af7bc065",
+    ),
 ];
 
 const BLOCK_INVENTORIES: &[(&str, &str)] = &[
@@ -118,6 +126,7 @@ const BLOCK_INVENTORIES: &[(&str, &str)] = &[
     ("aliases.vec", "alias_cases"),
     ("labels.vec", "label_cases"),
     ("name_records.vec", "name_record_cases"),
+    ("region_frames.vec", "region_frame_cases"),
 ];
 
 fn root() -> PathBuf {
@@ -343,7 +352,7 @@ fn rejects(attack: &str, alter: impl FnOnce(&Path) -> Result<(), String>) -> Res
 }
 
 #[test]
-fn complete_v07_release_matches_the_sealed_inventory() -> Result<(), String> {
+fn complete_v09_release_matches_the_sealed_inventory() -> Result<(), String> {
     verify(&root())
 }
 

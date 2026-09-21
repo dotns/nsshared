@@ -56,11 +56,18 @@ impl<'a> CborReader<'a> {
     }
 
     pub(crate) fn text(&mut self) -> Result<String, CborError> {
+        self.text_with_maximum(usize::MAX)
+    }
+
+    pub(crate) fn text_with_maximum(&mut self, maximum: usize) -> Result<String, CborError> {
         let (major, length) = self.head()?;
         if major != 3 {
             return Err(CborError);
         }
         let length = usize::try_from(length).map_err(|_| CborError)?;
+        if length > maximum {
+            return Err(CborError);
+        }
         let end = self
             .position
             .checked_add(length)
@@ -71,6 +78,42 @@ impl<'a> CborReader<'a> {
             .to_owned();
         self.position = end;
         Ok(text)
+    }
+
+    pub(crate) fn bytes_with_maximum(&mut self, maximum: usize) -> Result<Vec<u8>, CborError> {
+        let (major, length) = self.head()?;
+        if major != 2 {
+            return Err(CborError);
+        }
+        let length = usize::try_from(length).map_err(|_| CborError)?;
+        if length > maximum {
+            return Err(CborError);
+        }
+        let end = self
+            .position
+            .checked_add(length)
+            .filter(|end| *end <= self.input.len())
+            .ok_or(CborError)?;
+        let output = self.input[self.position..end].to_vec();
+        self.position = end;
+        Ok(output)
+    }
+
+    pub(crate) fn boolean(&mut self) -> Result<bool, CborError> {
+        match self.take()? {
+            0xf4 => Ok(false),
+            0xf5 => Ok(true),
+            _ => Err(CborError),
+        }
+    }
+
+    pub(crate) fn optional_uint(&mut self) -> Result<Option<u64>, CborError> {
+        if self.peek() == Some(0xf6) {
+            self.position += 1;
+            Ok(None)
+        } else {
+            self.uint().map(Some)
+        }
     }
 
     pub(crate) fn optional_text(&mut self) -> Result<Option<String>, CborError> {
