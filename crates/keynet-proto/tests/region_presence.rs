@@ -1,8 +1,12 @@
 use keynet_proto::{
-    RegionCarrier, RegionGone, RegionGoneReason, RegionMarks, RegionPresence,
+    RegionCarrier, RegionGone, RegionGoneReason, RegionMarks, RegionOwner, RegionPresence,
     RegionPresenceCapacity, RegionPresenceChannels, RegionPresenceEffect, RegionPresenceEvent,
     RegionPresenceInput, RegionPresenceOrigin, RegionPresenceOriginState, RegionPresenceRecord,
-    RegionPresenceSession, RegionPresenceStream, RegionPresenceTable, decide_region_presence,
+    RegionPresenceSession, RegionPresenceStream, RegionPresenceTable, RegionSnapshot,
+    RegionSnapshotCompletionInput, RegionSnapshotDisposition, RegionSnapshotEffect,
+    RegionSnapshotStage, RegionSnapshotStagingCapacity, RegionSnapshotStagingInput,
+    RegionSnapshotStagingTable, begin_region_snapshot_control, complete_region_snapshot,
+    decide_region_presence, interrupt_region_snapshot, stage_region_snapshot,
 };
 use std::{collections::BTreeMap, fs, path::PathBuf};
 
@@ -175,6 +179,577 @@ fn gone_for(presence: RegionPresence, revision: u64) -> RegionGone {
         boot_epoch: presence.boot_epoch,
         revision,
     }
+}
+
+fn snapshot_slot(owner: RegionOwner) -> [u8; 16] {
+    let mut slot = [0; 16];
+    slot[..8].copy_from_slice(&owner.network_id[..8]);
+    slot[8..].copy_from_slice(&owner.identity[..8]);
+    slot
+}
+
+fn snapshot_input<'a>(
+    origin: RegionPresenceOrigin,
+    durable_marks: &'a [RegionMarks],
+) -> RegionSnapshotStagingInput<'a> {
+    RegionSnapshotStagingInput {
+        stream: current_stream(origin),
+        durable_marks,
+        capacity: RegionSnapshotStagingCapacity {
+            maximum_origins: 16,
+            maximum_entries: 16,
+        },
+        slot_for_owner: snapshot_slot,
+    }
+}
+
+fn snapshot_completion_input<'a>(
+    origin: RegionPresenceOrigin,
+    durable_marks: &'a [RegionMarks],
+    channel_states: &'a [RegionPresenceChannels],
+) -> RegionSnapshotCompletionInput<'a> {
+    RegionSnapshotCompletionInput {
+        origin,
+        durable_marks,
+        channel_states,
+        capacity: RegionPresenceCapacity {
+            maximum_entries: 16,
+        },
+    }
+}
+
+fn snapshot_presence_for(
+    origin: RegionPresenceOrigin,
+    identity_byte: u8,
+    generation: u64,
+    incarnation: u64,
+    revision: u64,
+) -> RegionPresence {
+    let mut presence = presence_for(origin, identity_byte, 0, generation, incarnation, revision);
+    presence.slot = snapshot_slot(RegionOwner {
+        network_id: presence.network_id,
+        identity: presence.identity,
+    });
+    presence
+}
+
+fn snapshot(
+    snapshot_id: u64,
+    base_revision: u64,
+    marks_revision: u64,
+    chunk_index: u32,
+    presence_entries: Vec<RegionPresence>,
+    mark_entries: Vec<RegionMarks>,
+    more: bool,
+) -> RegionSnapshot {
+    RegionSnapshot {
+        snapshot_id,
+        base_revision,
+        marks_revision,
+        chunk_index,
+        presence_entries,
+        mark_entries,
+        more,
+    }
+}
+
+fn partial_snapshot(
+    origin: RegionPresenceOrigin,
+    durable_marks: &[RegionMarks],
+) -> keynet_proto::RegionSnapshotDecision {
+    stage_region_snapshot(
+        &RegionPresenceTable::default(),
+        &RegionSnapshotStagingTable::default(),
+        snapshot(
+            9,
+            3,
+            8,
+            0,
+            vec![snapshot_presence_for(origin, 0x22, 5, 1, 1)],
+            Vec::new(),
+            true,
+        ),
+        snapshot_input(origin, durable_marks),
+    )
+}
+
+fn partial_stage_was_discarded(
+    decision: &keynet_proto::RegionSnapshotDecision,
+    origin: RegionPresenceOrigin,
+) -> bool {
+    !decision
+        .staging
+        .stages
+        .iter()
+        .any(|stage| stage.origin == origin)
+        && decision
+            .table
+            .origins
+            .iter()
+            .any(|state| state.origin == origin && state.snapshot_required)
+        && decision
+            .table
+            .entries
+            .iter()
+            .filter(|entry| entry.session.origin == origin)
+            .all(|entry| !entry.eligible)
+}
+
+#[test]
+fn empty_snapshot_completes_only_after_durable_finalization() -> Result<(), String> {
+    fixture_expect("snapshot_empty", "completion-required")?;
+    let authenticated = origin(2, 10);
+    let staged = stage_region_snapshot(
+        &RegionPresenceTable::default(),
+        &RegionSnapshotStagingTable::default(),
+        RegionSnapshot {
+            snapshot_id: 1,
+            base_revision: 0,
+            marks_revision: 0,
+            chunk_index: 0,
+            presence_entries: Vec::new(),
+            mark_entries: Vec::new(),
+            more: false,
+        },
+        snapshot_input(authenticated, &[]),
+    );
+    if staged.disposition != RegionSnapshotDisposition::AwaitingDurableMarks
+        || !staged.table.entries.is_empty()
+        || !staged.effects.is_empty()
+    {
+        return Err("empty final chunk published before durable completion".to_owned());
+    }
+
+    let channel_states = channels(&[authenticated]);
+    let completed = complete_region_snapshot(
+        &staged.table,
+        &staged.staging,
+        snapshot_completion_input(authenticated, &[], &channel_states),
+    );
+    if completed.disposition != RegionSnapshotDisposition::Completed
+        || !completed.table.entries.is_empty()
+        || completed.table.origins != vec![state(authenticated, 0)]
+    {
+        return Err("empty final snapshot did not complete exactly once".to_owned());
+    }
+    Ok(())
+}
+
+#[test]
+fn snapshot_stages_contiguous_chunks_before_replacing_one_origin() -> Result<(), String> {
+    fixture_expect("snapshot_contiguous_indices", "zero-based-contiguous")?;
+    fixture_expect("snapshot_unchanged_cuts", "stable")?;
+    fixture_expect("snapshot_final_chunk", "more-false-only")?;
+    fixture_expect("snapshot_deferred_routes", "no-route-before-completion")?;
+    fixture_expect("snapshot_completion", "replace-origin-after-marks")?;
+    let incoming = origin(2, 10);
+    let unrelated = origin(3, 20);
+    let old = snapshot_presence_for(incoming, 0x22, 5, 1, 3);
+    let unrelated_presence = snapshot_presence_for(unrelated, 0x23, 5, 1, 2);
+    let published = table(
+        vec![
+            record(incoming, old, false),
+            record(unrelated, unrelated_presence, false),
+        ],
+        vec![state(incoming, 3), state(unrelated, 2)],
+    );
+    let initial_marks = [marks(0x22, 5, 0), marks(0x23, 5, 0)];
+    let replacement = snapshot_presence_for(incoming, 0x22, 6, 1, 4);
+    let first = stage_region_snapshot(
+        &published,
+        &RegionSnapshotStagingTable::default(),
+        snapshot(7, 4, 9, 0, vec![replacement], Vec::new(), true),
+        snapshot_input(incoming, &initial_marks),
+    );
+    if first.disposition != RegionSnapshotDisposition::Staged
+        || entry_for_owner(&first.table, 0x22)?.eligible
+        || !first.effects.is_empty()
+    {
+        return Err("a non-final snapshot chunk authorized a route or effect".to_owned());
+    }
+    let channel_states = channels(&[incoming, unrelated]);
+    let incomplete = complete_region_snapshot(
+        &first.table,
+        &first.staging,
+        snapshot_completion_input(incoming, &initial_marks, &channel_states),
+    );
+    if incomplete.disposition != RegionSnapshotDisposition::IncompleteSnapshot
+        || incomplete.table != first.table
+    {
+        return Err("a snapshot completed before its final chunk".to_owned());
+    }
+
+    let joined_mark = marks(0x22, 6, 0);
+    let final_chunk = stage_region_snapshot(
+        &first.table,
+        &first.staging,
+        snapshot(7, 4, 9, 1, Vec::new(), vec![joined_mark], false),
+        snapshot_input(incoming, &initial_marks),
+    );
+    if final_chunk.disposition != RegionSnapshotDisposition::AwaitingDurableMarks
+        || final_chunk.effects != vec![RegionSnapshotEffect::PersistDurableMark(joined_mark)]
+        || entry_for_owner(&final_chunk.table, 0x22)?.eligible
+    {
+        return Err("the final chunk did not defer publication behind durable marks".to_owned());
+    }
+
+    let persisted_marks = [joined_mark, marks(0x23, 5, 0)];
+    let completed = complete_region_snapshot(
+        &final_chunk.table,
+        &final_chunk.staging,
+        snapshot_completion_input(incoming, &persisted_marks, &channel_states),
+    );
+    if completed.disposition != RegionSnapshotDisposition::Completed
+        || entry_for_owner(&completed.table, 0x22)?.session.presence != replacement
+        || entry_for_owner(&completed.table, 0x23)?.session
+            != (RegionPresenceSession {
+                origin: unrelated,
+                presence: unrelated_presence,
+            })
+    {
+        return Err("completion did not replace exactly the incoming origin presence".to_owned());
+    }
+    Ok(())
+}
+
+#[test]
+fn changed_or_noncontiguous_chunks_discard_partial_presence() -> Result<(), String> {
+    fixture_expect("snapshot_changed_cuts", "discard-partial")?;
+    fixture_expect("snapshot_changed_id", "discard-partial")?;
+    fixture_expect("snapshot_duplicate_index", "discard-partial")?;
+    fixture_expect("snapshot_gap", "discard-partial")?;
+    fixture_expect("snapshot_exhaustion", "discard-partial")?;
+    let authenticated = origin(2, 10);
+    let durable_marks = [marks(0x22, 5, 0)];
+    let before = durable_marks;
+
+    let partial = partial_snapshot(authenticated, &durable_marks);
+    let changed = stage_region_snapshot(
+        &partial.table,
+        &partial.staging,
+        snapshot(9, 4, 8, 1, Vec::new(), Vec::new(), false),
+        snapshot_input(authenticated, &durable_marks),
+    );
+    if changed.disposition != RegionSnapshotDisposition::ChangedSnapshotCuts
+        || !partial_stage_was_discarded(&changed, authenticated)
+        || durable_marks != before
+    {
+        return Err("changed snapshot cuts retained partial state or changed marks".to_owned());
+    }
+
+    let partial = partial_snapshot(authenticated, &durable_marks);
+    let changed_id = stage_region_snapshot(
+        &partial.table,
+        &partial.staging,
+        snapshot(10, 3, 8, 1, Vec::new(), Vec::new(), false),
+        snapshot_input(authenticated, &durable_marks),
+    );
+    if changed_id.disposition != RegionSnapshotDisposition::UnexpectedSnapshotId
+        || !partial_stage_was_discarded(&changed_id, authenticated)
+        || durable_marks != before
+    {
+        return Err(
+            "a changed snapshot identifier retained partial state or changed marks".to_owned(),
+        );
+    }
+
+    let partial = partial_snapshot(authenticated, &durable_marks);
+    let duplicate = stage_region_snapshot(
+        &partial.table,
+        &partial.staging,
+        snapshot(9, 3, 8, 0, Vec::new(), Vec::new(), false),
+        snapshot_input(authenticated, &durable_marks),
+    );
+    if duplicate.disposition != RegionSnapshotDisposition::DuplicateChunkIndex
+        || !partial_stage_was_discarded(&duplicate, authenticated)
+        || durable_marks != before
+    {
+        return Err("duplicate chunk index retained partial state or changed marks".to_owned());
+    }
+
+    let partial = partial_snapshot(authenticated, &durable_marks);
+    let gap = stage_region_snapshot(
+        &partial.table,
+        &partial.staging,
+        snapshot(9, 3, 8, 2, Vec::new(), Vec::new(), false),
+        snapshot_input(authenticated, &durable_marks),
+    );
+    if gap.disposition != RegionSnapshotDisposition::SkippedChunkIndex
+        || !partial_stage_was_discarded(&gap, authenticated)
+        || durable_marks != before
+    {
+        return Err("a skipped chunk index retained partial state or changed marks".to_owned());
+    }
+
+    let exhausted_staging = RegionSnapshotStagingTable {
+        stages: vec![RegionSnapshotStage {
+            origin: authenticated,
+            snapshot_id: 12,
+            base_revision: 3,
+            marks_revision: 8,
+            next_chunk_index: u32::MAX,
+            presence_entries: Vec::new(),
+            mark_entries: Vec::new(),
+            final_received: false,
+        }],
+        cursors: Vec::new(),
+    };
+    let exhausted = stage_region_snapshot(
+        &RegionPresenceTable::default(),
+        &exhausted_staging,
+        snapshot(12, 3, 8, u32::MAX, Vec::new(), Vec::new(), true),
+        snapshot_input(authenticated, &durable_marks),
+    );
+    if exhausted.disposition != RegionSnapshotDisposition::ChunkIndexExhausted
+        || !partial_stage_was_discarded(&exhausted, authenticated)
+        || durable_marks != before
+    {
+        return Err("chunk-index exhaustion retained partial state or changed marks".to_owned());
+    }
+    Ok(())
+}
+
+#[test]
+fn malformed_snapshot_records_invalidate_without_touching_marks() -> Result<(), String> {
+    fixture_expect("snapshot_duplicate_presence_owner", "discard-partial")?;
+    fixture_expect("snapshot_duplicate_mark_owner", "discard-partial")?;
+    fixture_expect("snapshot_wrong_epoch", "discard-partial")?;
+    fixture_expect("snapshot_wrong_slot", "discard-partial")?;
+    fixture_expect("snapshot_invalid_revision", "discard-partial")?;
+    fixture_expect("snapshot_cut_regression", "discard-partial")?;
+    let authenticated = origin(2, 10);
+    let durable_marks = [marks(0x22, 5, 0)];
+    let before = durable_marks;
+    let duplicate_presence = snapshot_presence_for(authenticated, 0x22, 5, 1, 2);
+    let partial = partial_snapshot(authenticated, &durable_marks);
+    let duplicate = stage_region_snapshot(
+        &partial.table,
+        &partial.staging,
+        snapshot(9, 3, 8, 1, vec![duplicate_presence], Vec::new(), false),
+        snapshot_input(authenticated, &durable_marks),
+    );
+    if duplicate.disposition != RegionSnapshotDisposition::DuplicatePresenceOwner
+        || !partial_stage_was_discarded(&duplicate, authenticated)
+    {
+        return Err("a duplicate presence owner was accepted".to_owned());
+    }
+
+    let duplicated_mark = marks(0x22, 5, 0);
+    let marked_first_chunk = stage_region_snapshot(
+        &RegionPresenceTable::default(),
+        &RegionSnapshotStagingTable::default(),
+        snapshot(1, 1, 1, 0, Vec::new(), vec![duplicated_mark], true),
+        snapshot_input(authenticated, &durable_marks),
+    );
+    let duplicate_marks = stage_region_snapshot(
+        &marked_first_chunk.table,
+        &marked_first_chunk.staging,
+        snapshot(1, 1, 1, 1, Vec::new(), vec![duplicated_mark], false),
+        snapshot_input(authenticated, &durable_marks),
+    );
+    if duplicate_marks.disposition != RegionSnapshotDisposition::DuplicateMarkOwner
+        || !partial_stage_was_discarded(&duplicate_marks, authenticated)
+    {
+        return Err("a duplicate mark owner was accepted".to_owned());
+    }
+
+    let mut wrong_epoch = snapshot_presence_for(authenticated, 0x22, 5, 1, 1);
+    wrong_epoch.boot_epoch = 11;
+    let epoch = stage_region_snapshot(
+        &RegionPresenceTable::default(),
+        &RegionSnapshotStagingTable::default(),
+        snapshot(1, 1, 1, 0, vec![wrong_epoch], Vec::new(), false),
+        snapshot_input(authenticated, &durable_marks),
+    );
+    if epoch.disposition != RegionSnapshotDisposition::InvalidPresenceEpoch
+        || !partial_stage_was_discarded(&epoch, authenticated)
+    {
+        return Err("a mismatched presence epoch was accepted".to_owned());
+    }
+
+    let mut wrong_slot = snapshot_presence_for(authenticated, 0x22, 5, 1, 1);
+    wrong_slot.slot = [0xff; 16];
+    let slot = stage_region_snapshot(
+        &RegionPresenceTable::default(),
+        &RegionSnapshotStagingTable::default(),
+        snapshot(1, 1, 1, 0, vec![wrong_slot], Vec::new(), false),
+        snapshot_input(authenticated, &durable_marks),
+    );
+    if slot.disposition != RegionSnapshotDisposition::InvalidPresenceSlot
+        || !partial_stage_was_discarded(&slot, authenticated)
+    {
+        return Err("a non-derived presence slot was accepted".to_owned());
+    }
+
+    let invalid_revision = snapshot_presence_for(authenticated, 0x22, 5, 1, 2);
+    let revision = stage_region_snapshot(
+        &RegionPresenceTable::default(),
+        &RegionSnapshotStagingTable::default(),
+        snapshot(1, 1, 1, 0, vec![invalid_revision], Vec::new(), false),
+        snapshot_input(authenticated, &durable_marks),
+    );
+    if revision.disposition != RegionSnapshotDisposition::InvalidPresenceRevision
+        || !partial_stage_was_discarded(&revision, authenticated)
+    {
+        return Err("a revision above the snapshot cut was accepted".to_owned());
+    }
+
+    let zero_revision = snapshot_presence_for(authenticated, 0x22, 5, 1, 0);
+    let zero = stage_region_snapshot(
+        &RegionPresenceTable::default(),
+        &RegionSnapshotStagingTable::default(),
+        snapshot(1, 1, 1, 0, vec![zero_revision], Vec::new(), false),
+        snapshot_input(authenticated, &durable_marks),
+    );
+    if zero.disposition != RegionSnapshotDisposition::InvalidPresenceRevision
+        || !partial_stage_was_discarded(&zero, authenticated)
+    {
+        return Err("a zero presence revision was accepted".to_owned());
+    }
+
+    let regression_table = table(Vec::new(), vec![state(authenticated, 4)]);
+    let regression = stage_region_snapshot(
+        &regression_table,
+        &RegionSnapshotStagingTable::default(),
+        snapshot(1, 3, 1, 0, Vec::new(), Vec::new(), false),
+        snapshot_input(authenticated, &durable_marks),
+    );
+    if regression.disposition != RegionSnapshotDisposition::CutRegression
+        || !partial_stage_was_discarded(&regression, authenticated)
+        || durable_marks != before
+    {
+        return Err("a cut regression retained partial state or changed marks".to_owned());
+    }
+    Ok(())
+}
+
+#[test]
+fn interruption_reconnect_and_completed_ids_require_a_fresh_snapshot() -> Result<(), String> {
+    fixture_expect("snapshot_interruption", "discard-partial")?;
+    fixture_expect("snapshot_reconnect_restart", "fresh-id-from-zero")?;
+    fixture_expect("snapshot_post_completion", "discard-partial")?;
+    fixture_expect("snapshot_stale_id", "discard-partial")?;
+    let authenticated = origin(2, 10);
+    let durable_marks = [marks(0x22, 5, 0)];
+    let partial = partial_snapshot(authenticated, &durable_marks);
+    let interrupted = interrupt_region_snapshot(&partial.table, &partial.staging, authenticated);
+    if interrupted.disposition != RegionSnapshotDisposition::Interrupted
+        || !partial_stage_was_discarded(&interrupted, authenticated)
+    {
+        return Err("an interruption retained partial staged presence".to_owned());
+    }
+    let restarted = begin_region_snapshot_control(
+        &interrupted.table,
+        &interrupted.staging,
+        current_stream(authenticated),
+    );
+    let fresh = stage_region_snapshot(
+        &restarted.table,
+        &restarted.staging,
+        snapshot(10, 0, 0, 0, Vec::new(), Vec::new(), false),
+        snapshot_input(authenticated, &durable_marks),
+    );
+    if restarted.disposition != RegionSnapshotDisposition::ControlStarted
+        || fresh.disposition != RegionSnapshotDisposition::AwaitingDurableMarks
+    {
+        return Err("a reconnect did not begin a fresh zero-index snapshot".to_owned());
+    }
+    let channels = channels(&[authenticated]);
+    let completed = complete_region_snapshot(
+        &fresh.table,
+        &fresh.staging,
+        snapshot_completion_input(authenticated, &[], &channels),
+    );
+    let repeated = stage_region_snapshot(
+        &completed.table,
+        &completed.staging,
+        snapshot(10, 0, 0, 0, Vec::new(), Vec::new(), false),
+        snapshot_input(authenticated, &durable_marks),
+    );
+    let stale = stage_region_snapshot(
+        &completed.table,
+        &completed.staging,
+        snapshot(9, 0, 0, 0, Vec::new(), Vec::new(), false),
+        snapshot_input(authenticated, &durable_marks),
+    );
+    if completed.disposition != RegionSnapshotDisposition::Completed
+        || repeated.disposition != RegionSnapshotDisposition::ChunkAfterCompletion
+        || stale.disposition != RegionSnapshotDisposition::StaleSnapshotId
+        || !partial_stage_was_discarded(&repeated, authenticated)
+        || !partial_stage_was_discarded(&stale, authenticated)
+    {
+        return Err("completed or stale identifiers were accepted".to_owned());
+    }
+    Ok(())
+}
+
+#[test]
+fn snapshot_capacity_and_floor_failures_are_explicit_and_route_closed() -> Result<(), String> {
+    fixture_expect("snapshot_size_bound", "capacity-exhausted")?;
+    fixture_expect("snapshot_mark_compatibility", "discard-partial")?;
+    let authenticated = origin(2, 10);
+    let durable_marks = [marks(0x22, 5, 0)];
+    let mut bounded = snapshot_input(authenticated, &durable_marks);
+    bounded.capacity.maximum_entries = 1;
+    let overflow = stage_region_snapshot(
+        &RegionPresenceTable::default(),
+        &RegionSnapshotStagingTable::default(),
+        snapshot(
+            1,
+            1,
+            1,
+            0,
+            vec![
+                snapshot_presence_for(authenticated, 0x22, 5, 1, 1),
+                snapshot_presence_for(authenticated, 0x23, 5, 1, 1),
+            ],
+            Vec::new(),
+            false,
+        ),
+        bounded,
+    );
+    if overflow.disposition != RegionSnapshotDisposition::CapacityExhausted
+        || !partial_stage_was_discarded(&overflow, authenticated)
+    {
+        return Err("snapshot staging capacity overflow was not explicit".to_owned());
+    }
+
+    let incompatible_presence = snapshot_presence_for(authenticated, 0x22, 4, 1, 1);
+    let joined_mark = marks(0x22, 5, 0);
+    let staged = stage_region_snapshot(
+        &RegionPresenceTable::default(),
+        &RegionSnapshotStagingTable::default(),
+        snapshot(
+            2,
+            1,
+            1,
+            0,
+            vec![incompatible_presence],
+            vec![joined_mark],
+            false,
+        ),
+        snapshot_input(authenticated, &[]),
+    );
+    let channels = channels(&[authenticated]);
+    let missing_marks = complete_region_snapshot(
+        &staged.table,
+        &staged.staging,
+        snapshot_completion_input(authenticated, &[], &channels),
+    );
+    let floor_rejected = complete_region_snapshot(
+        &staged.table,
+        &staged.staging,
+        snapshot_completion_input(authenticated, &[joined_mark], &channels),
+    );
+    if staged.disposition != RegionSnapshotDisposition::AwaitingDurableMarks
+        || missing_marks.disposition != RegionSnapshotDisposition::DurableMarksNotPersisted
+        || floor_rejected.disposition != RegionSnapshotDisposition::IncompatiblePresence
+        || !partial_stage_was_discarded(&missing_marks, authenticated)
+        || !partial_stage_was_discarded(&floor_rejected, authenticated)
+    {
+        return Err("mark persistence or floor validation authorized a staged route".to_owned());
+    }
+    Ok(())
 }
 
 #[test]

@@ -193,8 +193,8 @@ fn region_frame_fixture_and_case_inventory_must_be_exact() -> Result<(), String>
             .lines()
             .filter(|line| !line.starts_with("file=region_frames.vec|"))
             .map(|line| {
-                if line == "data_file_count=13" {
-                    "data_file_count=12"
+                if line == "data_file_count=15" {
+                    "data_file_count=14"
                 } else {
                     line
                 }
@@ -229,8 +229,8 @@ fn region_marks_fixture_and_case_inventory_must_be_exact() -> Result<(), String>
             .lines()
             .filter(|line| !line.starts_with("file=region_marks.vec|"))
             .map(|line| {
-                if line == "data_file_count=14" {
-                    "data_file_count=13"
+                if line == "data_file_count=15" {
+                    "data_file_count=14"
                 } else {
                     line
                 }
@@ -287,6 +287,26 @@ fn region_presence_fixture_and_case_inventory_must_be_exact() -> Result<(), Stri
         let path = temp.join("region_presence.vec");
         let original = fs::read_to_string(&path).map_err(|error| error.to_string())?;
         let updated = original.replacen("case=origin_ownership\n", "case=unlisted\n", 1);
+        fs::write(path, updated).map_err(|error| error.to_string())
+    })?;
+    altered_inventory("missing-snapshot-completion-case", |temp| {
+        let path = temp.join("region_presence.vec");
+        let original = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+        let remaining = original
+            .split("\n\n")
+            .filter(|block| !block.contains("case=snapshot_completion\n"))
+            .collect::<Vec<_>>()
+            .join("\n\n");
+        fs::write(path, remaining).map_err(|error| error.to_string())
+    })?;
+    altered_inventory("unlisted-snapshot-staging-case", |temp| {
+        let path = temp.join("region_presence.vec");
+        let original = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+        let updated = original.replacen(
+            "case=snapshot_empty\n",
+            "case=unlisted_snapshot_staging\n",
+            1,
+        );
         fs::write(path, updated).map_err(|error| error.to_string())
     })
 }

@@ -7,7 +7,7 @@ use std::{
 
 const ROOT: &str = "tests/fixtures/keynet-v1";
 const EXPECTED_MANIFEST_SHA256: &str =
-    "de37541c2fdd128ec164ce92e6f40bb823719736fa516f62f6c767307333eb40";
+    "d94567e13d26b85ca2ae26ee1b78f1ecf2a883c884c534b832da6df7771b4820";
 
 const METADATA: &[(&str, &str)] = &[
     ("manifest_format", "keynet-fixture-manifest-v1"),
@@ -65,7 +65,7 @@ const METADATA: &[(&str, &str)] = &[
     ),
     (
         "region_presence_cases",
-        "origin_ownership,full_owner_collision,generation_before_incarnation,incarnation_before_member_id,durable_mark_filtering,member_id_tie_break,exact_gone_removal,revision_high_water,stale_stream,epoch_replacement,local_loser_effects,grace_channel_down,durable_floors_retained,capacity_bound,higher_generation_channel_down,same_origin_lower_generation",
+        "origin_ownership,full_owner_collision,generation_before_incarnation,incarnation_before_member_id,durable_mark_filtering,member_id_tie_break,exact_gone_removal,revision_high_water,stale_stream,epoch_replacement,local_loser_effects,grace_channel_down,durable_floors_retained,capacity_bound,higher_generation_channel_down,same_origin_lower_generation,snapshot_empty,snapshot_size_bound,snapshot_unchanged_cuts,snapshot_contiguous_indices,snapshot_final_chunk,snapshot_deferred_routes,snapshot_changed_cuts,snapshot_changed_id,snapshot_duplicate_index,snapshot_gap,snapshot_exhaustion,snapshot_duplicate_presence_owner,snapshot_duplicate_mark_owner,snapshot_wrong_epoch,snapshot_wrong_slot,snapshot_invalid_revision,snapshot_cut_regression,snapshot_mark_compatibility,snapshot_interruption,snapshot_completion,snapshot_reconnect_restart,snapshot_post_completion,snapshot_stale_id",
     ),
 ];
 
@@ -128,7 +128,7 @@ const FILES: &[(&str, &str)] = &[
     ),
     (
         "region_presence.vec",
-        "f8579b0b997cb75745c6381637fecb0fe44a6713a133307d288d58b734c50452",
+        "f3cd8db4ac371c87537fae7cdde54882f287cef76ad1ea0878ee11e92d9d1a91",
     ),
 ];
 
