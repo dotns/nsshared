@@ -7,7 +7,7 @@ use std::{
 
 const ROOT: &str = "tests/fixtures/keynet-v1";
 const EXPECTED_MANIFEST_SHA256: &str =
-    "d6ef7a9d354f3daeb3597d7eebdc5b9ae5d49f5644165e181ec0c76d95d3bfde";
+    "1488790eb2386a5d6c152ca8df4bd62b8c0715e485a084ebd34938d1ec455a4f";
 
 const METADATA: &[(&str, &str)] = &[
     ("manifest_format", "keynet-fixture-manifest-v1"),
@@ -20,10 +20,10 @@ const METADATA: &[(&str, &str)] = &[
         "design_sha256",
         "a763e6db341b429361558df9ae81ca7d130cda7fb63ae912c2cf1f77638e27f2",
     ),
-    ("data_file_count", "13"),
+    ("data_file_count", "14"),
     (
         "coverage",
-        "addresses,identities,conflicts,key_bindings,pairing_tokens,introductions,aliases,labels,name_records,relay,revocation,relay_identifiers,control_records,region_frames,integrity",
+        "addresses,identities,conflicts,key_bindings,pairing_tokens,introductions,aliases,labels,name_records,relay,revocation,relay_identifiers,control_records,region_frames,region_marks,integrity",
     ),
     ("address_cases", "ascending,zeros,reverse"),
     ("identity_cases", "ascending,zeros,reverse"),
@@ -58,6 +58,10 @@ const METADATA: &[(&str, &str)] = &[
     (
         "region_frame_cases",
         "hello_control,hello_data,snapshot_nested,present,gone,marks,forward,miss,ping,pong,non_shortest,indefinite_length,wrong_arity,wrong_type,wrong_width,trailing_bytes,wrong_channel,zero_prefix,oversized_prefix,frame_limit,datagram_limit,snapshot_entry_limit",
+    ),
+    (
+        "region_marks_cases",
+        "permutations,reordered,duplicate_inputs,independent_revocation,higher_generation_reset,equal_generation_conflict,deterministic_representative",
     ),
 ];
 
@@ -114,6 +118,10 @@ const FILES: &[(&str, &str)] = &[
         "region_frames.vec",
         "ecae34dc8a6818422c8328dc5a64494b0d01134069267da0ddf00563af7bc065",
     ),
+    (
+        "region_marks.vec",
+        "40cbac6a53edc4a636265497e4daeb8186d0f0742de4a325ae1023e91aef17e6",
+    ),
 ];
 
 const BLOCK_INVENTORIES: &[(&str, &str)] = &[
@@ -127,6 +135,7 @@ const BLOCK_INVENTORIES: &[(&str, &str)] = &[
     ("labels.vec", "label_cases"),
     ("name_records.vec", "name_record_cases"),
     ("region_frames.vec", "region_frame_cases"),
+    ("region_marks.vec", "region_marks_cases"),
 ];
 
 fn root() -> PathBuf {
