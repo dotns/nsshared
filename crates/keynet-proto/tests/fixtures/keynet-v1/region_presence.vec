@@ -125,3 +125,18 @@ expected=discard-partial
 
 case=snapshot_stale_id
 expected=discard-partial
+
+case=snapshot_owner_index_scope
+expected=exact-bounded-store-index
+
+case=snapshot_batch_acknowledgment
+expected=local-stream-cut-commitment-revision
+
+case=snapshot_cut_receipt
+expected=local-stream-cut-progress-commitment
+
+case=snapshot_unchanged_batch
+expected=identical-floor-no-revision-advance
+
+case=snapshot_replay_fence_capacity
+expected=consume-before-admission

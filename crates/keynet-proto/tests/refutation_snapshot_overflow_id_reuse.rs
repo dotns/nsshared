@@ -1,17 +1,17 @@
 use keynet_proto::{
-    RegionCarrier, RegionPresence, RegionPresenceOrigin, RegionPresenceStream, RegionPresenceTable,
-    RegionSnapshot, RegionSnapshotDisposition, RegionSnapshotStagingCapacity,
-    RegionSnapshotStagingInput, RegionSnapshotStagingTable, begin_region_snapshot_control,
-    derive_slot_id, stage_region_snapshot,
+    RegionCarrier, RegionPresence, RegionPresenceOrigin, RegionPresenceTable, RegionSnapshot,
+    RegionSnapshotDisposition, RegionSnapshotStagingCapacity, RegionSnapshotStagingInput,
+    RegionSnapshotStagingTable, begin_region_snapshot_control, derive_slot_id,
+    stage_region_snapshot,
 };
 
-fn input(origin: RegionPresenceOrigin) -> RegionSnapshotStagingInput<'static> {
+mod snapshot_test_support;
+
+fn input(control: keynet_proto::RegionSnapshotControl) -> RegionSnapshotStagingInput<'static> {
     RegionSnapshotStagingInput {
-        stream: RegionPresenceStream {
-            origin,
-            is_current: true,
-        },
+        control,
         durable_marks: &[],
+        durable_store: snapshot_test_support::store(0),
         capacity: RegionSnapshotStagingCapacity {
             maximum_origins: 15,
             maximum_entries: 0,
@@ -53,25 +53,21 @@ fn an_overflowed_snapshot_id_cannot_restart_the_same_epoch() -> Result<(), Strin
         boot_epoch: origin.boot_epoch,
         revision: 1,
     };
+    let initial_control = snapshot_test_support::control(origin);
 
     let overflowed = stage_region_snapshot(
         &RegionPresenceTable::default(),
         &RegionSnapshotStagingTable::default(),
         snapshot(7, vec![presence]),
-        input(origin),
+        input(initial_control),
     );
     if overflowed.disposition != RegionSnapshotDisposition::CapacityExhausted {
         return Err("initial snapshot did not exhaust the configured capacity".to_owned());
     }
 
-    let restarted = begin_region_snapshot_control(
-        &overflowed.table,
-        &overflowed.staging,
-        RegionPresenceStream {
-            origin,
-            is_current: true,
-        },
-    );
+    let reconnect_control = snapshot_test_support::control_with_id(origin, 2);
+    let restarted =
+        begin_region_snapshot_control(&overflowed.table, &overflowed.staging, reconnect_control);
     if restarted.disposition != RegionSnapshotDisposition::ControlStarted {
         return Err("reconnect did not start a fresh control synchronization".to_owned());
     }
@@ -80,7 +76,7 @@ fn an_overflowed_snapshot_id_cannot_restart_the_same_epoch() -> Result<(), Strin
         &restarted.table,
         &restarted.staging,
         snapshot(7, Vec::new()),
-        input(origin),
+        input(reconnect_control),
     );
     if reused.disposition == RegionSnapshotDisposition::AwaitingDurableMarks
         || reused
@@ -96,7 +92,7 @@ fn an_overflowed_snapshot_id_cannot_restart_the_same_epoch() -> Result<(), Strin
         &reused.table,
         &reused.staging,
         snapshot(8, Vec::new()),
-        input(origin),
+        input(reconnect_control),
     );
     if fresh.disposition != RegionSnapshotDisposition::AwaitingDurableMarks {
         return Err("a fresh snapshot id was not accepted after overflow".to_owned());

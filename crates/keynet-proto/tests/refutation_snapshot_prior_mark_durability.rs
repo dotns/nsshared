@@ -1,9 +1,13 @@
 use keynet_proto::{
     RegionMarks, RegionPresenceCapacity, RegionPresenceChannels, RegionPresenceOrigin,
-    RegionPresenceStream, RegionPresenceTable, RegionSnapshot, RegionSnapshotCompletionInput,
-    RegionSnapshotDisposition, RegionSnapshotStagingCapacity, RegionSnapshotStagingInput,
-    RegionSnapshotStagingTable, complete_region_snapshot, stage_region_snapshot,
+    RegionPresenceTable, RegionSnapshot, RegionSnapshotCompletionInput, RegionSnapshotDisposition,
+    RegionSnapshotDurableBatchAcknowledgmentInput, RegionSnapshotOwnerValidationInput,
+    RegionSnapshotStagingCapacity, RegionSnapshotStagingInput, RegionSnapshotStagingTable,
+    acknowledge_region_snapshot_durable_batch, complete_region_snapshot, stage_region_snapshot,
+    validate_region_snapshot_owners,
 };
+
+mod snapshot_test_support;
 
 fn mark() -> RegionMarks {
     RegionMarks {
@@ -18,15 +22,14 @@ fn mark() -> RegionMarks {
 }
 
 fn staging_input(
-    origin: RegionPresenceOrigin,
+    control: keynet_proto::RegionSnapshotControl,
     durable_marks: &[RegionMarks],
+    durable_revision: u64,
 ) -> RegionSnapshotStagingInput<'_> {
     RegionSnapshotStagingInput {
-        stream: RegionPresenceStream {
-            origin,
-            is_current: true,
-        },
+        control,
         durable_marks,
+        durable_store: snapshot_test_support::store(durable_revision),
         capacity: RegionSnapshotStagingCapacity {
             maximum_origins: 15,
             maximum_entries: 10_000,
@@ -54,22 +57,52 @@ fn completion_rechecks_marks_from_every_durable_batch() -> Result<(), String> {
         member_id: 2,
         boot_epoch: 9,
     };
+    let control = snapshot_test_support::control(origin);
     let retained_mark = mark();
-    let first = stage_region_snapshot(
+    let first_requested = stage_region_snapshot(
         &RegionPresenceTable::default(),
         &RegionSnapshotStagingTable::default(),
         snapshot(0, vec![retained_mark], true),
-        staging_input(origin, &[]),
+        staging_input(control, &[], 0),
+    );
+    let first_validation = snapshot_test_support::unique_validation(
+        snapshot_test_support::validation_request(&first_requested)?,
+    );
+    let first = validate_region_snapshot_owners(
+        &first_requested.table,
+        &first_requested.staging,
+        RegionSnapshotOwnerValidationInput {
+            control,
+            validation: &first_validation,
+            durable_marks: &[],
+            durable_store: snapshot_test_support::store(0),
+            capacity: staging_input(control, &[], 0).capacity,
+        },
     );
     if first.disposition != RegionSnapshotDisposition::Staged || first.effects.len() != 1 {
         return Err("initial mark batch was not staged for persistence".to_owned());
     }
 
-    let final_chunk = stage_region_snapshot(
+    let batch = snapshot_test_support::durable_batch(&first)?;
+    let drained = acknowledge_region_snapshot_durable_batch(
         &first.table,
         &first.staging,
+        RegionSnapshotDurableBatchAcknowledgmentInput {
+            control,
+            acknowledgment: snapshot_test_support::acknowledgment(
+                &batch,
+                snapshot_test_support::store(1),
+            ),
+            durable_marks: &[retained_mark],
+            durable_store: snapshot_test_support::store(1),
+        },
+    );
+
+    let final_chunk = stage_region_snapshot(
+        &drained.table,
+        &drained.staging,
         snapshot(1, Vec::new(), false),
-        staging_input(origin, &[retained_mark]),
+        staging_input(control, &[retained_mark], 1),
     );
     if final_chunk.disposition != RegionSnapshotDisposition::AwaitingDurableMarks {
         return Err("snapshot did not accept its final chunk".to_owned());
@@ -84,12 +117,11 @@ fn completion_rechecks_marks_from_every_durable_batch() -> Result<(), String> {
         &final_chunk.table,
         &final_chunk.staging,
         RegionSnapshotCompletionInput {
-            stream: RegionPresenceStream {
-                origin,
-                is_current: true,
-            },
+            control,
             snapshot_id: 1,
+            durable_cut_receipt: None,
             durable_marks: &[],
+            durable_store: snapshot_test_support::store(1),
             channel_states: &channels,
             capacity: RegionPresenceCapacity {
                 maximum_entries: 160_000,
@@ -98,7 +130,7 @@ fn completion_rechecks_marks_from_every_durable_batch() -> Result<(), String> {
     );
 
     if completed_without_prior_mark.disposition
-        != RegionSnapshotDisposition::DurableMarksNotPersisted
+        != RegionSnapshotDisposition::InvalidDurableCutReceipt
         || completed_without_prior_mark.table != final_chunk.table
         || completed_without_prior_mark
             .staging

@@ -1,9 +1,13 @@
 use keynet_proto::{
     MAX_REGION_SNAPSHOT_MARK_STAGING_BYTES, RegionMarks, RegionOwner, RegionPresenceOrigin,
-    RegionPresenceStream, RegionPresenceTable, RegionSnapshot, RegionSnapshotDisposition,
+    RegionPresenceTable, RegionSnapshot, RegionSnapshotDisposition,
+    RegionSnapshotDurableBatchAcknowledgmentInput, RegionSnapshotOwnerValidationInput,
     RegionSnapshotStagingCapacity, RegionSnapshotStagingInput, RegionSnapshotStagingTable,
-    stage_region_snapshot,
+    acknowledge_region_snapshot_durable_batch, stage_region_snapshot,
+    validate_region_snapshot_owners,
 };
+
+mod snapshot_test_support;
 
 fn mark(index: u16) -> RegionMarks {
     let mut identity = [0; 32];
@@ -20,16 +24,15 @@ fn mark(index: u16) -> RegionMarks {
 }
 
 fn input(
-    origin: RegionPresenceOrigin,
+    control: keynet_proto::RegionSnapshotControl,
     durable_marks: &[RegionMarks],
+    durable_revision: u64,
     maximum_mark_staging_bytes: usize,
 ) -> RegionSnapshotStagingInput<'_> {
     RegionSnapshotStagingInput {
-        stream: RegionPresenceStream {
-            origin,
-            is_current: true,
-        },
+        control,
         durable_marks,
+        durable_store: snapshot_test_support::store(durable_revision),
         capacity: RegionSnapshotStagingCapacity {
             maximum_origins: 15,
             maximum_entries: 10_000,
@@ -49,8 +52,9 @@ fn mark_owner_index_obeys_the_snapshot_staging_byte_cap() -> Result<(), String> 
         member_id: 2,
         boot_epoch: 9,
     };
+    let control = snapshot_test_support::control(origin);
     let first_batch = (0..256).map(mark).collect::<Vec<_>>();
-    let first = stage_region_snapshot(
+    let first_requested = stage_region_snapshot(
         &RegionPresenceTable::default(),
         &RegionSnapshotStagingTable::default(),
         RegionSnapshot {
@@ -62,35 +66,39 @@ fn mark_owner_index_obeys_the_snapshot_staging_byte_cap() -> Result<(), String> 
             mark_entries: first_batch.clone(),
             more: true,
         },
-        input(origin, &[], MAX_REGION_SNAPSHOT_MARK_STAGING_BYTES),
+        input(control, &[], 0, MAX_REGION_SNAPSHOT_MARK_STAGING_BYTES),
     );
-    if first.disposition != RegionSnapshotDisposition::Staged || first.effects.len() != 256 {
+    let first_validation = snapshot_test_support::unique_validation(
+        snapshot_test_support::validation_request(&first_requested)?,
+    );
+    let first = validate_region_snapshot_owners(
+        &first_requested.table,
+        &first_requested.staging,
+        RegionSnapshotOwnerValidationInput {
+            control,
+            validation: &first_validation,
+            durable_marks: &[],
+            durable_store: snapshot_test_support::store(0),
+            capacity: input(control, &[], 0, MAX_REGION_SNAPSHOT_MARK_STAGING_BYTES).capacity,
+        },
+    );
+    if first.disposition != RegionSnapshotDisposition::Staged
+        || snapshot_test_support::durable_batch(&first)?.joins.len() != 256
+    {
         return Err("the initial mark batch did not fit the explicit byte budget".to_owned());
     }
 
-    let retained_owners = first
+    let stage = first
         .staging
         .stages
         .iter()
         .find(|stage| stage.origin == origin)
-        .ok_or_else(|| "accepted snapshot lost its stage".to_owned())?
-        .mark_owners
-        .len();
-    let retained_owner_bytes = retained_owners
-        .checked_mul(std::mem::size_of::<RegionOwner>())
-        .ok_or_else(|| "owner byte accounting overflowed".to_owned())?;
-    if retained_owner_bytes > 64 * 1024 {
-        return Err(format!(
-            "snapshot retained {retained_owner_bytes} bytes of mark-owner index"
-        ));
+        .ok_or_else(|| "accepted snapshot lost its stage".to_owned())?;
+    if stage.pending_owner_validation.is_some() {
+        return Err("snapshot retained a second owner-validation batch".to_owned());
     }
 
-    let retained_mark_bytes = first
-        .staging
-        .stages
-        .iter()
-        .find(|stage| stage.origin == origin)
-        .ok_or_else(|| "accepted snapshot lost its stage".to_owned())?
+    let retained_mark_bytes = stage
         .mark_staging_bytes()
         .ok_or_else(|| "mark byte accounting overflowed".to_owned())?;
     if retained_mark_bytes > MAX_REGION_SNAPSHOT_MARK_STAGING_BYTES {
@@ -114,7 +122,7 @@ fn mark_owner_index_obeys_the_snapshot_staging_byte_cap() -> Result<(), String> 
             mark_entries: first_batch.clone(),
             more: true,
         },
-        input(origin, &[], lower_mark_budget),
+        input(control, &[], 0, lower_mark_budget),
     );
     if lower_budget.disposition != RegionSnapshotDisposition::CapacityExhausted
         || lower_budget
@@ -126,10 +134,24 @@ fn mark_owner_index_obeys_the_snapshot_staging_byte_cap() -> Result<(), String> 
         return Err("the caller-supplied mark byte budget was not enforced".to_owned());
     }
 
-    let second_batch = (256..512).map(mark).collect::<Vec<_>>();
-    let overflow = stage_region_snapshot(
+    let first_batch_effect = snapshot_test_support::durable_batch(&first)?;
+    let drained = acknowledge_region_snapshot_durable_batch(
         &first.table,
         &first.staging,
+        RegionSnapshotDurableBatchAcknowledgmentInput {
+            control,
+            acknowledgment: snapshot_test_support::acknowledgment(
+                &first_batch_effect,
+                snapshot_test_support::store(1),
+            ),
+            durable_marks: &first_batch,
+            durable_store: snapshot_test_support::store(1),
+        },
+    );
+    let second_batch = (256..512).map(mark).collect::<Vec<_>>();
+    let continued = stage_region_snapshot(
+        &drained.table,
+        &drained.staging,
         RegionSnapshot {
             snapshot_id: 1,
             base_revision: 0,
@@ -139,17 +161,30 @@ fn mark_owner_index_obeys_the_snapshot_staging_byte_cap() -> Result<(), String> 
             mark_entries: second_batch,
             more: false,
         },
-        input(origin, &first_batch, MAX_REGION_SNAPSHOT_MARK_STAGING_BYTES),
+        input(
+            control,
+            &first_batch,
+            1,
+            MAX_REGION_SNAPSHOT_MARK_STAGING_BYTES,
+        ),
     );
-    if overflow.disposition != RegionSnapshotDisposition::CapacityExhausted
-        || overflow
+    if continued.disposition != RegionSnapshotDisposition::AwaitingOwnerValidation
+        || continued
             .staging
             .stages
             .iter()
-            .any(|stage| stage.origin == origin)
-        || !overflow.table.entries.is_empty()
+            .find(|stage| stage.origin == origin)
+            .is_none_or(|stage| {
+                stage
+                    .mark_staging_bytes()
+                    .is_none_or(|bytes| bytes > MAX_REGION_SNAPSHOT_MARK_STAGING_BYTES)
+            })
+        || !continued.table.entries.is_empty()
     {
-        return Err("mark staging did not fail closed at the explicit byte cap".to_owned());
+        return Err(
+            "drained mark batches did not remain bounded before the next index validation"
+                .to_owned(),
+        );
     }
     Ok(())
 }

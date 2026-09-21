@@ -1,17 +1,16 @@
 use keynet_proto::{
-    RegionPresenceOrigin, RegionPresenceStream, RegionPresenceTable, RegionSnapshot,
-    RegionSnapshotDisposition, RegionSnapshotStagingCapacity, RegionSnapshotStagingInput,
-    RegionSnapshotStagingTable, begin_region_snapshot_control, interrupt_region_snapshot,
-    stage_region_snapshot,
+    RegionPresenceOrigin, RegionPresenceTable, RegionSnapshot, RegionSnapshotDisposition,
+    RegionSnapshotStagingCapacity, RegionSnapshotStagingInput, RegionSnapshotStagingTable,
+    begin_region_snapshot_control, interrupt_region_snapshot, stage_region_snapshot,
 };
 
-fn input(origin: RegionPresenceOrigin) -> RegionSnapshotStagingInput<'static> {
+mod snapshot_test_support;
+
+fn input(control: keynet_proto::RegionSnapshotControl) -> RegionSnapshotStagingInput<'static> {
     RegionSnapshotStagingInput {
-        stream: RegionPresenceStream {
-            origin,
-            is_current: true,
-        },
+        control,
         durable_marks: &[],
+        durable_store: snapshot_test_support::store(0),
         capacity: RegionSnapshotStagingCapacity {
             maximum_origins: 15,
             maximum_entries: 10_000,
@@ -41,37 +40,33 @@ fn an_abandoned_snapshot_id_cannot_be_reused_after_reconnect() -> Result<(), Str
     };
     let table = RegionPresenceTable::default();
     let staging = RegionSnapshotStagingTable::default();
+    let initial_control = snapshot_test_support::control(origin);
 
-    let partial = stage_region_snapshot(&table, &staging, chunk(7, true), input(origin));
+    let partial = stage_region_snapshot(&table, &staging, chunk(7, true), input(initial_control));
     if partial.disposition != RegionSnapshotDisposition::Staged {
         return Err("initial snapshot did not stage".to_owned());
     }
-    let interrupted = interrupt_region_snapshot(&partial.table, &partial.staging, origin);
-    let restarted = begin_region_snapshot_control(
-        &interrupted.table,
-        &interrupted.staging,
-        RegionPresenceStream {
-            origin,
-            is_current: true,
-        },
-    );
+    let interrupted = interrupt_region_snapshot(&partial.table, &partial.staging, initial_control);
+    let reconnect_control = snapshot_test_support::control_with_id(origin, 2);
+    let restarted =
+        begin_region_snapshot_control(&interrupted.table, &interrupted.staging, reconnect_control);
     let reused = stage_region_snapshot(
         &restarted.table,
         &restarted.staging,
         chunk(7, false),
-        input(origin),
+        input(reconnect_control),
     );
     let stale = stage_region_snapshot(
         &restarted.table,
         &restarted.staging,
         chunk(6, false),
-        input(origin),
+        input(reconnect_control),
     );
     let fresh = stage_region_snapshot(
         &restarted.table,
         &restarted.staging,
         chunk(8, false),
-        input(origin),
+        input(reconnect_control),
     );
 
     if reused.disposition == RegionSnapshotDisposition::AwaitingDurableMarks {

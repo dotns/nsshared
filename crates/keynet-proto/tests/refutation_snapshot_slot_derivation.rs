@@ -1,8 +1,10 @@
 use keynet_proto::{
-    RegionCarrier, RegionPresence, RegionPresenceOrigin, RegionPresenceStream, RegionPresenceTable,
-    RegionSnapshot, RegionSnapshotDisposition, RegionSnapshotStagingCapacity,
-    RegionSnapshotStagingInput, RegionSnapshotStagingTable, derive_slot_id, stage_region_snapshot,
+    RegionCarrier, RegionPresence, RegionPresenceOrigin, RegionPresenceTable, RegionSnapshot,
+    RegionSnapshotDisposition, RegionSnapshotStagingCapacity, RegionSnapshotStagingInput,
+    RegionSnapshotStagingTable, derive_slot_id, stage_region_snapshot,
 };
+
+mod snapshot_test_support;
 
 #[test]
 fn snapshot_slot_validation_uses_the_protocol_derivation() -> Result<(), String> {
@@ -41,11 +43,9 @@ fn snapshot_slot_validation_uses_the_protocol_derivation() -> Result<(), String>
             more: false,
         },
         RegionSnapshotStagingInput {
-            stream: RegionPresenceStream {
-                origin,
-                is_current: true,
-            },
+            control: snapshot_test_support::control(origin),
             durable_marks: &[],
+            durable_store: snapshot_test_support::store(0),
             capacity: RegionSnapshotStagingCapacity {
                 maximum_origins: 15,
                 maximum_entries: 10_000,

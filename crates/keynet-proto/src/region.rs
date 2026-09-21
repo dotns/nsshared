@@ -1,6 +1,7 @@
 //! Canonical inter-member relay-region frames from design section 13.8.
 
 use crate::{Identity, NetworkId, RelayIdentifier, SlotId, codec::CborReader, derive_slot_id};
+use sha2::{Digest, Sha256};
 
 /// The sole supported region-frame version.
 pub const REGION_FRAME_VERSION: u8 = 1;
@@ -12,6 +13,8 @@ pub const MAX_REGION_FORWARD_DATAGRAM_BYTES: usize = 2048;
 pub const MAX_REGION_SNAPSHOT_ENTRIES: usize = 256;
 /// The protocol limit for retained incoming snapshot mark staging per origin.
 pub const MAX_REGION_SNAPSHOT_MARK_STAGING_BYTES: usize = 64 * 1024;
+/// The protocol limit for the retained full-owner mark union on one member.
+pub const MAX_REGION_RETAINED_MARK_OWNERS: usize = 1_000_000;
 
 /// Frame types permitted on a control connection.
 pub const CONTROL_REGION_FRAME_TYPES: &[RegionFrameType] = &[
@@ -927,25 +930,259 @@ pub struct RegionSnapshot {
     pub more: bool,
 }
 
+/// The two authenticated boot epochs that scope a local incoming snapshot.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RegionSnapshotPair {
+    /// The remote member and boot epoch that supplied the snapshot.
+    pub origin: RegionPresenceOrigin,
+    /// The local member process epoch that owns the durable store assertion.
+    pub local_boot_epoch: u64,
+}
+
+/// An authenticated control-stream identity used only by the local decision API.
+///
+/// This is not a wire field and a peer cannot assert it. The integration layer supplies it after
+/// authenticating the control connection and changes it for every replacement connection.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RegionSnapshotControl {
+    /// The authenticated remote stream state.
+    pub stream: RegionPresenceStream,
+    /// The local member process epoch paired with the remote epoch.
+    pub local_boot_epoch: u64,
+    /// The opaque nonzero identity of the current authenticated control connection.
+    pub control_stream_id: u64,
+}
+
+impl RegionSnapshotControl {
+    /// Returns the pair identity bound into snapshot persistence evidence.
+    #[must_use]
+    pub const fn pair(self) -> RegionSnapshotPair {
+        RegionSnapshotPair {
+            origin: self.stream.origin,
+            local_boot_epoch: self.local_boot_epoch,
+        }
+    }
+}
+
+/// An opaque local durable-store lineage.
+///
+/// This value is supplied by trusted local storage. It is neither transmitted by a peer nor
+/// encoded in a region frame.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RegionSnapshotStoreLineage {
+    /// The stable local-store lineage identifier.
+    pub bytes: [u8; 16],
+}
+
+/// The monotonic local durable-store state supplied with a pure decision.
+///
+/// The decision can compare this evidence but cannot independently prove a false storage claim.
+/// Integrations must derive it from their trusted durable store, not from peer input.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RegionSnapshotDurableStore {
+    /// The trusted storage lineage.
+    pub lineage: RegionSnapshotStoreLineage,
+    /// The local durable revision after the asserted transaction.
+    pub durable_revision: u64,
+}
+
+/// A deterministic commitment to one exact snapshot chunk and its mark batch.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RegionSnapshotBatchCommitment {
+    /// The SHA-256 commitment bytes.
+    pub digest: [u8; 32],
+}
+
+/// A deterministic commitment to every accepted chunk in one named snapshot cut.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RegionSnapshotCutCommitment {
+    /// The SHA-256 commitment bytes.
+    pub digest: [u8; 32],
+}
+
+/// A locally persisted snapshot mark batch described by a staging effect.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RegionSnapshotDurableBatch {
+    /// The authenticated control stream that received the batch.
+    pub control: RegionSnapshotControl,
+    /// The sender-owned snapshot identifier.
+    pub snapshot_id: u64,
+    /// The captured presence cut.
+    pub base_revision: u64,
+    /// The captured mark cut.
+    pub marks_revision: u64,
+    /// The exact chunk that supplied the batch.
+    pub chunk_index: u32,
+    /// The contiguous accepted progress represented by this batch.
+    pub accepted_through: u32,
+    /// The exact batch commitment that the local transaction must acknowledge.
+    pub commitment: RegionSnapshotBatchCommitment,
+    /// The changed joins that must be durably committed before another mark batch is accepted.
+    pub joins: Vec<RegionMarks>,
+}
+
+/// Caller-owned evidence that one requested durable snapshot batch committed locally.
+///
+/// This evidence is an integration boundary, not a peer claim or a wire field.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RegionSnapshotDurableBatchAcknowledgment {
+    /// The authenticated control stream that received the batch.
+    pub control: RegionSnapshotControl,
+    /// The sender-owned snapshot identifier.
+    pub snapshot_id: u64,
+    /// The captured presence cut.
+    pub base_revision: u64,
+    /// The captured mark cut.
+    pub marks_revision: u64,
+    /// The committed chunk index.
+    pub chunk_index: u32,
+    /// The contiguous accepted progress proved by this acknowledgment.
+    pub accepted_through: u32,
+    /// The exact batch commitment returned by the staging effect.
+    pub commitment: RegionSnapshotBatchCommitment,
+    /// The trusted local store state after the batch transaction.
+    pub durable_store: RegionSnapshotDurableStore,
+}
+
+/// Caller-owned evidence that the whole named cut remains durable locally.
+///
+/// The receipt is deliberately not a peer assertion and is never serialized. It records what a
+/// trusted local storage implementation proved after all batch transactions drained.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RegionSnapshotDurableCutReceipt {
+    /// The authenticated control stream that received the cut.
+    pub control: RegionSnapshotControl,
+    /// The sender-owned snapshot identifier.
+    pub snapshot_id: u64,
+    /// The captured presence cut.
+    pub base_revision: u64,
+    /// The captured mark cut.
+    pub marks_revision: u64,
+    /// The final contiguous chunk index included by the receipt.
+    pub accepted_through: u32,
+    /// The commitment to every accepted chunk in the cut.
+    pub cut_commitment: RegionSnapshotCutCommitment,
+    /// The final changed mark-batch commitment, or `None` when no write was required.
+    pub final_batch_commitment: Option<RegionSnapshotBatchCommitment>,
+    /// The trusted local store state that still contains the complete cut.
+    pub durable_store: RegionSnapshotDurableStore,
+}
+
+/// An exact scoped request to the caller's durable, bounded owner index.
+///
+/// The caller must atomically test and reserve all listed owners in the request scope. The index
+/// is exact and store-backed; probabilistic membership is not sufficient. Its scope ends when
+/// the matching stage leaves the staging table, at which point the caller discards the index.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RegionSnapshotOwnerValidationRequest {
+    /// The authenticated control stream that scopes the index entry.
+    pub control: RegionSnapshotControl,
+    /// The sender-owned snapshot identifier.
+    pub snapshot_id: u64,
+    /// The captured presence cut.
+    pub base_revision: u64,
+    /// The captured mark cut.
+    pub marks_revision: u64,
+    /// The chunk whose owners are being reserved.
+    pub chunk_index: u32,
+    /// The contiguous progress that would result from accepting the chunk.
+    pub accepted_through: u32,
+    /// The exact batch commitment.
+    pub commitment: RegionSnapshotBatchCommitment,
+    /// The exact scoped owner count before this batch is atomically reserved.
+    pub previous_indexed_owner_count: usize,
+    /// The deterministic scoped index bytes before this batch is atomically reserved.
+    pub previous_indexed_bytes: usize,
+    /// The complete current-batch owner list to test and reserve exactly.
+    pub owners: Vec<RegionOwner>,
+    /// The retained-union owner limit enforced by the store-backed index.
+    pub maximum_owners: usize,
+    /// The maximum retained index bytes derived from the retained-union limit.
+    pub maximum_index_bytes: usize,
+}
+
+/// The result returned by an exact store-backed owner-index operation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RegionSnapshotOwnerIndexOutcome {
+    /// Every owner was unique and atomically reserved in the scoped index.
+    Unique {
+        /// The exact scoped owner count after reservation.
+        indexed_owner_count: usize,
+        /// The deterministic retained-index bytes after reservation, including allocation accounting.
+        indexed_bytes: usize,
+    },
+    /// At least one owner was already reserved by an earlier accepted batch.
+    Duplicate,
+    /// The bounded index could not reserve the requested owners.
+    CapacityExhausted,
+}
+
+/// A typed exact owner-index result supplied to a pure decision.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RegionSnapshotOwnerValidation {
+    /// The original request, returned unchanged by the local index.
+    pub request: RegionSnapshotOwnerValidationRequest,
+    /// The exact index outcome.
+    pub outcome: RegionSnapshotOwnerIndexOutcome,
+}
+
+/// A mark batch waiting for a trusted local durable acknowledgment.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RegionSnapshotPendingMarkBatch {
+    /// The chunk index that produced these marks.
+    pub chunk_index: u32,
+    /// The exact batch commitment.
+    pub commitment: RegionSnapshotBatchCommitment,
+    /// Whether this batch contained a changed join and must advance the local durable revision.
+    pub requires_revision_advance: bool,
+    /// The full batch retained only until local durable acknowledgment.
+    pub marks: Vec<RegionMarks>,
+}
+
+/// A bounded chunk awaiting exact cross-batch owner validation.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RegionSnapshotPendingOwnerValidation {
+    /// The validated but not yet accepted chunk.
+    pub snapshot: RegionSnapshot,
+    /// The exact commitment to the pending chunk.
+    pub commitment: RegionSnapshotBatchCommitment,
+}
+
 /// One bounded incoming snapshot that has not yet replaced published presence.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RegionSnapshotStage {
     /// The authenticated origin that owns this transfer.
     pub origin: RegionPresenceOrigin,
+    /// The exact authenticated control stream that owns the active transfer.
+    pub control: RegionSnapshotControl,
     /// The sender-owned identifier shared by every chunk.
     pub snapshot_id: u64,
     /// The origin presence revision captured by the sender.
     pub base_revision: u64,
     /// The durable-mark revision captured by the sender.
     pub marks_revision: u64,
-    /// The only index accepted for the next non-final chunk.
+    /// The only index accepted for the next unvalidated or unaccepted chunk.
     pub next_chunk_index: u32,
+    /// The greatest contiguous accepted index, if any.
+    pub accepted_through: Option<u32>,
     /// Presence records retained until durable completion.
     pub presence_entries: Vec<RegionPresence>,
-    /// Full owners observed in all mark batches, kept in canonical order for whole-snapshot checks.
-    pub mark_owners: Vec<RegionOwner>,
-    /// The one mark batch retained until caller input proves it durable.
-    pub mark_entries: Vec<RegionMarks>,
+    /// The exact scoped owner count confirmed by the store-backed index.
+    pub indexed_owner_count: usize,
+    /// The accounted scoped owner-index bytes confirmed by the local index.
+    pub indexed_owner_bytes: usize,
+    /// The single bounded mark batch awaiting durable acknowledgment.
+    pub pending_mark_batch: Option<RegionSnapshotPendingMarkBatch>,
+    /// The single bounded chunk awaiting exact cross-batch owner validation.
+    pub pending_owner_validation: Option<RegionSnapshotPendingOwnerValidation>,
+    /// The commitment to every accepted chunk in this cut.
+    pub cut_commitment: RegionSnapshotCutCommitment,
+    /// The final changed batch commitment, retained as metadata after that batch drains.
+    pub final_batch_commitment: Option<RegionSnapshotBatchCommitment>,
+    /// The final chunk index, present only after `more = false` was accepted.
+    pub final_chunk_index: Option<u32>,
+    /// The highest trusted local store state observed for this stage.
+    pub durable_store: RegionSnapshotDurableStore,
     /// Whether the final chunk has arrived and awaits durable completion.
     pub final_received: bool,
 }
@@ -954,70 +1191,116 @@ impl RegionSnapshotStage {
     /// Returns the retained bytes charged to the incoming mark-staging budget.
     #[must_use]
     pub fn mark_staging_bytes(&self) -> Option<usize> {
-        snapshot_mark_staging_bytes(self.mark_owners.capacity(), self.mark_entries.capacity())
+        if let Some(batch) = &self.pending_mark_batch {
+            return snapshot_mark_staging_bytes(
+                batch.marks.capacity(),
+                core::mem::size_of::<RegionSnapshotPendingMarkBatch>(),
+            );
+        }
+        if let Some(pending) = &self.pending_owner_validation {
+            return snapshot_mark_staging_bytes(
+                pending.snapshot.mark_entries.capacity(),
+                core::mem::size_of::<RegionSnapshotPendingOwnerValidation>(),
+            );
+        }
+        Some(0)
     }
 }
 
-/// The greatest accepted snapshot identifier retained for one authenticated origin.
+/// The greatest consumed snapshot identifier retained independently from active staging.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RegionSnapshotCursor {
-    /// The origin that accepted the snapshot identifier.
-    pub origin: RegionPresenceOrigin,
-    /// The greatest accepted snapshot identifier for the origin epoch.
+    /// The authenticated pair epoch that consumed the identifier.
+    pub pair: RegionSnapshotPair,
+    /// The greatest consumed snapshot identifier for that pair epoch.
     pub snapshot_id: u64,
 }
 
 /// Explicit caller-owned state for all incoming snapshot transfers.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct RegionSnapshotStagingTable {
-    /// At most one active or final-awaiting stage per origin.
+    /// At most one active or final-awaiting stage per authenticated pair.
     pub stages: Vec<RegionSnapshotStage>,
-    /// The high-water identifiers used to reject stale or reused chunks.
+    /// Replay fences that remain after a stage drains, fails, or is interrupted.
     pub cursors: Vec<RegionSnapshotCursor>,
 }
 
 /// Bounded staging limits supplied by the caller.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct RegionSnapshotStagingCapacity {
-    /// The greatest number of member origins tracked by staging state.
+    /// The greatest number of actively staged origins; replay fences do not consume this bound.
     pub maximum_origins: usize,
     /// The greatest count of staged presence records per origin.
     pub maximum_entries: usize,
-    /// The greatest count of retained mark-owner identities per origin.
+    /// The caller-supplied retained-union limit, capped by the protocol owner bound.
     pub maximum_mark_owners: usize,
-    /// The greatest retained mark-staging bytes per origin, capped at the protocol maximum.
+    /// The greatest retained single-batch mark bytes per origin, capped at the protocol maximum.
     pub maximum_mark_staging_bytes: usize,
 }
 
 /// Inputs for accepting one incoming SNAPSHOT chunk.
 pub struct RegionSnapshotStagingInput<'a> {
-    /// The authenticated stream that supplied the chunk.
-    pub stream: RegionPresenceStream,
-    /// The currently durable mark union used to drain prior batches and prepare this chunk's joins.
+    /// The current authenticated control stream that supplied the chunk.
+    pub control: RegionSnapshotControl,
+    /// The currently durable mark union used to prepare this chunk's joins.
     pub durable_marks: &'a [RegionMarks],
+    /// The trusted local durable-store state observed for this decision.
+    pub durable_store: RegionSnapshotDurableStore,
     /// Explicit bounds for caller-owned staging allocations.
     pub capacity: RegionSnapshotStagingCapacity,
 }
 
-/// Inputs for finishing a staged snapshot after durable mark persistence.
+/// Inputs for applying an exact scoped owner-index result.
+pub struct RegionSnapshotOwnerValidationInput<'a> {
+    /// The current authenticated control stream that owns the pending validation.
+    pub control: RegionSnapshotControl,
+    /// The exact result returned by the trusted local owner index.
+    pub validation: &'a RegionSnapshotOwnerValidation,
+    /// The current durable mark union used to prepare durable joins.
+    pub durable_marks: &'a [RegionMarks],
+    /// The trusted local durable-store state observed for this decision.
+    pub durable_store: RegionSnapshotDurableStore,
+    /// Explicit bounds for the pending durable batch.
+    pub capacity: RegionSnapshotStagingCapacity,
+}
+
+/// Inputs for accepting a caller-owned durable batch acknowledgment.
+pub struct RegionSnapshotDurableBatchAcknowledgmentInput<'a> {
+    /// The current authenticated control stream that owns the pending batch.
+    pub control: RegionSnapshotControl,
+    /// The typed local storage acknowledgment.
+    pub acknowledgment: RegionSnapshotDurableBatchAcknowledgment,
+    /// The current durable mark union after the acknowledged transaction.
+    pub durable_marks: &'a [RegionMarks],
+    /// The trusted local durable-store state observed for this decision.
+    pub durable_store: RegionSnapshotDurableStore,
+}
+
+/// Inputs for finishing a staged snapshot after all durable batches drain.
 pub struct RegionSnapshotCompletionInput<'a> {
-    /// The current authenticated stream that owns the completion callback.
-    pub stream: RegionPresenceStream,
+    /// The current authenticated control stream that owns the completion callback.
+    pub control: RegionSnapshotControl,
     /// The snapshot identifier captured with the completion callback.
     pub snapshot_id: u64,
-    /// The mark union after every requested snapshot join has been persisted.
+    /// The trusted complete-cut receipt; missing evidence fails closed.
+    pub durable_cut_receipt: Option<RegionSnapshotDurableCutReceipt>,
+    /// The mark union used to filter staged presence after receipt validation.
     pub durable_marks: &'a [RegionMarks],
+    /// The trusted local durable-store state observed for this decision.
+    pub durable_store: RegionSnapshotDurableStore,
     /// The current paired-channel state used for route eligibility.
     pub channel_states: &'a [RegionPresenceChannels],
     /// The published-presence capacity available to the replacement decision.
     pub capacity: RegionPresenceCapacity,
 }
 
-/// A durable action requested by an accepted snapshot chunk.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+/// A local action requested by a snapshot decision.
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RegionSnapshotEffect {
-    /// Persist this joined retained-owner mark before snapshot completion.
-    PersistDurableMark(RegionMarks),
+    /// Atomically validate and reserve this batch's owners in the scoped exact local index.
+    ValidateSnapshotOwners(RegionSnapshotOwnerValidationRequest),
+    /// Durably apply the changed joins in this exact batch before accepting another mark batch.
+    PersistDurableBatch(RegionSnapshotDurableBatch),
 }
 
 /// The documented outcome of one snapshot staging or completion decision.
@@ -1031,6 +1314,8 @@ pub enum RegionSnapshotDisposition {
     AwaitingDurableMarks,
     /// A mark-bearing chunk was refused until the prior batch becomes durable.
     DurableMarkBatchPending,
+    /// A bounded mark chunk awaits exact cross-batch owner validation.
+    AwaitingOwnerValidation,
     /// The final stage passed durable-floor validation and replaced one origin's presence.
     Completed,
     /// No final stage is available for completion.
@@ -1043,6 +1328,14 @@ pub enum RegionSnapshotDisposition {
     IgnoredStaleStream,
     /// A durable completion callback named a different active snapshot.
     IgnoredStaleSnapshotCompletion,
+    /// Owner-index evidence did not match the exact pending batch.
+    InvalidOwnerValidation,
+    /// Durable batch evidence was missing, mismatched, stale, or rolled back.
+    InvalidDurableBatchAcknowledgment,
+    /// A local durable-store lineage or revision moved backwards.
+    InvalidDurableStore,
+    /// The final durable-cut receipt was missing, mismatched, stale, or incomplete.
+    InvalidDurableCutReceipt,
     /// A sender supplied the reserved zero snapshot identifier.
     InvalidSnapshotId,
     /// The first chunk did not start at index zero.
@@ -1100,35 +1393,25 @@ pub struct RegionSnapshotDecision {
     pub disposition: RegionSnapshotDisposition,
 }
 
-/// Starts a fresh control stream for an origin, discarding only its partial snapshot state.
+/// Starts a fresh authenticated control stream and discards only its active partial stage.
 #[must_use]
 pub fn begin_region_snapshot_control(
     table: &RegionPresenceTable,
     staging: &RegionSnapshotStagingTable,
-    stream: RegionPresenceStream,
+    control: RegionSnapshotControl,
 ) -> RegionSnapshotDecision {
-    if !valid_region_member(stream.origin.member_id) {
-        return unchanged_snapshot_decision(
-            table,
-            staging,
-            RegionSnapshotDisposition::IgnoredInvalidOrigin,
-        );
-    }
-    if !stream.is_current {
-        return unchanged_snapshot_decision(
-            table,
-            staging,
-            RegionSnapshotDisposition::IgnoredStaleStream,
-        );
+    if validate_snapshot_control(control).is_none() {
+        return unchanged_snapshot_decision(table, staging, snapshot_control_failure(control));
     }
 
+    let pair = control.pair();
     let mut next_table = table.clone();
     let mut next_staging = staging.clone();
-    clear_other_snapshot_epochs(&mut next_staging, stream.origin);
+    clear_other_snapshot_epochs(&mut next_staging, pair);
     next_staging
         .stages
-        .retain(|stage| stage.origin != stream.origin);
-    require_snapshot(&mut next_table, stream.origin);
+        .retain(|stage| stage.control.pair() != pair);
+    require_snapshot(&mut next_table, pair.origin);
     RegionSnapshotDecision {
         table: next_table,
         staging: next_staging,
@@ -1137,26 +1420,29 @@ pub fn begin_region_snapshot_control(
     }
 }
 
-/// Discards an origin's partial snapshot while retaining caller-owned durable marks.
+/// Discards the current control stream's partial snapshot while retaining caller-owned marks.
 #[must_use]
 pub fn interrupt_region_snapshot(
     table: &RegionPresenceTable,
     staging: &RegionSnapshotStagingTable,
-    origin: RegionPresenceOrigin,
+    control: RegionSnapshotControl,
 ) -> RegionSnapshotDecision {
-    if !valid_region_member(origin.member_id) {
+    if validate_snapshot_control(control).is_none() {
+        return unchanged_snapshot_decision(table, staging, snapshot_control_failure(control));
+    }
+    let pair = control.pair();
+    if staging
+        .stages
+        .iter()
+        .any(|stage| stage.control.pair() == pair && stage.control != control)
+    {
         return unchanged_snapshot_decision(
             table,
             staging,
-            RegionSnapshotDisposition::IgnoredInvalidOrigin,
+            RegionSnapshotDisposition::IgnoredStaleStream,
         );
     }
-    invalidate_snapshot(
-        table,
-        staging,
-        origin,
-        RegionSnapshotDisposition::Interrupted,
-    )
+    invalidate_snapshot(table, staging, pair, RegionSnapshotDisposition::Interrupted)
 }
 
 /// Stages one incoming SNAPSHOT chunk without publishing any staged presence.
@@ -1167,32 +1453,22 @@ pub fn stage_region_snapshot(
     snapshot: RegionSnapshot,
     input: RegionSnapshotStagingInput<'_>,
 ) -> RegionSnapshotDecision {
-    if !valid_region_member(input.stream.origin.member_id) {
-        return unchanged_snapshot_decision(
-            table,
-            staging,
-            RegionSnapshotDisposition::IgnoredInvalidOrigin,
-        );
-    }
-    if !input.stream.is_current {
-        return unchanged_snapshot_decision(
-            table,
-            staging,
-            RegionSnapshotDisposition::IgnoredStaleStream,
-        );
+    let control = input.control;
+    if validate_snapshot_control(control).is_none() {
+        return unchanged_snapshot_decision(table, staging, snapshot_control_failure(control));
     }
 
-    let origin = input.stream.origin;
+    let pair = control.pair();
     let mut next_table = table.clone();
     let mut next_staging = staging.clone();
-    clear_other_snapshot_epochs(&mut next_staging, origin);
-    require_snapshot(&mut next_table, origin);
+    clear_other_snapshot_epochs(&mut next_staging, pair);
+    require_snapshot(&mut next_table, pair.origin);
 
     if snapshot.snapshot_id == 0 {
         return invalidate_snapshot(
             &next_table,
             &next_staging,
-            origin,
+            pair,
             RegionSnapshotDisposition::InvalidSnapshotId,
         );
     }
@@ -1205,39 +1481,56 @@ pub fn stage_region_snapshot(
         return invalidate_snapshot(
             &next_table,
             &next_staging,
-            origin,
+            pair,
             RegionSnapshotDisposition::ChunkEntryLimit,
         );
     }
 
-    let stage_index = match next_staging
+    let active_stage = next_staging
         .stages
         .iter()
-        .position(|stage| stage.origin == origin)
-    {
+        .position(|stage| stage.control.pair() == pair);
+    let stage_index = match active_stage {
         Some(index) => {
             let Some(stage) = next_staging.stages.get(index) else {
                 return invalidate_snapshot(
                     &next_table,
                     &next_staging,
-                    origin,
+                    pair,
                     RegionSnapshotDisposition::Interrupted,
                 );
             };
+            if stage.control != control {
+                return unchanged_snapshot_decision(
+                    table,
+                    staging,
+                    RegionSnapshotDisposition::IgnoredStaleStream,
+                );
+            }
+            if stage.snapshot_id != snapshot.snapshot_id {
+                if snapshot.snapshot_id > stage.snapshot_id
+                    && !record_snapshot_cursor(&mut next_staging, pair, snapshot.snapshot_id)
+                {
+                    return invalidate_snapshot(
+                        &next_table,
+                        &next_staging,
+                        pair,
+                        RegionSnapshotDisposition::CapacityExhausted,
+                    );
+                }
+                return invalidate_snapshot(
+                    &next_table,
+                    &next_staging,
+                    pair,
+                    RegionSnapshotDisposition::UnexpectedSnapshotId,
+                );
+            }
             if stage.final_received {
                 return invalidate_snapshot(
                     &next_table,
                     &next_staging,
-                    origin,
+                    pair,
                     RegionSnapshotDisposition::ChunkAfterCompletion,
-                );
-            }
-            if stage.snapshot_id != snapshot.snapshot_id {
-                return invalidate_snapshot(
-                    &next_table,
-                    &next_staging,
-                    origin,
-                    RegionSnapshotDisposition::UnexpectedSnapshotId,
                 );
             }
             if stage.base_revision != snapshot.base_revision
@@ -1246,7 +1539,7 @@ pub fn stage_region_snapshot(
                 return invalidate_snapshot(
                     &next_table,
                     &next_staging,
-                    origin,
+                    pair,
                     RegionSnapshotDisposition::ChangedSnapshotCuts,
                 );
             }
@@ -1254,7 +1547,7 @@ pub fn stage_region_snapshot(
                 return invalidate_snapshot(
                     &next_table,
                     &next_staging,
-                    origin,
+                    pair,
                     RegionSnapshotDisposition::DuplicateChunkIndex,
                 );
             }
@@ -1262,23 +1555,19 @@ pub fn stage_region_snapshot(
                 return invalidate_snapshot(
                     &next_table,
                     &next_staging,
-                    origin,
+                    pair,
                     RegionSnapshotDisposition::SkippedChunkIndex,
                 );
             }
             index
         }
         None => {
-            if let Some(cursor) = next_staging
-                .cursors
-                .iter()
-                .find(|cursor| cursor.origin == origin)
-            {
+            if let Some(cursor) = snapshot_cursor(&next_staging, pair) {
                 if snapshot.snapshot_id == cursor.snapshot_id {
                     return invalidate_snapshot(
                         &next_table,
                         &next_staging,
-                        origin,
+                        pair,
                         RegionSnapshotDisposition::ChunkAfterCompletion,
                     );
                 }
@@ -1286,211 +1575,103 @@ pub fn stage_region_snapshot(
                     return invalidate_snapshot(
                         &next_table,
                         &next_staging,
-                        origin,
+                        pair,
                         RegionSnapshotDisposition::StaleSnapshotId,
                     );
                 }
+            }
+            if !record_snapshot_cursor(&mut next_staging, pair, snapshot.snapshot_id) {
+                return invalidate_snapshot(
+                    &next_table,
+                    &next_staging,
+                    pair,
+                    RegionSnapshotDisposition::CapacityExhausted,
+                );
             }
             if snapshot.chunk_index != 0 {
                 return invalidate_snapshot(
                     &next_table,
                     &next_staging,
-                    origin,
+                    pair,
                     RegionSnapshotDisposition::InvalidInitialChunkIndex,
                 );
             }
-            if !snapshot_origin_is_tracked(&next_staging, origin)
-                && snapshot_origin_count(&next_staging) >= input.capacity.maximum_origins
-            {
+            if next_staging.stages.len() >= input.capacity.maximum_origins {
                 return invalidate_snapshot(
                     &next_table,
                     &next_staging,
-                    origin,
+                    pair,
                     RegionSnapshotDisposition::CapacityExhausted,
                 );
             }
-            record_snapshot_cursor(&mut next_staging, origin, snapshot.snapshot_id);
+            if next_staging.stages.try_reserve_exact(1).is_err() {
+                return invalidate_snapshot(
+                    &next_table,
+                    &next_staging,
+                    pair,
+                    RegionSnapshotDisposition::CapacityExhausted,
+                );
+            }
             next_staging.stages.push(RegionSnapshotStage {
-                origin,
+                origin: pair.origin,
+                control,
                 snapshot_id: snapshot.snapshot_id,
                 base_revision: snapshot.base_revision,
                 marks_revision: snapshot.marks_revision,
                 next_chunk_index: 0,
+                accepted_through: None,
                 presence_entries: Vec::new(),
-                mark_owners: Vec::new(),
-                mark_entries: Vec::new(),
+                indexed_owner_count: 0,
+                indexed_owner_bytes: 0,
+                pending_mark_batch: None,
+                pending_owner_validation: None,
+                cut_commitment: initial_snapshot_cut_commitment(control, &snapshot),
+                final_batch_commitment: None,
+                final_chunk_index: None,
+                durable_store: input.durable_store,
                 final_received: false,
             });
             next_staging.stages.len() - 1
         }
     };
 
-    let Some(origin_state) = next_table
-        .origins
-        .iter()
-        .find(|state| state.origin == origin)
-    else {
-        return invalidate_snapshot(
-            &next_table,
-            &next_staging,
-            origin,
-            RegionSnapshotDisposition::Interrupted,
-        );
-    };
-    if snapshot.base_revision < origin_state.revision_high_water {
-        return invalidate_snapshot(
-            &next_table,
-            &next_staging,
-            origin,
-            RegionSnapshotDisposition::CutRegression,
-        );
-    }
-
     let Some(stage) = next_staging.stages.get(stage_index) else {
         return invalidate_snapshot(
             &next_table,
             &next_staging,
-            origin,
+            pair,
             RegionSnapshotDisposition::Interrupted,
         );
     };
-    let Some(staged_presence_count) = stage
-        .presence_entries
-        .len()
-        .checked_add(snapshot.presence_entries.len())
-    else {
+    if !durable_store_advances(stage.durable_store, input.durable_store) {
         return invalidate_snapshot(
             &next_table,
             &next_staging,
-            origin,
-            RegionSnapshotDisposition::CapacityExhausted,
-        );
-    };
-    if staged_presence_count > input.capacity.maximum_entries {
-        return invalidate_snapshot(
-            &next_table,
-            &next_staging,
-            origin,
-            RegionSnapshotDisposition::CapacityExhausted,
+            pair,
+            RegionSnapshotDisposition::InvalidDurableStore,
         );
     }
-    let Some(staged_mark_owner_count) = stage
-        .mark_owners
-        .len()
-        .checked_add(snapshot.mark_entries.len())
-    else {
-        return invalidate_snapshot(
-            &next_table,
-            &next_staging,
-            origin,
-            RegionSnapshotDisposition::CapacityExhausted,
-        );
-    };
-    if staged_mark_owner_count > input.capacity.maximum_mark_owners {
-        return invalidate_snapshot(
-            &next_table,
-            &next_staging,
-            origin,
-            RegionSnapshotDisposition::CapacityExhausted,
-        );
+    if let Err(disposition) = validate_snapshot_chunk(&next_table, stage, &snapshot, input.capacity)
+    {
+        return invalidate_snapshot(&next_table, &next_staging, pair, disposition);
     }
-
-    for presence in &snapshot.presence_entries {
-        if presence.boot_epoch != origin.boot_epoch {
+    if let Some(pending) = &stage.pending_owner_validation {
+        if pending.snapshot != snapshot {
             return invalidate_snapshot(
                 &next_table,
                 &next_staging,
-                origin,
-                RegionSnapshotDisposition::InvalidPresenceEpoch,
+                pair,
+                RegionSnapshotDisposition::InvalidOwnerValidation,
             );
         }
-        if presence.revision == 0 || presence.revision > snapshot.base_revision {
-            return invalidate_snapshot(
-                &next_table,
-                &next_staging,
-                origin,
-                RegionSnapshotDisposition::InvalidPresenceRevision,
-            );
-        }
-        let Ok(slot) = derive_slot_id(&presence.network_id, &presence.identity) else {
-            return invalidate_snapshot(
-                &next_table,
-                &next_staging,
-                origin,
-                RegionSnapshotDisposition::InvalidPresenceSlot,
-            );
+        return RegionSnapshotDecision {
+            table: next_table,
+            staging: next_staging,
+            effects: Vec::new(),
+            disposition: RegionSnapshotDisposition::AwaitingOwnerValidation,
         };
-        if presence.slot != slot {
-            return invalidate_snapshot(
-                &next_table,
-                &next_staging,
-                origin,
-                RegionSnapshotDisposition::InvalidPresenceSlot,
-            );
-        }
-        if stage
-            .presence_entries
-            .iter()
-            .chain(snapshot.presence_entries.iter())
-            .filter(|candidate| {
-                same_region_owner(
-                    candidate.network_id,
-                    candidate.identity,
-                    presence.network_id,
-                    presence.identity,
-                )
-            })
-            .count()
-            > 1
-        {
-            return invalidate_snapshot(
-                &next_table,
-                &next_staging,
-                origin,
-                RegionSnapshotDisposition::DuplicatePresenceOwner,
-            );
-        }
     }
-    for marks in &snapshot.mark_entries {
-        let owner = RegionOwner {
-            network_id: marks.network_id,
-            identity: marks.identity,
-        };
-        if stage.mark_owners.binary_search(&owner).is_ok()
-            || snapshot
-                .mark_entries
-                .iter()
-                .filter(|candidate| {
-                    same_region_owner(
-                        candidate.network_id,
-                        candidate.identity,
-                        owner.network_id,
-                        owner.identity,
-                    )
-                })
-                .count()
-                > 1
-        {
-            return invalidate_snapshot(
-                &next_table,
-                &next_staging,
-                origin,
-                RegionSnapshotDisposition::DuplicateMarkOwner,
-            );
-        }
-    }
-    if snapshot.more && snapshot.chunk_index == u32::MAX {
-        return invalidate_snapshot(
-            &next_table,
-            &next_staging,
-            origin,
-            RegionSnapshotDisposition::ChunkIndexExhausted,
-        );
-    }
-
-    let prior_mark_batch_is_durable =
-        snapshot_marks_are_durable(&stage.mark_entries, input.durable_marks);
-    if !snapshot.mark_entries.is_empty() && !prior_mark_batch_is_durable {
+    if stage.pending_mark_batch.is_some() {
         return RegionSnapshotDecision {
             table: next_table,
             staging: next_staging,
@@ -1499,183 +1680,95 @@ pub fn stage_region_snapshot(
         };
     }
 
-    let retained_mark_entry_capacity = if prior_mark_batch_is_durable {
-        snapshot.mark_entries.len()
-    } else {
-        stage.mark_entries.capacity()
-    };
-    let retained_mark_owner_capacity = stage.mark_owners.capacity().max(staged_mark_owner_count);
-    let Some(planned_mark_staging_bytes) =
-        snapshot_mark_staging_bytes(retained_mark_owner_capacity, retained_mark_entry_capacity)
-    else {
-        return invalidate_snapshot(
-            &next_table,
-            &next_staging,
-            origin,
-            RegionSnapshotDisposition::CapacityExhausted,
-        );
-    };
-    let maximum_mark_staging_bytes = input
-        .capacity
-        .maximum_mark_staging_bytes
-        .min(MAX_REGION_SNAPSHOT_MARK_STAGING_BYTES);
-    if planned_mark_staging_bytes > maximum_mark_staging_bytes {
-        return invalidate_snapshot(
-            &next_table,
-            &next_staging,
-            origin,
-            RegionSnapshotDisposition::CapacityExhausted,
-        );
-    }
-
-    let effects = match snapshot_mark_effects(&snapshot.mark_entries, input.durable_marks) {
-        Some(effects) => effects,
-        None => {
-            return invalidate_snapshot(
-                &next_table,
-                &next_staging,
-                origin,
-                RegionSnapshotDisposition::InvalidDurableMarks,
-            );
-        }
-    };
-
-    let replacement_mark_entries = if prior_mark_batch_is_durable {
-        let mut entries = Vec::new();
-        if entries
-            .try_reserve_exact(snapshot.mark_entries.len())
-            .is_err()
-        {
-            return invalidate_snapshot(
-                &next_table,
-                &next_staging,
-                origin,
-                RegionSnapshotDisposition::CapacityExhausted,
-            );
-        }
-        entries.extend_from_slice(&snapshot.mark_entries);
-        Some(entries)
-    } else {
-        None
-    };
-
-    let disposition = {
-        let Some(stage) = next_staging.stages.get_mut(stage_index) else {
-            return invalidate_snapshot(
-                &next_table,
-                &next_staging,
-                origin,
-                RegionSnapshotDisposition::Interrupted,
-            );
-        };
-        if stage
-            .mark_owners
-            .try_reserve_exact(snapshot.mark_entries.len())
-            .is_err()
-        {
-            return invalidate_snapshot(
-                &next_table,
-                &next_staging,
-                origin,
-                RegionSnapshotDisposition::CapacityExhausted,
-            );
-        }
-        let retained_mark_entry_capacity = replacement_mark_entries
-            .as_ref()
-            .map_or(stage.mark_entries.capacity(), Vec::capacity);
-        let Some(actual_mark_staging_bytes) =
-            snapshot_mark_staging_bytes(stage.mark_owners.capacity(), retained_mark_entry_capacity)
-        else {
-            return invalidate_snapshot(
-                &next_table,
-                &next_staging,
-                origin,
-                RegionSnapshotDisposition::CapacityExhausted,
-            );
-        };
-        if actual_mark_staging_bytes > maximum_mark_staging_bytes {
-            return invalidate_snapshot(
-                &next_table,
-                &next_staging,
-                origin,
-                RegionSnapshotDisposition::CapacityExhausted,
-            );
-        }
-        stage
-            .presence_entries
-            .extend_from_slice(&snapshot.presence_entries);
-        for marks in &snapshot.mark_entries {
-            let owner = RegionOwner {
-                network_id: marks.network_id,
-                identity: marks.identity,
-            };
-            let insertion_index = match stage.mark_owners.binary_search(&owner) {
-                Ok(_) => {
-                    return invalidate_snapshot(
-                        &next_table,
-                        &next_staging,
-                        origin,
-                        RegionSnapshotDisposition::DuplicateMarkOwner,
-                    );
-                }
-                Err(index) => index,
-            };
-            stage.mark_owners.insert(insertion_index, owner);
-        }
-        if let Some(entries) = replacement_mark_entries {
-            stage.mark_entries = entries;
-        }
-        if snapshot.more {
-            let Some(next_index) = snapshot.chunk_index.checked_add(1) else {
+    if snapshot.mark_entries.is_empty() {
+        let result = {
+            let Some(stage) = next_staging.stages.get_mut(stage_index) else {
                 return invalidate_snapshot(
                     &next_table,
                     &next_staging,
-                    origin,
-                    RegionSnapshotDisposition::ChunkIndexExhausted,
+                    pair,
+                    RegionSnapshotDisposition::Interrupted,
                 );
             };
-            stage.next_chunk_index = next_index;
-            RegionSnapshotDisposition::Staged
-        } else {
-            stage.final_received = true;
-            RegionSnapshotDisposition::AwaitingDurableMarks
-        }
-    };
+            accept_snapshot_chunk(
+                stage,
+                snapshot,
+                input.durable_marks,
+                input.durable_store,
+                input.capacity,
+            )
+        };
+        return match result {
+            Ok((effects, disposition)) => RegionSnapshotDecision {
+                table: next_table,
+                staging: next_staging,
+                effects,
+                disposition,
+            },
+            Err(disposition) => invalidate_snapshot(&next_table, &next_staging, pair, disposition),
+        };
+    }
 
+    let commitment = snapshot_batch_commitment(control, &snapshot);
+    let Some(request) = snapshot_owner_validation_request(
+        control,
+        &snapshot,
+        commitment,
+        stage.indexed_owner_count,
+        stage.indexed_owner_bytes,
+        input.capacity,
+    ) else {
+        return invalidate_snapshot(
+            &next_table,
+            &next_staging,
+            pair,
+            RegionSnapshotDisposition::CapacityExhausted,
+        );
+    };
+    let Some(pending_snapshot) = try_clone_snapshot(&snapshot) else {
+        return invalidate_snapshot(
+            &next_table,
+            &next_staging,
+            pair,
+            RegionSnapshotDisposition::CapacityExhausted,
+        );
+    };
+    let Some(stage) = next_staging.stages.get_mut(stage_index) else {
+        return invalidate_snapshot(
+            &next_table,
+            &next_staging,
+            pair,
+            RegionSnapshotDisposition::Interrupted,
+        );
+    };
+    stage.pending_owner_validation = Some(RegionSnapshotPendingOwnerValidation {
+        snapshot: pending_snapshot,
+        commitment,
+    });
     RegionSnapshotDecision {
         table: next_table,
         staging: next_staging,
-        effects,
-        disposition,
+        effects: vec![RegionSnapshotEffect::ValidateSnapshotOwners(request)],
+        disposition: RegionSnapshotDisposition::AwaitingOwnerValidation,
     }
 }
 
-/// Completes a final stage only after its durable joins and presence floors are present.
+/// Applies one exact result from the scoped local snapshot-owner index.
 #[must_use]
-pub fn complete_region_snapshot(
+pub fn validate_region_snapshot_owners(
     table: &RegionPresenceTable,
     staging: &RegionSnapshotStagingTable,
-    input: RegionSnapshotCompletionInput<'_>,
+    input: RegionSnapshotOwnerValidationInput<'_>,
 ) -> RegionSnapshotDecision {
-    if !valid_region_member(input.stream.origin.member_id) {
-        return unchanged_snapshot_decision(
-            table,
-            staging,
-            RegionSnapshotDisposition::IgnoredInvalidOrigin,
-        );
+    let control = input.control;
+    if validate_snapshot_control(control).is_none() {
+        return unchanged_snapshot_decision(table, staging, snapshot_control_failure(control));
     }
-    if !input.stream.is_current {
-        return unchanged_snapshot_decision(
-            table,
-            staging,
-            RegionSnapshotDisposition::IgnoredStaleStream,
-        );
-    }
-    let origin = input.stream.origin;
+    let pair = control.pair();
     let Some(stage_index) = staging
         .stages
         .iter()
-        .position(|stage| stage.origin == origin)
+        .position(|stage| stage.control.pair() == pair)
     else {
         return unchanged_snapshot_decision(
             table,
@@ -1690,7 +1783,273 @@ pub fn complete_region_snapshot(
             RegionSnapshotDisposition::MissingSnapshot,
         );
     };
-    if stage.snapshot_id != input.snapshot_id {
+    if stage.control != control {
+        return unchanged_snapshot_decision(
+            table,
+            staging,
+            RegionSnapshotDisposition::IgnoredStaleSnapshotCompletion,
+        );
+    }
+    if !durable_store_advances(stage.durable_store, input.durable_store) {
+        return invalidate_snapshot(
+            table,
+            staging,
+            pair,
+            RegionSnapshotDisposition::InvalidDurableStore,
+        );
+    }
+    let Some(pending) = stage.pending_owner_validation.as_ref() else {
+        return unchanged_snapshot_decision(
+            table,
+            staging,
+            RegionSnapshotDisposition::IgnoredStaleSnapshotCompletion,
+        );
+    };
+    let Some(expected) = snapshot_owner_validation_request(
+        control,
+        &pending.snapshot,
+        pending.commitment,
+        stage.indexed_owner_count,
+        stage.indexed_owner_bytes,
+        input.capacity,
+    ) else {
+        return invalidate_snapshot(
+            table,
+            staging,
+            pair,
+            RegionSnapshotDisposition::CapacityExhausted,
+        );
+    };
+    if input.validation.request != expected {
+        return invalidate_snapshot(
+            table,
+            staging,
+            pair,
+            RegionSnapshotDisposition::InvalidOwnerValidation,
+        );
+    }
+    let (indexed_owner_count, indexed_bytes) = match input.validation.outcome {
+        RegionSnapshotOwnerIndexOutcome::Duplicate => {
+            return invalidate_snapshot(
+                table,
+                staging,
+                pair,
+                RegionSnapshotDisposition::DuplicateMarkOwner,
+            );
+        }
+        RegionSnapshotOwnerIndexOutcome::CapacityExhausted => {
+            return invalidate_snapshot(
+                table,
+                staging,
+                pair,
+                RegionSnapshotDisposition::CapacityExhausted,
+            );
+        }
+        RegionSnapshotOwnerIndexOutcome::Unique {
+            indexed_owner_count,
+            indexed_bytes,
+        } => {
+            let Some(expected_owner_count) = expected
+                .previous_indexed_owner_count
+                .checked_add(expected.owners.len())
+            else {
+                return invalidate_snapshot(
+                    table,
+                    staging,
+                    pair,
+                    RegionSnapshotDisposition::CapacityExhausted,
+                );
+            };
+            let Some(expected_indexed_bytes) = snapshot_owner_index_bytes(expected_owner_count)
+            else {
+                return invalidate_snapshot(
+                    table,
+                    staging,
+                    pair,
+                    RegionSnapshotDisposition::CapacityExhausted,
+                );
+            };
+            if indexed_owner_count != expected_owner_count
+                || indexed_owner_count > expected.maximum_owners
+                || indexed_bytes != expected_indexed_bytes
+                || indexed_bytes > expected.maximum_index_bytes
+            {
+                return invalidate_snapshot(
+                    table,
+                    staging,
+                    pair,
+                    RegionSnapshotDisposition::InvalidOwnerValidation,
+                );
+            }
+            (indexed_owner_count, indexed_bytes)
+        }
+    };
+
+    let next_table = table.clone();
+    let mut next_staging = staging.clone();
+    let Some(stage) = next_staging.stages.get_mut(stage_index) else {
+        return invalidate_snapshot(table, staging, pair, RegionSnapshotDisposition::Interrupted);
+    };
+    let Some(pending) = stage.pending_owner_validation.take() else {
+        return invalidate_snapshot(
+            table,
+            staging,
+            pair,
+            RegionSnapshotDisposition::InvalidOwnerValidation,
+        );
+    };
+    stage.indexed_owner_count = indexed_owner_count;
+    stage.indexed_owner_bytes = indexed_bytes;
+    match accept_snapshot_chunk(
+        stage,
+        pending.snapshot,
+        input.durable_marks,
+        input.durable_store,
+        input.capacity,
+    ) {
+        Ok((effects, disposition)) => RegionSnapshotDecision {
+            table: next_table,
+            staging: next_staging,
+            effects,
+            disposition,
+        },
+        Err(disposition) => invalidate_snapshot(table, staging, pair, disposition),
+    }
+}
+
+/// Accepts a trusted local durable acknowledgment for the one pending mark batch.
+#[must_use]
+pub fn acknowledge_region_snapshot_durable_batch(
+    table: &RegionPresenceTable,
+    staging: &RegionSnapshotStagingTable,
+    input: RegionSnapshotDurableBatchAcknowledgmentInput<'_>,
+) -> RegionSnapshotDecision {
+    let control = input.control;
+    if validate_snapshot_control(control).is_none() {
+        return unchanged_snapshot_decision(table, staging, snapshot_control_failure(control));
+    }
+    let pair = control.pair();
+    let Some(stage_index) = staging
+        .stages
+        .iter()
+        .position(|stage| stage.control.pair() == pair)
+    else {
+        return unchanged_snapshot_decision(
+            table,
+            staging,
+            RegionSnapshotDisposition::MissingSnapshot,
+        );
+    };
+    let Some(stage) = staging.stages.get(stage_index) else {
+        return unchanged_snapshot_decision(
+            table,
+            staging,
+            RegionSnapshotDisposition::MissingSnapshot,
+        );
+    };
+    if stage.control != control {
+        return unchanged_snapshot_decision(
+            table,
+            staging,
+            RegionSnapshotDisposition::IgnoredStaleSnapshotCompletion,
+        );
+    }
+    let Some(batch) = stage.pending_mark_batch.as_ref() else {
+        return unchanged_snapshot_decision(
+            table,
+            staging,
+            RegionSnapshotDisposition::IgnoredStaleSnapshotCompletion,
+        );
+    };
+    let acknowledgment = input.acknowledgment;
+    if acknowledgment.control != control
+        || acknowledgment.snapshot_id != stage.snapshot_id
+        || acknowledgment.base_revision != stage.base_revision
+        || acknowledgment.marks_revision != stage.marks_revision
+        || acknowledgment.chunk_index != batch.chunk_index
+        || acknowledgment.accepted_through != batch.chunk_index
+        || acknowledgment.commitment != batch.commitment
+        || (batch.requires_revision_advance
+            && acknowledgment.durable_store.durable_revision
+                == stage.durable_store.durable_revision)
+        || !durable_store_advances(stage.durable_store, acknowledgment.durable_store)
+        || acknowledgment.durable_store.lineage != input.durable_store.lineage
+        || acknowledgment.durable_store.durable_revision > input.durable_store.durable_revision
+    {
+        return invalidate_snapshot(
+            table,
+            staging,
+            pair,
+            RegionSnapshotDisposition::InvalidDurableBatchAcknowledgment,
+        );
+    }
+    if !snapshot_marks_are_durable(&batch.marks, input.durable_marks) {
+        return invalidate_snapshot(
+            table,
+            staging,
+            pair,
+            RegionSnapshotDisposition::DurableMarksNotPersisted,
+        );
+    }
+
+    let next_table = table.clone();
+    let mut next_staging = staging.clone();
+    let disposition = {
+        let Some(stage) = next_staging.stages.get_mut(stage_index) else {
+            return invalidate_snapshot(
+                table,
+                staging,
+                pair,
+                RegionSnapshotDisposition::Interrupted,
+            );
+        };
+        stage.pending_mark_batch = None;
+        stage.durable_store = input.durable_store;
+        if stage.final_received {
+            RegionSnapshotDisposition::AwaitingDurableMarks
+        } else {
+            RegionSnapshotDisposition::Staged
+        }
+    };
+    RegionSnapshotDecision {
+        table: next_table,
+        staging: next_staging,
+        effects: Vec::new(),
+        disposition,
+    }
+}
+
+/// Completes a final stage only after a trusted local receipt proves the complete cut remains durable.
+#[must_use]
+pub fn complete_region_snapshot(
+    table: &RegionPresenceTable,
+    staging: &RegionSnapshotStagingTable,
+    input: RegionSnapshotCompletionInput<'_>,
+) -> RegionSnapshotDecision {
+    let control = input.control;
+    if validate_snapshot_control(control).is_none() {
+        return unchanged_snapshot_decision(table, staging, snapshot_control_failure(control));
+    }
+    let pair = control.pair();
+    let Some(stage_index) = staging
+        .stages
+        .iter()
+        .position(|stage| stage.control.pair() == pair)
+    else {
+        return unchanged_snapshot_decision(
+            table,
+            staging,
+            RegionSnapshotDisposition::MissingSnapshot,
+        );
+    };
+    let Some(stage) = staging.stages.get(stage_index) else {
+        return unchanged_snapshot_decision(
+            table,
+            staging,
+            RegionSnapshotDisposition::MissingSnapshot,
+        );
+    };
+    if stage.control != control || stage.snapshot_id != input.snapshot_id {
         return unchanged_snapshot_decision(
             table,
             staging,
@@ -1704,23 +2063,63 @@ pub fn complete_region_snapshot(
             RegionSnapshotDisposition::IncompleteSnapshot,
         );
     }
+    if stage.pending_owner_validation.is_some() || stage.pending_mark_batch.is_some() {
+        return invalidate_snapshot(
+            table,
+            staging,
+            pair,
+            RegionSnapshotDisposition::DurableMarksNotPersisted,
+        );
+    }
+    if !durable_store_advances(stage.durable_store, input.durable_store) {
+        return invalidate_snapshot(
+            table,
+            staging,
+            pair,
+            RegionSnapshotDisposition::InvalidDurableCutReceipt,
+        );
+    }
+    let Some(final_chunk_index) = stage.final_chunk_index else {
+        return invalidate_snapshot(
+            table,
+            staging,
+            pair,
+            RegionSnapshotDisposition::InvalidDurableCutReceipt,
+        );
+    };
+    let Some(receipt) = input.durable_cut_receipt else {
+        return invalidate_snapshot(
+            table,
+            staging,
+            pair,
+            RegionSnapshotDisposition::InvalidDurableCutReceipt,
+        );
+    };
+    if receipt.control != control
+        || receipt.snapshot_id != stage.snapshot_id
+        || receipt.base_revision != stage.base_revision
+        || receipt.marks_revision != stage.marks_revision
+        || receipt.accepted_through != final_chunk_index
+        || receipt.cut_commitment != stage.cut_commitment
+        || receipt.final_batch_commitment != stage.final_batch_commitment
+        || receipt.durable_store != input.durable_store
+        || !durable_store_advances(stage.durable_store, receipt.durable_store)
+    {
+        return invalidate_snapshot(
+            table,
+            staging,
+            pair,
+            RegionSnapshotDisposition::InvalidDurableCutReceipt,
+        );
+    }
     if table.origins.iter().any(|state| {
-        state.origin.member_id == origin.member_id && state.origin.boot_epoch != origin.boot_epoch
+        state.origin.member_id == pair.origin.member_id
+            && state.origin.boot_epoch != pair.origin.boot_epoch
     }) {
         return unchanged_snapshot_decision(
             table,
             staging,
             RegionSnapshotDisposition::IgnoredStaleStream,
-        );
-    }
-    if !snapshot_mark_owners_are_durable(&stage.mark_owners, input.durable_marks)
-        || !snapshot_marks_are_durable(&stage.mark_entries, input.durable_marks)
-    {
-        return invalidate_snapshot(
-            table,
-            staging,
-            origin,
-            RegionSnapshotDisposition::DurableMarksNotPersisted,
         );
     }
     if stage
@@ -1731,30 +2130,25 @@ pub fn complete_region_snapshot(
         return invalidate_snapshot(
             table,
             staging,
-            origin,
+            pair,
             RegionSnapshotDisposition::IncompatiblePresence,
         );
     }
 
     let mut next_table = table.clone();
-    require_snapshot(&mut next_table, origin);
+    require_snapshot(&mut next_table, pair.origin);
     let Some(state) = next_table
         .origins
         .iter_mut()
-        .find(|state| state.origin == origin)
+        .find(|state| state.origin == pair.origin)
     else {
-        return invalidate_snapshot(
-            table,
-            staging,
-            origin,
-            RegionSnapshotDisposition::Interrupted,
-        );
+        return invalidate_snapshot(table, staging, pair, RegionSnapshotDisposition::Interrupted);
     };
     if stage.base_revision < state.revision_high_water {
         return invalidate_snapshot(
             table,
             staging,
-            origin,
+            pair,
             RegionSnapshotDisposition::CutRegression,
         );
     }
@@ -1762,12 +2156,11 @@ pub fn complete_region_snapshot(
     state.snapshot_required = false;
     next_table
         .entries
-        .retain(|entry| entry.session.origin != origin);
-
+        .retain(|entry| entry.session.origin != pair.origin);
     for presence in &stage.presence_entries {
         let candidate = RegionPresenceRecord {
             session: RegionPresenceSession {
-                origin,
+                origin: pair.origin,
                 presence: *presence,
             },
             eligible: false,
@@ -1782,7 +2175,15 @@ pub fn complete_region_snapshot(
                 return invalidate_snapshot(
                     table,
                     staging,
-                    origin,
+                    pair,
+                    RegionSnapshotDisposition::CapacityExhausted,
+                );
+            }
+            if next_table.entries.try_reserve_exact(1).is_err() {
+                return invalidate_snapshot(
+                    table,
+                    staging,
+                    pair,
                     RegionSnapshotDisposition::CapacityExhausted,
                 );
             }
@@ -1804,23 +2205,30 @@ pub fn complete_region_snapshot(
 
     let mut next_staging = staging.clone();
     next_staging.stages.remove(stage_index);
-    if let Some(cursor) = next_staging
-        .cursors
-        .iter_mut()
-        .find(|cursor| cursor.origin == origin)
-    {
-        cursor.snapshot_id = cursor.snapshot_id.max(stage.snapshot_id);
-    } else {
-        next_staging.cursors.push(RegionSnapshotCursor {
-            origin,
-            snapshot_id: stage.snapshot_id,
-        });
-    }
     RegionSnapshotDecision {
         table: next_table,
         staging: next_staging,
         effects: Vec::new(),
         disposition: RegionSnapshotDisposition::Completed,
+    }
+}
+
+fn validate_snapshot_control(control: RegionSnapshotControl) -> Option<()> {
+    if valid_region_member(control.stream.origin.member_id)
+        && control.stream.is_current
+        && control.control_stream_id != 0
+    {
+        Some(())
+    } else {
+        None
+    }
+}
+
+fn snapshot_control_failure(control: RegionSnapshotControl) -> RegionSnapshotDisposition {
+    if !valid_region_member(control.stream.origin.member_id) {
+        RegionSnapshotDisposition::IgnoredInvalidOrigin
+    } else {
+        RegionSnapshotDisposition::IgnoredStaleStream
     }
 }
 
@@ -1840,14 +2248,17 @@ fn unchanged_snapshot_decision(
 fn invalidate_snapshot(
     table: &RegionPresenceTable,
     staging: &RegionSnapshotStagingTable,
-    origin: RegionPresenceOrigin,
+    pair: RegionSnapshotPair,
     disposition: RegionSnapshotDisposition,
 ) -> RegionSnapshotDecision {
     let mut next_table = table.clone();
     let mut next_staging = staging.clone();
-    next_staging.stages.retain(|stage| stage.origin != origin);
+    next_staging
+        .stages
+        .retain(|stage| stage.control.pair() != pair);
     if next_table.origins.iter().any(|state| {
-        state.origin.member_id == origin.member_id && state.origin.boot_epoch != origin.boot_epoch
+        state.origin.member_id == pair.origin.member_id
+            && state.origin.boot_epoch != pair.origin.boot_epoch
     }) {
         return RegionSnapshotDecision {
             table: next_table,
@@ -1856,7 +2267,7 @@ fn invalidate_snapshot(
             disposition,
         };
     }
-    require_snapshot(&mut next_table, origin);
+    require_snapshot(&mut next_table, pair.origin);
     RegionSnapshotDecision {
         table: next_table,
         staging: next_staging,
@@ -1865,35 +2276,46 @@ fn invalidate_snapshot(
     }
 }
 
-fn clear_other_snapshot_epochs(
-    staging: &mut RegionSnapshotStagingTable,
-    origin: RegionPresenceOrigin,
-) {
-    staging
-        .stages
-        .retain(|stage| stage.origin.member_id != origin.member_id || stage.origin == origin);
+fn clear_other_snapshot_epochs(staging: &mut RegionSnapshotStagingTable, pair: RegionSnapshotPair) {
+    staging.stages.retain(|stage| {
+        stage.origin.member_id != pair.origin.member_id || stage.control.pair() == pair
+    });
+    staging.cursors.retain(|cursor| {
+        cursor.pair.origin.member_id != pair.origin.member_id || cursor.pair == pair
+    });
+}
+
+fn snapshot_cursor(
+    staging: &RegionSnapshotStagingTable,
+    pair: RegionSnapshotPair,
+) -> Option<RegionSnapshotCursor> {
     staging
         .cursors
-        .retain(|cursor| cursor.origin.member_id != origin.member_id || cursor.origin == origin);
+        .iter()
+        .copied()
+        .find(|cursor| cursor.pair == pair)
 }
 
 fn record_snapshot_cursor(
     staging: &mut RegionSnapshotStagingTable,
-    origin: RegionPresenceOrigin,
+    pair: RegionSnapshotPair,
     snapshot_id: u64,
-) {
+) -> bool {
     if let Some(cursor) = staging
         .cursors
         .iter_mut()
-        .find(|cursor| cursor.origin == origin)
+        .find(|cursor| cursor.pair == pair)
     {
         cursor.snapshot_id = cursor.snapshot_id.max(snapshot_id);
-    } else {
-        staging.cursors.push(RegionSnapshotCursor {
-            origin,
-            snapshot_id,
-        });
+        return true;
     }
+    if staging.cursors.try_reserve_exact(1).is_err() {
+        return false;
+    }
+    staging
+        .cursors
+        .push(RegionSnapshotCursor { pair, snapshot_id });
+    true
 }
 
 fn require_snapshot(table: &mut RegionPresenceTable, origin: RegionPresenceOrigin) {
@@ -1928,27 +2350,11 @@ fn require_snapshot(table: &mut RegionPresenceTable, origin: RegionPresenceOrigi
     }
 }
 
-fn snapshot_origin_is_tracked(
-    staging: &RegionSnapshotStagingTable,
-    origin: RegionPresenceOrigin,
+fn durable_store_advances(
+    previous: RegionSnapshotDurableStore,
+    current: RegionSnapshotDurableStore,
 ) -> bool {
-    staging.stages.iter().any(|stage| stage.origin == origin)
-        || staging.cursors.iter().any(|cursor| cursor.origin == origin)
-}
-
-fn snapshot_origin_count(staging: &RegionSnapshotStagingTable) -> usize {
-    let mut origins = Vec::new();
-    for origin in staging
-        .stages
-        .iter()
-        .map(|stage| stage.origin)
-        .chain(staging.cursors.iter().map(|cursor| cursor.origin))
-    {
-        if !origins.contains(&origin) {
-            origins.push(origin);
-        }
-    }
-    origins.len()
+    previous.lineage == current.lineage && previous.durable_revision <= current.durable_revision
 }
 
 fn same_region_owner(
@@ -1960,23 +2366,305 @@ fn same_region_owner(
     left_network == right_network && left_identity == right_identity
 }
 
-fn snapshot_mark_staging_bytes(owner_capacity: usize, mark_entry_capacity: usize) -> Option<usize> {
-    let owner_bytes = owner_capacity.checked_mul(core::mem::size_of::<RegionOwner>())?;
+fn snapshot_mark_staging_bytes(
+    mark_entry_capacity: usize,
+    retained_overhead: usize,
+) -> Option<usize> {
     let mark_entry_bytes = mark_entry_capacity.checked_mul(core::mem::size_of::<RegionMarks>())?;
-    let allocated_bytes = owner_bytes.checked_add(mark_entry_bytes)?;
-    if allocated_bytes == 0 {
-        return Some(0);
-    }
-    allocated_bytes
-        .checked_add(core::mem::size_of::<Vec<RegionOwner>>())?
-        .checked_add(core::mem::size_of::<Vec<RegionMarks>>())
+    mark_entry_bytes.checked_add(retained_overhead)
 }
 
-fn snapshot_mark_effects(
+fn maximum_snapshot_mark_staging_bytes(capacity: RegionSnapshotStagingCapacity) -> usize {
+    capacity
+        .maximum_mark_staging_bytes
+        .min(MAX_REGION_SNAPSHOT_MARK_STAGING_BYTES)
+}
+
+fn maximum_snapshot_mark_owners(capacity: RegionSnapshotStagingCapacity) -> usize {
+    capacity
+        .maximum_mark_owners
+        .min(MAX_REGION_RETAINED_MARK_OWNERS)
+}
+
+fn snapshot_owner_index_bytes(owner_count: usize) -> Option<usize> {
+    if owner_count == 0 {
+        return Some(0);
+    }
+    let per_owner =
+        core::mem::size_of::<RegionOwner>().checked_add(core::mem::size_of::<usize>())?;
+    owner_count
+        .checked_mul(per_owner)?
+        .checked_add(core::mem::size_of::<Vec<RegionOwner>>())
+}
+
+fn maximum_snapshot_owner_index_bytes(maximum_owners: usize) -> Option<usize> {
+    snapshot_owner_index_bytes(maximum_owners)
+}
+
+fn validate_snapshot_chunk(
+    table: &RegionPresenceTable,
+    stage: &RegionSnapshotStage,
+    snapshot: &RegionSnapshot,
+    capacity: RegionSnapshotStagingCapacity,
+) -> Result<(), RegionSnapshotDisposition> {
+    let Some(origin_state) = table
+        .origins
+        .iter()
+        .find(|state| state.origin == stage.origin)
+    else {
+        return Err(RegionSnapshotDisposition::Interrupted);
+    };
+    if snapshot.base_revision < origin_state.revision_high_water {
+        return Err(RegionSnapshotDisposition::CutRegression);
+    }
+    let Some(staged_presence_count) = stage
+        .presence_entries
+        .len()
+        .checked_add(snapshot.presence_entries.len())
+    else {
+        return Err(RegionSnapshotDisposition::CapacityExhausted);
+    };
+    if staged_presence_count > capacity.maximum_entries {
+        return Err(RegionSnapshotDisposition::CapacityExhausted);
+    }
+    if snapshot.mark_entries.len() > maximum_snapshot_mark_owners(capacity) {
+        return Err(RegionSnapshotDisposition::CapacityExhausted);
+    }
+    if !snapshot.mark_entries.is_empty() {
+        let Some(mark_staging_bytes) = snapshot_mark_staging_bytes(
+            snapshot.mark_entries.len(),
+            core::mem::size_of::<RegionSnapshotPendingOwnerValidation>(),
+        ) else {
+            return Err(RegionSnapshotDisposition::CapacityExhausted);
+        };
+        if mark_staging_bytes > maximum_snapshot_mark_staging_bytes(capacity) {
+            return Err(RegionSnapshotDisposition::CapacityExhausted);
+        }
+    }
+    for presence in &snapshot.presence_entries {
+        if presence.boot_epoch != stage.origin.boot_epoch {
+            return Err(RegionSnapshotDisposition::InvalidPresenceEpoch);
+        }
+        if presence.revision == 0 || presence.revision > snapshot.base_revision {
+            return Err(RegionSnapshotDisposition::InvalidPresenceRevision);
+        }
+        let Ok(slot) = derive_slot_id(&presence.network_id, &presence.identity) else {
+            return Err(RegionSnapshotDisposition::InvalidPresenceSlot);
+        };
+        if presence.slot != slot {
+            return Err(RegionSnapshotDisposition::InvalidPresenceSlot);
+        }
+        if stage
+            .presence_entries
+            .iter()
+            .chain(snapshot.presence_entries.iter())
+            .filter(|candidate| {
+                same_region_owner(
+                    candidate.network_id,
+                    candidate.identity,
+                    presence.network_id,
+                    presence.identity,
+                )
+            })
+            .count()
+            > 1
+        {
+            return Err(RegionSnapshotDisposition::DuplicatePresenceOwner);
+        }
+    }
+    for (index, marks) in snapshot.mark_entries.iter().enumerate() {
+        if snapshot.mark_entries[..index].iter().any(|candidate| {
+            same_region_owner(
+                candidate.network_id,
+                candidate.identity,
+                marks.network_id,
+                marks.identity,
+            )
+        }) {
+            return Err(RegionSnapshotDisposition::DuplicateMarkOwner);
+        }
+    }
+    if snapshot.more && snapshot.chunk_index == u32::MAX {
+        return Err(RegionSnapshotDisposition::ChunkIndexExhausted);
+    }
+    Ok(())
+}
+
+fn try_clone_snapshot(snapshot: &RegionSnapshot) -> Option<RegionSnapshot> {
+    let mut presence_entries = Vec::new();
+    if presence_entries
+        .try_reserve_exact(snapshot.presence_entries.len())
+        .is_err()
+    {
+        return None;
+    }
+    presence_entries.extend_from_slice(&snapshot.presence_entries);
+    let mut mark_entries = Vec::new();
+    if mark_entries
+        .try_reserve_exact(snapshot.mark_entries.len())
+        .is_err()
+    {
+        return None;
+    }
+    mark_entries.extend_from_slice(&snapshot.mark_entries);
+    Some(RegionSnapshot {
+        snapshot_id: snapshot.snapshot_id,
+        base_revision: snapshot.base_revision,
+        marks_revision: snapshot.marks_revision,
+        chunk_index: snapshot.chunk_index,
+        presence_entries,
+        mark_entries,
+        more: snapshot.more,
+    })
+}
+
+fn snapshot_owner_validation_request(
+    control: RegionSnapshotControl,
+    snapshot: &RegionSnapshot,
+    commitment: RegionSnapshotBatchCommitment,
+    previous_indexed_owner_count: usize,
+    previous_indexed_bytes: usize,
+    capacity: RegionSnapshotStagingCapacity,
+) -> Option<RegionSnapshotOwnerValidationRequest> {
+    let maximum_owners = maximum_snapshot_mark_owners(capacity);
+    let maximum_index_bytes = maximum_snapshot_owner_index_bytes(maximum_owners)?;
+    let mut owners = Vec::new();
+    if owners
+        .try_reserve_exact(snapshot.mark_entries.len())
+        .is_err()
+    {
+        return None;
+    }
+    for marks in &snapshot.mark_entries {
+        owners.push(RegionOwner {
+            network_id: marks.network_id,
+            identity: marks.identity,
+        });
+    }
+    Some(RegionSnapshotOwnerValidationRequest {
+        control,
+        snapshot_id: snapshot.snapshot_id,
+        base_revision: snapshot.base_revision,
+        marks_revision: snapshot.marks_revision,
+        chunk_index: snapshot.chunk_index,
+        accepted_through: snapshot.chunk_index,
+        commitment,
+        previous_indexed_owner_count,
+        previous_indexed_bytes,
+        owners,
+        maximum_owners,
+        maximum_index_bytes,
+    })
+}
+
+fn accept_snapshot_chunk(
+    stage: &mut RegionSnapshotStage,
+    snapshot: RegionSnapshot,
+    durable_marks: &[RegionMarks],
+    durable_store: RegionSnapshotDurableStore,
+    capacity: RegionSnapshotStagingCapacity,
+) -> Result<(Vec<RegionSnapshotEffect>, RegionSnapshotDisposition), RegionSnapshotDisposition> {
+    if stage.pending_mark_batch.is_some() || stage.pending_owner_validation.is_some() {
+        return Err(RegionSnapshotDisposition::DurableMarkBatchPending);
+    }
+    if !durable_store_advances(stage.durable_store, durable_store) {
+        return Err(RegionSnapshotDisposition::InvalidDurableStore);
+    }
+    let commitment = snapshot_batch_commitment(stage.control, &snapshot);
+    let joins = snapshot_mark_joins(&snapshot.mark_entries, durable_marks)?;
+    let requires_revision_advance = !joins.is_empty();
+    if !snapshot.mark_entries.is_empty() {
+        let Some(mark_staging_bytes) = snapshot_mark_staging_bytes(
+            snapshot.mark_entries.capacity(),
+            core::mem::size_of::<RegionSnapshotPendingMarkBatch>(),
+        ) else {
+            return Err(RegionSnapshotDisposition::CapacityExhausted);
+        };
+        if mark_staging_bytes > maximum_snapshot_mark_staging_bytes(capacity) {
+            return Err(RegionSnapshotDisposition::CapacityExhausted);
+        }
+    }
+    if stage
+        .presence_entries
+        .try_reserve_exact(snapshot.presence_entries.len())
+        .is_err()
+    {
+        return Err(RegionSnapshotDisposition::CapacityExhausted);
+    }
+
+    let RegionSnapshot {
+        snapshot_id: _,
+        base_revision: _,
+        marks_revision: _,
+        chunk_index,
+        presence_entries,
+        mark_entries,
+        more,
+    } = snapshot;
+    stage.presence_entries.extend_from_slice(&presence_entries);
+    stage.accepted_through = Some(chunk_index);
+    stage.cut_commitment =
+        extend_snapshot_cut_commitment(stage.cut_commitment, commitment, chunk_index);
+    stage.durable_store = durable_store;
+    if requires_revision_advance {
+        stage.pending_mark_batch = Some(RegionSnapshotPendingMarkBatch {
+            chunk_index,
+            commitment,
+            requires_revision_advance,
+            marks: mark_entries,
+        });
+    }
+    if more {
+        let Some(next_chunk_index) = chunk_index.checked_add(1) else {
+            return Err(RegionSnapshotDisposition::ChunkIndexExhausted);
+        };
+        stage.next_chunk_index = next_chunk_index;
+    } else {
+        stage.final_received = true;
+        stage.final_chunk_index = Some(chunk_index);
+        stage.final_batch_commitment = if requires_revision_advance {
+            Some(commitment)
+        } else {
+            None
+        };
+    }
+
+    let mut effects = Vec::new();
+    if let Some(batch) = stage.pending_mark_batch.as_ref() {
+        if effects.try_reserve_exact(1).is_err() {
+            return Err(RegionSnapshotDisposition::CapacityExhausted);
+        }
+        effects.push(RegionSnapshotEffect::PersistDurableBatch(
+            RegionSnapshotDurableBatch {
+                control: stage.control,
+                snapshot_id: stage.snapshot_id,
+                base_revision: stage.base_revision,
+                marks_revision: stage.marks_revision,
+                chunk_index: batch.chunk_index,
+                accepted_through: batch.chunk_index,
+                commitment: batch.commitment,
+                joins,
+            },
+        ));
+    }
+    Ok((
+        effects,
+        if stage.final_received {
+            RegionSnapshotDisposition::AwaitingDurableMarks
+        } else {
+            RegionSnapshotDisposition::Staged
+        },
+    ))
+}
+
+fn snapshot_mark_joins(
     staged: &[RegionMarks],
     durable: &[RegionMarks],
-) -> Option<Vec<RegionSnapshotEffect>> {
-    let mut effects = Vec::new();
+) -> Result<Vec<RegionMarks>, RegionSnapshotDisposition> {
+    let mut joins = Vec::new();
+    if joins.try_reserve_exact(staged.len()).is_err() {
+        return Err(RegionSnapshotDisposition::CapacityExhausted);
+    }
     for incoming in staged {
         let mut current = None;
         for marks in durable {
@@ -1987,40 +2675,22 @@ fn snapshot_mark_effects(
                 incoming.identity,
             ) && current.replace(*marks).is_some()
             {
-                return None;
+                return Err(RegionSnapshotDisposition::InvalidDurableMarks);
             }
         }
         let joined = match current {
-            Some(current) => join_region_marks(current, *incoming).ok()?.state,
+            Some(current) => {
+                join_region_marks(current, *incoming)
+                    .map_err(|_| RegionSnapshotDisposition::InvalidDurableMarks)?
+                    .state
+            }
             None => *incoming,
         };
         if current != Some(joined) {
-            effects.push(RegionSnapshotEffect::PersistDurableMark(joined));
+            joins.push(joined);
         }
     }
-    Some(effects)
-}
-
-fn snapshot_mark_owners_are_durable(staged: &[RegionOwner], durable: &[RegionMarks]) -> bool {
-    let mut seen = Vec::new();
-    if seen.try_reserve_exact(staged.len()).is_err() {
-        return false;
-    }
-    seen.resize(staged.len(), false);
-    for marks in durable {
-        let owner = RegionOwner {
-            network_id: marks.network_id,
-            identity: marks.identity,
-        };
-        let Ok(index) = staged.binary_search(&owner) else {
-            continue;
-        };
-        if seen[index] {
-            return false;
-        }
-        seen[index] = true;
-    }
-    seen.into_iter().all(|owner_is_durable| owner_is_durable)
+    Ok(joins)
 }
 
 fn snapshot_marks_are_durable(staged: &[RegionMarks], durable: &[RegionMarks]) -> bool {
@@ -2041,6 +2711,99 @@ fn snapshot_marks_are_durable(staged: &[RegionMarks], durable: &[RegionMarks]) -
             join_region_marks(current, *incoming).is_ok_and(|joined| joined.state == current)
         })
     })
+}
+
+fn snapshot_batch_commitment(
+    control: RegionSnapshotControl,
+    snapshot: &RegionSnapshot,
+) -> RegionSnapshotBatchCommitment {
+    let mut hasher = Sha256::new();
+    hasher.update(b"keynet-region-snapshot-batch-v1");
+    hash_snapshot_control(&mut hasher, control);
+    hasher.update(snapshot.snapshot_id.to_be_bytes());
+    hasher.update(snapshot.base_revision.to_be_bytes());
+    hasher.update(snapshot.marks_revision.to_be_bytes());
+    hasher.update(snapshot.chunk_index.to_be_bytes());
+    hasher.update([u8::from(snapshot.more)]);
+    let presence_entry_count =
+        u64::try_from(snapshot.presence_entries.len()).map_or(u64::MAX, |count| count);
+    hasher.update(presence_entry_count.to_be_bytes());
+    for presence in &snapshot.presence_entries {
+        hash_region_presence(&mut hasher, *presence);
+    }
+    let mark_entry_count =
+        u64::try_from(snapshot.mark_entries.len()).map_or(u64::MAX, |count| count);
+    hasher.update(mark_entry_count.to_be_bytes());
+    for marks in &snapshot.mark_entries {
+        hash_region_marks(&mut hasher, *marks);
+    }
+    RegionSnapshotBatchCommitment {
+        digest: hasher.finalize().into(),
+    }
+}
+
+fn initial_snapshot_cut_commitment(
+    control: RegionSnapshotControl,
+    snapshot: &RegionSnapshot,
+) -> RegionSnapshotCutCommitment {
+    let mut hasher = Sha256::new();
+    hasher.update(b"keynet-region-snapshot-cut-v1");
+    hash_snapshot_control(&mut hasher, control);
+    hasher.update(snapshot.snapshot_id.to_be_bytes());
+    hasher.update(snapshot.base_revision.to_be_bytes());
+    hasher.update(snapshot.marks_revision.to_be_bytes());
+    RegionSnapshotCutCommitment {
+        digest: hasher.finalize().into(),
+    }
+}
+
+fn extend_snapshot_cut_commitment(
+    previous: RegionSnapshotCutCommitment,
+    batch: RegionSnapshotBatchCommitment,
+    chunk_index: u32,
+) -> RegionSnapshotCutCommitment {
+    let mut hasher = Sha256::new();
+    hasher.update(b"keynet-region-snapshot-cut-step-v1");
+    hasher.update(previous.digest);
+    hasher.update(batch.digest);
+    hasher.update(chunk_index.to_be_bytes());
+    RegionSnapshotCutCommitment {
+        digest: hasher.finalize().into(),
+    }
+}
+
+fn hash_snapshot_control(hasher: &mut Sha256, control: RegionSnapshotControl) {
+    hasher.update([control.stream.origin.member_id]);
+    hasher.update(control.stream.origin.boot_epoch.to_be_bytes());
+    hasher.update(control.local_boot_epoch.to_be_bytes());
+    hasher.update(control.control_stream_id.to_be_bytes());
+}
+
+fn hash_region_presence(hasher: &mut Sha256, presence: RegionPresence) {
+    hasher.update(presence.slot);
+    hasher.update(presence.network_id);
+    hasher.update(presence.identity);
+    hasher.update(presence.generation.to_be_bytes());
+    hasher.update(presence.incarnation.to_be_bytes());
+    hasher.update([presence.carrier as u8]);
+    hasher.update(presence.boot_epoch.to_be_bytes());
+    hasher.update(presence.revision.to_be_bytes());
+}
+
+fn hash_region_marks(hasher: &mut Sha256, marks: RegionMarks) {
+    hasher.update(marks.network_id);
+    hasher.update(marks.identity);
+    hasher.update(marks.committed_generation.to_be_bytes());
+    hasher.update(marks.committed_key);
+    hasher.update([u8::from(marks.conflicted)]);
+    match marks.revoked_through {
+        Some(revoked_through) => {
+            hasher.update([1]);
+            hasher.update(revoked_through.to_be_bytes());
+        }
+        None => hasher.update([0]),
+    }
+    hasher.update(marks.incarnation_high_water.to_be_bytes());
 }
 
 /// A FORWARD frame body.
