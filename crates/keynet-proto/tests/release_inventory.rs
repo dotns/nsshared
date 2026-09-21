@@ -7,7 +7,7 @@ use std::{
 
 const ROOT: &str = "tests/fixtures/keynet-v1";
 const EXPECTED_MANIFEST_SHA256: &str =
-    "1488790eb2386a5d6c152ca8df4bd62b8c0715e485a084ebd34938d1ec455a4f";
+    "de37541c2fdd128ec164ce92e6f40bb823719736fa516f62f6c767307333eb40";
 
 const METADATA: &[(&str, &str)] = &[
     ("manifest_format", "keynet-fixture-manifest-v1"),
@@ -20,10 +20,10 @@ const METADATA: &[(&str, &str)] = &[
         "design_sha256",
         "a763e6db341b429361558df9ae81ca7d130cda7fb63ae912c2cf1f77638e27f2",
     ),
-    ("data_file_count", "14"),
+    ("data_file_count", "15"),
     (
         "coverage",
-        "addresses,identities,conflicts,key_bindings,pairing_tokens,introductions,aliases,labels,name_records,relay,revocation,relay_identifiers,control_records,region_frames,region_marks,integrity",
+        "addresses,identities,conflicts,key_bindings,pairing_tokens,introductions,aliases,labels,name_records,relay,revocation,relay_identifiers,control_records,region_frames,region_marks,region_presence,integrity",
     ),
     ("address_cases", "ascending,zeros,reverse"),
     ("identity_cases", "ascending,zeros,reverse"),
@@ -62,6 +62,10 @@ const METADATA: &[(&str, &str)] = &[
     (
         "region_marks_cases",
         "permutations,reordered,duplicate_inputs,independent_revocation,higher_generation_reset,equal_generation_conflict,deterministic_representative",
+    ),
+    (
+        "region_presence_cases",
+        "origin_ownership,full_owner_collision,generation_before_incarnation,incarnation_before_member_id,durable_mark_filtering,member_id_tie_break,exact_gone_removal,revision_high_water,stale_stream,epoch_replacement,local_loser_effects,grace_channel_down,durable_floors_retained,capacity_bound,higher_generation_channel_down,same_origin_lower_generation",
     ),
 ];
 
@@ -122,6 +126,10 @@ const FILES: &[(&str, &str)] = &[
         "region_marks.vec",
         "40cbac6a53edc4a636265497e4daeb8186d0f0742de4a325ae1023e91aef17e6",
     ),
+    (
+        "region_presence.vec",
+        "f8579b0b997cb75745c6381637fecb0fe44a6713a133307d288d58b734c50452",
+    ),
 ];
 
 const BLOCK_INVENTORIES: &[(&str, &str)] = &[
@@ -136,6 +144,7 @@ const BLOCK_INVENTORIES: &[(&str, &str)] = &[
     ("name_records.vec", "name_record_cases"),
     ("region_frames.vec", "region_frame_cases"),
     ("region_marks.vec", "region_marks_cases"),
+    ("region_presence.vec", "region_presence_cases"),
 ];
 
 fn root() -> PathBuf {

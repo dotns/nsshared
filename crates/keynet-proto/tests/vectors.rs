@@ -38,6 +38,7 @@ const RELAY_FIELDS: &str = "network,identity,slot,node_private,node_ephemeral,re
 const CONTROL_FIELDS: &str = "ack,legacy_endpoints,binding,revocation,name,ordered_endpoints,probe_request,probe_reply,ordered_hash,greedy_ordered_endpoints,greedy_omitted_relays";
 const REGION_FRAME_CASES: &str = "hello_control,hello_data,snapshot_nested,present,gone,marks,forward,miss,ping,pong,non_shortest,indefinite_length,wrong_arity,wrong_type,wrong_width,trailing_bytes,wrong_channel,zero_prefix,oversized_prefix,frame_limit,datagram_limit,snapshot_entry_limit";
 const REGION_MARKS_CASES: &str = "permutations,reordered,duplicate_inputs,independent_revocation,higher_generation_reset,equal_generation_conflict,deterministic_representative";
+const REGION_PRESENCE_CASES: &str = "origin_ownership,full_owner_collision,generation_before_incarnation,incarnation_before_member_id,durable_mark_filtering,member_id_tie_break,exact_gone_removal,revision_high_water,stale_stream,epoch_replacement,local_loser_effects,grace_channel_down,durable_floors_retained,capacity_bound,higher_generation_channel_down,same_origin_lower_generation";
 const IDENTIFIER_CASES: &str = "relay_dns,relay_ipv4,relay_ipv6,relay_short,endpoint_dns,endpoint_ipv4,endpoint_ipv6,local_dns_case_dot,local_ipv6_case_zeros,invalid_scheme,invalid_port_zero,invalid_port_leading_zero,invalid_unbracketed_ipv6,invalid_zone,invalid_ipv4_leading_zero,invalid_dns_uppercase,invalid_dns_terminal_dot,invalid_short_uppercase,invalid_short_trailing_hyphen,invalid_short_endpoint,invalid_unicode,invalid_whitespace,invalid_mapped_ipv6,invalid_unspecified_ipv6,invalid_multicast_ipv6,invalid_site_local_ipv6";
 
 fn root() -> PathBuf {
@@ -228,10 +229,10 @@ fn load(root: &Path) -> Result<BTreeMap<String, String>, String> {
         ("design_path", "docs/ns/keynet.md"),
         ("design_commit", DESIGN_COMMIT),
         ("design_sha256", DESIGN_SHA256),
-        ("data_file_count", "14"),
+        ("data_file_count", "15"),
         (
             "coverage",
-            "addresses,identities,conflicts,key_bindings,pairing_tokens,introductions,aliases,labels,name_records,relay,revocation,relay_identifiers,control_records,region_frames,region_marks,integrity",
+            "addresses,identities,conflicts,key_bindings,pairing_tokens,introductions,aliases,labels,name_records,relay,revocation,relay_identifiers,control_records,region_frames,region_marks,region_presence,integrity",
         ),
         ("address_cases", ADDRESS_CASES),
         ("identity_cases", IDENTITY_CASES),
@@ -247,6 +248,7 @@ fn load(root: &Path) -> Result<BTreeMap<String, String>, String> {
         ("control_record_fields", CONTROL_FIELDS),
         ("region_frame_cases", REGION_FRAME_CASES),
         ("region_marks_cases", REGION_MARKS_CASES),
+        ("region_presence_cases", REGION_PRESENCE_CASES),
     ]);
     let mut entries = BTreeMap::new();
     for line in manifest.lines().filter(|line| !line.is_empty()) {
@@ -305,6 +307,7 @@ fn load(root: &Path) -> Result<BTreeMap<String, String>, String> {
     validate_case_inventory(root, "name_records.vec", NAME_RECORD_CASES)?;
     validate_case_inventory(root, "region_frames.vec", REGION_FRAME_CASES)?;
     validate_case_inventory(root, "region_marks.vec", REGION_MARKS_CASES)?;
+    validate_case_inventory(root, "region_presence.vec", REGION_PRESENCE_CASES)?;
     validate_flat_inventory(root, "relay_revocation.vec", RELAY_FIELDS)?;
     validate_flat_inventory(root, "control_records.vec", CONTROL_FIELDS)?;
     validate_identifier_inventory(root)?;
