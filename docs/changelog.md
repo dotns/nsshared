@@ -318,3 +318,16 @@ Added the pure retained-marks join and its sealed fixture family.
   and idempotent with exact directional change reporting.
 - Rejected cross-owner joins and sealed the exact marks cases through
   independent fixture inventories while preserving prior vector bytes.
+
+## 2026-09-21 08:10 [feat]
+
+Added the pure region-presence decision and its sealed fixture family.
+
+- Selected presence by generation and incarnation before route eligibility,
+  with durable generation marks, channel pairs, and member identity applied at
+  their defined boundaries.
+- Preserved exact revision, epoch-replacement, capacity, retirement, and
+  grace-channel behavior without mutating durable floors.
+- Added strict fixture inventory witnesses and regression coverage for
+  generation marks, capacity resynchronization, stale channels, and retirement
+  failures while preserving all prior vector bytes.
