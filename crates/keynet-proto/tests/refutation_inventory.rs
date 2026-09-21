@@ -43,6 +43,7 @@ fn r1_empty_vector_families_must_be_rejected() -> Result<(), String> {
             "aliases.vec",
             "labels.vec",
             "name_records.vec",
+            "region_frames.vec",
             "relay_revocation.vec",
         ] {
             fs::write(temp.join(name), "").map_err(|error| error.to_string())?;
@@ -177,5 +178,41 @@ fn r1_unlisted_vector_case_must_be_rejected() -> Result<(), String> {
             .ok_or("missing address vector")?
             .replacen("case=ascending", "case=unlisted", 1);
         fs::write(path, format!("{original}\n\n{unlisted}\n")).map_err(|error| error.to_string())
+    })
+}
+
+#[test]
+fn region_frame_fixture_and_case_inventory_must_be_exact() -> Result<(), String> {
+    altered_inventory("missing-region-frame-fixture", |temp| {
+        fs::remove_file(temp.join("region_frames.vec")).map_err(|error| error.to_string())?;
+        let manifest_path = temp.join("manifest.txt");
+        let manifest = fs::read_to_string(&manifest_path).map_err(|error| error.to_string())?;
+        let updated = manifest
+            .lines()
+            .filter(|line| !line.starts_with("file=region_frames.vec|"))
+            .map(|line| {
+                if line == "data_file_count=13" {
+                    "data_file_count=12"
+                } else {
+                    line
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(manifest_path, format!("{updated}\n")).map_err(|error| error.to_string())
+    })?;
+    altered_inventory("empty-region-frame-fixture", |temp| {
+        fs::write(temp.join("region_frames.vec"), "").map_err(|error| error.to_string())
+    })?;
+    altered_inventory("duplicate-region-frame-case", |temp| {
+        let path = temp.join("region_frames.vec");
+        let original = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+        fs::write(path, format!("{original}\n{original}")).map_err(|error| error.to_string())
+    })?;
+    altered_inventory("unlisted-region-frame-case", |temp| {
+        let path = temp.join("region_frames.vec");
+        let original = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+        let updated = original.replacen("case=ping\n", "case=unlisted\n", 1);
+        fs::write(path, updated).map_err(|error| error.to_string())
     })
 }
