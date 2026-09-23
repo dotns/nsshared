@@ -1,3 +1,10 @@
+## 2026-09-23 [progress]
+
+Add `keynet-quick`: immutable relay-directory identifiers, ten-character short
+invitation locators, signed session identities and transcript-bound encrypted
+recipient-token delivery. A code locates an invitation, never authorizes access.
+Keep existing account and Keynet data-plane contracts unchanged.
+
 ## 2026-09-16 [decision]
 
 Remove the standalone Mesh v1/v2 shared protocol, its dedicated tests/fixtures,
