@@ -92,3 +92,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20260913-0641-consolidate-keynet-feature-branches Consolidate keynet feature branches**](20260913-0641-consolidate-keynet-feature-branches.md) `P0`
 - [x] [**20260913-0657-clean-keynet-campaign-worktrees Clean retired keynet worktrees**](20260913-0657-clean-keynet-campaign-worktrees.md) `P1`
 - [x] [**20260916 Define the Keynet default context**](20260916-keynet-default-context.md) `P1`
+- [x] [**20260923-2208-quick-pairing Implement relay-addressed quick pairing**](20260923-2208-quick-pairing.md) `P1`

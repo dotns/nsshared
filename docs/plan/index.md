@@ -55,3 +55,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**20260913-0641-consolidate-keynet-feature-branches Consolidate keynet feature branches**](20260913-0641-consolidate-keynet-feature-branches.md) `2026-09-13`
 - [d] [**Keynet approved design archive**](../decisions/keynet/README.md) `2026-09-13`
 - [x] [**20260913-0657-clean-keynet-campaign-worktrees Clean retired keynet worktrees**](20260913-0657-clean-keynet-campaign-worktrees.md) `2026-09-13`
+- [x] [**20260923-2208-quick-pairing Relay-addressed quick pairing**](20260923-2208-quick-pairing.md) `2026-09-23`
