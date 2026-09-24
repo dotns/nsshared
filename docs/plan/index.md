@@ -1,5 +1,7 @@
 # ns-shared - Plan Index
 
+- [x] [**20260924-1228-quick-explicit-relay-pin Remove URI invitations**](20260924-1228-quick-explicit-relay-pin.md)
+
 > Historical Mesh plan entries are retained as implementation records. Standalone Mesh removal is tracked in [PLAN-019](PLAN-019.md).
 
 > Updated: 2026-09-18

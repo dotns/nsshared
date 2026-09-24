@@ -119,11 +119,10 @@ pub fn validate_authority(value: &str) -> Result<(), Error> {
     Ok(())
 }
 
-/// Redacted short invitation or self-locating custom-relay handoff.
+/// Redacted invitation. A bare PIN requires an explicit relay at the caller.
 #[derive(Clone)]
 pub struct Locator {
     pub prefix: Option<String>,
-    pub authority: Option<String>,
     digits: Zeroizing<String>,
 }
 
@@ -136,17 +135,11 @@ impl std::fmt::Debug for Locator {
 impl Locator {
     pub fn parse(value: &str) -> Result<Self, Error> {
         let value = value.trim();
-        if value.len() > 300 {
-            return Err(Error::InvalidCode);
-        }
-        if let Some(rest) = value.strip_prefix("nsq://") {
-            let (authority, digits) = rest.split_once('/').ok_or(Error::InvalidCode)?;
-            validate_authority(authority).map_err(|_| Error::InvalidCode)?;
-            check_digits(digits)?;
+        if value.len() == 8 {
+            check_digits(value)?;
             return Ok(Self {
                 prefix: None,
-                authority: Some(authority.to_owned()),
-                digits: Zeroizing::new(digits.into()),
+                digits: Zeroizing::new(value.into()),
             });
         }
         if !value.is_ascii() || value.len() != 10 {
@@ -159,7 +152,6 @@ impl Locator {
         check_digits(&value[2..])?;
         Ok(Self {
             prefix: Some(prefix),
-            authority: None,
             digits: Zeroizing::new(value[2..].into()),
         })
     }
@@ -182,7 +174,7 @@ impl Locator {
                 .find(|entry| entry.authority == authority)
             {
                 Some(entry) => format!("{}{digits}", entry.code),
-                None => format!("nsq://{authority}/{digits}"),
+                None => digits.to_owned(),
             },
         ))
     }
@@ -247,7 +239,30 @@ mod tests {
         ] {
             assert!(Locator::parse(invalid).is_err());
         }
-        let custom = Locator::parse("nsq://relay.example.com:51822/12345678").unwrap();
-        assert_eq!(custom.authority.as_deref(), Some("relay.example.com:51822"));
+        assert!(Locator::parse("nsq://relay.example.com:51822/12345678").is_err());
+        let custom = Locator::parse("00307264").unwrap();
+        assert!(custom.prefix.is_none());
+        assert_eq!(custom.digits(), "00307264");
+        assert!(!format!("{custom:?}").contains("00307264"));
+    }
+
+    #[test]
+    fn displays_default_codes_and_custom_pins_without_uri_wrapping() {
+        let directory = Directory::builtin();
+        assert_eq!(
+            Locator::display_for(&directory.relays[0].authority, "00307264", &directory)
+                .unwrap()
+                .as_str(),
+            "KT00307264"
+        );
+        assert_eq!(
+            Locator::display_for("relay.example.com:51822", "00307264", &directory)
+                .unwrap()
+                .as_str(),
+            "00307264"
+        );
+        for invalid in ["1234567", "123456789", "1234abcd", "１２３４５６７８"] {
+            assert!(Locator::parse(invalid).is_err());
+        }
     }
 }

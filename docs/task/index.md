@@ -1,5 +1,7 @@
 # ns-shared - Task List
 
+- [x] [**20260924-1228-quick-explicit-relay-pin Remove URI invitations**](20260924-1228-quick-explicit-relay-pin.md)
+
 > Historical Mesh task entries are retained as implementation records. Standalone Mesh removal is tracked in [SH-MESH-003](SH-MESH-003.md).
 
 > Updated: 2026-09-16
