@@ -1,3 +1,10 @@
+## 2026-09-24 [progress]
+
+Remove URI invitation parsing and formatting. Keep default directory-prefixed
+codes and accept eight-digit PINs whose relay must be supplied by the caller.
+Keep signed identities, transcript binding and encrypted credential delivery
+unchanged; legacy URI inputs are rejected rather than silently translated.
+
 ## 2026-09-23 [progress]
 
 Add `keynet-quick`: immutable relay-directory identifiers, ten-character short
