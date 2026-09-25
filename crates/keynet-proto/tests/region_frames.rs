@@ -3,8 +3,8 @@ use keynet_proto::{
     MAX_REGION_FORWARD_DATAGRAM_BYTES, MAX_REGION_FRAME_BYTES, MAX_REGION_SNAPSHOT_ENTRIES,
     RegionCarrier, RegionChannel, RegionDecodeError, RegionEncodeError, RegionForward, RegionFrame,
     RegionFrameType, RegionGone, RegionGoneReason, RegionHello, RegionMarks, RegionMiss,
-    RegionMissStatus, RegionOwner, RegionPing, RegionPong, RegionPresence, RegionSnapshot,
-    RelayHeader, decode_region_frame_prefix,
+    RegionMissStatus, RegionOwner, RegionPing, RegionPong, RegionPresence, RegionSettled,
+    RegionSnapshot, RelayHeader, decode_region_frame_prefix,
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -12,7 +12,7 @@ use std::{
     path::PathBuf,
 };
 
-const REGION_FRAME_CASES: &str = "hello_control,hello_data,snapshot_nested,present,gone,marks,forward,miss,ping,pong,non_shortest,indefinite_length,wrong_arity,wrong_type,wrong_width,trailing_bytes,wrong_channel,zero_prefix,oversized_prefix,frame_limit,datagram_limit,snapshot_entry_limit";
+const REGION_FRAME_CASES: &str = "hello_control,hello_data,snapshot_nested,present,gone,marks,forward,miss,ping,pong,settled,non_shortest,indefinite_length,wrong_arity,wrong_type,wrong_width,trailing_bytes,wrong_channel,zero_prefix,oversized_prefix,frame_limit,datagram_limit,snapshot_entry_limit,settled_zero_generation,settled_zero_forward_id,settled_wrong_channel";
 
 fn fixture_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/keynet-v1")
@@ -74,6 +74,7 @@ fn frame_type_name(frame_type: RegionFrameType) -> &'static str {
         RegionFrameType::Miss => "miss",
         RegionFrameType::Ping => "ping",
         RegionFrameType::Pong => "pong",
+        RegionFrameType::Settled => "settled",
     }
 }
 
@@ -180,6 +181,13 @@ fn sample_frames() -> Vec<(RegionChannel, RegionFrame)> {
                 nonce: 1,
                 data_conn_gen: 2,
                 consumed_forward_id: 3,
+            }),
+        ),
+        (
+            RegionChannel::Control,
+            RegionFrame::Settled(RegionSettled {
+                data_conn_gen: 1,
+                settled_forward_id: 2,
             }),
         ),
     ]
@@ -340,6 +348,42 @@ fn hello_decoder_rejects_zero_connection_generation() {
 }
 
 #[test]
+fn settled_encoder_rejects_zero_generation_and_zero_forward_id() {
+    for (data_conn_gen, settled_forward_id) in [(0, 1), (1, 0), (0, 0)] {
+        let settled = RegionFrame::Settled(RegionSettled {
+            data_conn_gen,
+            settled_forward_id,
+        });
+        assert_eq!(
+            settled.encode(RegionChannel::Control),
+            Err(RegionEncodeError::InvalidFrame),
+            "SETTLED generation and forward id zero are reserved"
+        );
+    }
+}
+
+#[test]
+fn settled_decoder_rejects_zero_generation_and_zero_forward_id() {
+    let accepted = [0x00, 0x00, 0x00, 0x06, 0x83, 0x01, 0x0a, 0x82, 0x01, 0x02];
+    assert_eq!(
+        RegionFrame::decode(&accepted, RegionChannel::Control),
+        Ok(RegionFrame::Settled(RegionSettled {
+            data_conn_gen: 1,
+            settled_forward_id: 2,
+        }))
+    );
+    let zero_generation = [0x00, 0x00, 0x00, 0x06, 0x83, 0x01, 0x0a, 0x82, 0x00, 0x02];
+    let zero_forward_id = [0x00, 0x00, 0x00, 0x06, 0x83, 0x01, 0x0a, 0x82, 0x01, 0x00];
+    for encoded in [zero_generation, zero_forward_id] {
+        assert_eq!(
+            RegionFrame::decode(&encoded, RegionChannel::Control),
+            Err(RegionDecodeError::InvalidEncoding),
+            "SETTLED generation and forward id zero are reserved"
+        );
+    }
+}
+
+#[test]
 fn all_region_frame_types_and_nested_bodies_round_trip() -> Result<(), String> {
     for (channel, frame) in sample_frames() {
         let _ = round_trip(&frame, channel)?;
@@ -402,6 +446,13 @@ fn region_enums_and_integer_widths_round_trip() -> Result<(), String> {
             RegionChannel::Control,
         )?;
     }
+    let _ = round_trip(
+        &RegionFrame::Settled(RegionSettled {
+            data_conn_gen: u32::MAX,
+            settled_forward_id: u64::MAX,
+        }),
+        RegionChannel::Control,
+    )?;
     for value in [
         0,
         23,
@@ -610,7 +661,8 @@ fn prefix_rejection_happens_without_a_body() -> Result<(), String> {
 
 #[test]
 fn channel_contract_rejects_wrong_channels_and_exposes_post_hello_rules() -> Result<(), String> {
-    if CONTROL_REGION_FRAME_TYPES.len() != 8
+    if CONTROL_REGION_FRAME_TYPES.len() != 9
+        || !CONTROL_REGION_FRAME_TYPES.contains(&RegionFrameType::Settled)
         || DATA_REGION_FRAME_TYPES.len() != 2
         || DATA_POST_HELLO_REGION_FRAME_TYPES != [RegionFrameType::Forward]
     {
@@ -626,6 +678,7 @@ fn channel_contract_rejects_wrong_channels_and_exposes_post_hello_rules() -> Res
         RegionFrameType::Miss,
         RegionFrameType::Ping,
         RegionFrameType::Pong,
+        RegionFrameType::Settled,
     ] {
         let control_post_hello = matches!(
             frame_type,
@@ -636,6 +689,7 @@ fn channel_contract_rejects_wrong_channels_and_exposes_post_hello_rules() -> Res
                 | RegionFrameType::Miss
                 | RegionFrameType::Ping
                 | RegionFrameType::Pong
+                | RegionFrameType::Settled
         );
         if frame_type.is_legal_on(RegionChannel::Control)
             != (frame_type != RegionFrameType::Forward)
@@ -681,6 +735,19 @@ fn channel_contract_rejects_wrong_channels_and_exposes_post_hello_rules() -> Res
             != Err(RegionDecodeError::WrongChannel)
     {
         return Err("ping was accepted on the data channel".to_owned());
+    }
+    let settled = RegionFrame::Settled(RegionSettled {
+        data_conn_gen: 1,
+        settled_forward_id: 2,
+    });
+    let encoded = settled
+        .encode(RegionChannel::Control)
+        .map_err(|error| format!("{error:?}"))?;
+    if settled.encode(RegionChannel::Data).is_ok()
+        || RegionFrame::decode(&encoded, RegionChannel::Data)
+            != Err(RegionDecodeError::WrongChannel)
+    {
+        return Err("settled was accepted on the data channel".to_owned());
     }
     if hello(RegionChannel::Control)
         .encode(RegionChannel::Data)

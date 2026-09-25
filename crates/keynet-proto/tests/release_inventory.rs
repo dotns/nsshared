@@ -7,7 +7,7 @@ use std::{
 
 const ROOT: &str = "tests/fixtures/keynet-v1";
 const EXPECTED_MANIFEST_SHA256: &str =
-    "ce4e8dd9a10dd7ee845553cb3d092ea4b3203d94c37cf0c0bb7836f764682fad";
+    "2ec124526578b411fa0bb0cb5bc91f8cfccedd723c70dfddeab3a1c2d6cc63a8";
 
 const METADATA: &[(&str, &str)] = &[
     ("manifest_format", "keynet-fixture-manifest-v1"),
@@ -57,7 +57,7 @@ const METADATA: &[(&str, &str)] = &[
     ),
     (
         "region_frame_cases",
-        "hello_control,hello_data,snapshot_nested,present,gone,marks,forward,miss,ping,pong,non_shortest,indefinite_length,wrong_arity,wrong_type,wrong_width,trailing_bytes,wrong_channel,zero_prefix,oversized_prefix,frame_limit,datagram_limit,snapshot_entry_limit",
+        "hello_control,hello_data,snapshot_nested,present,gone,marks,forward,miss,ping,pong,settled,non_shortest,indefinite_length,wrong_arity,wrong_type,wrong_width,trailing_bytes,wrong_channel,zero_prefix,oversized_prefix,frame_limit,datagram_limit,snapshot_entry_limit,settled_zero_generation,settled_zero_forward_id,settled_wrong_channel",
     ),
     (
         "region_marks_cases",
@@ -120,7 +120,7 @@ const FILES: &[(&str, &str)] = &[
     ),
     (
         "region_frames.vec",
-        "ecae34dc8a6818422c8328dc5a64494b0d01134069267da0ddf00563af7bc065",
+        "85ae05f9877149d7de9c0459dc08de8a4854d4f9da1e22487863e1ba1608c40d",
     ),
     (
         "region_marks.vec",

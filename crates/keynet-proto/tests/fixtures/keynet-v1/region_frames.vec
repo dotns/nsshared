@@ -59,6 +59,12 @@ outcome=accept
 type=pong
 frame=0000000783010983010203
 
+case=settled
+channel=control
+outcome=accept
+type=settled
+frame=0000000683010a820102
+
 case=non_shortest
 channel=control
 outcome=reject
@@ -130,3 +136,21 @@ channel=control
 outcome=generated
 limit=256
 one_over=257
+
+case=settled_zero_generation
+channel=control
+outcome=reject
+type=reject
+frame=0000000683010a820002
+
+case=settled_zero_forward_id
+channel=control
+outcome=reject
+type=reject
+frame=0000000683010a820100
+
+case=settled_wrong_channel
+channel=data
+outcome=reject
+type=reject
+frame=0000000683010a820102

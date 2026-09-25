@@ -26,6 +26,7 @@ pub const CONTROL_REGION_FRAME_TYPES: &[RegionFrameType] = &[
     RegionFrameType::Miss,
     RegionFrameType::Ping,
     RegionFrameType::Pong,
+    RegionFrameType::Settled,
 ];
 /// Frame types permitted on a data connection, including its HELLO setup frame.
 pub const DATA_REGION_FRAME_TYPES: &[RegionFrameType] =
@@ -175,6 +176,8 @@ pub enum RegionFrameType {
     Ping = 8,
     /// A control-channel liveness response.
     Pong = 9,
+    /// A cumulative final-decision watermark for forwarded datagrams.
+    Settled = 10,
 }
 
 impl RegionFrameType {
@@ -205,6 +208,7 @@ impl TryFrom<u8> for RegionFrameType {
             7 => Ok(Self::Miss),
             8 => Ok(Self::Ping),
             9 => Ok(Self::Pong),
+            10 => Ok(Self::Settled),
             _ => Err(RegionDecodeError::UnsupportedType),
         }
     }
@@ -2850,6 +2854,19 @@ pub struct RegionPong {
     pub consumed_forward_id: u64,
 }
 
+/// A SETTLED frame body.
+///
+/// The exit member has made its final decision (delivered, answered with MISS, or dropped) for
+/// every forward on `data_conn_gen` whose identifier is at most `settled_forward_id`, and no MISS
+/// for those identifiers follows.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RegionSettled {
+    /// The nonzero data-channel connection generation of the settled forwards.
+    pub data_conn_gen: u32,
+    /// The nonzero greatest forwarding identifier covered by the watermark.
+    pub settled_forward_id: u64,
+}
+
 /// One complete region-frame envelope and typed body.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RegionFrame {
@@ -2871,6 +2888,8 @@ pub enum RegionFrame {
     Ping(RegionPing),
     /// A PONG frame.
     Pong(RegionPong),
+    /// A SETTLED frame.
+    Settled(RegionSettled),
 }
 
 /// A failure to encode a region frame.
@@ -2895,7 +2914,7 @@ pub enum RegionDecodeError {
     InvalidEncoding,
     /// The envelope version was not one.
     UnsupportedVersion,
-    /// The envelope type was not one of the nine region frame types.
+    /// The envelope type was not one of the ten region frame types.
     UnsupportedType,
     /// The frame type or HELLO channel does not match the supplied transport channel.
     WrongChannel,
@@ -2915,6 +2934,7 @@ impl RegionFrame {
             Self::Miss(_) => RegionFrameType::Miss,
             Self::Ping(_) => RegionFrameType::Ping,
             Self::Pong(_) => RegionFrameType::Pong,
+            Self::Settled(_) => RegionFrameType::Settled,
         }
     }
 
@@ -3012,6 +3032,13 @@ fn validate_frame(frame: &RegionFrame, channel: RegionChannel) -> Result<(), Reg
             }
         }
         RegionFrame::Miss(_) | RegionFrame::Ping(_) | RegionFrame::Pong(_) => Ok(()),
+        RegionFrame::Settled(settled) => {
+            if settled.data_conn_gen == 0 || settled.settled_forward_id == 0 {
+                Err(RegionEncodeError::InvalidFrame)
+            } else {
+                Ok(())
+            }
+        }
     }
 }
 
@@ -3111,6 +3138,11 @@ fn encode_body(output: &mut Vec<u8>, frame: &RegionFrame) -> Result<(), RegionEn
             pong.data_conn_gen,
             pong.consumed_forward_id,
         ),
+        RegionFrame::Settled(settled) => {
+            write_array(output, 2);
+            write_uint(output, u64::from(settled.data_conn_gen));
+            write_uint(output, settled.settled_forward_id);
+        }
     }
     Ok(())
 }
@@ -3241,6 +3273,13 @@ fn decode_body(
                 nonce,
                 data_conn_gen,
                 consumed_forward_id,
+            }))
+        }
+        RegionFrameType::Settled => {
+            expect_array(reader, 2)?;
+            Ok(RegionFrame::Settled(RegionSettled {
+                data_conn_gen: read_u32(reader)?,
+                settled_forward_id: read_uint(reader)?,
             }))
         }
     }
