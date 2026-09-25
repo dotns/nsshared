@@ -1,3 +1,13 @@
+## 2026-09-25 [feat]
+
+Add the control-only region SETTLED frame (type 10). It carries a data
+connection generation and a cumulative forward id, and tells an entry member
+that the exit has finally decided every forward on that generation up to the
+id, so no MISS for them follows. It uses the strict fixed-arity CBOR rules of
+MISS, is illegal on data, and rejects a zero generation or forward id. The
+frame version stays 1; the sealed region frame fixture declares the new cases.
+See [Region SETTLED frame](task/20260925-1655-region-settled-frame.md).
+
 ## 2026-09-16 [decision]
 
 Remove the standalone Mesh v1/v2 shared protocol, its dedicated tests/fixtures,
