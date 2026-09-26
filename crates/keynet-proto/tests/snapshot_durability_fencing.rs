@@ -144,6 +144,7 @@ fn complete(
             durable_store: snapshot_test_support::store(1),
             channel_states: &[],
             capacity: RegionPresenceCapacity { maximum_entries: 1 },
+            local_member_id: 16,
         },
     ))
 }
@@ -163,6 +164,7 @@ fn complete_without_receipt(
             durable_store: snapshot_test_support::store(1),
             channel_states: &[],
             capacity: RegionPresenceCapacity { maximum_entries: 1 },
+            local_member_id: 16,
         },
     )
 }
@@ -341,6 +343,7 @@ fn final_receipt_binds_the_complete_cut() -> Result<(), String> {
             durable_store: snapshot_test_support::store(1),
             channel_states: &[],
             capacity: RegionPresenceCapacity { maximum_entries: 1 },
+            local_member_id: 16,
         },
     );
     if rejected.disposition != RegionSnapshotDisposition::InvalidDurableCutReceipt
@@ -394,6 +397,7 @@ fn unchanged_batch_needs_no_durable_write() -> Result<(), String> {
             durable_store: snapshot_test_support::store(0),
             channel_states: &[],
             capacity: RegionPresenceCapacity { maximum_entries: 1 },
+            local_member_id: 16,
         },
     );
     if completed.disposition != RegionSnapshotDisposition::Completed {

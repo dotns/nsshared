@@ -179,6 +179,7 @@ fn persisted_mark_batches_do_not_accumulate_in_snapshot_staging() -> Result<(), 
             capacity: RegionPresenceCapacity {
                 maximum_entries: 10_000,
             },
+            local_member_id: 16,
         },
     );
     if incomplete.disposition != RegionSnapshotDisposition::DurableMarksNotPersisted {

@@ -5,7 +5,7 @@ use keynet_proto::{
     RegionPresenceSession, RegionPresenceStream, RegionPresenceTable, RegionSnapshot,
     RegionSnapshotCompletionInput, RegionSnapshotCutCommitment, RegionSnapshotDisposition,
     RegionSnapshotDurableBatchAcknowledgment, RegionSnapshotDurableBatchAcknowledgmentInput,
-    RegionSnapshotDurableCutReceipt, RegionSnapshotOwnerIndexOutcome,
+    RegionSnapshotDurableCutReceipt, RegionSnapshotEffect, RegionSnapshotOwnerIndexOutcome,
     RegionSnapshotOwnerValidation, RegionSnapshotOwnerValidationInput, RegionSnapshotStage,
     RegionSnapshotStagingCapacity, RegionSnapshotStagingInput, RegionSnapshotStagingTable,
     acknowledge_region_snapshot_durable_batch,
@@ -226,6 +226,7 @@ fn snapshot_completion_input<'a>(
         capacity: RegionPresenceCapacity {
             maximum_entries: 16,
         },
+        local_member_id: 16,
     }
 }
 
@@ -354,6 +355,7 @@ fn complete_region_snapshot(
         durable_store,
         channel_states,
         capacity,
+        local_member_id,
     } = input;
     let mut next_table = table.clone();
     let mut next_staging = staging.clone();
@@ -388,6 +390,7 @@ fn complete_region_snapshot(
                         durable_store,
                         channel_states,
                         capacity,
+                        local_member_id,
                     },
                 );
             };
@@ -427,6 +430,7 @@ fn complete_region_snapshot(
                     durable_store: completion_store,
                     channel_states,
                     capacity,
+                    local_member_id,
                 },
             );
         }
@@ -469,6 +473,7 @@ fn complete_region_snapshot(
             durable_store: completion_store,
             channel_states,
             capacity,
+            local_member_id,
         },
     )
 }
@@ -1790,6 +1795,173 @@ fn capacity_is_an_explicit_bound_on_new_presence() -> Result<(), String> {
         || decision.table.origins[1].revision_high_water != 1
     {
         return Err("capacity bound allowed an additional presence".to_owned());
+    }
+    Ok(())
+}
+
+/// Stages one final snapshot chunk from `incoming` over `published` and completes it for
+/// `local_member_id` once its marks are durable.
+fn complete_single_chunk_snapshot(
+    published: &RegionPresenceTable,
+    incoming: RegionPresenceOrigin,
+    candidate: RegionPresence,
+    staged_mark: RegionMarks,
+    local_member_id: u8,
+    channel_states: &[RegionPresenceChannels],
+) -> keynet_proto::RegionSnapshotDecision {
+    let initial_marks = [marks(0x22, 5, 1)];
+    let staged = stage_region_snapshot(
+        published,
+        &RegionSnapshotStagingTable::default(),
+        snapshot(7, 4, 9, 0, vec![candidate], vec![staged_mark], false),
+        snapshot_input(incoming, &initial_marks),
+    );
+    let persisted_marks = [staged_mark];
+    complete_region_snapshot(
+        &staged.table,
+        &staged.staging,
+        RegionSnapshotCompletionInput {
+            local_member_id,
+            ..snapshot_completion_input(incoming, 7, &persisted_marks, channel_states)
+        },
+    )
+}
+
+#[test]
+fn completion_retires_a_superseded_local_session_before_replacing_it() -> Result<(), String> {
+    let incoming = origin(2, 10);
+    let local = origin(3, 30);
+    let local_presence = snapshot_presence_for(local, 0x22, 5, 1, 5);
+    let published = table(
+        vec![record(local, local_presence, false)],
+        vec![state(local, 5)],
+    );
+    let channel_states = channels(&[incoming, local]);
+    let candidate = snapshot_presence_for(incoming, 0x22, 5, 2, 1);
+    let refused = complete_single_chunk_snapshot(
+        &published,
+        incoming,
+        candidate,
+        marks(0x22, 5, 2),
+        local.member_id,
+        &channel_states,
+    );
+    if refused.disposition != RegionSnapshotDisposition::LocalRetirementRequired
+        || refused.effects
+            != vec![RegionSnapshotEffect::RetireLocalPresence(
+                RegionPresenceSession {
+                    origin: local,
+                    presence: local_presence,
+                },
+            )]
+        || entry_for_owner(&refused.table, 0x22)?.session.origin != local
+        || refused
+            .staging
+            .stages
+            .iter()
+            .all(|stage| stage.origin != incoming)
+    {
+        return Err(format!(
+            "completion replaced a local session without retiring it: {:?} {:?}",
+            refused.disposition, refused.effects
+        ));
+    }
+
+    // The caller retires the local session through its ordered local GONE; the stage is kept.
+    let mut retired = refused.table.clone();
+    retired
+        .entries
+        .retain(|entry| entry.session.origin != local);
+    let persisted_marks = [marks(0x22, 5, 2)];
+    let completed = complete_region_snapshot(
+        &retired,
+        &refused.staging,
+        RegionSnapshotCompletionInput {
+            local_member_id: local.member_id,
+            ..snapshot_completion_input(incoming, 7, &persisted_marks, &channel_states)
+        },
+    );
+    if completed.disposition != RegionSnapshotDisposition::Completed
+        || !completed.effects.is_empty()
+        || entry_for_owner(&completed.table, 0x22)?.session
+            != (RegionPresenceSession {
+                origin: incoming,
+                presence: candidate,
+            })
+    {
+        return Err(format!(
+            "completion did not install the remote record after local retirement: {:?}",
+            completed.disposition
+        ));
+    }
+    Ok(())
+}
+
+#[test]
+fn completion_retires_a_local_session_that_loses_the_equal_state_tie_break() -> Result<(), String> {
+    let incoming = origin(2, 10);
+    let local = origin(3, 30);
+    let local_presence = snapshot_presence_for(local, 0x22, 5, 1, 5);
+    let published = table(
+        vec![record(local, local_presence, false)],
+        vec![state(local, 5)],
+    );
+    let channel_states = channels(&[incoming, local]);
+    let refused = complete_single_chunk_snapshot(
+        &published,
+        incoming,
+        snapshot_presence_for(incoming, 0x22, 5, 1, 1),
+        marks(0x22, 5, 1),
+        local.member_id,
+        &channel_states,
+    );
+    if refused.disposition != RegionSnapshotDisposition::LocalRetirementRequired
+        || refused.effects
+            != vec![RegionSnapshotEffect::RetireLocalPresence(
+                RegionPresenceSession {
+                    origin: local,
+                    presence: local_presence,
+                },
+            )]
+    {
+        return Err(format!(
+            "a lower remote member id did not retire the equal local session: {:?}",
+            refused.disposition
+        ));
+    }
+    Ok(())
+}
+
+#[test]
+fn completion_keeps_a_local_session_that_wins_the_equal_state_tie_break() -> Result<(), String> {
+    let incoming = origin(2, 10);
+    let local = origin(1, 30);
+    let local_presence = snapshot_presence_for(local, 0x22, 5, 1, 5);
+    let published = table(
+        vec![record(local, local_presence, false)],
+        vec![state(local, 5)],
+    );
+    let channel_states = channels(&[incoming, local]);
+    let completed = complete_single_chunk_snapshot(
+        &published,
+        incoming,
+        snapshot_presence_for(incoming, 0x22, 5, 1, 1),
+        marks(0x22, 5, 1),
+        local.member_id,
+        &channel_states,
+    );
+    if completed.disposition != RegionSnapshotDisposition::Completed
+        || !completed.effects.is_empty()
+        || entry_for_owner(&completed.table, 0x22)?.session
+            != (RegionPresenceSession {
+                origin: local,
+                presence: local_presence,
+            })
+    {
+        return Err(format!(
+            "a winning local session was retired or replaced: {:?}",
+            completed.disposition
+        ));
     }
     Ok(())
 }

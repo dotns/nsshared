@@ -1296,6 +1296,8 @@ pub struct RegionSnapshotCompletionInput<'a> {
     pub channel_states: &'a [RegionPresenceChannels],
     /// The published-presence capacity available to the replacement decision.
     pub capacity: RegionPresenceCapacity,
+    /// The local member identifier; a staged record never replaces one of its sessions directly.
+    pub local_member_id: u8,
 }
 
 /// A local action requested by a snapshot decision.
@@ -1305,6 +1307,9 @@ pub enum RegionSnapshotEffect {
     ValidateSnapshotOwners(RegionSnapshotOwnerValidationRequest),
     /// Durably apply the changed joins in this exact batch before accepting another mark batch.
     PersistDurableBatch(RegionSnapshotDurableBatch),
+    /// Retire this superseded local session, with a mesh-only GONE reason 2 in the local
+    /// publication order, before the completion is repeated.
+    RetireLocalPresence(RegionPresenceSession),
 }
 
 /// The documented outcome of one snapshot staging or completion decision.
@@ -1322,6 +1327,8 @@ pub enum RegionSnapshotDisposition {
     AwaitingOwnerValidation,
     /// The final stage passed durable-floor validation and replaced one origin's presence.
     Completed,
+    /// A staged record supersedes local sessions that must be retired before completion.
+    LocalRetirementRequired,
     /// No final stage is available for completion.
     MissingSnapshot,
     /// A stage is still awaiting another chunk with `more = false`.
@@ -2024,6 +2031,12 @@ pub fn acknowledge_region_snapshot_durable_batch(
 }
 
 /// Completes a final stage only after a trusted local receipt proves the complete cut remains durable.
+///
+/// A staged record that the shared selection prefers over a session of the local member is not
+/// installed: the decision keeps both tables, names every such session in a
+/// [`RegionSnapshotEffect::RetireLocalPresence`] effect and returns
+/// [`RegionSnapshotDisposition::LocalRetirementRequired`]. The caller retires those sessions in
+/// its local publication order and repeats the completion.
 #[must_use]
 pub fn complete_region_snapshot(
     table: &RegionPresenceTable,
@@ -2161,6 +2174,7 @@ pub fn complete_region_snapshot(
     next_table
         .entries
         .retain(|entry| entry.session.origin != pair.origin);
+    let mut local_retirements = Vec::new();
     for presence in &stage.presence_entries {
         let candidate = RegionPresenceRecord {
             session: RegionPresenceSession {
@@ -2194,16 +2208,33 @@ pub fn complete_region_snapshot(
             next_table.entries.push(candidate);
             continue;
         };
+        let existing = next_table.entries[existing_index];
         if matches!(
-            select_presence(
-                next_table.entries[existing_index],
-                candidate,
-                input.durable_marks
-            ),
+            select_presence(existing, candidate, input.durable_marks),
             PresenceSelection::Candidate
         ) {
+            if existing.session.origin.member_id == input.local_member_id {
+                if local_retirements.try_reserve(1).is_err() {
+                    return invalidate_snapshot(
+                        table,
+                        staging,
+                        pair,
+                        RegionSnapshotDisposition::CapacityExhausted,
+                    );
+                }
+                local_retirements.push(RegionSnapshotEffect::RetireLocalPresence(existing.session));
+                continue;
+            }
             next_table.entries[existing_index] = candidate;
         }
+    }
+    if !local_retirements.is_empty() {
+        return RegionSnapshotDecision {
+            table: table.clone(),
+            staging: staging.clone(),
+            effects: local_retirements,
+            disposition: RegionSnapshotDisposition::LocalRetirementRequired,
+        };
     }
     refresh_presence_eligibility(&mut next_table, input.durable_marks, input.channel_states);
 

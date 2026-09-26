@@ -41,7 +41,8 @@ pub fn validation_request(
         .iter()
         .find_map(|effect| match effect {
             RegionSnapshotEffect::ValidateSnapshotOwners(request) => Some(request.clone()),
-            RegionSnapshotEffect::PersistDurableBatch(_) => None,
+            RegionSnapshotEffect::PersistDurableBatch(_)
+            | RegionSnapshotEffect::RetireLocalPresence(_) => None,
         })
         .ok_or_else(|| "snapshot decision did not request exact owner validation".to_owned())
 }
@@ -82,7 +83,8 @@ pub fn durable_batch(
         .iter()
         .find_map(|effect| match effect {
             RegionSnapshotEffect::PersistDurableBatch(batch) => Some(batch.clone()),
-            RegionSnapshotEffect::ValidateSnapshotOwners(_) => None,
+            RegionSnapshotEffect::ValidateSnapshotOwners(_)
+            | RegionSnapshotEffect::RetireLocalPresence(_) => None,
         })
         .ok_or_else(|| "snapshot decision did not request a durable batch".to_owned())
 }

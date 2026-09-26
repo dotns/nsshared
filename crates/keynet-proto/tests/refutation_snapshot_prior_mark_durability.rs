@@ -143,6 +143,7 @@ fn complete(
             capacity: RegionPresenceCapacity {
                 maximum_entries: 160_000,
             },
+            local_member_id: 16,
         },
     )
 }

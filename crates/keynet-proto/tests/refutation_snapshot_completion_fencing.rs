@@ -129,6 +129,7 @@ fn delayed_completion_cannot_invalidate_a_reconnected_snapshot() -> Result<(), S
             capacity: RegionPresenceCapacity {
                 maximum_entries: 160_000,
             },
+            local_member_id: 16,
         },
     );
 
@@ -158,6 +159,7 @@ fn delayed_completion_cannot_invalidate_a_reconnected_snapshot() -> Result<(), S
             capacity: RegionPresenceCapacity {
                 maximum_entries: 160_000,
             },
+            local_member_id: 16,
         },
     );
     if stale_stream_completion.disposition != RegionSnapshotDisposition::IgnoredStaleStream
