@@ -1,3 +1,26 @@
+## 2026-09-26 [fix]
+
+Stop snapshot completion from replacing a local member's session without
+retiring it. `RegionSnapshotCompletionInput` names the local member; when a
+staged record wins the shared selection over one of its sessions (a higher
+incarnation, or the equal-state tie-break for a lower remote member id), the
+completion keeps both tables and the stage, returns
+`LocalRetirementRequired` and one `RetireLocalPresence` effect per superseded
+session. The caller retires those sessions with a mesh-only GONE reason 2 in
+its local publication order and repeats the completion. The event decision is
+unchanged. See
+[Snapshot completion local supersession](task/20260926-0649-region-snapshot-local-supersession.md).
+
+## 2026-09-25 [feat]
+
+Add the control-only region SETTLED frame (type 10). It carries a data
+connection generation and a cumulative forward id, and tells an entry member
+that the exit has finally decided every forward on that generation up to the
+id, so no MISS for them follows. It uses the strict fixed-arity CBOR rules of
+MISS, is illegal on data, and rejects a zero generation or forward id. The
+frame version stays 1; the sealed region frame fixture declares the new cases.
+See [Region SETTLED frame](task/20260925-1655-region-settled-frame.md).
+
 ## 2026-09-24 [progress]
 
 Remove URI invitation parsing and formatting. Keep default directory-prefixed
@@ -310,3 +333,50 @@ approved records, historical proposals, and diagrams. Dedicated ns-shared main
 was restored with four additive reverts and has the same tracked tree as
 `d02a29c`. Migration QA passed with 732 tests and no skipped tests. Phase 2
 remains paused and unreviewed.
+
+## 2026-09-21 05:08 [feat]
+
+Added the strict inter-member region frame codec and sealed v0.9 fixture.
+
+- Added canonical encoding and decoding for all nine region frame types and
+  their nested snapshot schemas.
+- Enforced frame, datagram, entry, channel, connection-generation, and
+  canonical-CBOR validation at the codec boundary.
+- Added sealed fixture vectors, independent inventory witnesses, and focused
+  regression coverage while preserving every prior vector byte.
+
+## 2026-09-21 06:18 [feat]
+
+Added the pure retained-marks join and its sealed fixture family.
+
+- Joined revocation floors independently of generation while resetting
+  generation-specific key, conflict, and incarnation state on advancement.
+- Made equal-generation conflicts deterministic, associative, commutative,
+  and idempotent with exact directional change reporting.
+- Rejected cross-owner joins and sealed the exact marks cases through
+  independent fixture inventories while preserving prior vector bytes.
+
+## 2026-09-21 08:10 [feat]
+
+Added the pure region-presence decision and its sealed fixture family.
+
+- Selected presence by generation and incarnation before route eligibility,
+  with durable generation marks, channel pairs, and member identity applied at
+  their defined boundaries.
+- Preserved exact revision, epoch-replacement, capacity, retirement, and
+  grace-channel behavior without mutating durable floors.
+- Added strict fixture inventory witnesses and regression coverage for
+  generation marks, capacity resynchronization, stale channels, and retirement
+  failures while preserving all prior vector bytes.
+
+## 2026-09-21 14:00 [feat]
+
+Added bounded region snapshot staging and closed the sealed v0.9 fixture release.
+
+- Kept partial presence unpublished until contiguous staging, exact owner
+  validation, durable mark acknowledgments, and a scoped complete-cut receipt
+  all succeed.
+- Separated replay fences from active staging capacity and retained exact
+  cross-batch duplicate detection without accumulating the whole owner cut.
+- Preserved the existing batch and owner limits while adding positive and
+  adversarial coverage for durable evidence, capacity recovery, and replay.

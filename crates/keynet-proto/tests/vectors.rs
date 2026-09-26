@@ -21,9 +21,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-const DESIGN_REVISION: &str = "v0.7";
-const DESIGN_COMMIT: &str = "4ae04faa06ca1f5d64e40aca58aa8e55a50c1e6e";
-const DESIGN_SHA256: &str = "ceeca74ab6dad33f34df36ef789c1d32014679c9592655439210c169b0bebce6";
+const DESIGN_REVISION: &str = "v0.9";
+const DESIGN_COMMIT: &str = "abb1dad";
+const DESIGN_SHA256: &str = "a763e6db341b429361558df9ae81ca7d130cda7fb63ae912c2cf1f77638e27f2";
 const ROOT: &str = "tests/fixtures/keynet-v1";
 const ADDRESS_CASES: &str = "ascending,zeros,reverse";
 const IDENTITY_CASES: &str = "ascending,zeros,reverse";
@@ -36,6 +36,9 @@ const LABEL_CASES: &str = "ascii_runs,uppercase_non_ascii,empty,one_byte,length_
 const NAME_RECORD_CASES: &str = "claim_width_boundaries";
 const RELAY_FIELDS: &str = "network,identity,slot,node_private,node_ephemeral,relay_private,relay_ephemeral,register_unsigned,register_signature,reg_hash,shared_secret,session_key,register_datagram,registered_mac,registered_datagram,presence_mac,presence_datagram,reflect_mac,reflect_datagram,reflected_mac,reflected_datagram,intro_datagram,intro_ack_datagram,data_datagram,status_datagram,revoke_mac,revoke_datagram,revocation_unsigned,revocation_signature,revocation";
 const CONTROL_FIELDS: &str = "ack,legacy_endpoints,binding,revocation,name,ordered_endpoints,probe_request,probe_reply,ordered_hash,greedy_ordered_endpoints,greedy_omitted_relays";
+const REGION_FRAME_CASES: &str = "hello_control,hello_data,snapshot_nested,present,gone,marks,forward,miss,ping,pong,settled,non_shortest,indefinite_length,wrong_arity,wrong_type,wrong_width,trailing_bytes,wrong_channel,zero_prefix,oversized_prefix,frame_limit,datagram_limit,snapshot_entry_limit,settled_zero_generation,settled_zero_forward_id,settled_wrong_channel";
+const REGION_MARKS_CASES: &str = "permutations,reordered,duplicate_inputs,independent_revocation,higher_generation_reset,equal_generation_conflict,deterministic_representative";
+const REGION_PRESENCE_CASES: &str = "origin_ownership,full_owner_collision,generation_before_incarnation,incarnation_before_member_id,durable_mark_filtering,member_id_tie_break,exact_gone_removal,revision_high_water,stale_stream,epoch_replacement,local_loser_effects,grace_channel_down,durable_floors_retained,capacity_bound,higher_generation_channel_down,same_origin_lower_generation,snapshot_empty,snapshot_size_bound,snapshot_unchanged_cuts,snapshot_contiguous_indices,snapshot_final_chunk,snapshot_deferred_routes,snapshot_chunk_mark_persistence,snapshot_mark_batch_backpressure,snapshot_persisted_marks_survive_invalidation,snapshot_changed_cuts,snapshot_changed_id,snapshot_duplicate_index,snapshot_gap,snapshot_exhaustion,snapshot_duplicate_presence_owner,snapshot_duplicate_mark_owner,snapshot_wrong_epoch,snapshot_wrong_slot,snapshot_invalid_revision,snapshot_cut_regression,snapshot_mark_compatibility,snapshot_interruption,snapshot_completion,snapshot_reconnect_restart,snapshot_post_completion,snapshot_stale_id,snapshot_owner_index_scope,snapshot_batch_acknowledgment,snapshot_cut_receipt,snapshot_unchanged_batch,snapshot_replay_fence_capacity";
 const IDENTIFIER_CASES: &str = "relay_dns,relay_ipv4,relay_ipv6,relay_short,endpoint_dns,endpoint_ipv4,endpoint_ipv6,local_dns_case_dot,local_ipv6_case_zeros,invalid_scheme,invalid_port_zero,invalid_port_leading_zero,invalid_unbracketed_ipv6,invalid_zone,invalid_ipv4_leading_zero,invalid_dns_uppercase,invalid_dns_terminal_dot,invalid_short_uppercase,invalid_short_trailing_hyphen,invalid_short_endpoint,invalid_unicode,invalid_whitespace,invalid_mapped_ipv6,invalid_unspecified_ipv6,invalid_multicast_ipv6,invalid_site_local_ipv6";
 
 fn root() -> PathBuf {
@@ -221,15 +224,15 @@ fn load(root: &Path) -> Result<BTreeMap<String, String>, String> {
     let mut required = BTreeMap::from([
         ("manifest_format", "keynet-fixture-manifest-v1"),
         ("suite_version", "keynet-v1"),
-        ("fixture_release", "keynet-v1-v0.7"),
+        ("fixture_release", "keynet-v1-v0.9"),
         ("section_13_revision", DESIGN_REVISION),
         ("design_path", "docs/ns/keynet.md"),
         ("design_commit", DESIGN_COMMIT),
         ("design_sha256", DESIGN_SHA256),
-        ("data_file_count", "12"),
+        ("data_file_count", "15"),
         (
             "coverage",
-            "addresses,identities,conflicts,key_bindings,pairing_tokens,introductions,aliases,labels,name_records,relay,revocation,relay_identifiers,control_records,integrity",
+            "addresses,identities,conflicts,key_bindings,pairing_tokens,introductions,aliases,labels,name_records,relay,revocation,relay_identifiers,control_records,region_frames,region_marks,region_presence,integrity",
         ),
         ("address_cases", ADDRESS_CASES),
         ("identity_cases", IDENTITY_CASES),
@@ -243,6 +246,9 @@ fn load(root: &Path) -> Result<BTreeMap<String, String>, String> {
         ("relay_revocation_fields", RELAY_FIELDS),
         ("relay_identifier_cases", IDENTIFIER_CASES),
         ("control_record_fields", CONTROL_FIELDS),
+        ("region_frame_cases", REGION_FRAME_CASES),
+        ("region_marks_cases", REGION_MARKS_CASES),
+        ("region_presence_cases", REGION_PRESENCE_CASES),
     ]);
     let mut entries = BTreeMap::new();
     for line in manifest.lines().filter(|line| !line.is_empty()) {
@@ -299,6 +305,9 @@ fn load(root: &Path) -> Result<BTreeMap<String, String>, String> {
     validate_case_inventory(root, "aliases.vec", ALIAS_CASES)?;
     validate_case_inventory(root, "labels.vec", LABEL_CASES)?;
     validate_case_inventory(root, "name_records.vec", NAME_RECORD_CASES)?;
+    validate_case_inventory(root, "region_frames.vec", REGION_FRAME_CASES)?;
+    validate_case_inventory(root, "region_marks.vec", REGION_MARKS_CASES)?;
+    validate_case_inventory(root, "region_presence.vec", REGION_PRESENCE_CASES)?;
     validate_flat_inventory(root, "relay_revocation.vec", RELAY_FIELDS)?;
     validate_flat_inventory(root, "control_records.vec", CONTROL_FIELDS)?;
     validate_identifier_inventory(root)?;

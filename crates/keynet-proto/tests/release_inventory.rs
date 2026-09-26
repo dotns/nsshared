@@ -7,23 +7,23 @@ use std::{
 
 const ROOT: &str = "tests/fixtures/keynet-v1";
 const EXPECTED_MANIFEST_SHA256: &str =
-    "09c5184dfdd114151c6650c02eaca9d0710c6d321b1b5c72847d7fea506d13ea";
+    "2ec124526578b411fa0bb0cb5bc91f8cfccedd723c70dfddeab3a1c2d6cc63a8";
 
 const METADATA: &[(&str, &str)] = &[
     ("manifest_format", "keynet-fixture-manifest-v1"),
     ("suite_version", "keynet-v1"),
-    ("fixture_release", "keynet-v1-v0.7"),
-    ("section_13_revision", "v0.7"),
+    ("fixture_release", "keynet-v1-v0.9"),
+    ("section_13_revision", "v0.9"),
     ("design_path", "docs/ns/keynet.md"),
-    ("design_commit", "4ae04faa06ca1f5d64e40aca58aa8e55a50c1e6e"),
+    ("design_commit", "abb1dad"),
     (
         "design_sha256",
-        "ceeca74ab6dad33f34df36ef789c1d32014679c9592655439210c169b0bebce6",
+        "a763e6db341b429361558df9ae81ca7d130cda7fb63ae912c2cf1f77638e27f2",
     ),
-    ("data_file_count", "12"),
+    ("data_file_count", "15"),
     (
         "coverage",
-        "addresses,identities,conflicts,key_bindings,pairing_tokens,introductions,aliases,labels,name_records,relay,revocation,relay_identifiers,control_records,integrity",
+        "addresses,identities,conflicts,key_bindings,pairing_tokens,introductions,aliases,labels,name_records,relay,revocation,relay_identifiers,control_records,region_frames,region_marks,region_presence,integrity",
     ),
     ("address_cases", "ascending,zeros,reverse"),
     ("identity_cases", "ascending,zeros,reverse"),
@@ -54,6 +54,18 @@ const METADATA: &[(&str, &str)] = &[
     (
         "control_record_fields",
         "ack,legacy_endpoints,binding,revocation,name,ordered_endpoints,probe_request,probe_reply,ordered_hash,greedy_ordered_endpoints,greedy_omitted_relays",
+    ),
+    (
+        "region_frame_cases",
+        "hello_control,hello_data,snapshot_nested,present,gone,marks,forward,miss,ping,pong,settled,non_shortest,indefinite_length,wrong_arity,wrong_type,wrong_width,trailing_bytes,wrong_channel,zero_prefix,oversized_prefix,frame_limit,datagram_limit,snapshot_entry_limit,settled_zero_generation,settled_zero_forward_id,settled_wrong_channel",
+    ),
+    (
+        "region_marks_cases",
+        "permutations,reordered,duplicate_inputs,independent_revocation,higher_generation_reset,equal_generation_conflict,deterministic_representative",
+    ),
+    (
+        "region_presence_cases",
+        "origin_ownership,full_owner_collision,generation_before_incarnation,incarnation_before_member_id,durable_mark_filtering,member_id_tie_break,exact_gone_removal,revision_high_water,stale_stream,epoch_replacement,local_loser_effects,grace_channel_down,durable_floors_retained,capacity_bound,higher_generation_channel_down,same_origin_lower_generation,snapshot_empty,snapshot_size_bound,snapshot_unchanged_cuts,snapshot_contiguous_indices,snapshot_final_chunk,snapshot_deferred_routes,snapshot_chunk_mark_persistence,snapshot_mark_batch_backpressure,snapshot_persisted_marks_survive_invalidation,snapshot_changed_cuts,snapshot_changed_id,snapshot_duplicate_index,snapshot_gap,snapshot_exhaustion,snapshot_duplicate_presence_owner,snapshot_duplicate_mark_owner,snapshot_wrong_epoch,snapshot_wrong_slot,snapshot_invalid_revision,snapshot_cut_regression,snapshot_mark_compatibility,snapshot_interruption,snapshot_completion,snapshot_reconnect_restart,snapshot_post_completion,snapshot_stale_id,snapshot_owner_index_scope,snapshot_batch_acknowledgment,snapshot_cut_receipt,snapshot_unchanged_batch,snapshot_replay_fence_capacity",
     ),
 ];
 
@@ -106,6 +118,18 @@ const FILES: &[(&str, &str)] = &[
         "relay_identifiers.vec",
         "d5b3c2a0a5ded38201ad8f57ac437f8067d6461125086a0fa5bd854de1183595",
     ),
+    (
+        "region_frames.vec",
+        "85ae05f9877149d7de9c0459dc08de8a4854d4f9da1e22487863e1ba1608c40d",
+    ),
+    (
+        "region_marks.vec",
+        "40cbac6a53edc4a636265497e4daeb8186d0f0742de4a325ae1023e91aef17e6",
+    ),
+    (
+        "region_presence.vec",
+        "faf16e12bbc7b4f94cea2ea4af35e0713b48e25f837e6a49ee150ce39cdfd6bd",
+    ),
 ];
 
 const BLOCK_INVENTORIES: &[(&str, &str)] = &[
@@ -118,6 +142,9 @@ const BLOCK_INVENTORIES: &[(&str, &str)] = &[
     ("aliases.vec", "alias_cases"),
     ("labels.vec", "label_cases"),
     ("name_records.vec", "name_record_cases"),
+    ("region_frames.vec", "region_frame_cases"),
+    ("region_marks.vec", "region_marks_cases"),
+    ("region_presence.vec", "region_presence_cases"),
 ];
 
 fn root() -> PathBuf {
@@ -343,7 +370,7 @@ fn rejects(attack: &str, alter: impl FnOnce(&Path) -> Result<(), String>) -> Res
 }
 
 #[test]
-fn complete_v07_release_matches_the_sealed_inventory() -> Result<(), String> {
+fn complete_v09_release_matches_the_sealed_inventory() -> Result<(), String> {
     verify(&root())
 }
 
