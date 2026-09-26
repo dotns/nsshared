@@ -9,6 +9,8 @@ This workspace currently contains:
 - `acl`
 - `control`
 - `tunnel-ws`
+- `keynet-proto`
+- `keynet-quick` — short invitation locators, identity proofs and encrypted handoffs
 
 Consumers should pin source dependencies by an immutable tag or commit. This
 workspace is configured with `publish = false`; during local development,

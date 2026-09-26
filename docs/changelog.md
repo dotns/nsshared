@@ -8,6 +8,20 @@ MISS, is illegal on data, and rejects a zero generation or forward id. The
 frame version stays 1; the sealed region frame fixture declares the new cases.
 See [Region SETTLED frame](task/20260925-1655-region-settled-frame.md).
 
+## 2026-09-24 [progress]
+
+Remove URI invitation parsing and formatting. Keep default directory-prefixed
+codes and accept eight-digit PINs whose relay must be supplied by the caller.
+Keep signed identities, transcript binding and encrypted credential delivery
+unchanged; legacy URI inputs are rejected rather than silently translated.
+
+## 2026-09-23 [progress]
+
+Add `keynet-quick`: immutable relay-directory identifiers, ten-character short
+invitation locators, signed session identities and transcript-bound encrypted
+recipient-token delivery. A code locates an invitation, never authorizes access.
+Keep existing account and Keynet data-plane contracts unchanged.
+
 ## 2026-09-16 [decision]
 
 Remove the standalone Mesh v1/v2 shared protocol, its dedicated tests/fixtures,

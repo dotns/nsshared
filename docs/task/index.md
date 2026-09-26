@@ -1,5 +1,7 @@
 # ns-shared - Task List
 
+- [x] [**20260924-1228-quick-explicit-relay-pin Remove URI invitations**](20260924-1228-quick-explicit-relay-pin.md)
+
 > Historical Mesh task entries are retained as implementation records. Standalone Mesh removal is tracked in [SH-MESH-003](SH-MESH-003.md).
 
 > Updated: 2026-09-18
@@ -97,4 +99,5 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20260921-0541-region-marks-join Add region marks join**](20260921-0541-region-marks-join.md) `P1`
 - [x] [**20260921-0634-region-presence-decision Add region presence decision**](20260921-0634-region-presence-decision.md) `P1`
 - [x] [**20260921-0821-region-snapshot-staging Region snapshot staging and durable-cut evidence**](20260921-0821-region-snapshot-staging.md) `P1`
+- [x] [**20260923-2208-quick-pairing Implement relay-addressed quick pairing**](20260923-2208-quick-pairing.md) `P1`
 - [x] [**20260925-1655-region-settled-frame Region SETTLED frame**](20260925-1655-region-settled-frame.md) `P1`
