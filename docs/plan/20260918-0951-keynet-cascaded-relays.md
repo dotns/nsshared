@@ -453,10 +453,9 @@ and expiring with the reply window.
 | C3b | ns-remote | Real-binary region integration and the two-member namespace E2E covering the acceptance list | C2, C3a |
 | C4 | deploy | DEV: a second relay member for the existing keynet authority; acceptance matrix additions | C3b; separate deployment authorization |
 
-Coordination follows the keynet v1 model: a three-tier BKD campaign with one
-L2, short-lived L3 lanes, independent review before integration, and
-integration into `feat/keynet-cascaded-relays` only. No push, no merge to
-`main` and no deployment without separate authorization.
+Each change is reviewed independently before it is integrated, and changes
+integrate into `feat/keynet-cascaded-relays` only. Pushing, merging to `main`
+and deployment each require separate authorization.
 
 ## Acceptance (E2E, real binaries in namespaces)
 
