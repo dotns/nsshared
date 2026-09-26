@@ -1,3 +1,16 @@
+## 2026-09-26 [fix]
+
+Stop snapshot completion from replacing a local member's session without
+retiring it. `RegionSnapshotCompletionInput` names the local member; when a
+staged record wins the shared selection over one of its sessions (a higher
+incarnation, or the equal-state tie-break for a lower remote member id), the
+completion keeps both tables and the stage, returns
+`LocalRetirementRequired` and one `RetireLocalPresence` effect per superseded
+session. The caller retires those sessions with a mesh-only GONE reason 2 in
+its local publication order and repeats the completion. The event decision is
+unchanged. See
+[Snapshot completion local supersession](task/20260926-0649-region-snapshot-local-supersession.md).
+
 ## 2026-09-25 [feat]
 
 Add the control-only region SETTLED frame (type 10). It carries a data

@@ -101,3 +101,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20260921-0821-region-snapshot-staging Region snapshot staging and durable-cut evidence**](20260921-0821-region-snapshot-staging.md) `P1`
 - [x] [**20260923-2208-quick-pairing Implement relay-addressed quick pairing**](20260923-2208-quick-pairing.md) `P1`
 - [x] [**20260925-1655-region-settled-frame Region SETTLED frame**](20260925-1655-region-settled-frame.md) `P1`
+- [x] [**20260926-0649-region-snapshot-local-supersession Snapshot completion retires superseded local presence first**](20260926-0649-region-snapshot-local-supersession.md) `P1`
