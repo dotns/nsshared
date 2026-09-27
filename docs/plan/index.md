@@ -66,3 +66,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**20260925-1655-region-settled-frame Region SETTLED frame**](20260925-1655-region-settled-frame.md) `2026-09-25`
 - [x] [**20260926-0649-region-snapshot-local-supersession Snapshot completion retires superseded local presence first**](20260926-0649-region-snapshot-local-supersession.md) `2026-09-26`
 - [x] [**20260927-2148-region-quick-frames Region quick frames and extended region HELLO**](20260927-2148-region-quick-frames.md) `2026-09-27`
+- [x] [**20260927-2212-region-quick-owner-decision Region quick owner agreement decision**](20260927-2212-region-quick-owner-decision.md) `2026-09-27`
