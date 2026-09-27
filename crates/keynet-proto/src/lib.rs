@@ -10,6 +10,7 @@ mod intro;
 mod naming;
 mod pairing;
 pub mod region;
+mod region_quick_owner;
 mod relay;
 mod revocation;
 
@@ -19,6 +20,7 @@ pub use intro::*;
 pub use naming::*;
 pub use pairing::*;
 pub use region::*;
+pub use region_quick_owner::*;
 pub use relay::*;
 pub use revocation::*;
 

@@ -1,5 +1,21 @@
 ## 2026-09-27 [feat]
 
+Add the region quick owner agreement decision. `decide_region_quick_owner`
+classifies a control link as agreed (same owner and epoch on both sides),
+inactive (neither side has an owner) or mismatched (anything else, including a
+legacy HELLO read by a member with an owner), and records the peer's claim in
+the in-memory `RegionQuickOwnerState`. A member may serve a broker only while no
+peer has presented a higher epoch or its own epoch with a different owner; the
+fence is lifted by a local epoch above the highest observed, by one equal to it
+whose owner every peer at that epoch presented, or by a new state at restart.
+The peer input is the HELLO extension itself, so an extension is never read as
+the legacy HELLO; one with an out-of-range owner or epoch 0 is mismatched and
+fences the member until its local epoch exceeds the presented one.
+The 32 decision vectors join the sealed `keynet-region-quick-v1` set. See
+[Region quick owner agreement decision](task/20260927-2212-region-quick-owner-decision.md).
+
+## 2026-09-27 [feat]
+
 Add the region quick frames and the extended region HELLO. `RegionHello`
 gains an optional control-only sixth element `[capabilities, quick_owner,
 quick_owner_epoch]`; without it the five-element body is unchanged. The

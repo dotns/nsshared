@@ -149,7 +149,7 @@ const BLOCK_INVENTORIES: &[(&str, &str)] = &[
 
 const QUICK_ROOT: &str = "tests/fixtures/keynet-region-quick-v1";
 const QUICK_EXPECTED_MANIFEST_SHA256: &str =
-    "2eb325bd554f07515e0f75de93b70db7fd5ab09a871becfeb93a8d5085f7eaf4";
+    "8e5b13a15de30105c5cb3fd0295f9a49b0cbe8e3e5908c254467884ee9de1ba2";
 
 const QUICK_METADATA: &[(&str, &str)] = &[
     ("manifest_format", "keynet-fixture-manifest-v1"),
@@ -159,21 +159,36 @@ const QUICK_METADATA: &[(&str, &str)] = &[
         "design_path",
         "docs/plan/20260927-2148-region-quick-frames.md",
     ),
-    ("data_file_count", "1"),
-    ("coverage", "region_quick_frames,integrity"),
+    ("data_file_count", "2"),
+    (
+        "coverage",
+        "region_quick_frames,region_quick_owner,integrity",
+    ),
     (
         "region_quick_frame_cases",
         "hello_control_extended,hello_control_unknown_capabilities,hello_control_legacy,hello_data_legacy,hello_data_extended,hello_owner_zero,hello_owner_seventeen,hello_epoch_zero,hello_extension_short,hello_extension_long,hello_seven_fields,quick_request_ipv4,quick_request_ipv6_actor,quick_response_completed,quick_response_not_owner,quick_response_busy,quick_request_data_channel,quick_response_data_channel,quick_request_before_hello,quick_response_before_hello,quick_request_zero_id,quick_response_zero_id,quick_request_address_empty,quick_request_address_3,quick_request_address_5,quick_request_address_15,quick_request_address_17,quick_request_challenge_31,quick_response_status_zero,quick_response_status_four,quick_response_not_owner_actor,quick_response_not_owner_response,quick_response_busy_actor,quick_response_busy_response,quick_request_actor_limit,quick_request_actor_over,quick_response_actor_limit,quick_response_actor_over,quick_payload_limit,quick_frame_limit",
     ),
+    (
+        "region_quick_owner_cases",
+        "equal,equal_epoch_maximum,peer_higher_same_owner,peer_higher_other_owner,peer_higher_by_one_at_maximum,peer_lower_same_owner,peer_lower_other_owner,equal_epoch_other_owner,equal_epoch_other_owner_reverse,local_without_owner_peer_owner,local_owner_peer_legacy,neither_owner,higher_fence_persists_across_agreed_links,higher_fence_lifted_by_reload_to_highest,higher_fence_lifted_by_reload_above_highest,higher_fence_kept_by_reload_below_highest,highest_observed_epoch_never_decreases,reload_to_highest_with_other_owner_stays_fenced,local_without_owner_fence_lifted_by_reload,conflict_persists_across_agreed_links,conflict_after_agreed_link,conflict_lifted_by_reload_above,conflict_between_peers_above_local,conflict_between_peers_reset_by_higher_epoch,conflict_below_local_epoch_ignored,extension_owner_zero_peer_higher,extension_owner_seventeen_equal_epoch,extension_owner_out_of_range_peer_lower,extension_epoch_zero,extension_epoch_zero_local_without_owner,extension_out_of_range_local_without_owner,extension_out_of_range_after_agreed_link",
+    ),
 ];
 
-const QUICK_FILES: &[(&str, &str)] = &[(
-    "region_quick_frames.vec",
-    "3c1ea96fbdb40f927c11f9efef26ab59d2032ddf323ece5e261ddd2a2a8a7c66",
-)];
+const QUICK_FILES: &[(&str, &str)] = &[
+    (
+        "region_quick_frames.vec",
+        "3c1ea96fbdb40f927c11f9efef26ab59d2032ddf323ece5e261ddd2a2a8a7c66",
+    ),
+    (
+        "region_quick_owner.vec",
+        "68e5f31ec120f7908bb6502a9e51169d7cc495aaae9e1c563cbf51e438650dba",
+    ),
+];
 
-const QUICK_BLOCK_INVENTORIES: &[(&str, &str)] =
-    &[("region_quick_frames.vec", "region_quick_frame_cases")];
+const QUICK_BLOCK_INVENTORIES: &[(&str, &str)] = &[
+    ("region_quick_frames.vec", "region_quick_frame_cases"),
+    ("region_quick_owner.vec", "region_quick_owner_cases"),
+];
 
 /// One sealed fixture set: its directory, manifest digest and declared inventories.
 struct Release {
@@ -462,10 +477,6 @@ fn region_quick_release_seal_rejects_manifest_file_and_link_drift() -> Result<()
 }
 
 fn rejects_drift(release: &Release) -> Result<(), String> {
-    let (first, first_digest) = release.files[0];
-    rejects(release, "missing", |temp| {
-        fs::remove_file(temp.join(first)).map_err(|error| error.to_string())
-    })?;
     rejects(release, "missing-manifest", |temp| {
         fs::remove_file(temp.join("manifest.txt")).map_err(|error| error.to_string())
     })?;
@@ -475,43 +486,84 @@ fn rejects_drift(release: &Release) -> Result<(), String> {
     rejects(release, "directory", |temp| {
         fs::create_dir(temp.join("nested.vec")).map_err(|error| error.to_string())
     })?;
-    rejects(release, "corrupted", |temp| {
-        fs::write(temp.join(first), "changed\n").map_err(|error| error.to_string())
-    })?;
-    rejects(release, "appended", |temp| {
-        let path = temp.join(first);
-        let mut bytes = fs::read(&path).map_err(|error| error.to_string())?;
-        bytes.push(b'\n');
-        fs::write(path, bytes).map_err(|error| error.to_string())
-    })?;
-    rejects(release, "rehashed", |temp| {
-        let path = temp.join(first);
-        fs::write(&path, "changed\n").map_err(|error| error.to_string())?;
-        let digest = sha256(&fs::read(&path).map_err(|error| error.to_string())?);
-        let manifest_path = temp.join("manifest.txt");
-        let manifest = fs::read_to_string(&manifest_path).map_err(|error| error.to_string())?;
-        fs::write(manifest_path, manifest.replace(first_digest, &digest))
-            .map_err(|error| error.to_string())
-    })?;
     rejects(release, "duplicate-metadata", |temp| {
         let path = temp.join("manifest.txt");
         let manifest = fs::read_to_string(&path).map_err(|error| error.to_string())?;
         let (key, value) = release.metadata[1];
         fs::write(path, format!("{key}={value}\n{manifest}")).map_err(|error| error.to_string())
     })?;
-    rejects(release, "duplicate-file", |temp| {
+    for (index, (name, digest)) in release.files.iter().enumerate() {
+        rejects_file_drift(release, index, name, digest)?;
+    }
+    for (index, (name, _)) in release.block_inventories.iter().enumerate() {
+        let digest = release
+            .files
+            .iter()
+            .find_map(|(file, digest)| (file == name).then_some(*digest))
+            .ok_or_else(|| format!("block inventory names an unsealed file: {name}"))?;
+        rejects(release, &format!("case-added-{index}"), |temp| {
+            let path = temp.join(name);
+            let mut text = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+            text.push_str("\ncase=unlisted_case\n");
+            rehash(temp, name, digest, text.as_bytes())
+        })?;
+        rejects(release, &format!("case-removed-{index}"), |temp| {
+            let path = temp.join(name);
+            let text = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+            // Dropping the last case of a one-case family leaves an empty file.
+            let kept = text
+                .trim_end()
+                .rsplit_once("\n\n")
+                .map_or(String::new(), |(kept, _)| format!("{kept}\n"));
+            rehash(temp, name, digest, kept.as_bytes())
+        })?;
+    }
+    Ok(())
+}
+
+/// Replaces a sealed file and rewrites its manifest digest to match the new bytes.
+fn rehash(temp: &Path, name: &str, digest: &str, bytes: &[u8]) -> Result<(), String> {
+    fs::write(temp.join(name), bytes).map_err(|error| error.to_string())?;
+    let manifest_path = temp.join("manifest.txt");
+    let manifest = fs::read_to_string(&manifest_path).map_err(|error| error.to_string())?;
+    fs::write(manifest_path, manifest.replace(digest, &sha256(bytes)))
+        .map_err(|error| error.to_string())
+}
+
+fn rejects_file_drift(
+    release: &Release,
+    index: usize,
+    name: &str,
+    digest: &str,
+) -> Result<(), String> {
+    rejects(release, &format!("missing-{index}"), |temp| {
+        fs::remove_file(temp.join(name)).map_err(|error| error.to_string())
+    })?;
+    rejects(release, &format!("corrupted-{index}"), |temp| {
+        fs::write(temp.join(name), "changed\n").map_err(|error| error.to_string())
+    })?;
+    rejects(release, &format!("appended-{index}"), |temp| {
+        let path = temp.join(name);
+        let mut bytes = fs::read(&path).map_err(|error| error.to_string())?;
+        bytes.push(b'\n');
+        fs::write(path, bytes).map_err(|error| error.to_string())
+    })?;
+    rejects(release, &format!("rehashed-{index}"), |temp| {
+        rehash(temp, name, digest, b"changed\n")
+    })?;
+    rejects(release, &format!("duplicate-file-{index}"), |temp| {
         let path = temp.join("manifest.txt");
         let manifest = fs::read_to_string(&path).map_err(|error| error.to_string())?;
-        fs::write(path, format!("{manifest}file={first}|{first_digest}\n"))
+        fs::write(path, format!("{manifest}file={name}|{digest}\n"))
             .map_err(|error| error.to_string())
     })?;
     #[cfg(unix)]
-    rejects(release, "symlink", |temp| {
+    rejects(release, &format!("symlink-{index}"), |temp| {
         use std::os::unix::fs::symlink;
 
-        let path = temp.join(first);
+        let path = temp.join(name);
         fs::remove_file(&path).map_err(|error| error.to_string())?;
-        symlink(root(release).join(first), path).map_err(|error| error.to_string())
+        symlink(root(release).join(name), path).map_err(|error| error.to_string())
     })?;
     Ok(())
 }
