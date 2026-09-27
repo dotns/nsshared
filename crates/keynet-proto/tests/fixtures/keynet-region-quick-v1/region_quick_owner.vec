@@ -1,8 +1,9 @@
 # Region quick owner agreement and fencing decisions.
 # Each case starts from a fresh member state and applies its steps in order.
-# A step is local|peer|link|serving. local is none or owner@epoch; peer is legacy, owner@epoch,
-# or - for a local configuration change with no peer HELLO; link is agreed, inactive, mismatched,
-# or - when no peer HELLO was read; serving is serve or fenced.
+# A step is local|peer|link|serving. local is none or owner@epoch; peer is legacy, owner@epoch as
+# the HELLO extension carries it (in range or not), or - for a local configuration change with no
+# peer HELLO; link is agreed, inactive, mismatched, or - when no peer HELLO was read; serving is
+# serve or fenced.
 case=equal
 step1=2@5|2@5|agreed|serve
 
@@ -109,3 +110,30 @@ case=conflict_below_local_epoch_ignored
 step1=2@9|3@5|mismatched|serve
 step2=2@9|4@5|mismatched|serve
 step3=2@9|2@9|agreed|serve
+
+case=extension_owner_zero_peer_higher
+step1=2@5|0@9|mismatched|fenced
+step2=2@9|-|-|fenced
+step3=2@10|-|-|serve
+
+case=extension_owner_seventeen_equal_epoch
+step1=2@5|17@5|mismatched|fenced
+
+case=extension_owner_out_of_range_peer_lower
+step1=2@5|0@3|mismatched|serve
+
+case=extension_epoch_zero
+step1=2@5|2@0|mismatched|serve
+
+case=extension_epoch_zero_local_without_owner
+step1=none|2@0|mismatched|fenced
+step2=1@1|-|-|serve
+
+case=extension_out_of_range_local_without_owner
+step1=none|0@9|mismatched|fenced
+
+case=extension_out_of_range_after_agreed_link
+step1=2@5|2@5|agreed|serve
+step2=2@5|0@5|mismatched|fenced
+step3=2@5|2@5|agreed|fenced
+step4=3@6|-|-|serve

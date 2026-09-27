@@ -8,12 +8,12 @@ use std::{
     path::PathBuf,
 };
 
-const REGION_QUICK_OWNER_CASES: &str = "equal,equal_epoch_maximum,peer_higher_same_owner,peer_higher_other_owner,peer_higher_by_one_at_maximum,peer_lower_same_owner,peer_lower_other_owner,equal_epoch_other_owner,equal_epoch_other_owner_reverse,local_without_owner_peer_owner,local_owner_peer_legacy,neither_owner,higher_fence_persists_across_agreed_links,higher_fence_lifted_by_reload_to_highest,higher_fence_lifted_by_reload_above_highest,higher_fence_kept_by_reload_below_highest,highest_observed_epoch_never_decreases,reload_to_highest_with_other_owner_stays_fenced,local_without_owner_fence_lifted_by_reload,conflict_persists_across_agreed_links,conflict_after_agreed_link,conflict_lifted_by_reload_above,conflict_between_peers_above_local,conflict_between_peers_reset_by_higher_epoch,conflict_below_local_epoch_ignored";
+const REGION_QUICK_OWNER_CASES: &str = "equal,equal_epoch_maximum,peer_higher_same_owner,peer_higher_other_owner,peer_higher_by_one_at_maximum,peer_lower_same_owner,peer_lower_other_owner,equal_epoch_other_owner,equal_epoch_other_owner_reverse,local_without_owner_peer_owner,local_owner_peer_legacy,neither_owner,higher_fence_persists_across_agreed_links,higher_fence_lifted_by_reload_to_highest,higher_fence_lifted_by_reload_above_highest,higher_fence_kept_by_reload_below_highest,highest_observed_epoch_never_decreases,reload_to_highest_with_other_owner_stays_fenced,local_without_owner_fence_lifted_by_reload,conflict_persists_across_agreed_links,conflict_after_agreed_link,conflict_lifted_by_reload_above,conflict_between_peers_above_local,conflict_between_peers_reset_by_higher_epoch,conflict_below_local_epoch_ignored,extension_owner_zero_peer_higher,extension_owner_seventeen_equal_epoch,extension_owner_out_of_range_peer_lower,extension_epoch_zero,extension_epoch_zero_local_without_owner,extension_out_of_range_local_without_owner,extension_out_of_range_after_agreed_link";
 
 /// The peer side of one step: a HELLO with or without the owner extension, or none at all.
 #[derive(Clone, Copy, Debug)]
 enum Peer {
-    Hello(Option<RegionQuickOwner>),
+    Hello(Option<RegionHelloExtension>),
     Absent,
 }
 
@@ -29,7 +29,7 @@ fn fixture_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/keynet-region-quick-v1")
 }
 
-fn owner(input: &str) -> Result<RegionQuickOwner, String> {
+fn values(input: &str) -> Result<(u8, u64), String> {
     let (owner, epoch) = input
         .split_once('@')
         .ok_or_else(|| format!("invalid region quick owner vector claim: {input}"))?;
@@ -39,7 +39,18 @@ fn owner(input: &str) -> Result<RegionQuickOwner, String> {
     let epoch = epoch
         .parse()
         .map_err(|_| format!("invalid epoch: {input}"))?;
+    Ok((owner, epoch))
+}
+
+fn owner(input: &str) -> Result<RegionQuickOwner, String> {
+    let (owner, epoch) = values(input)?;
     RegionQuickOwner::new(owner, epoch).ok_or_else(|| format!("out-of-range claim: {input}"))
+}
+
+/// A peer HELLO extension with the vector's values as they appear on the wire, in range or not.
+fn peer_extension(input: &str) -> Result<RegionHelloExtension, String> {
+    let (owner, epoch) = values(input)?;
+    Ok(hello(owner, epoch))
 }
 
 fn step(input: &str) -> Result<Step, String> {
@@ -54,7 +65,7 @@ fn step(input: &str) -> Result<Step, String> {
     let peer = match *peer {
         "-" => Peer::Absent,
         "legacy" => Peer::Hello(None),
-        claim => Peer::Hello(Some(owner(claim)?)),
+        claim => Peer::Hello(Some(peer_extension(claim)?)),
     };
     let link = match *link {
         "-" => None,
@@ -122,6 +133,14 @@ fn claim(owner: u8, epoch: u64) -> Result<RegionQuickOwner, String> {
     RegionQuickOwner::new(owner, epoch).ok_or_else(|| format!("invalid claim {owner}@{epoch}"))
 }
 
+fn hello(quick_owner: u8, quick_owner_epoch: u64) -> RegionHelloExtension {
+    RegionHelloExtension {
+        capabilities: 1,
+        quick_owner,
+        quick_owner_epoch,
+    }
+}
+
 fn expect(
     decision: RegionQuickOwnerDecision,
     link: RegionQuickLink,
@@ -155,14 +174,6 @@ fn owner_claims_accept_only_configurable_values() -> Result<(), String> {
         {
             return Err(format!("claim {owner}@{epoch} did not keep its values"));
         }
-    }
-    let extension = RegionHelloExtension {
-        capabilities: 1,
-        quick_owner: 2,
-        quick_owner_epoch: 5,
-    };
-    if RegionQuickOwner::from_extension(extension) != Some(claim(2, 5)?) {
-        return Err("extension claim differs from its owner and epoch".to_owned());
     }
     Ok(())
 }
@@ -209,7 +220,7 @@ fn fence_from_a_higher_epoch_persists_until_reload_reaches_it() -> Result<(), St
     let mut state = RegionQuickOwnerState::default();
     let local = Some(claim(2, 5)?);
     expect(
-        decide_region_quick_owner(&mut state, local, Some(claim(3, 7)?)),
+        decide_region_quick_owner(&mut state, local, Some(hello(3, 7))),
         RegionQuickLink::Mismatched,
         false,
         "higher epoch",
@@ -219,7 +230,7 @@ fn fence_from_a_higher_epoch_persists_until_reload_reaches_it() -> Result<(), St
     }
     for _ in 0..3 {
         expect(
-            decide_region_quick_owner(&mut state, local, local),
+            decide_region_quick_owner(&mut state, local, Some(hello(2, 5))),
             RegionQuickLink::Agreed,
             false,
             "agreed link after fence",
@@ -238,8 +249,8 @@ fn fence_from_a_higher_epoch_persists_until_reload_reaches_it() -> Result<(), St
 fn restart_with_a_new_state_lifts_every_fence() -> Result<(), String> {
     let local = Some(claim(2, 5)?);
     let mut state = RegionQuickOwnerState::default();
-    decide_region_quick_owner(&mut state, local, Some(claim(3, 7)?));
-    decide_region_quick_owner(&mut state, local, Some(claim(3, 5)?));
+    decide_region_quick_owner(&mut state, local, Some(hello(3, 7)));
+    decide_region_quick_owner(&mut state, local, Some(hello(3, 5)));
     if state.may_serve(local) {
         return Err("the fenced state still serves".to_owned());
     }
@@ -254,29 +265,31 @@ fn restart_with_a_new_state_lifts_every_fence() -> Result<(), String> {
 fn same_epoch_with_different_owners_fences_both_members() -> Result<(), String> {
     let first = Some(claim(2, 5)?);
     let second = Some(claim(3, 5)?);
+    let first_hello = Some(hello(2, 5));
+    let second_hello = Some(hello(3, 5));
     let mut first_state = RegionQuickOwnerState::default();
     let mut second_state = RegionQuickOwnerState::default();
     expect(
-        decide_region_quick_owner(&mut first_state, first, second),
+        decide_region_quick_owner(&mut first_state, first, second_hello),
         RegionQuickLink::Mismatched,
         false,
         "first member",
     )?;
     expect(
-        decide_region_quick_owner(&mut second_state, second, first),
+        decide_region_quick_owner(&mut second_state, second, first_hello),
         RegionQuickLink::Mismatched,
         false,
         "second member",
     )?;
     // A third member agreeing with either side does not lift the conflict.
     expect(
-        decide_region_quick_owner(&mut first_state, first, first),
+        decide_region_quick_owner(&mut first_state, first, first_hello),
         RegionQuickLink::Agreed,
         false,
         "first member with an agreeing peer",
     )?;
     expect(
-        decide_region_quick_owner(&mut second_state, second, second),
+        decide_region_quick_owner(&mut second_state, second, second_hello),
         RegionQuickLink::Agreed,
         false,
         "second member with an agreeing peer",
@@ -285,38 +298,77 @@ fn same_epoch_with_different_owners_fences_both_members() -> Result<(), String> 
 }
 
 #[test]
+fn an_out_of_range_extension_is_never_read_as_a_legacy_hello() -> Result<(), String> {
+    let local = Some(claim(2, 5)?);
+    // The peer presents an epoch above the local one with an owner outside 1..=16.
+    let mut state = RegionQuickOwnerState::default();
+    let decision = decide_region_quick_owner(&mut state, local, Some(hello(0, 9)));
+    if decision.may_serve || state.highest_observed_epoch() != 9 {
+        return Err(format!(
+            "an extension presenting epoch 9 was read as a legacy HELLO: {decision:?}, \
+             highest observed epoch {}",
+            state.highest_observed_epoch()
+        ));
+    }
+    Ok(())
+}
+
+#[test]
 fn every_owner_and_epoch_pair_is_decided_consistently() -> Result<(), String> {
     // An exhaustive sweep over a small grid: the link and the permission follow D4 for every
-    // combination of local and peer owner (including none and the legacy HELLO) and epoch.
-    let mut claims = vec![None];
-    for owner in [1, 2, 16] {
-        for epoch in [1, 2, 3, u64::MAX] {
-            claims.push(Some(claim(owner, epoch)?));
+    // combination of local owner (including none) and peer HELLO (legacy, or an extension with
+    // owner and epoch values in and out of range).
+    let epochs = [0, 1, 2, 3, u64::MAX];
+    let mut locals = vec![None];
+    let mut peers = vec![None];
+    for owner in [0, 1, 2, 16, 17] {
+        for epoch in epochs {
+            locals.extend(RegionQuickOwner::new(owner, epoch).map(Some));
+            peers.push(Some(hello(owner, epoch)));
         }
     }
-    for local in &claims {
-        for peer in &claims {
+    for local in &locals {
+        let local_epoch = local.map_or(0, |claim| claim.epoch());
+        for peer in &peers {
             let mut state = RegionQuickOwnerState::default();
             let decision = decide_region_quick_owner(&mut state, *local, *peer);
-            let link = match (local, peer) {
-                (None, None) => RegionQuickLink::Inactive,
-                (Some(local), Some(peer)) if local == peer => RegionQuickLink::Agreed,
+            let valid = peer
+                .map(|peer| (1..=16).contains(&peer.quick_owner) && peer.quick_owner_epoch != 0);
+            let link = match (local, peer, valid) {
+                (None, None, _) => RegionQuickLink::Inactive,
+                (Some(local), Some(peer), Some(true))
+                    if local.owner() == peer.quick_owner
+                        && local.epoch() == peer.quick_owner_epoch =>
+                {
+                    RegionQuickLink::Agreed
+                }
                 _ => RegionQuickLink::Mismatched,
             };
-            let local_epoch = local.map_or(0, |claim| claim.epoch());
-            let may_serve = match peer {
-                None => true,
-                Some(peer) => {
-                    peer.epoch() < local_epoch
-                        || (peer.epoch() == local_epoch && Some(*peer) == *local)
+            let may_serve = match (peer, valid) {
+                (None, _) => true,
+                (Some(peer), Some(true)) => {
+                    peer.quick_owner_epoch < local_epoch
+                        || (peer.quick_owner_epoch == local_epoch
+                            && local.map(RegionQuickOwner::owner) == Some(peer.quick_owner))
                 }
+                // An out-of-range claim fences every local epoch not above its own.
+                (Some(peer), _) => peer.quick_owner_epoch < local_epoch,
             };
-            expect(
-                decision,
-                link,
-                may_serve,
-                &format!("local {local:?} peer {peer:?}"),
-            )?;
+            let label = format!("local {local:?} peer {peer:?}");
+            expect(decision, link, may_serve, &label)?;
+            // Fail closed: an out-of-range claim never fences less than a valid claim with the
+            // same epoch and any owner.
+            if let (Some(peer), Some(false)) = (peer, valid) {
+                for owner in 1..=16 {
+                    let mut valid_state = RegionQuickOwnerState::default();
+                    let valid_hello = Some(hello(owner, peer.quick_owner_epoch));
+                    let valid_decision =
+                        decide_region_quick_owner(&mut valid_state, *local, valid_hello);
+                    if decision.may_serve && !valid_decision.may_serve {
+                        return Err(format!("{label}: serves where owner {owner} fences"));
+                    }
+                }
+            }
         }
     }
     Ok(())

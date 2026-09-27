@@ -149,7 +149,7 @@ const BLOCK_INVENTORIES: &[(&str, &str)] = &[
 
 const QUICK_ROOT: &str = "tests/fixtures/keynet-region-quick-v1";
 const QUICK_EXPECTED_MANIFEST_SHA256: &str =
-    "b997040e1d636ded8ff19135dc55393a8b9fba0c111778559996d1561bbcfe56";
+    "8e5b13a15de30105c5cb3fd0295f9a49b0cbe8e3e5908c254467884ee9de1ba2";
 
 const QUICK_METADATA: &[(&str, &str)] = &[
     ("manifest_format", "keynet-fixture-manifest-v1"),
@@ -170,7 +170,7 @@ const QUICK_METADATA: &[(&str, &str)] = &[
     ),
     (
         "region_quick_owner_cases",
-        "equal,equal_epoch_maximum,peer_higher_same_owner,peer_higher_other_owner,peer_higher_by_one_at_maximum,peer_lower_same_owner,peer_lower_other_owner,equal_epoch_other_owner,equal_epoch_other_owner_reverse,local_without_owner_peer_owner,local_owner_peer_legacy,neither_owner,higher_fence_persists_across_agreed_links,higher_fence_lifted_by_reload_to_highest,higher_fence_lifted_by_reload_above_highest,higher_fence_kept_by_reload_below_highest,highest_observed_epoch_never_decreases,reload_to_highest_with_other_owner_stays_fenced,local_without_owner_fence_lifted_by_reload,conflict_persists_across_agreed_links,conflict_after_agreed_link,conflict_lifted_by_reload_above,conflict_between_peers_above_local,conflict_between_peers_reset_by_higher_epoch,conflict_below_local_epoch_ignored",
+        "equal,equal_epoch_maximum,peer_higher_same_owner,peer_higher_other_owner,peer_higher_by_one_at_maximum,peer_lower_same_owner,peer_lower_other_owner,equal_epoch_other_owner,equal_epoch_other_owner_reverse,local_without_owner_peer_owner,local_owner_peer_legacy,neither_owner,higher_fence_persists_across_agreed_links,higher_fence_lifted_by_reload_to_highest,higher_fence_lifted_by_reload_above_highest,higher_fence_kept_by_reload_below_highest,highest_observed_epoch_never_decreases,reload_to_highest_with_other_owner_stays_fenced,local_without_owner_fence_lifted_by_reload,conflict_persists_across_agreed_links,conflict_after_agreed_link,conflict_lifted_by_reload_above,conflict_between_peers_above_local,conflict_between_peers_reset_by_higher_epoch,conflict_below_local_epoch_ignored,extension_owner_zero_peer_higher,extension_owner_seventeen_equal_epoch,extension_owner_out_of_range_peer_lower,extension_epoch_zero,extension_epoch_zero_local_without_owner,extension_out_of_range_local_without_owner,extension_out_of_range_after_agreed_link",
     ),
 ];
 
@@ -181,7 +181,7 @@ const QUICK_FILES: &[(&str, &str)] = &[
     ),
     (
         "region_quick_owner.vec",
-        "dedf1607190c9d6abd59291d03cec75ecf2a5bb68cb1144f3ba7af1eb5a12ea2",
+        "68e5f31ec120f7908bb6502a9e51169d7cc495aaae9e1c563cbf51e438650dba",
     ),
 ];
 

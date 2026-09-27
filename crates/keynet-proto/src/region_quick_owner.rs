@@ -20,11 +20,6 @@ impl RegionQuickOwner {
         ((1..=16).contains(&owner) && epoch != 0).then_some(Self { owner, epoch })
     }
 
-    /// Returns the claim a HELLO extension presents, or `None` when its values are out of range.
-    pub fn from_extension(extension: RegionHelloExtension) -> Option<Self> {
-        Self::new(extension.quick_owner, extension.quick_owner_epoch)
-    }
-
     /// The quick owner member identifier.
     pub const fn owner(self) -> u8 {
         self.owner
@@ -58,19 +53,26 @@ pub struct RegionQuickOwnerDecision {
 
 /// The in-memory fencing state of one member, created fresh when the member starts.
 ///
-/// It records the highest owner epoch any peer has presented and whether peers presented that
-/// epoch with more than one owner. Epochs below the highest need no record: a local epoch below
-/// the highest is fenced regardless, and one above it is not fenced by any of them.
+/// It records the highest owner epoch any peer has presented and the owner every peer presented
+/// with it, if there is one. Epochs below the highest need no record: a local epoch below the
+/// highest is fenced regardless, and one above it is not fenced by any of them.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct RegionQuickOwnerState {
-    highest: Option<RegionQuickOwner>,
-    conflict: bool,
+    highest: Option<ObservedEpoch>,
+}
+
+/// The highest epoch presented by a peer and its owner.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct ObservedEpoch {
+    epoch: u64,
+    /// `None` when peers presented the epoch with different owners or with an out-of-range claim.
+    owner: Option<u8>,
 }
 
 impl RegionQuickOwnerState {
     /// The highest owner epoch a peer has presented since the state was created, or 0.
     pub fn highest_observed_epoch(&self) -> u64 {
-        self.highest.map_or(0, RegionQuickOwner::epoch)
+        self.highest.map_or(0, |highest| highest.epoch)
     }
 
     /// Whether a member with the `local` owner configuration may serve a quick pairing broker.
@@ -83,43 +85,52 @@ impl RegionQuickOwnerState {
         let Some(highest) = self.highest else {
             return true;
         };
-        match local {
-            None => false,
-            Some(local) if local.epoch > highest.epoch => true,
-            Some(local) => local == highest && !self.conflict,
-        }
+        let local_epoch = local.map_or(0, RegionQuickOwner::epoch);
+        local_epoch > highest.epoch
+            || (local_epoch == highest.epoch
+                && local.is_some_and(|local| highest.owner == Some(local.owner)))
     }
 
-    fn observe(&mut self, peer: RegionQuickOwner) {
-        match self.highest {
-            Some(highest) if peer.epoch < highest.epoch => {}
-            Some(highest) if peer.epoch == highest.epoch => {
-                self.conflict |= peer.owner != highest.owner;
+    /// Records one presented epoch; `owner` is `None` for a claim whose values are out of range.
+    fn observe(&mut self, epoch: u64, owner: Option<u8>) {
+        match &mut self.highest {
+            Some(highest) if epoch < highest.epoch => {}
+            Some(highest) if epoch == highest.epoch => {
+                if highest.owner != owner {
+                    highest.owner = None;
+                }
             }
-            _ => {
-                self.highest = Some(peer);
-                self.conflict = false;
-            }
+            _ => self.highest = Some(ObservedEpoch { epoch, owner }),
         }
     }
 }
 
 /// Decides the link state for a peer HELLO and records the peer's claim in `state`.
 ///
-/// `peer` is the claim of the HELLO extension, or `None` for a legacy HELLO. The returned
-/// permission already includes this peer's claim and every claim recorded before it.
+/// `peer` is the extension of the peer's HELLO, or `None` for the legacy HELLO. An extension whose
+/// owner is outside 1 through 16 or whose epoch is 0 is recorded as its epoch with no acceptable
+/// owner: the link is mismatched and the member is fenced until its local epoch exceeds that
+/// epoch. It never fences less than a valid claim with the same epoch. The returned permission
+/// includes this peer's claim and every claim recorded before it.
 pub fn decide_region_quick_owner(
     state: &mut RegionQuickOwnerState,
     local: Option<RegionQuickOwner>,
-    peer: Option<RegionQuickOwner>,
+    peer: Option<RegionHelloExtension>,
 ) -> RegionQuickOwnerDecision {
-    if let Some(peer) = peer {
-        state.observe(peer);
-    }
     let link = match (local, peer) {
         (None, None) => RegionQuickLink::Inactive,
-        (Some(local), Some(peer)) if local == peer => RegionQuickLink::Agreed,
-        _ => RegionQuickLink::Mismatched,
+        (_, None) => RegionQuickLink::Mismatched,
+        (local, Some(extension)) => {
+            let claim = RegionQuickOwner::new(extension.quick_owner, extension.quick_owner_epoch);
+            state.observe(
+                extension.quick_owner_epoch,
+                claim.map(RegionQuickOwner::owner),
+            );
+            match (local, claim) {
+                (Some(local), Some(claim)) if local == claim => RegionQuickLink::Agreed,
+                _ => RegionQuickLink::Mismatched,
+            }
+        }
     };
     RegionQuickOwnerDecision {
         link,
