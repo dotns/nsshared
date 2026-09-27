@@ -75,6 +75,8 @@ fn frame_type_name(frame_type: RegionFrameType) -> &'static str {
         RegionFrameType::Ping => "ping",
         RegionFrameType::Pong => "pong",
         RegionFrameType::Settled => "settled",
+        RegionFrameType::QuickRequest => "quick_request",
+        RegionFrameType::QuickResponse => "quick_response",
     }
 }
 
@@ -110,6 +112,7 @@ fn hello(channel: RegionChannel) -> RegionFrame {
         boot_epoch: 2,
         channel,
         conn_gen: 3,
+        extension: None,
     })
 }
 
@@ -326,6 +329,7 @@ fn hello_encoder_rejects_zero_connection_generation() {
         boot_epoch: 2,
         channel: RegionChannel::Control,
         conn_gen: 0,
+        extension: None,
     });
 
     assert!(
@@ -661,7 +665,7 @@ fn prefix_rejection_happens_without_a_body() -> Result<(), String> {
 
 #[test]
 fn channel_contract_rejects_wrong_channels_and_exposes_post_hello_rules() -> Result<(), String> {
-    if CONTROL_REGION_FRAME_TYPES.len() != 9
+    if CONTROL_REGION_FRAME_TYPES.len() != 11
         || !CONTROL_REGION_FRAME_TYPES.contains(&RegionFrameType::Settled)
         || DATA_REGION_FRAME_TYPES.len() != 2
         || DATA_POST_HELLO_REGION_FRAME_TYPES != [RegionFrameType::Forward]
