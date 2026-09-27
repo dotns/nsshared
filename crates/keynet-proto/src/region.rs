@@ -12,11 +12,17 @@ pub const MAX_REGION_FRAME_BYTES: usize = 4096;
 ///
 /// This restates `keynet_quick::MAX_MESSAGE_BYTES` so that the codec needs no quick dependency.
 pub const MAX_REGION_QUICK_MESSAGE_BYTES: usize = 16 * 1024;
+/// The largest quick pairing actor carried by a quick frame.
+///
+/// A non-empty actor is a compact JSON `keynet_quick::Hello`, at most 687 bytes; the bound is
+/// that size rounded up to the next power of two. The codec checks only the length.
+pub const MAX_REGION_QUICK_ACTOR_BYTES: usize = 1024;
 /// The largest encoded CBOR body of a QUICK_REQUEST or QUICK_RESPONSE frame.
 ///
 /// This is the measured size of the largest valid QUICK_REQUEST: a nine-byte request identifier,
-/// an IPv6 address, and an actor and a request of `MAX_REGION_QUICK_MESSAGE_BYTES` each.
-pub const MAX_REGION_QUICK_FRAME_BYTES: usize = 32_838;
+/// an IPv6 address, an actor of `MAX_REGION_QUICK_ACTOR_BYTES` and a request of
+/// `MAX_REGION_QUICK_MESSAGE_BYTES`.
+pub const MAX_REGION_QUICK_FRAME_BYTES: usize = 17_478;
 /// The HELLO capability bit announcing that the sender decodes quick frames.
 pub const REGION_CAPABILITY_QUICK_FORWARDING: u64 = 1;
 /// The largest forwarded node datagram retained as opaque frame data.
@@ -3223,7 +3229,7 @@ fn validate_frame(frame: &RegionFrame, channel: RegionChannel) -> Result<(), Reg
         }
         RegionFrame::QuickRequest(request) => {
             if request.request_id == 0
-                || request.actor.len() > MAX_REGION_QUICK_MESSAGE_BYTES
+                || request.actor.len() > MAX_REGION_QUICK_ACTOR_BYTES
                 || request.request.len() > MAX_REGION_QUICK_MESSAGE_BYTES
             {
                 Err(RegionEncodeError::InvalidFrame)
@@ -3233,7 +3239,7 @@ fn validate_frame(frame: &RegionFrame, channel: RegionChannel) -> Result<(), Reg
         }
         RegionFrame::QuickResponse(response) => {
             if response.request_id == 0
-                || response.actor.len() > MAX_REGION_QUICK_MESSAGE_BYTES
+                || response.actor.len() > MAX_REGION_QUICK_ACTOR_BYTES
                 || response.response.len() > MAX_REGION_QUICK_MESSAGE_BYTES
                 || (response.status != RegionQuickStatus::Completed
                     && (!response.actor.is_empty() || !response.response.is_empty()))
@@ -3543,7 +3549,7 @@ fn decode_body(
                 request_id: read_uint(reader)?,
                 client_ip: read_ip(reader)?,
                 challenge: fixed_bytes(reader)?,
-                actor: read_quick_message(reader)?,
+                actor: read_quick_actor(reader)?,
                 request: read_quick_message(reader)?,
             }))
         }
@@ -3552,7 +3558,7 @@ fn decode_body(
             Ok(RegionFrame::QuickResponse(RegionQuickResponse {
                 request_id: read_uint(reader)?,
                 status: RegionQuickStatus::try_from(read_u8(reader)?)?,
-                actor: read_quick_message(reader)?,
+                actor: read_quick_actor(reader)?,
                 response: read_quick_message(reader)?,
             }))
         }
@@ -3570,6 +3576,12 @@ fn read_ip(reader: &mut CborReader<'_>) -> Result<IpAddr, RegionDecodeError> {
     } else {
         Err(RegionDecodeError::InvalidEncoding)
     }
+}
+
+fn read_quick_actor(reader: &mut CborReader<'_>) -> Result<Vec<u8>, RegionDecodeError> {
+    reader
+        .bytes_with_maximum(MAX_REGION_QUICK_ACTOR_BYTES)
+        .map_err(|_| RegionDecodeError::InvalidEncoding)
 }
 
 fn read_quick_message(reader: &mut CborReader<'_>) -> Result<Vec<u8>, RegionDecodeError> {

@@ -4,9 +4,10 @@ Add the region quick frames and the extended region HELLO. `RegionHello`
 gains an optional control-only sixth element `[capabilities, quick_owner,
 quick_owner_epoch]`; without it the five-element body is unchanged. The
 control-only QUICK_REQUEST (type 11) and QUICK_RESPONSE (type 12) frames carry
-opaque quick pairing messages of at most 16384 bytes. They have their own body
-limit, `MAX_REGION_QUICK_FRAME_BYTES` (32838, the largest valid QUICK_REQUEST),
-and their own prefix decoder; every other frame type keeps 4096 bytes. The
+opaque quick pairing messages of at most 16384 bytes and an opaque actor of at
+most 1024 bytes. They have their own body limit, `MAX_REGION_QUICK_FRAME_BYTES`
+(17478, the largest valid QUICK_REQUEST), and their own prefix decoder; every
+other frame type keeps 4096 bytes. The
 frame version stays 1 and the existing fixture set is unchanged; the new
 vectors form the sealed `keynet-region-quick-v1` set. See
 [Region quick frames](task/20260927-2148-region-quick-frames.md).

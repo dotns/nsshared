@@ -42,8 +42,11 @@ Accepted control vector (member 1, epoch 2, generation 3, capabilities 1, owner 
 - `request_id`: unsigned integer, nonzero.
 - `client_ip`: byte string of exactly 4 (IPv4) or 16 (IPv6) bytes.
 - `challenge`: byte string of exactly 32 bytes.
-- `actor`, `request`, `response`: opaque byte strings of at most `MAX_REGION_QUICK_MESSAGE_BYTES` (16384, the value of `keynet_quick::MAX_MESSAGE_BYTES`); `actor` is empty when the connection has none.
+- `actor`: opaque byte string of at most `MAX_REGION_QUICK_ACTOR_BYTES` (1024) in both frames, empty when the connection has none.
+- `request`, `response`: opaque byte strings of at most `MAX_REGION_QUICK_MESSAGE_BYTES` (16384, the value of `keynet_quick::MAX_MESSAGE_BYTES`).
 - `status`: 1 completed, 2 not serving as owner, 3 busy. With a status other than 1, `actor` and `response` are empty.
+
+The bytes of a non-empty `actor` are the actor's `keynet_quick::Hello` in the compact JSON form in which `keynet-quick` serialises its messages. The largest valid `Hello` in that form is 687 bytes: two 32-byte arrays and one 16-byte array written as decimal numbers, an authority of 253 bytes, and a 20-digit expiry. The bound of 1024 is that size rounded up to the next power of two. It is a constant of `keynet-proto`, separate from the message bound. The codec checks only the length of `actor` and never parses it; the forwarding member and the owner apply and check the encoding. `keynet-proto` has no dependency on `keynet-quick`, as a build or a development dependency.
 
 Both frames are control-only and legal only after HELLO. Both use the canonical CBOR rules of every region frame: definite lengths, shortest-form integers, fixed arity, no trailing bytes. Encoding rejects a violating frame with `InvalidFrame`; decoding rejects it with `InvalidEncoding`, or `WrongChannel` on the data channel.
 
@@ -51,7 +54,7 @@ Accepted vectors: an IPv4 request with an empty actor and a three-byte request, 
 
 ### Frame limits
 
-`MAX_REGION_QUICK_FRAME_BYTES` is 32838, the encoded body of the largest valid QUICK_REQUEST: a nine-byte request id, a 16-byte address, the 32-byte challenge, and an actor and a request of 16384 bytes each. The largest QUICK_RESPONSE is smaller. `MAX_REGION_FRAME_BYTES` (4096) and `decode_region_frame_prefix` are unchanged. `decode_region_quick_frame_prefix` accepts up to the quick limit and `RegionFrame::decode_quick_control` decodes with it; both are meant only for a control connection whose HELLO exchange agreed on quick forwarding. Both decoders hold every frame type to its own limit, so HELLO, SNAPSHOT and the other types keep 4096 bytes on every connection. The encoder applies the same per-type limit.
+`MAX_REGION_QUICK_FRAME_BYTES` is 17478, the encoded body of the largest valid QUICK_REQUEST: a nine-byte request id, a 16-byte address, the 32-byte challenge, a 1024-byte actor and a 16384-byte request. The largest QUICK_RESPONSE is smaller. `MAX_REGION_FRAME_BYTES` (4096) and `decode_region_frame_prefix` are unchanged. `decode_region_quick_frame_prefix` accepts up to the quick limit and `RegionFrame::decode_quick_control` decodes with it; both are meant only for a control connection whose HELLO exchange agreed on quick forwarding. Both decoders hold every frame type to its own limit, so HELLO, SNAPSHOT and the other types keep 4096 bytes on every connection. The encoder applies the same per-type limit.
 
 ### Channel typing
 
@@ -66,8 +69,9 @@ Accepted vectors: an IPv4 request with an empty actor and a three-byte request, 
 ## Risks
 
 - A base-branch decoder rejects a six-element HELLO and closes the connection. The change is additive only because a member sends the extension exactly when its configuration names an owner.
-- Using the quick prefix decoder on a connection that did not agree on quick forwarding admits bodies up to 32838 bytes for quick frames. Non-quick types stay at 4096 bytes on both decoders.
+- Using the quick prefix decoder on a connection that did not agree on quick forwarding admits bodies up to 17478 bytes for quick frames. Non-quick types stay at 4096 bytes on both decoders.
 - The codec checks only the bounds of the opaque payloads; their meaning belongs to the quick pairing layer.
+- The actor bound depends on the `keynet_quick::Hello` layout staying as it is; a test where both crates meet checks that the largest valid `Hello` fits.
 
 ## Scope
 
@@ -80,7 +84,7 @@ Accepted vectors: an IPv4 request with an empty actor and a three-byte request, 
 
 - Raising `MAX_REGION_FRAME_BYTES` would let every frame type grow on every connection, including links that never agreed on quick forwarding.
 - Bumping `REGION_FRAME_VERSION` would break mixed-version regions that have no owner configured; a capability-gated extension keeps them byte for byte on the base wire.
-- The actor has no separate bound in the design. It is bounded by the quick message limit, because it originates from a quick pairing exchange whose messages obey that limit; a tighter bound would need a definition of the actor that the codec does not have.
+- Bounding the actor by the 16384-byte message limit was rejected. No sender can legitimately produce an actor that large, since the actor is always a `Hello` of at most 687 bytes. That bound would raise the quick frame limit to 32838 bytes and widen what a member may push at the owner on the control connection. The codec bound follows what the field is.
 
 ## Annotations
 

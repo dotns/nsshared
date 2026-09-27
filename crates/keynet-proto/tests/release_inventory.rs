@@ -149,7 +149,7 @@ const BLOCK_INVENTORIES: &[(&str, &str)] = &[
 
 const QUICK_ROOT: &str = "tests/fixtures/keynet-region-quick-v1";
 const QUICK_EXPECTED_MANIFEST_SHA256: &str =
-    "cb8a0713bcbb5b305fa949b2fbb2a26b6836760e90a9d95b9898208b47c772ba";
+    "2eb325bd554f07515e0f75de93b70db7fd5ab09a871becfeb93a8d5085f7eaf4";
 
 const QUICK_METADATA: &[(&str, &str)] = &[
     ("manifest_format", "keynet-fixture-manifest-v1"),
@@ -163,13 +163,13 @@ const QUICK_METADATA: &[(&str, &str)] = &[
     ("coverage", "region_quick_frames,integrity"),
     (
         "region_quick_frame_cases",
-        "hello_control_extended,hello_control_unknown_capabilities,hello_control_legacy,hello_data_legacy,hello_data_extended,hello_owner_zero,hello_owner_seventeen,hello_epoch_zero,hello_extension_short,hello_extension_long,hello_seven_fields,quick_request_ipv4,quick_request_ipv6_actor,quick_response_completed,quick_response_not_owner,quick_response_busy,quick_request_data_channel,quick_response_data_channel,quick_request_before_hello,quick_response_before_hello,quick_request_zero_id,quick_response_zero_id,quick_request_address_empty,quick_request_address_3,quick_request_address_5,quick_request_address_15,quick_request_address_17,quick_request_challenge_31,quick_response_status_zero,quick_response_status_four,quick_response_not_owner_actor,quick_response_not_owner_response,quick_response_busy_actor,quick_response_busy_response,quick_payload_limit,quick_frame_limit",
+        "hello_control_extended,hello_control_unknown_capabilities,hello_control_legacy,hello_data_legacy,hello_data_extended,hello_owner_zero,hello_owner_seventeen,hello_epoch_zero,hello_extension_short,hello_extension_long,hello_seven_fields,quick_request_ipv4,quick_request_ipv6_actor,quick_response_completed,quick_response_not_owner,quick_response_busy,quick_request_data_channel,quick_response_data_channel,quick_request_before_hello,quick_response_before_hello,quick_request_zero_id,quick_response_zero_id,quick_request_address_empty,quick_request_address_3,quick_request_address_5,quick_request_address_15,quick_request_address_17,quick_request_challenge_31,quick_response_status_zero,quick_response_status_four,quick_response_not_owner_actor,quick_response_not_owner_response,quick_response_busy_actor,quick_response_busy_response,quick_request_actor_limit,quick_request_actor_over,quick_response_actor_limit,quick_response_actor_over,quick_payload_limit,quick_frame_limit",
     ),
 ];
 
 const QUICK_FILES: &[(&str, &str)] = &[(
     "region_quick_frames.vec",
-    "501e487055231bc2803467b3505e680f0abbc2912b36031225a5e4e70e2a42bb",
+    "3c1ea96fbdb40f927c11f9efef26ab59d2032ddf323ece5e261ddd2a2a8a7c66",
 )];
 
 const QUICK_BLOCK_INVENTORIES: &[(&str, &str)] =

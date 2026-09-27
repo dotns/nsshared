@@ -1,9 +1,10 @@
 use keynet_proto::{
-    CONTROL_REGION_FRAME_TYPES, MAX_REGION_FRAME_BYTES, MAX_REGION_QUICK_FRAME_BYTES,
-    MAX_REGION_QUICK_MESSAGE_BYTES, REGION_CAPABILITY_QUICK_FORWARDING, RegionChannel,
-    RegionDecodeError, RegionEncodeError, RegionFrame, RegionFrameType, RegionHello,
-    RegionHelloExtension, RegionQuickRequest, RegionQuickResponse, RegionQuickStatus,
-    decode_region_frame_prefix, decode_region_quick_frame_prefix,
+    CONTROL_REGION_FRAME_TYPES, MAX_REGION_FRAME_BYTES, MAX_REGION_QUICK_ACTOR_BYTES,
+    MAX_REGION_QUICK_FRAME_BYTES, MAX_REGION_QUICK_MESSAGE_BYTES,
+    REGION_CAPABILITY_QUICK_FORWARDING, RegionChannel, RegionDecodeError, RegionEncodeError,
+    RegionFrame, RegionFrameType, RegionHello, RegionHelloExtension, RegionQuickRequest,
+    RegionQuickResponse, RegionQuickStatus, decode_region_frame_prefix,
+    decode_region_quick_frame_prefix,
 };
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -12,10 +13,13 @@ use std::{
     path::PathBuf,
 };
 
-const REGION_QUICK_FRAME_CASES: &str = "hello_control_extended,hello_control_unknown_capabilities,hello_control_legacy,hello_data_legacy,hello_data_extended,hello_owner_zero,hello_owner_seventeen,hello_epoch_zero,hello_extension_short,hello_extension_long,hello_seven_fields,quick_request_ipv4,quick_request_ipv6_actor,quick_response_completed,quick_response_not_owner,quick_response_busy,quick_request_data_channel,quick_response_data_channel,quick_request_before_hello,quick_response_before_hello,quick_request_zero_id,quick_response_zero_id,quick_request_address_empty,quick_request_address_3,quick_request_address_5,quick_request_address_15,quick_request_address_17,quick_request_challenge_31,quick_response_status_zero,quick_response_status_four,quick_response_not_owner_actor,quick_response_not_owner_response,quick_response_busy_actor,quick_response_busy_response,quick_payload_limit,quick_frame_limit";
+const REGION_QUICK_FRAME_CASES: &str = "hello_control_extended,hello_control_unknown_capabilities,hello_control_legacy,hello_data_legacy,hello_data_extended,hello_owner_zero,hello_owner_seventeen,hello_epoch_zero,hello_extension_short,hello_extension_long,hello_seven_fields,quick_request_ipv4,quick_request_ipv6_actor,quick_response_completed,quick_response_not_owner,quick_response_busy,quick_request_data_channel,quick_response_data_channel,quick_request_before_hello,quick_response_before_hello,quick_request_zero_id,quick_response_zero_id,quick_request_address_empty,quick_request_address_3,quick_request_address_5,quick_request_address_15,quick_request_address_17,quick_request_challenge_31,quick_response_status_zero,quick_response_status_four,quick_response_not_owner_actor,quick_response_not_owner_response,quick_response_busy_actor,quick_response_busy_response,quick_request_actor_limit,quick_request_actor_over,quick_response_actor_limit,quick_response_actor_over,quick_payload_limit,quick_frame_limit";
 
 /// The value of `keynet_quick::MAX_MESSAGE_BYTES`, restated without depending on that crate.
 const QUICK_MESSAGE_BYTES: usize = 16 * 1024;
+/// The actor bound: the largest compact JSON `keynet_quick::Hello` (687 bytes) rounded up to the
+/// next power of two.
+const QUICK_ACTOR_BYTES: usize = 1024;
 
 fn fixture_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/keynet-region-quick-v1")
@@ -161,7 +165,7 @@ fn largest_quick_request() -> RegionFrame {
         request_id: u64::MAX,
         client_ip: ipv6(),
         challenge: [0x55; 32],
-        actor: vec![0; MAX_REGION_QUICK_MESSAGE_BYTES],
+        actor: vec![0; MAX_REGION_QUICK_ACTOR_BYTES],
         request: vec![0; MAX_REGION_QUICK_MESSAGE_BYTES],
     })
 }
@@ -348,9 +352,14 @@ fn assert_generated_case(case: &str, vector: &BTreeMap<String, String>) -> Resul
         "quick_payload_limit" => {
             let limit = fixture_usize(vector, "limit")?;
             let one_over = fixture_usize(vector, "one_over")?;
+            let actor_limit = fixture_usize(vector, "actor_limit")?;
+            let actor_one_over = fixture_usize(vector, "actor_one_over")?;
             if limit != QUICK_MESSAGE_BYTES
                 || limit != MAX_REGION_QUICK_MESSAGE_BYTES
                 || one_over != limit + 1
+                || actor_limit != QUICK_ACTOR_BYTES
+                || actor_limit != MAX_REGION_QUICK_ACTOR_BYTES
+                || actor_one_over != actor_limit + 1
             {
                 return Err("sealed quick payload boundary changed".to_owned());
             }
@@ -375,18 +384,20 @@ fn assert_generated_case(case: &str, vector: &BTreeMap<String, String>) -> Resul
 fn assert_payload_limits() -> Result<(), String> {
     let at_limit = vec![0; MAX_REGION_QUICK_MESSAGE_BYTES];
     let over_limit = vec![0; MAX_REGION_QUICK_MESSAGE_BYTES + 1];
+    let actor_at_limit = vec![0; MAX_REGION_QUICK_ACTOR_BYTES];
+    let actor_over_limit = vec![0; MAX_REGION_QUICK_ACTOR_BYTES + 1];
     let encoded_request = round_trip(
-        &quick_request(at_limit.clone(), at_limit.clone()),
+        &quick_request(actor_at_limit.clone(), at_limit.clone()),
         RegionChannel::Control,
     )?;
     let encoded_response = round_trip(
-        &quick_response(RegionQuickStatus::Completed, at_limit.clone(), at_limit),
+        &quick_response(RegionQuickStatus::Completed, actor_at_limit, at_limit),
         RegionChannel::Control,
     )?;
     for over in [
-        quick_request(over_limit.clone(), Vec::new()),
+        quick_request(actor_over_limit.clone(), Vec::new()),
         quick_request(Vec::new(), over_limit.clone()),
-        quick_response(RegionQuickStatus::Completed, over_limit.clone(), Vec::new()),
+        quick_response(RegionQuickStatus::Completed, actor_over_limit, Vec::new()),
         quick_response(RegionQuickStatus::Completed, Vec::new(), over_limit.clone()),
     ] {
         if over.encode(RegionChannel::Control) != Err(RegionEncodeError::InvalidFrame) {
@@ -395,10 +406,10 @@ fn assert_payload_limits() -> Result<(), String> {
     }
     // Request body: array(5), request_id 1, 4-byte address, 32-byte challenge, then actor.
     let request_actor = 3 + 1 + 1 + 5 + 34;
-    let request_payload = request_actor + 3 + MAX_REGION_QUICK_MESSAGE_BYTES;
+    let request_payload = request_actor + 3 + MAX_REGION_QUICK_ACTOR_BYTES;
     // Response body: array(4), request_id 1, status 1, then actor.
     let response_actor = 3 + 1 + 1 + 1;
-    let response_payload = response_actor + 3 + MAX_REGION_QUICK_MESSAGE_BYTES;
+    let response_payload = response_actor + 3 + MAX_REGION_QUICK_ACTOR_BYTES;
     for (encoded, offset, label) in [
         (&encoded_request, request_actor, "request actor"),
         (&encoded_request, request_payload, "request payload"),
@@ -429,7 +440,7 @@ fn assert_frame_limits() -> Result<(), String> {
     let largest_response = RegionFrame::QuickResponse(RegionQuickResponse {
         request_id: u64::MAX,
         status: RegionQuickStatus::Completed,
-        actor: vec![0; MAX_REGION_QUICK_MESSAGE_BYTES],
+        actor: vec![0; MAX_REGION_QUICK_ACTOR_BYTES],
         response: vec![0; MAX_REGION_QUICK_MESSAGE_BYTES],
     });
     if largest_response
@@ -574,6 +585,18 @@ fn quick_frames_round_trip_and_match_the_sealed_vectors() -> Result<(), String> 
             "quick_response_busy",
             quick_response(RegionQuickStatus::Busy, Vec::new(), Vec::new()),
         ),
+        (
+            "quick_request_actor_limit",
+            quick_request(vec![0x61; MAX_REGION_QUICK_ACTOR_BYTES], vec![1, 2, 3]),
+        ),
+        (
+            "quick_response_actor_limit",
+            quick_response(
+                RegionQuickStatus::Completed,
+                vec![0x61; MAX_REGION_QUICK_ACTOR_BYTES],
+                vec![4, 5],
+            ),
+        ),
     ];
     for (case, frame) in cases {
         if round_trip(&frame, RegionChannel::Control)? != vector_frame(case)? {
@@ -618,6 +641,18 @@ fn quick_frames_reject_reserved_and_inconsistent_fields_on_encode() -> Result<()
         (
             "busy response",
             quick_response(RegionQuickStatus::Busy, Vec::new(), vec![1]),
+        ),
+        (
+            "request actor over the actor bound",
+            quick_request(vec![0x61; MAX_REGION_QUICK_ACTOR_BYTES + 1], vec![1]),
+        ),
+        (
+            "response actor over the actor bound",
+            quick_response(
+                RegionQuickStatus::Completed,
+                vec![0x61; MAX_REGION_QUICK_ACTOR_BYTES + 1],
+                vec![1],
+            ),
         ),
     ] {
         if frame.encode(RegionChannel::Control) != Err(RegionEncodeError::InvalidFrame) {
