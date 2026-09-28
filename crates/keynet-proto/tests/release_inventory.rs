@@ -147,8 +147,85 @@ const BLOCK_INVENTORIES: &[(&str, &str)] = &[
     ("region_presence.vec", "region_presence_cases"),
 ];
 
-fn root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(ROOT)
+const QUICK_ROOT: &str = "tests/fixtures/keynet-region-quick-v1";
+const QUICK_EXPECTED_MANIFEST_SHA256: &str =
+    "8e5b13a15de30105c5cb3fd0295f9a49b0cbe8e3e5908c254467884ee9de1ba2";
+
+const QUICK_METADATA: &[(&str, &str)] = &[
+    ("manifest_format", "keynet-fixture-manifest-v1"),
+    ("suite_version", "keynet-region-quick-v1"),
+    ("fixture_release", "keynet-region-quick-v1-v1"),
+    (
+        "design_path",
+        "docs/plan/20260927-2148-region-quick-frames.md",
+    ),
+    ("data_file_count", "2"),
+    (
+        "coverage",
+        "region_quick_frames,region_quick_owner,integrity",
+    ),
+    (
+        "region_quick_frame_cases",
+        "hello_control_extended,hello_control_unknown_capabilities,hello_control_legacy,hello_data_legacy,hello_data_extended,hello_owner_zero,hello_owner_seventeen,hello_epoch_zero,hello_extension_short,hello_extension_long,hello_seven_fields,quick_request_ipv4,quick_request_ipv6_actor,quick_response_completed,quick_response_not_owner,quick_response_busy,quick_request_data_channel,quick_response_data_channel,quick_request_before_hello,quick_response_before_hello,quick_request_zero_id,quick_response_zero_id,quick_request_address_empty,quick_request_address_3,quick_request_address_5,quick_request_address_15,quick_request_address_17,quick_request_challenge_31,quick_response_status_zero,quick_response_status_four,quick_response_not_owner_actor,quick_response_not_owner_response,quick_response_busy_actor,quick_response_busy_response,quick_request_actor_limit,quick_request_actor_over,quick_response_actor_limit,quick_response_actor_over,quick_payload_limit,quick_frame_limit",
+    ),
+    (
+        "region_quick_owner_cases",
+        "equal,equal_epoch_maximum,peer_higher_same_owner,peer_higher_other_owner,peer_higher_by_one_at_maximum,peer_lower_same_owner,peer_lower_other_owner,equal_epoch_other_owner,equal_epoch_other_owner_reverse,local_without_owner_peer_owner,local_owner_peer_legacy,neither_owner,higher_fence_persists_across_agreed_links,higher_fence_lifted_by_reload_to_highest,higher_fence_lifted_by_reload_above_highest,higher_fence_kept_by_reload_below_highest,highest_observed_epoch_never_decreases,reload_to_highest_with_other_owner_stays_fenced,local_without_owner_fence_lifted_by_reload,conflict_persists_across_agreed_links,conflict_after_agreed_link,conflict_lifted_by_reload_above,conflict_between_peers_above_local,conflict_between_peers_reset_by_higher_epoch,conflict_below_local_epoch_ignored,extension_owner_zero_peer_higher,extension_owner_seventeen_equal_epoch,extension_owner_out_of_range_peer_lower,extension_epoch_zero,extension_epoch_zero_local_without_owner,extension_out_of_range_local_without_owner,extension_out_of_range_after_agreed_link",
+    ),
+];
+
+const QUICK_FILES: &[(&str, &str)] = &[
+    (
+        "region_quick_frames.vec",
+        "3c1ea96fbdb40f927c11f9efef26ab59d2032ddf323ece5e261ddd2a2a8a7c66",
+    ),
+    (
+        "region_quick_owner.vec",
+        "68e5f31ec120f7908bb6502a9e51169d7cc495aaae9e1c563cbf51e438650dba",
+    ),
+];
+
+const QUICK_BLOCK_INVENTORIES: &[(&str, &str)] = &[
+    ("region_quick_frames.vec", "region_quick_frame_cases"),
+    ("region_quick_owner.vec", "region_quick_owner_cases"),
+];
+
+/// One sealed fixture set: its directory, manifest digest and declared inventories.
+struct Release {
+    root: &'static str,
+    manifest_sha256: &'static str,
+    metadata: &'static [(&'static str, &'static str)],
+    files: &'static [(&'static str, &'static str)],
+    block_inventories: &'static [(&'static str, &'static str)],
+    flat_inventories: &'static [(&'static str, &'static str)],
+    identifier_inventory: Option<&'static str>,
+}
+
+const KEYNET_V1: Release = Release {
+    root: ROOT,
+    manifest_sha256: EXPECTED_MANIFEST_SHA256,
+    metadata: METADATA,
+    files: FILES,
+    block_inventories: BLOCK_INVENTORIES,
+    flat_inventories: &[
+        ("relay_revocation.vec", "relay_revocation_fields"),
+        ("control_records.vec", "control_record_fields"),
+    ],
+    identifier_inventory: Some("relay_identifier_cases"),
+};
+
+const REGION_QUICK_V1: Release = Release {
+    root: QUICK_ROOT,
+    manifest_sha256: QUICK_EXPECTED_MANIFEST_SHA256,
+    metadata: QUICK_METADATA,
+    files: QUICK_FILES,
+    block_inventories: QUICK_BLOCK_INVENTORIES,
+    flat_inventories: &[],
+    identifier_inventory: None,
+};
+
+fn root(release: &Release) -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(release.root)
 }
 
 fn sha256(bytes: &[u8]) -> String {
@@ -239,7 +316,7 @@ fn identifier_cases(root: &Path) -> Result<BTreeSet<String>, String> {
     Ok(cases)
 }
 
-fn verify(root: &Path) -> Result<(), String> {
+fn verify(release: &Release, root: &Path) -> Result<(), String> {
     let root_metadata = fs::symlink_metadata(root).map_err(|error| error.to_string())?;
     if root_metadata.file_type().is_symlink() || !root_metadata.is_dir() {
         return Err("fixture root must be a local directory".to_owned());
@@ -294,14 +371,15 @@ fn verify(root: &Path) -> Result<(), String> {
             metadata.push((key, value));
         }
     }
-    if metadata != METADATA || files != FILES {
+    if metadata != release.metadata || files != release.files {
         return Err("release manifest does not match the sealed inventory".to_owned());
     }
-    if sha256(&manifest_bytes) != EXPECTED_MANIFEST_SHA256 {
+    if sha256(&manifest_bytes) != release.manifest_sha256 {
         return Err("release manifest digest mismatch".to_owned());
     }
 
-    let expected_files = FILES
+    let expected_files = release
+        .files
         .iter()
         .map(|(name, _)| (*name).to_owned())
         .chain(std::iter::once("manifest.txt".to_owned()))
@@ -309,14 +387,14 @@ fn verify(root: &Path) -> Result<(), String> {
     if actual_files != expected_files {
         return Err("missing or unlisted release file".to_owned());
     }
-    for (name, digest) in FILES {
+    for (name, digest) in release.files {
         if sha256(&fs::read(root.join(name)).map_err(|error| error.to_string())?) != *digest {
             return Err(format!("sealed fixture digest mismatch: {name}"));
         }
     }
 
-    for (name, inventory_key) in BLOCK_INVENTORIES {
-        let expected = listed(metadata_value(METADATA, inventory_key)?)?
+    for (name, inventory_key) in release.block_inventories {
+        let expected = listed(metadata_value(release.metadata, inventory_key)?)?
             .into_iter()
             .map(str::to_owned)
             .collect();
@@ -324,11 +402,8 @@ fn verify(root: &Path) -> Result<(), String> {
             return Err(format!("sealed case inventory mismatch: {name}"));
         }
     }
-    for (name, inventory_key) in [
-        ("relay_revocation.vec", "relay_revocation_fields"),
-        ("control_records.vec", "control_record_fields"),
-    ] {
-        let expected = listed(metadata_value(METADATA, inventory_key)?)?
+    for (name, inventory_key) in release.flat_inventories {
+        let expected = listed(metadata_value(release.metadata, inventory_key)?)?
             .into_iter()
             .map(str::to_owned)
             .collect();
@@ -336,19 +411,21 @@ fn verify(root: &Path) -> Result<(), String> {
             return Err(format!("sealed field inventory mismatch: {name}"));
         }
     }
-    let expected_identifiers = listed(metadata_value(METADATA, "relay_identifier_cases")?)?
-        .into_iter()
-        .map(str::to_owned)
-        .collect();
-    if identifier_cases(root)? != expected_identifiers {
-        return Err("sealed relay identifier inventory mismatch".to_owned());
+    if let Some(inventory_key) = release.identifier_inventory {
+        let expected_identifiers = listed(metadata_value(release.metadata, inventory_key)?)?
+            .into_iter()
+            .map(str::to_owned)
+            .collect();
+        if identifier_cases(root)? != expected_identifiers {
+            return Err("sealed relay identifier inventory mismatch".to_owned());
+        }
     }
     Ok(())
 }
 
-fn copy_release(destination: &Path) -> Result<(), String> {
+fn copy_release(release: &Release, destination: &Path) -> Result<(), String> {
     fs::create_dir_all(destination).map_err(|error| error.to_string())?;
-    for entry in fs::read_dir(root()).map_err(|error| error.to_string())? {
+    for entry in fs::read_dir(root(release)).map_err(|error| error.to_string())? {
         let entry = entry.map_err(|error| error.to_string())?;
         fs::copy(entry.path(), destination.join(entry.file_name()))
             .map_err(|error| error.to_string())?;
@@ -356,12 +433,22 @@ fn copy_release(destination: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn rejects(attack: &str, alter: impl FnOnce(&Path) -> Result<(), String>) -> Result<(), String> {
-    let temp = std::env::temp_dir().join(format!("keynet-release-{attack}-{}", std::process::id()));
+fn rejects(
+    release: &Release,
+    attack: &str,
+    alter: impl FnOnce(&Path) -> Result<(), String>,
+) -> Result<(), String> {
+    let set = release.root.rsplit('/').next().unwrap_or(release.root);
+    let temp = std::env::temp_dir().join(format!(
+        "keynet-release-{set}-{attack}-{}",
+        std::process::id()
+    ));
     let _ = fs::remove_dir_all(&temp);
-    copy_release(&temp)?;
+    copy_release(release, &temp)?;
+    // The unaltered copy must pass, so a rejection below is caused by the alteration.
+    verify(release, &temp)?;
     alter(&temp)?;
-    let result = verify(&temp);
+    let result = verify(release, &temp);
     fs::remove_dir_all(&temp).map_err(|error| error.to_string())?;
     if result.is_ok() {
         return Err(format!("release seal accepted {attack}"));
@@ -371,54 +458,112 @@ fn rejects(attack: &str, alter: impl FnOnce(&Path) -> Result<(), String>) -> Res
 
 #[test]
 fn complete_v09_release_matches_the_sealed_inventory() -> Result<(), String> {
-    verify(&root())
+    verify(&KEYNET_V1, &root(&KEYNET_V1))
 }
 
 #[test]
 fn release_seal_rejects_manifest_file_and_link_drift() -> Result<(), String> {
-    rejects("missing", |temp| {
-        fs::remove_file(temp.join("addresses.vec")).map_err(|error| error.to_string())
+    rejects_drift(&KEYNET_V1)
+}
+
+#[test]
+fn region_quick_release_matches_the_sealed_inventory() -> Result<(), String> {
+    verify(&REGION_QUICK_V1, &root(&REGION_QUICK_V1))
+}
+
+#[test]
+fn region_quick_release_seal_rejects_manifest_file_and_link_drift() -> Result<(), String> {
+    rejects_drift(&REGION_QUICK_V1)
+}
+
+fn rejects_drift(release: &Release) -> Result<(), String> {
+    rejects(release, "missing-manifest", |temp| {
+        fs::remove_file(temp.join("manifest.txt")).map_err(|error| error.to_string())
     })?;
-    rejects("unlisted", |temp| {
+    rejects(release, "unlisted", |temp| {
         fs::write(temp.join("extra.vec"), "literal|00\n").map_err(|error| error.to_string())
     })?;
-    rejects("directory", |temp| {
+    rejects(release, "directory", |temp| {
         fs::create_dir(temp.join("nested.vec")).map_err(|error| error.to_string())
     })?;
-    rejects("corrupted", |temp| {
-        fs::write(temp.join("addresses.vec"), "changed\n").map_err(|error| error.to_string())
-    })?;
-    rejects("rehashed", |temp| {
-        let path = temp.join("addresses.vec");
-        fs::write(&path, "changed\n").map_err(|error| error.to_string())?;
-        let digest = sha256(&fs::read(&path).map_err(|error| error.to_string())?);
-        let manifest_path = temp.join("manifest.txt");
-        let manifest = fs::read_to_string(&manifest_path).map_err(|error| error.to_string())?;
-        fs::write(manifest_path, manifest.replace(FILES[0].1, &digest))
-            .map_err(|error| error.to_string())
-    })?;
-    rejects("duplicate-metadata", |temp| {
+    rejects(release, "duplicate-metadata", |temp| {
         let path = temp.join("manifest.txt");
         let manifest = fs::read_to_string(&path).map_err(|error| error.to_string())?;
-        fs::write(path, format!("suite_version=keynet-v1\n{manifest}"))
-            .map_err(|error| error.to_string())
+        let (key, value) = release.metadata[1];
+        fs::write(path, format!("{key}={value}\n{manifest}")).map_err(|error| error.to_string())
     })?;
-    rejects("duplicate-file", |temp| {
-        let path = temp.join("manifest.txt");
-        let manifest = fs::read_to_string(&path).map_err(|error| error.to_string())?;
-        fs::write(
-            path,
-            format!("{manifest}file={}|{}\n", FILES[0].0, FILES[0].1),
-        )
+    for (index, (name, digest)) in release.files.iter().enumerate() {
+        rejects_file_drift(release, index, name, digest)?;
+    }
+    for (index, (name, _)) in release.block_inventories.iter().enumerate() {
+        let digest = release
+            .files
+            .iter()
+            .find_map(|(file, digest)| (file == name).then_some(*digest))
+            .ok_or_else(|| format!("block inventory names an unsealed file: {name}"))?;
+        rejects(release, &format!("case-added-{index}"), |temp| {
+            let path = temp.join(name);
+            let mut text = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+            text.push_str("\ncase=unlisted_case\n");
+            rehash(temp, name, digest, text.as_bytes())
+        })?;
+        rejects(release, &format!("case-removed-{index}"), |temp| {
+            let path = temp.join(name);
+            let text = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+            // Dropping the last case of a one-case family leaves an empty file.
+            let kept = text
+                .trim_end()
+                .rsplit_once("\n\n")
+                .map_or(String::new(), |(kept, _)| format!("{kept}\n"));
+            rehash(temp, name, digest, kept.as_bytes())
+        })?;
+    }
+    Ok(())
+}
+
+/// Replaces a sealed file and rewrites its manifest digest to match the new bytes.
+fn rehash(temp: &Path, name: &str, digest: &str, bytes: &[u8]) -> Result<(), String> {
+    fs::write(temp.join(name), bytes).map_err(|error| error.to_string())?;
+    let manifest_path = temp.join("manifest.txt");
+    let manifest = fs::read_to_string(&manifest_path).map_err(|error| error.to_string())?;
+    fs::write(manifest_path, manifest.replace(digest, &sha256(bytes)))
         .map_err(|error| error.to_string())
+}
+
+fn rejects_file_drift(
+    release: &Release,
+    index: usize,
+    name: &str,
+    digest: &str,
+) -> Result<(), String> {
+    rejects(release, &format!("missing-{index}"), |temp| {
+        fs::remove_file(temp.join(name)).map_err(|error| error.to_string())
+    })?;
+    rejects(release, &format!("corrupted-{index}"), |temp| {
+        fs::write(temp.join(name), "changed\n").map_err(|error| error.to_string())
+    })?;
+    rejects(release, &format!("appended-{index}"), |temp| {
+        let path = temp.join(name);
+        let mut bytes = fs::read(&path).map_err(|error| error.to_string())?;
+        bytes.push(b'\n');
+        fs::write(path, bytes).map_err(|error| error.to_string())
+    })?;
+    rejects(release, &format!("rehashed-{index}"), |temp| {
+        rehash(temp, name, digest, b"changed\n")
+    })?;
+    rejects(release, &format!("duplicate-file-{index}"), |temp| {
+        let path = temp.join("manifest.txt");
+        let manifest = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+        fs::write(path, format!("{manifest}file={name}|{digest}\n"))
+            .map_err(|error| error.to_string())
     })?;
     #[cfg(unix)]
-    rejects("symlink", |temp| {
+    rejects(release, &format!("symlink-{index}"), |temp| {
         use std::os::unix::fs::symlink;
 
-        let path = temp.join("addresses.vec");
+        let path = temp.join(name);
         fs::remove_file(&path).map_err(|error| error.to_string())?;
-        symlink(root().join("addresses.vec"), path).map_err(|error| error.to_string())
+        symlink(root(release).join(name), path).map_err(|error| error.to_string())
     })?;
     Ok(())
 }

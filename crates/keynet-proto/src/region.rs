@@ -2,11 +2,29 @@
 
 use crate::{Identity, NetworkId, RelayIdentifier, SlotId, codec::CborReader, derive_slot_id};
 use sha2::{Digest, Sha256};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 /// The sole supported region-frame version.
 pub const REGION_FRAME_VERSION: u8 = 1;
 /// The largest encoded CBOR frame body, excluding its four-byte prefix.
 pub const MAX_REGION_FRAME_BYTES: usize = 4096;
+/// The largest opaque quick pairing message carried by a quick frame.
+///
+/// This restates `keynet_quick::MAX_MESSAGE_BYTES` so that the codec needs no quick dependency.
+pub const MAX_REGION_QUICK_MESSAGE_BYTES: usize = 16 * 1024;
+/// The largest quick pairing actor carried by a quick frame.
+///
+/// A non-empty actor is a compact JSON `keynet_quick::Hello`, at most 687 bytes; the bound is
+/// that size rounded up to the next power of two. The codec checks only the length.
+pub const MAX_REGION_QUICK_ACTOR_BYTES: usize = 1024;
+/// The largest encoded CBOR body of a QUICK_REQUEST or QUICK_RESPONSE frame.
+///
+/// This is the measured size of the largest valid QUICK_REQUEST: a nine-byte request identifier,
+/// an IPv6 address, an actor of `MAX_REGION_QUICK_ACTOR_BYTES` and a request of
+/// `MAX_REGION_QUICK_MESSAGE_BYTES`.
+pub const MAX_REGION_QUICK_FRAME_BYTES: usize = 17_478;
+/// The HELLO capability bit announcing that the sender decodes quick frames.
+pub const REGION_CAPABILITY_QUICK_FORWARDING: u64 = 1;
 /// The largest forwarded node datagram retained as opaque frame data.
 pub const MAX_REGION_FORWARD_DATAGRAM_BYTES: usize = 2048;
 /// The maximum combined number of nested presence and mark records in a snapshot.
@@ -27,6 +45,8 @@ pub const CONTROL_REGION_FRAME_TYPES: &[RegionFrameType] = &[
     RegionFrameType::Ping,
     RegionFrameType::Pong,
     RegionFrameType::Settled,
+    RegionFrameType::QuickRequest,
+    RegionFrameType::QuickResponse,
 ];
 /// Frame types permitted on a data connection, including its HELLO setup frame.
 pub const DATA_REGION_FRAME_TYPES: &[RegionFrameType] =
@@ -55,6 +75,12 @@ impl RegionChannel {
                 RegionFrameType::Hello | RegionFrameType::Forward
             ),
         }
+    }
+
+    /// Returns whether `frame_type` is permitted as this channel's first frame.
+    #[must_use]
+    pub const fn permits_before_hello(self, frame_type: RegionFrameType) -> bool {
+        matches!(frame_type, RegionFrameType::Hello)
     }
 
     /// Returns whether `frame_type` is permitted after this channel's initial HELLO exchange.
@@ -178,6 +204,10 @@ pub enum RegionFrameType {
     Pong = 9,
     /// A cumulative final-decision watermark for forwarded datagrams.
     Settled = 10,
+    /// A quick pairing message forwarded to the quick owner.
+    QuickRequest = 11,
+    /// The quick owner's answer to a forwarded quick pairing message.
+    QuickResponse = 12,
 }
 
 impl RegionFrameType {
@@ -185,6 +215,12 @@ impl RegionFrameType {
     #[must_use]
     pub const fn is_legal_on(self, channel: RegionChannel) -> bool {
         channel.permits(self)
+    }
+
+    /// Returns whether this type is permitted as the first frame on `channel`.
+    #[must_use]
+    pub const fn is_legal_before_hello_on(self, channel: RegionChannel) -> bool {
+        channel.permits_before_hello(self)
     }
 
     /// Returns whether this type is permitted after HELLO completes on `channel`.
@@ -209,6 +245,8 @@ impl TryFrom<u8> for RegionFrameType {
             8 => Ok(Self::Ping),
             9 => Ok(Self::Pong),
             10 => Ok(Self::Settled),
+            11 => Ok(Self::QuickRequest),
+            12 => Ok(Self::QuickResponse),
             _ => Err(RegionDecodeError::UnsupportedType),
         }
     }
@@ -227,6 +265,21 @@ pub struct RegionHello {
     pub channel: RegionChannel,
     /// The nonzero per-channel connection generation.
     pub conn_gen: u32,
+    /// The quick owner extension, sent only on control by a member with a configured owner.
+    ///
+    /// Without it the body is the five-element legacy form.
+    pub extension: Option<RegionHelloExtension>,
+}
+
+/// The optional sixth HELLO element `[capabilities, quick_owner, quick_owner_epoch]`.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RegionHelloExtension {
+    /// The capability bit set; unknown bits are kept and ignored.
+    pub capabilities: u64,
+    /// The configured quick owner member identifier in the inclusive range 1 through 16.
+    pub quick_owner: u8,
+    /// The nonzero configured quick owner epoch.
+    pub quick_owner_epoch: u64,
 }
 
 /// A complete owner identifier used in a forwarded source owner.
@@ -2898,6 +2951,59 @@ pub struct RegionSettled {
     pub settled_forward_id: u64,
 }
 
+/// A QUICK_REQUEST frame body.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RegionQuickRequest {
+    /// The nonzero identifier chosen by the forwarding member, unique per control connection.
+    pub request_id: u64,
+    /// The client address, encoded as a 4- or 16-byte string.
+    pub client_ip: IpAddr,
+    /// The nonce the forwarding member issued to the client connection.
+    pub challenge: [u8; 32],
+    /// The connection's verified quick pairing actor, empty when it has none.
+    pub actor: Vec<u8>,
+    /// One opaque quick pairing message.
+    pub request: Vec<u8>,
+}
+
+/// The outcome carried by a QUICK_RESPONSE frame.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u8)]
+pub enum RegionQuickStatus {
+    /// The owner processed the request.
+    Completed = 1,
+    /// The receiver is not serving as quick owner.
+    NotOwner = 2,
+    /// The owner cannot take the request now.
+    Busy = 3,
+}
+
+impl TryFrom<u8> for RegionQuickStatus {
+    type Error = RegionDecodeError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            1 => Ok(Self::Completed),
+            2 => Ok(Self::NotOwner),
+            3 => Ok(Self::Busy),
+            _ => Err(RegionDecodeError::InvalidEncoding),
+        }
+    }
+}
+
+/// A QUICK_RESPONSE frame body.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RegionQuickResponse {
+    /// The identifier of the answered QUICK_REQUEST.
+    pub request_id: u64,
+    /// The request outcome.
+    pub status: RegionQuickStatus,
+    /// The resulting quick pairing actor; empty unless the status is `Completed`.
+    pub actor: Vec<u8>,
+    /// One opaque quick pairing message; empty unless the status is `Completed`.
+    pub response: Vec<u8>,
+}
+
 /// One complete region-frame envelope and typed body.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RegionFrame {
@@ -2921,6 +3027,10 @@ pub enum RegionFrame {
     Pong(RegionPong),
     /// A SETTLED frame.
     Settled(RegionSettled),
+    /// A QUICK_REQUEST frame.
+    QuickRequest(RegionQuickRequest),
+    /// A QUICK_RESPONSE frame.
+    QuickResponse(RegionQuickResponse),
 }
 
 /// A failure to encode a region frame.
@@ -2937,7 +3047,7 @@ pub enum RegionEncodeError {
 pub enum RegionDecodeError {
     /// Fewer than four prefix bytes were available.
     IncompletePrefix,
-    /// The prefix declared zero bytes or more than the frame limit.
+    /// The prefix declared zero bytes or more than the frame limit of the decoder or frame type.
     InvalidPrefix,
     /// The supplied input did not contain exactly the prefix-declared body length.
     InvalidLength,
@@ -2945,7 +3055,7 @@ pub enum RegionDecodeError {
     InvalidEncoding,
     /// The envelope version was not one.
     UnsupportedVersion,
-    /// The envelope type was not one of the ten region frame types.
+    /// The envelope type was not one of the twelve region frame types.
     UnsupportedType,
     /// The frame type or HELLO channel does not match the supplied transport channel.
     WrongChannel,
@@ -2966,6 +3076,8 @@ impl RegionFrame {
             Self::Ping(_) => RegionFrameType::Ping,
             Self::Pong(_) => RegionFrameType::Pong,
             Self::Settled(_) => RegionFrameType::Settled,
+            Self::QuickRequest(_) => RegionFrameType::QuickRequest,
+            Self::QuickResponse(_) => RegionFrameType::QuickResponse,
         }
     }
 
@@ -2978,7 +3090,7 @@ impl RegionFrame {
         write_uint(&mut body, u64::from(REGION_FRAME_VERSION));
         write_uint(&mut body, u64::from(self.frame_type() as u8));
         encode_body(&mut body, self)?;
-        if body.len() > MAX_REGION_FRAME_BYTES {
+        if body.len() > max_body_bytes(self.frame_type()) {
             return Err(RegionEncodeError::FrameTooLarge);
         }
 
@@ -2995,51 +3107,96 @@ impl RegionFrame {
 
     /// Decodes exactly one prefixed canonical region frame received on `channel`.
     pub fn decode(input: &[u8], channel: RegionChannel) -> Result<Self, RegionDecodeError> {
-        if input.len() < 4 {
-            return Err(RegionDecodeError::IncompletePrefix);
-        }
-        let prefix = [input[0], input[1], input[2], input[3]];
-        let body_length = decode_region_frame_prefix(prefix)?;
-        let expected_length = body_length
-            .checked_add(4)
-            .ok_or(RegionDecodeError::InvalidLength)?;
-        if input.len() != expected_length {
-            return Err(RegionDecodeError::InvalidLength);
-        }
-
-        let mut reader = CborReader::new(&input[4..]);
-        expect_array(&mut reader, 3)?;
-        if read_u8(&mut reader)? != REGION_FRAME_VERSION {
-            return Err(RegionDecodeError::UnsupportedVersion);
-        }
-        let frame_type = RegionFrameType::try_from(read_u8(&mut reader)?)?;
-        if !frame_type.is_legal_on(channel) {
-            return Err(RegionDecodeError::WrongChannel);
-        }
-        let frame = decode_body(&mut reader, frame_type)?;
-        if !reader.finished() {
-            return Err(RegionDecodeError::InvalidEncoding);
-        }
-        if let RegionFrame::Hello(hello) = &frame
-            && hello.channel != channel
-        {
-            return Err(RegionDecodeError::WrongChannel);
-        }
-        validate_frame(&frame, channel).map_err(|_| RegionDecodeError::InvalidEncoding)?;
-        Ok(frame)
+        decode_frame(input, channel, decode_region_frame_prefix)
     }
+
+    /// Decodes exactly one prefixed canonical frame received on a control connection whose HELLO
+    /// exchange agreed on quick forwarding.
+    ///
+    /// Quick frames may use `MAX_REGION_QUICK_FRAME_BYTES`; every other frame type keeps
+    /// `MAX_REGION_FRAME_BYTES`.
+    pub fn decode_quick_control(input: &[u8]) -> Result<Self, RegionDecodeError> {
+        decode_frame(
+            input,
+            RegionChannel::Control,
+            decode_region_quick_frame_prefix,
+        )
+    }
+}
+
+fn decode_frame(
+    input: &[u8],
+    channel: RegionChannel,
+    decode_prefix: fn([u8; 4]) -> Result<usize, RegionDecodeError>,
+) -> Result<RegionFrame, RegionDecodeError> {
+    if input.len() < 4 {
+        return Err(RegionDecodeError::IncompletePrefix);
+    }
+    let prefix = [input[0], input[1], input[2], input[3]];
+    let body_length = decode_prefix(prefix)?;
+    let expected_length = body_length
+        .checked_add(4)
+        .ok_or(RegionDecodeError::InvalidLength)?;
+    if input.len() != expected_length {
+        return Err(RegionDecodeError::InvalidLength);
+    }
+
+    let mut reader = CborReader::new(&input[4..]);
+    expect_array(&mut reader, 3)?;
+    if read_u8(&mut reader)? != REGION_FRAME_VERSION {
+        return Err(RegionDecodeError::UnsupportedVersion);
+    }
+    let frame_type = RegionFrameType::try_from(read_u8(&mut reader)?)?;
+    if body_length > max_body_bytes(frame_type) {
+        return Err(RegionDecodeError::InvalidPrefix);
+    }
+    if !frame_type.is_legal_on(channel) {
+        return Err(RegionDecodeError::WrongChannel);
+    }
+    let frame = decode_body(&mut reader, frame_type)?;
+    if !reader.finished() {
+        return Err(RegionDecodeError::InvalidEncoding);
+    }
+    if let RegionFrame::Hello(hello) = &frame
+        && hello.channel != channel
+    {
+        return Err(RegionDecodeError::WrongChannel);
+    }
+    validate_frame(&frame, channel).map_err(|_| RegionDecodeError::InvalidEncoding)?;
+    Ok(frame)
 }
 
 /// Decodes and validates a four-byte big-endian region-frame length prefix.
 ///
 /// This function performs no body allocation and is suitable for bounded stream assembly.
 pub fn decode_region_frame_prefix(prefix: [u8; 4]) -> Result<usize, RegionDecodeError> {
+    decode_prefix_with_limit(prefix, MAX_REGION_FRAME_BYTES)
+}
+
+/// Decodes and validates a length prefix against `MAX_REGION_QUICK_FRAME_BYTES`.
+///
+/// Use it only on a control connection whose HELLO exchange agreed on quick forwarding; the
+/// frame decoder still holds every non-quick frame type to `MAX_REGION_FRAME_BYTES`.
+pub fn decode_region_quick_frame_prefix(prefix: [u8; 4]) -> Result<usize, RegionDecodeError> {
+    decode_prefix_with_limit(prefix, MAX_REGION_QUICK_FRAME_BYTES)
+}
+
+fn decode_prefix_with_limit(prefix: [u8; 4], limit: usize) -> Result<usize, RegionDecodeError> {
     let length = usize::try_from(u32::from_be_bytes(prefix))
         .map_err(|_| RegionDecodeError::InvalidPrefix)?;
-    if length == 0 || length > MAX_REGION_FRAME_BYTES {
+    if length == 0 || length > limit {
         return Err(RegionDecodeError::InvalidPrefix);
     }
     Ok(length)
+}
+
+const fn max_body_bytes(frame_type: RegionFrameType) -> usize {
+    match frame_type {
+        RegionFrameType::QuickRequest | RegionFrameType::QuickResponse => {
+            MAX_REGION_QUICK_FRAME_BYTES
+        }
+        _ => MAX_REGION_FRAME_BYTES,
+    }
 }
 
 fn validate_frame(frame: &RegionFrame, channel: RegionChannel) -> Result<(), RegionEncodeError> {
@@ -3070,6 +3227,28 @@ fn validate_frame(frame: &RegionFrame, channel: RegionChannel) -> Result<(), Reg
                 Ok(())
             }
         }
+        RegionFrame::QuickRequest(request) => {
+            if request.request_id == 0
+                || request.actor.len() > MAX_REGION_QUICK_ACTOR_BYTES
+                || request.request.len() > MAX_REGION_QUICK_MESSAGE_BYTES
+            {
+                Err(RegionEncodeError::InvalidFrame)
+            } else {
+                Ok(())
+            }
+        }
+        RegionFrame::QuickResponse(response) => {
+            if response.request_id == 0
+                || response.actor.len() > MAX_REGION_QUICK_ACTOR_BYTES
+                || response.response.len() > MAX_REGION_QUICK_MESSAGE_BYTES
+                || (response.status != RegionQuickStatus::Completed
+                    && (!response.actor.is_empty() || !response.response.is_empty()))
+            {
+                Err(RegionEncodeError::InvalidFrame)
+            } else {
+                Ok(())
+            }
+        }
     }
 }
 
@@ -3078,6 +3257,13 @@ fn validate_hello(hello: &RegionHello) -> Result<(), RegionEncodeError> {
         || !(1..=16).contains(&hello.member_id)
         || hello.conn_gen == 0
         || RelayIdentifier::parse(&hello.region_name).is_err()
+    {
+        return Err(RegionEncodeError::InvalidFrame);
+    }
+    if let Some(extension) = hello.extension
+        && (hello.channel != RegionChannel::Control
+            || !(1..=16).contains(&extension.quick_owner)
+            || extension.quick_owner_epoch == 0)
     {
         return Err(RegionEncodeError::InvalidFrame);
     }
@@ -3099,12 +3285,18 @@ fn validate_snapshot(snapshot: &RegionSnapshot) -> Result<(), RegionEncodeError>
 fn encode_body(output: &mut Vec<u8>, frame: &RegionFrame) -> Result<(), RegionEncodeError> {
     match frame {
         RegionFrame::Hello(hello) => {
-            write_array(output, 5);
+            write_array(output, if hello.extension.is_some() { 6 } else { 5 });
             write_text(output, &hello.region_name);
             write_uint(output, u64::from(hello.member_id));
             write_uint(output, hello.boot_epoch);
             write_uint(output, u64::from(hello.channel as u8));
             write_uint(output, u64::from(hello.conn_gen));
+            if let Some(extension) = hello.extension {
+                write_array(output, 3);
+                write_uint(output, extension.capabilities);
+                write_uint(output, u64::from(extension.quick_owner));
+                write_uint(output, extension.quick_owner_epoch);
+            }
         }
         RegionFrame::Snapshot(snapshot) => {
             write_array(output, 7);
@@ -3174,6 +3366,24 @@ fn encode_body(output: &mut Vec<u8>, frame: &RegionFrame) -> Result<(), RegionEn
             write_uint(output, u64::from(settled.data_conn_gen));
             write_uint(output, settled.settled_forward_id);
         }
+        RegionFrame::QuickRequest(request) => {
+            write_array(output, 5);
+            write_uint(output, request.request_id);
+            match request.client_ip {
+                IpAddr::V4(address) => write_bytes(output, &address.octets()),
+                IpAddr::V6(address) => write_bytes(output, &address.octets()),
+            }
+            write_bytes(output, &request.challenge);
+            write_bytes(output, &request.actor);
+            write_bytes(output, &request.request);
+        }
+        RegionFrame::QuickResponse(response) => {
+            write_array(output, 4);
+            write_uint(output, response.request_id);
+            write_uint(output, u64::from(response.status as u8));
+            write_bytes(output, &response.actor);
+            write_bytes(output, &response.response);
+        }
     }
     Ok(())
 }
@@ -3217,17 +3427,37 @@ fn decode_body(
 ) -> Result<RegionFrame, RegionDecodeError> {
     match frame_type {
         RegionFrameType::Hello => {
-            expect_array(reader, 5)?;
-            let hello = RegionHello {
-                region_name: reader
-                    .text_with_maximum(255)
-                    .map_err(|_| RegionDecodeError::InvalidEncoding)?,
-                member_id: read_u8(reader)?,
-                boot_epoch: read_uint(reader)?,
-                channel: RegionChannel::try_from(read_u8(reader)?)?,
-                conn_gen: read_u32(reader)?,
+            let fields = reader
+                .array_len()
+                .map_err(|_| RegionDecodeError::InvalidEncoding)?;
+            if fields != 5 && fields != 6 {
+                return Err(RegionDecodeError::InvalidEncoding);
+            }
+            let region_name = reader
+                .text_with_maximum(255)
+                .map_err(|_| RegionDecodeError::InvalidEncoding)?;
+            let member_id = read_u8(reader)?;
+            let boot_epoch = read_uint(reader)?;
+            let channel = RegionChannel::try_from(read_u8(reader)?)?;
+            let conn_gen = read_u32(reader)?;
+            let extension = if fields == 6 {
+                expect_array(reader, 3)?;
+                Some(RegionHelloExtension {
+                    capabilities: read_uint(reader)?,
+                    quick_owner: read_u8(reader)?,
+                    quick_owner_epoch: read_uint(reader)?,
+                })
+            } else {
+                None
             };
-            Ok(RegionFrame::Hello(hello))
+            Ok(RegionFrame::Hello(RegionHello {
+                region_name,
+                member_id,
+                boot_epoch,
+                channel,
+                conn_gen,
+                extension,
+            }))
         }
         RegionFrameType::Snapshot => {
             expect_array(reader, 7)?;
@@ -3313,7 +3543,51 @@ fn decode_body(
                 settled_forward_id: read_uint(reader)?,
             }))
         }
+        RegionFrameType::QuickRequest => {
+            expect_array(reader, 5)?;
+            Ok(RegionFrame::QuickRequest(RegionQuickRequest {
+                request_id: read_uint(reader)?,
+                client_ip: read_ip(reader)?,
+                challenge: fixed_bytes(reader)?,
+                actor: read_quick_actor(reader)?,
+                request: read_quick_message(reader)?,
+            }))
+        }
+        RegionFrameType::QuickResponse => {
+            expect_array(reader, 4)?;
+            Ok(RegionFrame::QuickResponse(RegionQuickResponse {
+                request_id: read_uint(reader)?,
+                status: RegionQuickStatus::try_from(read_u8(reader)?)?,
+                actor: read_quick_actor(reader)?,
+                response: read_quick_message(reader)?,
+            }))
+        }
     }
+}
+
+fn read_ip(reader: &mut CborReader<'_>) -> Result<IpAddr, RegionDecodeError> {
+    let bytes = reader
+        .bytes_with_maximum(16)
+        .map_err(|_| RegionDecodeError::InvalidEncoding)?;
+    if let Ok(octets) = <[u8; 4]>::try_from(bytes.as_slice()) {
+        Ok(IpAddr::V4(Ipv4Addr::from(octets)))
+    } else if let Ok(octets) = <[u8; 16]>::try_from(bytes.as_slice()) {
+        Ok(IpAddr::V6(Ipv6Addr::from(octets)))
+    } else {
+        Err(RegionDecodeError::InvalidEncoding)
+    }
+}
+
+fn read_quick_actor(reader: &mut CborReader<'_>) -> Result<Vec<u8>, RegionDecodeError> {
+    reader
+        .bytes_with_maximum(MAX_REGION_QUICK_ACTOR_BYTES)
+        .map_err(|_| RegionDecodeError::InvalidEncoding)
+}
+
+fn read_quick_message(reader: &mut CborReader<'_>) -> Result<Vec<u8>, RegionDecodeError> {
+    reader
+        .bytes_with_maximum(MAX_REGION_QUICK_MESSAGE_BYTES)
+        .map_err(|_| RegionDecodeError::InvalidEncoding)
 }
 
 fn decode_presence(reader: &mut CborReader<'_>) -> Result<RegionPresence, RegionDecodeError> {
