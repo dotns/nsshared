@@ -1475,6 +1475,35 @@ pub struct GatewayWgRelayConfig {
     /// lease-enforcing consumer.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub forwarding_lease: Option<WgRelayForwardingLease>,
+    /// Machines of this realm whose probe roster names this gateway.
+    ///
+    /// Authorizes measurement-only reflexive probes from these machines
+    /// without relay pairs; leased and fenced with this table. Emitted only
+    /// to gateways declaring `relay_probe_set.v1`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub probe_set: Vec<GatewayWgRelayProbeEntry>,
+}
+
+/// One machine allowed to send measurement-only reflexive probes.
+///
+/// Encodings match `GatewayWgRelayPair.nsn_machine_id`,
+/// `nsn_machine_key_pub` and `nsn_pubkey`.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Deserialize, Serialize)]
+pub struct GatewayWgRelayProbeEntry {
+    /// NSD-authenticated machine subject.
+    pub machine_id: String,
+    /// Ed25519 machine public key expected on reflexive envelopes.
+    #[serde(
+        serialize_with = "serialize_wg_public_key",
+        deserialize_with = "deserialize_wg_public_key"
+    )]
+    pub machine_key_pub: [u8; 32],
+    /// WireGuard public key the envelope must carry as `peer_key_pub`.
+    #[serde(
+        serialize_with = "serialize_wg_public_key",
+        deserialize_with = "deserialize_wg_public_key"
+    )]
+    pub wg_pubkey: [u8; 32],
 }
 
 /// Session- and generation-bound forwarding lease for one realm snapshot.
@@ -5165,6 +5194,110 @@ tunnel = "ws"
         }
     }
 
+    fn sample_gateway_wg_relay_probe_entry() -> GatewayWgRelayProbeEntry {
+        GatewayWgRelayProbeEntry {
+            machine_id: "m-probe".to_owned(),
+            machine_key_pub: [3u8; 32],
+            wg_pubkey: [4u8; 32],
+        }
+    }
+
+    #[test]
+    fn gateway_wg_relay_probe_set_round_trips_with_pair_identity_encodings() {
+        let pair = sample_gateway_wg_relay_pair();
+        let config = GatewayWgRelayConfig {
+            relay_pairs: vec![pair.clone()],
+            forwarding_lease: None,
+            probe_set: vec![GatewayWgRelayProbeEntry {
+                machine_id: pair.nsn_machine_id.clone(),
+                machine_key_pub: pair.nsn_machine_key_pub,
+                wg_pubkey: pair.nsn_pubkey,
+            }],
+        };
+
+        let json = serde_json::to_value(&config).unwrap();
+        let entry = &json["probe_set"][0];
+        let pair_json = &json["relay_pairs"][0];
+        assert_eq!(entry["machine_id"], pair_json["nsn_machine_id"]);
+        assert_eq!(entry["machine_key_pub"], pair_json["nsn_machine_key_pub"]);
+        assert_eq!(entry["wg_pubkey"], pair_json["nsn_pubkey"]);
+        assert_eq!(
+            serde_json::from_value::<GatewayWgRelayConfig>(json).unwrap(),
+            config
+        );
+
+        let bytes = crate::api::to_cbor(&ControlMessage::GatewayWgRelay(config.clone())).unwrap();
+        match crate::api::from_cbor::<ControlMessage>(&bytes).unwrap() {
+            ControlMessage::GatewayWgRelay(decoded) => assert_eq!(decoded, config),
+            other => panic!("wrong variant: {other:?}"),
+        }
+        let wire = cbor_value(&bytes);
+        let entry = cbor_item(cbor_field(&wire, "probe_set"), 0);
+        let pair_wire = cbor_item(cbor_field(&wire, "relay_pairs"), 0);
+        assert_eq!(
+            cbor_field(entry, "machine_key_pub").as_text(),
+            cbor_field(pair_wire, "nsn_machine_key_pub").as_text()
+        );
+        assert_eq!(
+            cbor_field(entry, "wg_pubkey").as_text(),
+            cbor_field(pair_wire, "nsn_pubkey").as_text()
+        );
+    }
+
+    #[test]
+    fn gateway_wg_relay_probe_set_is_absent_when_empty_and_defaults_when_missing() {
+        #[derive(Serialize)]
+        struct PreProbeSetGatewayWgRelayConfig {
+            relay_pairs: Vec<GatewayWgRelayPair>,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            forwarding_lease: Option<WgRelayForwardingLease>,
+        }
+
+        let lease = WgRelayForwardingLease {
+            session: crate::api::ControlStreamSession::new(),
+            generation: 3,
+            activate_not_before_unix_secs: 10,
+            expires_at_unix_secs: 20,
+        };
+        let old = PreProbeSetGatewayWgRelayConfig {
+            relay_pairs: vec![sample_gateway_wg_relay_pair()],
+            forwarding_lease: Some(lease),
+        };
+        let new = GatewayWgRelayConfig {
+            relay_pairs: vec![sample_gateway_wg_relay_pair()],
+            forwarding_lease: Some(lease),
+            probe_set: Vec::new(),
+        };
+        assert_eq!(
+            crate::api::to_cbor(&old).unwrap(),
+            crate::api::to_cbor(&new).unwrap()
+        );
+        assert_eq!(
+            serde_json::to_string(&old).unwrap(),
+            serde_json::to_string(&new).unwrap()
+        );
+        let decoded: GatewayWgRelayConfig =
+            crate::api::from_cbor(&crate::api::to_cbor(&old).unwrap()).unwrap();
+        assert!(decoded.probe_set.is_empty());
+        assert_eq!(decoded, new);
+        let decoded: GatewayWgRelayConfig =
+            serde_json::from_str(&serde_json::to_string(&old).unwrap()).unwrap();
+        assert!(decoded.probe_set.is_empty());
+    }
+
+    #[test]
+    fn gateway_wg_relay_probe_entry_requires_every_identity_field() {
+        let value = serde_json::to_value(sample_gateway_wg_relay_probe_entry()).unwrap();
+        for field in ["machine_id", "machine_key_pub", "wg_pubkey"] {
+            let mut partial = value.clone();
+            partial.as_object_mut().unwrap().remove(field);
+            assert!(
+                serde_json::from_value::<GatewayWgRelayProbeEntry>(partial).is_err(),
+                "an entry without {field} must not decode"
+            );
+        }
+    }
+
     #[test]
     fn gateway_pair_index_scheme_is_explicit_and_legacy_defaults_are_preserved() {
         let mut pair = sample_gateway_wg_relay_pair();
@@ -5310,6 +5443,7 @@ tunnel = "ws"
         let config = GatewayWgRelayConfig {
             relay_pairs: vec![sample_gateway_wg_relay_pair()],
             forwarding_lease: None,
+            probe_set: Vec::new(),
         };
         let bytes = crate::api::to_cbor(&ControlMessage::GatewayWgRelay(config.clone())).unwrap();
 
@@ -5428,6 +5562,7 @@ tunnel = "ws"
                 ControlMessage::GatewayWgRelay(GatewayWgRelayConfig {
                     relay_pairs: vec![sample_gateway_wg_relay_pair()],
                     forwarding_lease: None,
+                    probe_set: Vec::new(),
                 }),
             ),
             (
@@ -6821,6 +6956,7 @@ tunnel = "ws"
                 listen_port: None,
             }],
             forwarding_lease: None,
+            probe_set: Vec::new(),
         };
 
         let json = serde_json::to_string(&cfg).unwrap();
@@ -6854,6 +6990,7 @@ tunnel = "ws"
                 listen_port: None,
             }],
             forwarding_lease: None,
+            probe_set: Vec::new(),
         };
 
         let json = serde_json::to_string(&cfg).unwrap();
@@ -6868,6 +7005,7 @@ tunnel = "ws"
         let msg = ControlMessage::GatewayWgRelay(GatewayWgRelayConfig {
             relay_pairs: Vec::new(),
             forwarding_lease: None,
+            probe_set: Vec::new(),
         });
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains("\"type\":\"gateway_wg_relay\""));
@@ -6984,6 +7122,7 @@ tunnel = "ws"
         let new_relay_without_lease = GatewayWgRelayConfig {
             relay_pairs: relay_pairs.clone(),
             forwarding_lease: None,
+            probe_set: Vec::new(),
         };
         assert_eq!(
             crate::api::to_cbor(&legacy_relay).unwrap(),
@@ -7055,6 +7194,7 @@ tunnel = "ws"
                 activate_not_before_unix_secs: 100,
                 expires_at_unix_secs: 200,
             }),
+            probe_set: vec![sample_gateway_wg_relay_probe_entry()],
         };
         let new_relay_cbor = crate::api::to_cbor(&new_relay).unwrap();
         assert_eq!(

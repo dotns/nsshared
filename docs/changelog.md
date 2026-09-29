@@ -1,3 +1,15 @@
+## 2026-09-29 [feat]
+
+Add the gateway probe set. `GatewayWgRelayConfig` gains an optional
+`probe_set` of `GatewayWgRelayProbeEntry { machine_id, machine_key_pub,
+wg_pubkey }`, encoded like `GatewayWgRelayPair.nsn_machine_id`,
+`nsn_machine_key_pub` and `nsn_pubkey`. It lists the machines of the realm
+whose probe roster names the gateway, so the gateway can answer their
+measurement-only reflexive probes; it is leased and fenced with the relay
+table. The field is absent when empty and decodes to empty when missing, so
+payloads without it keep their exact bytes. See
+[Gateway probe-set projection type](task/20260929-2150-relay-placement-probe-set.md).
+
 ## 2026-09-27 [feat]
 
 Add the region quick owner agreement decision. `decide_region_quick_owner`
