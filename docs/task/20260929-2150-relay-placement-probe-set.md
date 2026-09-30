@@ -1,6 +1,6 @@
 # 20260929-2150-relay-placement-probe-set Add the gateway probe-set projection type
 
-- **status**: in_progress
+- **status**: completed
 - **priority**: P2
 - **owner**: bkd:z4ujbfcj
 - **createdAt**: 2026-09-29 21:50
@@ -37,3 +37,5 @@ Add the gateway probe-set projection type.
   encodings reuse the `GatewayWgRelayPair` serde helpers, the field is skipped when empty and
   defaults when missing, and a config without probe entries keeps its exact CBOR and JSON bytes.
   Kept as is; focused tests and `just qa` pass.
+
+- complete: merged into integration/relay-placement
