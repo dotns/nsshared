@@ -6,6 +6,7 @@
 mod alias;
 mod codec;
 mod constants;
+mod control;
 mod identifier;
 mod identity;
 mod record;
@@ -13,6 +14,7 @@ mod record;
 pub use alias::*;
 pub use codec::CborError;
 pub use constants::*;
+pub use control::*;
 pub use identifier::*;
 pub use identity::*;
 pub use record::*;
