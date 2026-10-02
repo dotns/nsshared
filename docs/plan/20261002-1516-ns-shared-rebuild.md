@@ -89,3 +89,4 @@ this repository; dependency changes in nsgw and ns in P2.
   directly (migration milestone M1) instead of renaming the v1 values; the v1
   code in `quick-wire` and `quick-rendezvous` is replaced, not kept. P0 is the
   ns-shared part of migration milestone M0.
+- 2026-10-02: P1a delivered as crate ns-wire (v2 wire layer); quick-wire deleted. Coverage: docs/spec-coverage/ns-wire.md.
