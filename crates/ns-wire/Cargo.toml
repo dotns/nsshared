@@ -10,11 +10,11 @@ publish.workspace = true
 
 [dependencies]
 blake2.workspace = true
+ed25519-dalek.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
 base64.workspace = true
-ed25519-dalek.workspace = true
 proptest.workspace = true
 sha2.workspace = true
 x25519-dalek.workspace = true
