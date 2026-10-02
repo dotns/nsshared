@@ -91,7 +91,7 @@ impl Vector {
 
 /// Decodes lowercase hex.
 pub fn decode_hex(text: &str) -> Option<Vec<u8>> {
-    if text.len() % 2 != 0 {
+    if !text.len().is_multiple_of(2) {
         return None;
     }
     let digit = |byte: u8| match byte {
