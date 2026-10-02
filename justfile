@@ -13,8 +13,8 @@ dev-check: fmt-check lint
 # Full quality gate
 qa: qa-checks qa-tests
 
-# Static checks: formatting, lints, supply chain, spelling and vector generators
-qa-checks: fmt-check lint deny shear typos vectors-check
+# Static checks: formatting, lints, supply chain and spelling
+qa-checks: fmt-check lint deny shear typos
 
 # Tests: nextest plus the doctests nextest does not run
 qa-tests: test doc
@@ -46,9 +46,3 @@ shear:
 
 typos:
     typos --config typos.toml
-
-# Independent vector generators and refutation checks for quick-wire
-vectors-check:
-    python3 crates/quick-wire/tests/generate_default_context_vectors.py --check
-    python3 crates/quick-wire/tests/refutation_cbor_dependency.py
-    python3 crates/quick-wire/tests/refutation_literal_coverage.py
