@@ -77,6 +77,8 @@ CBOR_EXAMPLES = [
     (1000000, "1a000f4240"),
     (1000000000000, "1b000000e8d4a51000"),
     (18446744073709551615, "1bffffffffffffffff"),
+    (False, "f4"),
+    (True, "f5"),
     (None, "f6"),
     (b"", "40"),
     (bytes.fromhex("01020304"), "4401020304"),
@@ -97,7 +99,7 @@ CBOR_REJECTED = [
     "c249010000000000000000",  # tag
     "20",  # negative integer
     "f90000",  # float
-    "f4",  # false
+    "f7",  # undefined
     "a0",  # map
     "5f42010243030405ff",  # indefinite byte string
     "9fff",  # indefinite array
@@ -173,7 +175,7 @@ def run():
         except cbor.CborError:
             continue
         raise SelfTestError(f"RFC 8949 Appendix A {encoded} outside the subset was accepted")
-    for item in (-1, 1.5, True, {}):
+    for item in (-1, 1.5, {}):
         try:
             cbor.encode(item)
         except TypeError:
