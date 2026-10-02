@@ -1,12 +1,12 @@
 """Deterministic CBOR for the quick-v2 §12.1 subset (RFC 8949 §4.2.1).
 
 Supported items: unsigned integers (shortest form), byte strings, UTF-8 text strings,
-definite-length arrays and null. No floats, tags, maps, negative integers or
-indefinite lengths. The decoder accepts only the canonical encoding of this subset.
+definite-length arrays, booleans (the region frames of quick-v2 §8.5 carry `bool` fields)
+and null. No floats, tags, maps, negative integers or indefinite lengths. The decoder accepts only the canonical encoding of this subset.
 """
 
 UINT, BYTES, TEXT, ARRAY = 0, 2, 3, 4
-NULL = 0xF6
+FALSE, TRUE, NULL = 0xF4, 0xF5, 0xF6
 U64_MAX = 2**64 - 1
 
 
@@ -26,11 +26,11 @@ def head(major, value, width=None):
 
 
 def encode(item):
-    """Encodes `item` (int >= 0, bytes, str, list or None) canonically."""
+    """Encodes `item` (int >= 0, bytes, str, list, bool or None) canonically."""
     if item is None:
         return bytes([NULL])
     if isinstance(item, bool):
-        raise TypeError("booleans are outside the quick-v2 §12.1 subset")
+        return bytes([TRUE if item else FALSE])
     if isinstance(item, int):
         if item < 0:
             raise TypeError("negative integers are outside the quick-v2 §12.1 subset")
@@ -65,6 +65,8 @@ def _decode_at(data, offset):
     offset += 1
     if initial == NULL:
         return None, offset
+    if initial in (FALSE, TRUE):
+        return initial == TRUE, offset
     if major not in (UINT, BYTES, TEXT, ARRAY):
         raise CborError(f"major type {major} outside the subset")
     if info < 24:
