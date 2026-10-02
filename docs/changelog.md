@@ -1,3 +1,28 @@
+## 2026-10-02 [feat]
+
+Replace `quick-wire` with `ns-wire`, the NS protocol v2 wire layer (docs
+`ns/quick-v2.md`): identity derivations (node ID, address group, `lan6`, alias
+candidates), node records and the §3.3 ordering state, relay packets v2 with
+REGISTER admission, session key and MACs, the region member protocol v2 and the
+in-tunnel control messages. There is no v1 compatibility: KeyBinding,
+INTRO / INTRO_ACK, `revoked_through` and the region QUICK frames are gone. The
+consumers, the nsgw quick relay and ns, switch to `ns-wire` in migration
+milestone M5 (plan P2). See [ns-wire spec coverage](spec-coverage/ns-wire.md)
+and [ns-wire protocol crate](task/20261002-1516-quick-wire.md).
+
+## 2026-10-02 [refactor]
+
+Rebuild ns-shared on `next` around the Quick protocol. The workspace starts
+with `quick-wire` (from `keynet-proto`) and `quick-rendezvous` (from
+`keynet-quick`) on the pma-rust baseline: workspace lints that also deny
+`unwrap`, `expect` and `panic` outside tests, rustfmt 2024 style, latest stable
+dependencies (`ed25519-dalek` and `x25519-dalek` 3, `blake2` 0.11, `getrandom`
+0.4 instead of `rand_core`'s removed OS RNG), cargo-shear with
+`--deny-warnings`, doctests, the vector checks in `just qa`, and a Gitea QA
+workflow. The previous workspace is archived at tag `archive/v1-20261002`.
+Consumers move to Cargo git dependencies pinned by tag. See
+[next workspace baseline](task/20261002-1516-next-workspace-baseline.md).
+
 ## 2026-09-29 [feat]
 
 Add the gateway probe set. `GatewayWgRelayConfig` gains an optional
