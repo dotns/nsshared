@@ -9,6 +9,7 @@ mod constants;
 mod control;
 mod identifier;
 mod identity;
+mod lan;
 mod record;
 mod relay;
 
@@ -18,5 +19,6 @@ pub use constants::*;
 pub use control::*;
 pub use identifier::*;
 pub use identity::*;
+pub use lan::*;
 pub use record::*;
 pub use relay::*;
