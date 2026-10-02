@@ -86,15 +86,14 @@ pub enum CborError {
 }
 
 /// A strict canonical CBOR reader over one top-level item (quick-v2 §12.1).
-pub(crate) struct CborReader<'a> {
+pub struct CborReader<'a> {
     input: &'a [u8],
     position: usize,
 }
 
-#[allow(dead_code, reason = "shared by the relay, control and region codecs")]
 impl<'a> CborReader<'a> {
     /// Starts reading `input` after enforcing the caller's maximum size.
-    pub(crate) fn new(input: &'a [u8], maximum: usize) -> Result<Self, CborError> {
+    pub fn new(input: &'a [u8], maximum: usize) -> Result<Self, CborError> {
         if input.len() > maximum {
             return Err(CborError::TooLarge {
                 length: input.len(),
@@ -105,7 +104,7 @@ impl<'a> CborReader<'a> {
     }
 
     /// Reads an array head with exactly `expected` elements.
-    pub(crate) fn array(&mut self, expected: u64) -> Result<(), CborError> {
+    pub fn array(&mut self, expected: u64) -> Result<(), CborError> {
         let actual = self.typed_head(MAJOR_ARRAY)?;
         if actual == expected {
             Ok(())
@@ -115,7 +114,7 @@ impl<'a> CborReader<'a> {
     }
 
     /// Reads an array head with at most `maximum` elements and returns the count.
-    pub(crate) fn array_up_to(&mut self, maximum: usize) -> Result<usize, CborError> {
+    pub fn array_up_to(&mut self, maximum: usize) -> Result<usize, CborError> {
         let actual = self.typed_head(MAJOR_ARRAY)?;
         usize::try_from(actual)
             .ok()
@@ -127,12 +126,12 @@ impl<'a> CborReader<'a> {
     }
 
     /// Reads an unsigned integer.
-    pub(crate) fn uint(&mut self) -> Result<u64, CborError> {
+    pub fn uint(&mut self) -> Result<u64, CborError> {
         self.typed_head(MAJOR_UINT)
     }
 
     /// Reads a byte string of exactly `N` bytes.
-    pub(crate) fn fixed_bytes<const N: usize>(&mut self) -> Result<[u8; N], CborError> {
+    pub fn fixed_bytes<const N: usize>(&mut self) -> Result<[u8; N], CborError> {
         let length = self.typed_head(MAJOR_BYTES)?;
         if length != N as u64 {
             return Err(CborError::StringLength {
@@ -146,19 +145,19 @@ impl<'a> CborReader<'a> {
     }
 
     /// Reads a byte string of at most `maximum` bytes.
-    pub(crate) fn bytes_up_to(&mut self, maximum: usize) -> Result<&'a [u8], CborError> {
+    pub fn bytes_up_to(&mut self, maximum: usize) -> Result<&'a [u8], CborError> {
         let length = self.string_length(MAJOR_BYTES, maximum)?;
         self.slice(length)
     }
 
     /// Reads a UTF-8 text string of at most `maximum` bytes.
-    pub(crate) fn text_up_to(&mut self, maximum: usize) -> Result<&'a str, CborError> {
+    pub fn text_up_to(&mut self, maximum: usize) -> Result<&'a str, CborError> {
         let length = self.string_length(MAJOR_TEXT, maximum)?;
         std::str::from_utf8(self.slice(length)?).map_err(|_| CborError::InvalidUtf8)
     }
 
     /// Reads `false` or `true`.
-    pub(crate) fn boolean(&mut self) -> Result<bool, CborError> {
+    pub fn boolean(&mut self) -> Result<bool, CborError> {
         match self.simple()? {
             FALSE => Ok(false),
             TRUE => Ok(true),
@@ -167,7 +166,7 @@ impl<'a> CborReader<'a> {
     }
 
     /// Reads `null`.
-    pub(crate) fn null(&mut self) -> Result<(), CborError> {
+    pub fn null(&mut self) -> Result<(), CborError> {
         match self.simple()? {
             NULL => Ok(()),
             _ => Err(CborError::UnexpectedType),
@@ -175,7 +174,7 @@ impl<'a> CborReader<'a> {
     }
 
     /// Consumes a `null` and returns true, or returns false without consuming anything.
-    pub(crate) fn take_null(&mut self) -> bool {
+    pub fn take_null(&mut self) -> bool {
         if self.input.get(self.position) == Some(&NULL) {
             self.position += 1;
             true
@@ -185,12 +184,12 @@ impl<'a> CborReader<'a> {
     }
 
     /// Returns the bytes consumed so far.
-    pub(crate) fn consumed(&self) -> &'a [u8] {
+    pub fn consumed(&self) -> &'a [u8] {
         self.input.get(..self.position).unwrap_or_default()
     }
 
     /// Requires that the whole input has been consumed.
-    pub(crate) fn finish(self) -> Result<(), CborError> {
+    pub fn finish(self) -> Result<(), CborError> {
         if self.position == self.input.len() {
             Ok(())
         } else {
@@ -298,57 +297,56 @@ impl<'a> CborReader<'a> {
 
 /// A writer producing exactly the canonical form accepted by [`CborReader`] (quick-v2 §12.1).
 #[derive(Default)]
-pub(crate) struct CborWriter {
+pub struct CborWriter {
     output: Vec<u8>,
 }
 
-#[allow(dead_code, reason = "shared by the relay, control and region codecs")]
 impl CborWriter {
     /// Starts an empty writer with `capacity` reserved bytes.
-    pub(crate) fn with_capacity(capacity: usize) -> Self {
+    pub fn with_capacity(capacity: usize) -> Self {
         Self {
             output: Vec::with_capacity(capacity),
         }
     }
 
     /// Writes an array head of `length` elements.
-    pub(crate) fn array(&mut self, length: usize) -> &mut Self {
+    pub fn array(&mut self, length: usize) -> &mut Self {
         self.head(MAJOR_ARRAY, length as u64)
     }
 
     /// Writes an unsigned integer.
-    pub(crate) fn uint(&mut self, value: u64) -> &mut Self {
+    pub fn uint(&mut self, value: u64) -> &mut Self {
         self.head(MAJOR_UINT, value)
     }
 
     /// Writes a byte string.
-    pub(crate) fn bytes(&mut self, value: &[u8]) -> &mut Self {
+    pub fn bytes(&mut self, value: &[u8]) -> &mut Self {
         self.head(MAJOR_BYTES, value.len() as u64);
         self.output.extend_from_slice(value);
         self
     }
 
     /// Writes a text string.
-    pub(crate) fn text(&mut self, value: &str) -> &mut Self {
+    pub fn text(&mut self, value: &str) -> &mut Self {
         self.head(MAJOR_TEXT, value.len() as u64);
         self.output.extend_from_slice(value.as_bytes());
         self
     }
 
     /// Writes `false` or `true`.
-    pub(crate) fn boolean(&mut self, value: bool) -> &mut Self {
+    pub fn boolean(&mut self, value: bool) -> &mut Self {
         self.output.push(if value { TRUE } else { FALSE });
         self
     }
 
     /// Writes `null`.
-    pub(crate) fn null(&mut self) -> &mut Self {
+    pub fn null(&mut self) -> &mut Self {
         self.output.push(NULL);
         self
     }
 
     /// Returns the encoded bytes.
-    pub(crate) fn into_bytes(self) -> Vec<u8> {
+    pub fn into_bytes(self) -> Vec<u8> {
         self.output
     }
 

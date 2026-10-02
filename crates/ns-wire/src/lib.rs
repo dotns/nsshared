@@ -15,7 +15,7 @@ mod region;
 mod relay;
 
 pub use alias::*;
-pub use codec::CborError;
+pub use codec::{CborError, CborReader, CborWriter};
 pub use constants::*;
 pub use control::*;
 pub use identifier::*;
