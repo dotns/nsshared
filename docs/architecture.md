@@ -12,7 +12,7 @@ previous workspace is archived at tag `archive/v1-20261002`.
 
 | Crate | Contract | Encoded by |
 | --- | --- | --- |
-| `quick-wire` | Quick identities, addresses, key bindings, pairing tokens, introductions, aliases, names, relay packets, region member protocol, in-tunnel control records | nsgw quick relay and Quick nodes |
+| `ns-wire` | NS protocol v2 wire formats: identities, node records, relay packets, region and in-tunnel control messages | nsgw quick relay and Quick nodes |
 | `quick-rendezvous` | Invitation locators, identity proofs, encrypted handoffs; target rendezvous v2 mailbox messages | nsgw quick relay and Quick nodes |
 
 Both crates are pure: no I/O, no async runtime, no TLS. They forbid `unsafe`
@@ -20,9 +20,9 @@ and deny `unwrap`, `expect` and `panic` outside tests.
 
 ## Conformance
 
-`crates/quick-wire/tests/fixtures` holds conformance vectors. Vectors are
+`crates/ns-wire/tests/fixtures` holds conformance vectors. Vectors are
 produced by generators that implement the specification directly and never
-call `quick-wire`, so the vectors cross-check the Rust implementation.
+call `ns-wire`, so the vectors cross-check the Rust implementation.
 `just vectors-check` reruns the generators in check mode.
 
 ## Consumers
