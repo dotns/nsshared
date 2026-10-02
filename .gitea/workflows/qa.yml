@@ -1,0 +1,106 @@
+name: QA
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - next
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qa-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  RUSTUP_TOOLCHAIN: 1.96.0
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
+
+jobs:
+  qa:
+    name: Workspace QA
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Install Rust toolchain
+        run: |
+          set -euo pipefail
+          rustup_version=1.29.0
+          rustup_sha256=4acc9acc76d5079515b46346a485974457b5a79893cfb01112423c89aeb5aa10
+          rustup_tmp="$(mktemp -d)"
+          rustup_init="$rustup_tmp/rustup-init"
+          trap 'rm -rf "$rustup_tmp"' EXIT
+
+          curl --proto '=https' --tlsv1.2 --location --fail --silent --show-error \
+            --connect-timeout 15 --max-time 60 \
+            --output "$rustup_init" \
+            "https://static.rust-lang.org/rustup/archive/${rustup_version}/x86_64-unknown-linux-gnu/rustup-init"
+          printf '%s  %s\n' "$rustup_sha256" "$rustup_init" \
+            | sha256sum --check --status
+          chmod 0755 "$rustup_init"
+          "$rustup_init" -y \
+            --profile minimal \
+            --default-toolchain "$RUSTUP_TOOLCHAIN" \
+            --component rustfmt \
+            --component clippy
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32
+        with:
+          prefix-key: ns-shared-qa-v1
+          shared-key: workspace
+          add-job-id-key: "false"
+          add-rust-environment-hash-key: "true"
+          cache-targets: "true"
+          cache-bin: "true"
+          save-if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+          # Build outputs stay valid when a test fails.
+          cache-on-failure: "true"
+
+      - name: Install just
+        run: |
+          set -euo pipefail
+          . "$HOME/.cargo/env"
+          just_version=1.54.0
+          just_asset="just-${just_version}-x86_64-unknown-linux-musl.tar.gz"
+          just_url="https://github.com/casey/just/releases/download/${just_version}/${just_asset}"
+          just_sha256=193e2b04bac8ff3568ff81cf62f8c9db08f8083e16665e28d400dd35bac47ffd
+          just_tmp="$(mktemp -d)"
+          trap 'rm -rf "$just_tmp"' EXIT
+
+          if curl --proto '=https' --tlsv1.2 --location --fail --silent --show-error \
+            --connect-timeout 15 --max-time 30 \
+            --output "$just_tmp/$just_asset" "$just_url"
+          then
+            if ! printf '%s  %s\n' "$just_sha256" "$just_tmp/$just_asset" \
+              | sha256sum --check --status
+            then
+              echo "error: just ${just_version} checksum mismatch" >&2
+              exit 1
+            fi
+            tar -xzf "$just_tmp/$just_asset" -C "$just_tmp" just
+            install -m 0755 "$just_tmp/just" "$HOME/.cargo/bin/just"
+          else
+            echo "warning: just binary download failed; falling back to locked cargo install" >&2
+            cargo install --locked just --version "$just_version"
+          fi
+
+      - name: Install QA tools
+        run: |
+          set -euo pipefail
+          . "$HOME/.cargo/env"
+          bash scripts/install-qa-tools.sh
+
+      - name: Run workspace QA
+        run: |
+          set -euo pipefail
+          . "$HOME/.cargo/env"
+          timeout --signal=TERM --kill-after=30s 30m just qa
