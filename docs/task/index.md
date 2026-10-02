@@ -105,3 +105,8 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20260927-2148-region-quick-frames Region quick frames and extended region HELLO**](20260927-2148-region-quick-frames.md) `P1`
 - [x] [**20260927-2212-region-quick-owner-decision Region quick owner agreement decision**](20260927-2212-region-quick-owner-decision.md) `P1`
 - [x] [**20260929-2150-relay-placement-probe-set Add the gateway probe-set projection type**](20260929-2150-relay-placement-probe-set.md) `P2`
+- [x] [**20261002-1516-next-workspace-baseline Build the next workspace on the Rust baseline**](20261002-1516-next-workspace-baseline.md) `P1`
+- [ ] [**20261002-1516-quick-wire Complete the quick-wire protocol crate**](20261002-1516-quick-wire.md) `P1`
+- [ ] [**20261002-1516-quick-vectors Generate the Quick conformance vectors independently**](20261002-1516-quick-vectors.md) `P1`
+- [ ] [**20261002-1516-quick-rendezvous Define the quick-rendezvous message types**](20261002-1516-quick-rendezvous.md) `P1`
+- [ ] [**20261002-1516-quick-consumers Move nsgw and ns onto the shared Quick crates**](20261002-1516-quick-consumers.md) `P2`
