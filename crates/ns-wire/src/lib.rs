@@ -10,6 +10,7 @@ mod control;
 mod identifier;
 mod identity;
 mod record;
+mod region;
 mod relay;
 
 pub use alias::*;
@@ -19,4 +20,5 @@ pub use control::*;
 pub use identifier::*;
 pub use identity::*;
 pub use record::*;
+pub use region::*;
 pub use relay::*;
