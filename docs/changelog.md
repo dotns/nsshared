@@ -1,3 +1,15 @@
+## 2026-10-02 [feat]
+
+Replace `quick-wire` with `ns-wire`, the NS protocol v2 wire layer (docs
+`ns/quick-v2.md`): identity derivations (node ID, address group, `lan6`, alias
+candidates), node records and the §3.3 ordering state, relay packets v2 with
+REGISTER admission, session key and MACs, the region member protocol v2 and the
+in-tunnel control messages. There is no v1 compatibility: KeyBinding,
+INTRO / INTRO_ACK, `revoked_through` and the region QUICK frames are gone. The
+consumers, the nsgw quick relay and ns, switch to `ns-wire` in migration
+milestone M5 (plan P2). See [ns-wire spec coverage](spec-coverage/ns-wire.md)
+and [ns-wire protocol crate](task/20261002-1516-quick-wire.md).
+
 ## 2026-10-02 [refactor]
 
 Rebuild ns-shared on `next` around the Quick protocol. The workspace starts
