@@ -34,6 +34,11 @@ pub const MAX_RELAY_DATA_BODY_BYTES: usize = 2019;
 /// Accepted REGISTER `ts` skew in seconds, in either direction (quick-v2 §12.3).
 pub const REGISTER_TS_WINDOW_SECONDS: u64 = 120;
 
+/// Relay WSS URL path, `wss://host:port/ns/v2` (quick-v2 §8.5).
+pub const RELAY_WSS_PATH: &str = "/ns/v2";
+/// Relay WSS subprotocol (quick-v2 §8.5).
+pub const RELAY_WSS_SUBPROTOCOL: &str = "ns-relay-v2";
+
 /// Minimum presence TTL in seconds (quick-v2 §12.3).
 pub const MIN_PRESENCE_TTL_SECONDS: u64 = 30;
 /// Maximum presence TTL in seconds (quick-v2 §12.3).

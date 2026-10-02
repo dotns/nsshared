@@ -456,6 +456,8 @@ dependencies = [
  "base64",
  "blake2",
  "ed25519-dalek",
+ "hkdf",
+ "hmac",
  "proptest",
  "sha2",
  "thiserror",
