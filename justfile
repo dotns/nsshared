@@ -14,7 +14,7 @@ dev-check: fmt-check lint
 qa: qa-checks qa-tests
 
 # Static checks: formatting, lints, supply chain and spelling
-qa-checks: fmt-check lint deny shear typos
+qa-checks: fmt-check lint deny shear typos vectors-check
 
 # Tests: nextest plus the doctests nextest does not run
 qa-tests: test doc
@@ -46,3 +46,11 @@ shear:
 
 typos:
     typos --config typos.toml
+
+# Regenerate the spec-derived test vector fixtures
+vectors:
+    python3 tools/vectors/generate.py
+
+# Check that the committed test vector fixtures match the generator
+vectors-check:
+    python3 tools/vectors/generate.py --check
