@@ -1,6 +1,6 @@
 [package]
-name = "quick-rendezvous"
-description = "Quick rendezvous messages: invitation locators, identity proofs and encrypted handoffs"
+name = "ns-rendezvous"
+description = "NS rendezvous v2 (/quick/v2): mailbox, registry and pairing messages"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,15 +9,15 @@ authors.workspace = true
 publish.workspace = true
 
 [dependencies]
-chacha20poly1305.workspace = true
+base64.workspace = true
+blake2.workspace = true
 ed25519-dalek.workspace = true
 hkdf.workspace = true
-getrandom.workspace = true
+ns-wire.workspace = true
 serde.workspace = true
-serde_json.workspace = true
+serde_json = { workspace = true, features = ["raw_value"] }
 sha2.workspace = true
 thiserror.workspace = true
-url.workspace = true
 x25519-dalek.workspace = true
 zeroize.workspace = true
 
