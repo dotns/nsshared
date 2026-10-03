@@ -639,7 +639,17 @@ impl Mailbox {
 ///
 /// [`ErrorCode::Capacity`] when `stored` already reaches the limit.
 pub const fn check_stored_mailboxes(stored: usize) -> Result<(), ErrorCode> {
-    if stored >= MAX_MAILBOXES {
+    check_stored_mailboxes_within(stored, MAX_MAILBOXES)
+}
+
+/// [`check_stored_mailboxes`] against a configured `limit` instead of the production
+/// default; every §6 limit is a relay configuration item (rendezvous §6).
+///
+/// # Errors
+///
+/// [`ErrorCode::Capacity`] when `stored` already reaches `limit`.
+pub const fn check_stored_mailboxes_within(stored: usize, limit: usize) -> Result<(), ErrorCode> {
+    if stored >= limit {
         Err(ErrorCode::Capacity)
     } else {
         Ok(())
@@ -653,7 +663,16 @@ pub const fn check_stored_mailboxes(stored: usize) -> Result<(), ErrorCode> {
 ///
 /// [`ErrorCode::Capacity`] when `active` already reaches the limit.
 pub const fn check_actor_mailboxes(active: usize) -> Result<(), ErrorCode> {
-    if active >= MAX_MAILBOXES_PER_ACTOR {
+    check_actor_mailboxes_within(active, MAX_MAILBOXES_PER_ACTOR)
+}
+
+/// [`check_actor_mailboxes`] against a configured `limit` (rendezvous §6).
+///
+/// # Errors
+///
+/// [`ErrorCode::Capacity`] when `active` already reaches `limit`.
+pub const fn check_actor_mailboxes_within(active: usize, limit: usize) -> Result<(), ErrorCode> {
+    if active >= limit {
         Err(ErrorCode::Capacity)
     } else {
         Ok(())
@@ -667,8 +686,21 @@ pub const fn check_actor_mailboxes(active: usize) -> Result<(), ErrorCode> {
 ///
 /// [`ErrorCode::QueueFull`] when the total would exceed the limit.
 pub const fn check_queued_bytes(queued: usize, additional: usize) -> Result<(), ErrorCode> {
+    check_queued_bytes_within(queued, additional, MAX_QUEUED_BYTES)
+}
+
+/// [`check_queued_bytes`] against a configured `limit` (rendezvous §6).
+///
+/// # Errors
+///
+/// [`ErrorCode::QueueFull`] when the total would exceed `limit`.
+pub const fn check_queued_bytes_within(
+    queued: usize,
+    additional: usize,
+    limit: usize,
+) -> Result<(), ErrorCode> {
     match queued.checked_add(additional) {
-        Some(total) if total <= MAX_QUEUED_BYTES => Ok(()),
+        Some(total) if total <= limit => Ok(()),
         _ => Err(ErrorCode::QueueFull),
     }
 }
@@ -680,7 +712,27 @@ pub const fn check_queued_bytes(queued: usize, additional: usize) -> Result<(), 
 ///
 /// [`ErrorCode::Capacity`] when the connection or the broker already holds the limit.
 pub const fn check_pending_recv(on_connection: usize, global: usize) -> Result<(), ErrorCode> {
-    if on_connection >= MAX_PENDING_RECV_PER_CONNECTION || global >= MAX_PENDING_RECV {
+    check_pending_recv_within(
+        on_connection,
+        global,
+        MAX_PENDING_RECV_PER_CONNECTION,
+        MAX_PENDING_RECV,
+    )
+}
+
+/// [`check_pending_recv`] against configured per-connection and global limits
+/// (rendezvous §6).
+///
+/// # Errors
+///
+/// [`ErrorCode::Capacity`] when the connection or the broker already holds its limit.
+pub const fn check_pending_recv_within(
+    on_connection: usize,
+    global: usize,
+    per_connection_limit: usize,
+    global_limit: usize,
+) -> Result<(), ErrorCode> {
+    if on_connection >= per_connection_limit || global >= global_limit {
         Err(ErrorCode::Capacity)
     } else {
         Ok(())
