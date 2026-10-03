@@ -265,7 +265,9 @@ checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 name = "nsshared-mock-rendezvous"
 version = "0.1.0"
 dependencies = [
+ "ed25519-dalek",
  "nsshared-rendezvous",
+ "nsshared-wire",
  "rand_core 0.10.1",
  "tokio",
 ]

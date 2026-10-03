@@ -12,3 +12,4 @@
 pub mod config;
 pub mod mailbox;
 pub mod rate;
+pub mod registry;

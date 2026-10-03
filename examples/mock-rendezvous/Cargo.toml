@@ -17,8 +17,12 @@ path = "src/main.rs"
 
 [dependencies]
 nsshared-rendezvous.workspace = true
+nsshared-wire.workspace = true
 rand_core.workspace = true
 tokio = { workspace = true, features = ["sync"] }
+
+[dev-dependencies]
+ed25519-dalek.workspace = true
 
 [lints]
 workspace = true
