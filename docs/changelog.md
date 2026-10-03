@@ -1,3 +1,128 @@
+## 2026-10-03 [feat]
+
+Add `examples/mock-relay`, the `nsshared-mock-relay` example: a single-instance,
+in-memory relay v2 mock (docs `ns/quick-v2.md` §8) for tests, as a library
+(`MockRelay`, a sans-IO `Relay` core over `nsshared-wire`, `testing` node
+helpers) and a binary. It serves the UDP carrier and the WSS carrier
+(`wss://host:port/ns/v2`, subprotocol `ns-relay-v2`, self-signed or PEM
+certificate) on one port, admits REGISTER, confirms sessions by PRESENCE and
+forwards DATA between them. It is not a production relay: no region or mesh
+replication, no owner fencing, no persistence and only simple per-node limits.
+Integration tests cover two-node DATA over UDP, WSS and mixed carriers, and the
+ns `RelayClient` byte layout. Not published.
+
+## 2026-10-03 [feat]
+
+Add `nsshared-mock-rendezvous` (`examples/mock-rendezvous`, `publish = false`),
+a single-instance mock of the NS rendezvous v2 relay for ns development and
+tests: `wss://{host:port}/quick/v2` with subprotocol `ns-quick-v2`, the
+connection challenge and actor `hello`, the mailbox broker with the `recv`
+long poll and sweeps, `directory` (its own entry or a configured directory)
+and the node registry (`publish`, `lookup_node`, §3.3 ordering and the
+conflict latch), with every rendezvous §6 and quick-v2 §7.4 limit
+configurable. One instance, no region: frames 10-12 are not served and the
+registry shard is the mock itself. All protocol rules come from
+`nsshared-rendezvous`. It interoperates with the ns overlay registry client
+and Quick pairing; integration tests drive pairing, transfer admission,
+the registry and the limits over TLS WebSocket. Embeddable as a library
+(`RendezvousServer`) or run as the `nsshared-mock-rendezvous` binary with a
+self-signed or PEM certificate. See `examples/mock-rendezvous/README.md`.
+
+## 2026-10-03 [feat]
+
+Add typed keys to `nsshared-wire` (quick-v2 §2.1, §2.3): `IdentityKey` (Ed25519 `I`,
+unpadded base64url text, node ID, address group, `N6`, `N4`, `lan6` and alias
+derivations by delegation), `IdentitySecret` (seed, OS-random generation, signing-key
+adapter), `WgSessionKey` and `WgSessionSecret` (X25519 `K`, `wg`-compatible padded base64),
+with strict text parsing, typed `KeyParseError`, redacted `Debug` and zeroize on drop for
+secrets. The module docs map each ns `NodeIdentity` helper to its replacement. Existing
+raw-byte APIs are unchanged.
+
+## 2026-10-03 [feat]
+
+Add `nsshared-telemetry`, the telemetry conventions shared with NS:
+`tracing` subscriber setup as composable pieces (`LogFormat` text or JSON, an
+env filter read from a configurable variable with a default directive, the
+boxed fmt layer, and `init`, which fails on an invalid filter or a second
+call), the `Redacted` wrapper with `SENSITIVE_FIELDS` (the NS forbidden
+labels), and the `path`, `transport` and `peer_source` label keys with their
+`Path`, `Transport` and `PeerSource` values. No OpenTelemetry dependency and
+no exporter; NS `metrics.rs` names no metric carrying these labels, so no
+metric name is shared yet.
+
+## 2026-10-03 [docs]
+
+Add the [v1 crate analysis](design/v1-crate-analysis.md), which classifies
+every part of the archived v1 `control`, `common`, `acl` and `tunnel-ws`
+crates into: returns in P3b as the `nsshared-control` v2 contract, moves to
+`nsplane-acl`, stays in ns, or is superseded by `nsshared-wire` /
+`nsshared-rendezvous` or dropped. The P3a plan is now implementing, with an
+owner amendment: the path is nsshared -> ns -> nsgw with nsgw deferred,
+nsshared ships libraries only (mocks for ns live under `examples/` as
+unpublished workspace members), and only a single relay instance is in scope.
+
+## 2026-10-03 [refactor]
+
+Drop the `ns-` prefix from the crate names: the wire and rendezvous crates are
+now `nsshared-wire` and `nsshared-rendezvous` (libraries `nsshared_wire`,
+`nsshared_rendezvous`), and the repository is now nsshared
+(`https://git.pvv.cc/nsiod/nsshared.git`); no behaviour change.
+Consumers update their dependency keys and git URLs.
+
+## 2026-10-03 [feat]
+
+Replace the v1 rendezvous crate with `nsshared-rendezvous`, the NS rendezvous v2
+messages (docs `ns/rendezvous.md`, `ns/quick-v2.md` §7, §10.2): the
+`/quick/v2` JSON transport, capability tokens, the connection challenge and
+actor `hello`, the relay directory v2 and its update rules, error codes and
+broker limits, the mailbox model with its phase rules as pure checks, the node
+registry (publish proof, HRW sharding, §3.3 acceptance, `lookup_node`),
+pairing Invite / Join / ACCEPT / COMPLETE payloads and the PSK, and the region
+frame bodies of types 10 RENDEZVOUS_REQUEST, 11 RENDEZVOUS_RESPONSE and
+12 REGISTRY_RECORD. In `nsshared-wire`, types 10-12 are control-connection only,
+types 10 and 11 may reach 20480 bytes on the control connection, a NodeRecord
+with a service period above 604800 s is invalid, and the canonical CBOR reader
+and writer are public. See
+[nsshared-rendezvous spec coverage](spec-coverage/nsshared-rendezvous.md).
+
+## 2026-10-03 [feat]
+
+Add `tools/vectors`, an independent conformance vector generator: Python
+standard library only, implementing the specification text directly and
+self-tested against RFC 8032, 7748, 5869 and 8949 vectors. It writes `.vec`
+fixtures for both crates (identities, `lan6`, alias candidates, node records,
+relay packets, control messages, region frames; hello signatures, registry
+proofs and shard order, pairing payloads, `/quick/v2` JSON messages, region
+frames 10-12), which the `vectors_*` tests consume byte for byte.
+`just vectors` regenerates them and `just vectors-check`, part of `just qa`,
+verifies them. See [nsshared-rendezvous spec coverage](spec-coverage/nsshared-rendezvous.md)
+(Vectors) and [Quick conformance vectors](task/20261002-1516-quick-vectors.md).
+
+## 2026-10-02 [feat]
+
+Replace `quick-wire` with `nsshared-wire`, the NS protocol v2 wire layer (docs
+`ns/quick-v2.md`): identity derivations (node ID, address group, `lan6`, alias
+candidates), node records and the §3.3 ordering state, relay packets v2 with
+REGISTER admission, session key and MACs, the region member protocol v2 and the
+in-tunnel control messages. There is no v1 compatibility: KeyBinding,
+INTRO / INTRO_ACK, `revoked_through` and the region QUICK frames are gone. The
+consumers, the nsgw quick relay and ns, switch to `nsshared-wire` in migration
+milestone M5 (plan P2). See [nsshared-wire spec coverage](spec-coverage/nsshared-wire.md)
+and [nsshared-wire protocol crate](task/20261002-1516-quick-wire.md).
+
+## 2026-10-02 [refactor]
+
+Rebuild ns-shared on `next` around the Quick protocol. The workspace starts
+with `quick-wire` (from `keynet-proto`) and the v1 rendezvous crate (from
+`keynet-quick`) on the pma-rust baseline: workspace lints that also deny
+`unwrap`, `expect` and `panic` outside tests, rustfmt 2024 style, latest stable
+dependencies (`ed25519-dalek` and `x25519-dalek` 3, `blake2` 0.11, `getrandom`
+0.4 instead of `rand_core`'s removed OS RNG), cargo-shear with
+`--deny-warnings`, doctests, the vector checks in `just qa`, and a Gitea QA
+workflow. The previous workspace is archived at tag `archive/v1-20261002`.
+Consumers move to Cargo git dependencies pinned by tag. See
+[next workspace baseline](task/20261002-1516-next-workspace-baseline.md).
+
 ## 2026-09-29 [feat]
 
 Add the gateway probe set. `GatewayWgRelayConfig` gains an optional
