@@ -54,9 +54,9 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**HYG-001 Commit lockfile for reproducible QA**](HYG-001.md) `P1`
 - [x] [**EGRESS-002 Carry GatewayEgress selected owner hint**](EGRESS-002.md) `P0`
 - [x] [**EDGE-004 Add public edge upstream TLS policy contract**](EDGE-004.md) `P0`
-- [-] [**CTRL-015 Add RouteEntry.aliases wire field for custom service-domain aliases**](CTRL-015.md) `P1`
-- [ ] [**CTRL-016 Add config-stream idle read deadline and control-socket TCP keepalive**](CTRL-016.md) `P1`
-- [ ] [**CTRL-017 Decide cross-repo stale-policy bound for control-plane loss**](CTRL-017.md) `P1`
+- [~] [**CTRL-015 Add RouteEntry.aliases wire field for custom service-domain aliases**](CTRL-015.md) `P1`
+- [~] [**CTRL-016 Add config-stream idle read deadline and control-socket TCP keepalive**](CTRL-016.md) `P1`
+- [~] [**CTRL-017 Decide cross-repo stale-policy bound for control-plane loss**](CTRL-017.md) `P1`
 - [x] [**USAGE-001 Define gateway.usage_report wire contract**](USAGE-001.md) `P1`
 - [x] [**EDGE-005 Add route-level upstream authority wire contract**](EDGE-005.md) `P0`
 - [x] [**CTRL-018 Surface typed candidate-report rate limits**](CTRL-018.md) `P1`
@@ -73,9 +73,9 @@ Each task is a single line linking to its detail file. All detailed information 
 
 ### Unified node capability and subnet-route contracts (PLAN-015)
 
-- [-] [**NODE-001 Define unified node capability and subnet-route contracts**](NODE-001.md) `P0`
-- [-] [**NODE-002 Give the approved-subnet-route projection a consumer channel**](NODE-002.md) `P0`
-- [-] [**NODE-003 Carry the control plane's overlay address assignment to the node**](NODE-003.md) `P0`
+- [~] [**NODE-001 Define unified node capability and subnet-route contracts**](NODE-001.md) `P0`
+- [~] [**NODE-002 Give the approved-subnet-route projection a consumer channel**](NODE-002.md) `P0`
+- [~] [**NODE-003 Carry the control plane's overlay address assignment to the node**](NODE-003.md) `P0`
 
 ### WireGuard plaintext MTU default (ns PLAN-129)
 
@@ -87,14 +87,14 @@ Each task is a single line linking to its detail file. All detailed information 
 
 - [x] [**COMPAT-001 Restore relay interoperability with current NS nodes**](COMPAT-001.md) `P0`
 
-- [-] [**SH-MESH-001：定义 Mesh wire 类型与兼容向量**](SH-MESH-001.md) `P1`
-- [-] [**SH-MESH-002：实现确定性成员归约与恢复摘要**](SH-MESH-002.md) `P1`
+- [~] [**SH-MESH-001：定义 Mesh wire 类型与兼容向量**](SH-MESH-001.md) `P1`
+- [~] [**SH-MESH-002：实现确定性成员归约与恢复摘要**](SH-MESH-002.md) `P1`
 
 - [x] [**SH-MESH-003 Remove the standalone Mesh shared protocol**](SH-MESH-003.md) `P1`
 - [x] [**20260913-0641-consolidate-keynet-feature-branches Consolidate keynet feature branches**](20260913-0641-consolidate-keynet-feature-branches.md) `P0`
 - [x] [**20260913-0657-clean-keynet-campaign-worktrees Clean retired keynet worktrees**](20260913-0657-clean-keynet-campaign-worktrees.md) `P1`
 - [x] [**20260916 Define the Keynet default context**](20260916-keynet-default-context.md) `P1`
-- [ ] [**20260918-0951-keynet-cascaded-relays Keynet cascaded relays: multi-member relay regions**](20260918-0951-keynet-cascaded-relays.md) `P1`
+- [~] [**20260918-0951-keynet-cascaded-relays Keynet cascaded relays: multi-member relay regions**](20260918-0951-keynet-cascaded-relays.md) `P1`
 - [x] [**20260921-0309-region-frame-codec Region frame codec**](20260921-0309-region-frame-codec.md) `P1`
 - [x] [**20260921-0541-region-marks-join Add region marks join**](20260921-0541-region-marks-join.md) `P1`
 - [x] [**20260921-0634-region-presence-decision Add region presence decision**](20260921-0634-region-presence-decision.md) `P1`

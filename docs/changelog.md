@@ -1,3 +1,11 @@
+## 2026-10-03 [chore]
+
+Close the open v1 tasks and plans as superseded by the v2 protocol and
+migration milestone M6, which redesigns the account contract instead of
+porting it: CTRL-015, CTRL-016, CTRL-017, NODE-001, NODE-002, NODE-003,
+SH-MESH-001, SH-MESH-002, keynet cascaded relays, PLAN-011, PLAN-015,
+PLAN-016. Mark P3a complete; first release `v0.1.0`.
+
 ## 2026-10-03 [feat]
 
 Add `nsshared-mock-server` (`examples/mock-server`, `publish = false`), a

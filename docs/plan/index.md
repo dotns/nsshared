@@ -44,12 +44,12 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**PLAN-008 WG GatewayEgress control contract**](PLAN-008.md) `2026-06-17`
 - [x] [**PLAN-009 Multi-endpoint control-transport fallback**](PLAN-009.md) `implementing`
 - [x] [**PLAN-010 Reproducible ns-shared QA lockfile**](PLAN-010.md) `2026-06-27`
-- [ ] [**PLAN-011 Control-stream stale-policy detection**](PLAN-011.md) `2026-07-03`
+- [~] [**PLAN-011 Control-stream stale-policy detection**](PLAN-011.md) `2026-07-03`
 - [x] [**PLAN-012 Public-edge upstream authority wire contract**](PLAN-012.md) `2026-07-10`
 - [x] [**PLAN-013 Causal scoped WG relay wire contract**](PLAN-013.md) `2026-07-13`
 - [x] [**PLAN-014 Structured framed-WSS tunnel task lifecycle**](PLAN-014.md) `2026-07-25`
-- [-] [**PLAN-015 Unified node capability and subnet-route contracts**](PLAN-015.md) `2026-08-16`
-- [-] [**PLAN-016：Mesh v1 共享 wire 与确定性状态契约**](PLAN-016.md) `2026-09-07`
+- [~] [**PLAN-015 Unified node capability and subnet-route contracts**](PLAN-015.md) `2026-08-16`
+- [~] [**PLAN-016：Mesh v1 共享 wire 与确定性状态契约**](PLAN-016.md) `2026-09-07`
 
 - [x] [**PLAN-019 Remove the standalone Mesh shared protocol**](PLAN-019.md) `2026-09-16`
 - [x] [**PLAN-017 Keynet-proto wire and derivation primitives for keynet v0.6**](PLAN-017.md) `2026-09-13`
@@ -57,7 +57,7 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**20260913-0641-consolidate-keynet-feature-branches Consolidate keynet feature branches**](20260913-0641-consolidate-keynet-feature-branches.md) `2026-09-13`
 - [d] [**Keynet approved design archive**](../decisions/keynet/README.md) `2026-09-13`
 - [x] [**20260913-0657-clean-keynet-campaign-worktrees Clean retired keynet worktrees**](20260913-0657-clean-keynet-campaign-worktrees.md) `2026-09-13`
-- [-] [**20260918-0951-keynet-cascaded-relays Keynet cascaded relays: multi-member relay regions**](20260918-0951-keynet-cascaded-relays.md) `2026-09-18`
+- [~] [**20260918-0951-keynet-cascaded-relays Keynet cascaded relays: multi-member relay regions**](20260918-0951-keynet-cascaded-relays.md) `2026-09-18`
 - [x] [**20260921-0309-region-frame-codec Region frame codec**](20260921-0309-region-frame-codec.md) `2026-09-21`
 - [x] [**20260921-0541-region-marks-join Add region marks join**](20260921-0541-region-marks-join.md) `2026-09-21`
 - [x] [**20260921-0634-region-presence-decision Region presence decision**](20260921-0634-region-presence-decision.md) `2026-09-21`
@@ -68,4 +68,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**20260927-2148-region-quick-frames Region quick frames and extended region HELLO**](20260927-2148-region-quick-frames.md) `2026-09-27`
 - [x] [**20260927-2212-region-quick-owner-decision Region quick owner agreement decision**](20260927-2212-region-quick-owner-decision.md) `2026-09-27`
 - [-] [**20261002-1516-ns-shared-rebuild Rebuild ns-shared around a complete Quick protocol**](20261002-1516-ns-shared-rebuild.md) `2026-10-02`
-- [-] [**20261003-1400-nsshared-p3-release Complete nsshared for its first release (P3a) and publish**](20261003-1400-nsshared-p3-release.md) `2026-10-03`
+- [x] [**20261003-1400-nsshared-p3-release Complete nsshared for its first release (P3a) and publish**](20261003-1400-nsshared-p3-release.md) `2026-10-03`

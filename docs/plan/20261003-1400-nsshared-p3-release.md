@@ -1,6 +1,6 @@
 # 20261003-1400-nsshared-p3-release Complete nsshared for its first release (P3a) and publish
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-10-03 14:00
 - **relatedPlan**: 20261002-1516-ns-shared-rebuild
 
@@ -92,3 +92,10 @@ differs.
 
 - Port all v1 crates now: rejected, M6 rewrites the account contract.
 - Replace `main` with `next` now: rejected until nsgw consumes `next`.
+- 2026-10-03: P3a delivered on `next`: typed keys (`IdentityKey`,
+  `IdentitySecret`, `WgSessionKey`, `WgSessionSecret`) in `nsshared-wire`,
+  `nsshared-telemetry`, `docs/design/v1-crate-analysis.md`, and the ns
+  development mocks `examples/mock-relay`, `examples/mock-rendezvous` and
+  `examples/mock-server`. Item 3: the ns relay carriers need no framing beyond
+  the constants `nsshared-wire` already exports, so no carrier crate was added.
+  Open v1 tasks and plans were closed as superseded by v2 / M6.
