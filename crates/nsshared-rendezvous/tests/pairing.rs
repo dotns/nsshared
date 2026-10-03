@@ -9,9 +9,9 @@ use nsshared_rendezvous::{
     message::{Admission, MailboxId, MessageError},
     pairing::{
         ACCEPT_CONTEXT, DEFAULT_PAIRING_TTL_SECONDS, INVITE_CONTEXT, Invite, JOIN_CONTEXT, Join,
-        KIND_PAIRING, KIND_TRANSFER, MAX_NAME_BYTES, MAX_PAIRING_TTL_SECONDS, MESSAGE_ACCEPT,
-        MESSAGE_COMPLETE, PAIRING_VERSION, PSK_CONTEXT, PairingError, PairingMessage,
-        pairing_open_request, pairing_psk, transfer_open_request, verify_accept,
+        KIND_PAIRING, MAX_NAME_BYTES, MAX_PAIRING_TTL_SECONDS, MESSAGE_ACCEPT, MESSAGE_COMPLETE,
+        PAIRING_VERSION, PSK_CONTEXT, PairingError, PairingMessage, pairing_open_request,
+        pairing_psk, verify_accept,
     },
 };
 use nsshared_wire::{
@@ -189,7 +189,6 @@ fn flip_last(bytes: &[u8]) -> Vec<u8> {
 #[test]
 fn constants_match_the_spec() {
     assert_eq!(KIND_PAIRING, "pairing");
-    assert_eq!(KIND_TRANSFER, "transfer");
     assert_eq!(PAIRING_VERSION, 2);
     assert_eq!(INVITE_CONTEXT, b"ns/pairing-invite/v2");
     assert_eq!(JOIN_CONTEXT, b"ns/pairing-join/v2");
@@ -820,30 +819,6 @@ fn pairing_open_request_maps_rendezvous_9_1() {
     for ttl in [0, MAX_PAIRING_TTL_SECONDS + 1] {
         assert_eq!(
             pairing_open_request(ttl, &invite),
-            Err(PairingError::Open(MessageError::Ttl))
-        );
-    }
-}
-
-#[test]
-fn transfer_open_request_maps_rendezvous_9_2() {
-    let open = transfer_open_request(300, vec![5; 32]).unwrap();
-    assert_eq!(open.kind.as_str(), "transfer");
-    assert_eq!(open.ttl, 300);
-    assert_eq!(open.admission, Admission::First);
-    assert_eq!(open.candidates, 1);
-    assert_eq!(open.intro, vec![5; 32]);
-    assert!(transfer_open_request(1, vec![0; 4096]).is_ok());
-    assert_eq!(
-        transfer_open_request(300, vec![0; 4097]),
-        Err(PairingError::TooLarge {
-            length: 4097,
-            maximum: 4096
-        })
-    );
-    for ttl in [0, 901] {
-        assert_eq!(
-            transfer_open_request(ttl, Vec::new()),
             Err(PairingError::Open(MessageError::Ttl))
         );
     }

@@ -34,12 +34,6 @@ pub const MAX_RELAY_DATA_BODY_BYTES: usize = 2019;
 /// Accepted REGISTER `ts` skew in seconds, in either direction (quick-v2 §12.3).
 pub const REGISTER_TS_WINDOW_SECONDS: u64 = 120;
 
-/// Maximum encoded region frame array length in bytes, prefix excluded, of types 10
-/// RENDEZVOUS_REQUEST and 11 RENDEZVOUS_RESPONSE on the control connection: a whole
-/// 16 KiB rendezvous JSON message plus its forwarding fields. Every other frame, and every
-/// frame on the data connection, stays at 4096 bytes (quick-v2 §8.5, quick-protocol §12.8).
-pub const MAX_REGION_RENDEZVOUS_FRAME_BYTES: usize = 20_480;
-
 /// Relay WSS URL path, `wss://host:port/ns/v2` (quick-v2 §8.5).
 pub const RELAY_WSS_PATH: &str = "/ns/v2";
 /// Relay WSS subprotocol (quick-v2 §8.5).

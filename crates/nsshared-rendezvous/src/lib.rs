@@ -15,7 +15,6 @@ pub mod limits;
 pub mod message;
 pub mod pairing;
 pub mod phase;
-pub mod region;
 pub mod registry;
 pub mod transport;
 

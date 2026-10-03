@@ -14,7 +14,6 @@ use nsshared_rendezvous::{
     error::ErrorCode,
     limits::{MAX_UNACKED_MESSAGES, MAX_WAIT_MS},
     message::{Admission, Digits, Kind, MailboxId, OpenRequest, RecvRequest},
-    pairing::transfer_open_request,
     transport::{MAX_MESSAGE_BYTES, PATH, Request, Response, encode_request},
 };
 use support::{Client, Mock, key, relaxed_limits};
@@ -32,6 +31,16 @@ fn owner_open(candidates: u8) -> OpenRequest {
     }
 }
 
+fn first_open() -> OpenRequest {
+    OpenRequest {
+        kind: Kind::parse("test").unwrap(),
+        ttl: 300,
+        admission: Admission::First,
+        candidates: 1,
+        intro: Vec::new(),
+    }
+}
+
 fn digits(text: &str) -> Digits {
     Digits::parse(text).unwrap()
 }
@@ -43,9 +52,7 @@ async fn admitted(
     peer_key: &SigningKey,
 ) -> (Client, Client, MailboxId) {
     let mut owner = mock.actor(owner_key).await;
-    let opened = owner
-        .open(transfer_open_request(300, Vec::new()).unwrap())
-        .await;
+    let opened = owner.open(first_open()).await;
     let mut peer = mock.actor(peer_key).await;
     peer.join(opened.id, Vec::new()).await.unwrap();
     (owner, peer, opened.id)

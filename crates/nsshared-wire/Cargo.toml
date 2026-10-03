@@ -1,6 +1,6 @@
 [package]
 name = "nsshared-wire"
-description = "NS protocol v2 wire formats: identities, node records, relay packets, region and in-tunnel control messages"
+description = "NS protocol v2 wire formats: identities, node records, relay packets and in-tunnel control messages"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

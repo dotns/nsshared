@@ -12,7 +12,7 @@
 
 use crate::{
     crypto,
-    limits::{MAX_DATA_BYTES, MAX_INTRO_BYTES, MAX_TTL_SECONDS, MIN_TTL_SECONDS},
+    limits::{MAX_DATA_BYTES, MAX_INTRO_BYTES, MIN_TTL_SECONDS},
     message::{Admission, Kind, MailboxId, MessageError, OpenRequest},
 };
 use ed25519_dalek::{Signer, SigningKey};
@@ -25,8 +25,6 @@ use zeroize::Zeroizing;
 
 /// Mailbox kind of pairing (quick-v2 §10.2, rendezvous §9.1).
 pub const KIND_PAIRING: &str = "pairing";
-/// Mailbox kind of file transfer (rendezvous §9.2).
-pub const KIND_TRANSFER: &str = "transfer";
 /// The `ver` of every pairing payload (quick-v2 §10.2).
 pub const PAIRING_VERSION: u8 = 2;
 
@@ -629,30 +627,6 @@ pub fn pairing_open_request(ttl: u64, invite: &Invite) -> Result<OpenRequest, Pa
         admission: Admission::Owner,
         candidates: PAIRING_CANDIDATES,
         intro: invite.as_bytes().to_vec(),
-    })
-}
-
-/// The sender's `open` (rendezvous §9.2): `kind = "transfer"`, `admission = first`,
-/// `candidates = 1`, `intro` the caller's CPace message.
-///
-/// # Errors
-///
-/// [`PairingError::Open`] with [`MessageError::Ttl`] when `ttl` is outside the mailbox
-/// range, or [`PairingError::TooLarge`] when `intro` exceeds 4 KiB.
-pub fn transfer_open_request(ttl: u64, intro: Vec<u8>) -> Result<OpenRequest, PairingError> {
-    check_ttl(ttl, MAX_TTL_SECONDS)?;
-    if intro.len() > MAX_INTRO_BYTES {
-        return Err(PairingError::TooLarge {
-            length: intro.len(),
-            maximum: MAX_INTRO_BYTES,
-        });
-    }
-    Ok(OpenRequest {
-        kind: Kind::parse(KIND_TRANSFER)?,
-        ttl,
-        admission: Admission::First,
-        candidates: 1,
-        intro,
     })
 }
 

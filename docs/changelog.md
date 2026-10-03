@@ -1,3 +1,16 @@
+## 2026-10-03 [refactor]
+
+Keep only protocols shared by several components. Remove the relay region
+member protocol from `nsshared-wire` (region frames, channel rules, snapshot
+chunking, the mark join and `MAX_REGION_RENDEZVOUS_FRAME_BYTES`) and the region
+forwarding bodies 10-12 (`nsshared_rendezvous::region`): only relay instances
+encode them, so they belong to the relay; the last version is in tag `v0.1.0`.
+Remove the file-transfer mailbox mapping (`KIND_TRANSFER`,
+`transfer_open_request`): file transfer is an ns application. Clients keep the
+`region` capability token, the `unavailable` retry rule and the authority
+checks. The `region_frames` and `region_bodies` vectors are dropped. Breaking
+for code that used the removed items.
+
 ## 2026-10-03 [chore]
 
 Close the open v1 tasks and plans as superseded by the v2 protocol and

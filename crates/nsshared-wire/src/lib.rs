@@ -16,7 +16,6 @@ mod identity;
 mod keys;
 mod lan;
 mod record;
-mod region;
 mod relay;
 
 pub use alias::*;
@@ -28,5 +27,4 @@ pub use identity::*;
 pub use keys::*;
 pub use lan::*;
 pub use record::*;
-pub use region::*;
 pub use relay::*;

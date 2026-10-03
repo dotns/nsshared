@@ -1,4 +1,4 @@
-//! Transfer-style `admission = first` over the mock (rendezvous §5.3, §6, §9.2): `join`
+//! `admission = first` over the mock (rendezvous §5.3, §6): `join`
 //! admits at once and unindexes the digits, rejecting the peer reopens the mailbox
 //! under the same digits, and the third peer reject closes it.
 
@@ -8,8 +8,7 @@ mod support;
 
 use nsshared_rendezvous::{
     error::ErrorCode,
-    message::{RejectRequest, Stage},
-    pairing::{KIND_TRANSFER, transfer_open_request},
+    message::{Admission, Kind, OpenRequest, RejectRequest, Stage},
     transport::Request,
 };
 use support::{Mock, key, ok, relaxed_limits};
@@ -20,7 +19,13 @@ async fn first_admission_and_peer_rejects() {
     let owner_key = key(1);
     let mut owner = mock.actor(&owner_key).await;
     let opened = owner
-        .open(transfer_open_request(300, b"cpace-a".to_vec()).unwrap())
+        .open(OpenRequest {
+            kind: Kind::parse("test").unwrap(),
+            ttl: 300,
+            admission: Admission::First,
+            candidates: 1,
+            intro: b"intro-a".to_vec(),
+        })
         .await;
     let id = opened.id;
     let mut observer = mock.actor(&key(9)).await;
@@ -32,11 +37,11 @@ async fn first_admission_and_peer_rejects() {
 
         // The digits locate the open mailbox, the same one every round.
         let found = peer.lookup(&opened.digits).await.unwrap();
-        assert_eq!((found.id, found.kind.as_str()), (id, KIND_TRANSFER));
-        assert_eq!(found.intro, b"cpace-a");
+        assert_eq!((found.id, found.kind.as_str()), (id, "test"));
+        assert_eq!(found.intro, b"intro-a");
 
         // `join` admits immediately and the digits stop resolving.
-        peer.join(id, b"cpace-b".to_vec()).await.unwrap();
+        peer.join(id, b"intro-b".to_vec()).await.unwrap();
         assert_eq!(
             observer.lookup(&opened.digits).await,
             Err(ErrorCode::InvalidCode)

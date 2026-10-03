@@ -1,7 +1,7 @@
 """Deterministic CBOR for the quick-v2 §12.1 subset (RFC 8949 §4.2.1).
 
 Supported items: unsigned integers (shortest form), byte strings, UTF-8 text strings,
-definite-length arrays, booleans (the region frames of quick-v2 §8.5 carry `bool` fields)
+definite-length arrays, booleans
 and null. No floats, tags, maps, negative integers or indefinite lengths. The decoder accepts only the canonical encoding of this subset.
 """
 

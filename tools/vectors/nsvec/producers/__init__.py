@@ -7,12 +7,10 @@ from . import (
     identities,
     lan6,
     node_records,
-    region_frames,
     relay_packets,
     rendezvous_hello,
     rendezvous_mailbox,
     rendezvous_pairing,
-    rendezvous_region,
     rendezvous_registry,
 )
 
@@ -23,10 +21,8 @@ PRODUCERS = [
     node_records,
     relay_packets,
     control_messages,
-    region_frames,
     rendezvous_hello,
     rendezvous_registry,
     rendezvous_pairing,
     rendezvous_mailbox,
-    rendezvous_region,
 ]

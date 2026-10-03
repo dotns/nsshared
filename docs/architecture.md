@@ -12,11 +12,13 @@ previous workspace is archived at tag `archive/v1-20261002`.
 
 | Crate | Contract | Encoded by |
 | --- | --- | --- |
-| `nsshared-wire` | NS protocol v2 wire formats: identities, node records, relay packets, region and in-tunnel control messages | nsgw quick relay and Quick nodes |
-| `nsshared-rendezvous` | NS rendezvous v2 (`/quick/v2`): JSON transport, capabilities, actor `hello`, relay directory v2, mailbox phase rules, node registry, pairing payloads, region frame bodies 10-12 | nsgw quick relay and Quick nodes |
+| `nsshared-wire` | NS protocol v2 wire formats: identities, node records, relay packets and in-tunnel control messages | nsgw quick relay and Quick nodes |
+| `nsshared-rendezvous` | NS rendezvous v2 (`/quick/v2`): JSON transport, capabilities, actor `hello`, relay directory v2, mailbox phase rules, node registry, pairing payloads | nsgw quick relay and Quick nodes |
 | `nsshared-telemetry` | Telemetry conventions: `tracing` subscriber setup (text or JSON, env filter with a default; installs the global subscriber, no exporter), `Redacted` and the sensitive field names, `path` / `transport` / `peer_source` label names and values | NS, the mock servers and the relay |
 
-Both crates are pure: no I/O, no async runtime, no TLS. They forbid `unsafe`
+The protocol crates are pure: no I/O, no async runtime, no TLS. The relay
+region member protocol and application protocols such as file transfer are
+not shared contracts and live with their owners (the relay and ns). They forbid `unsafe`
 and deny `unwrap`, `expect` and `panic` outside tests.
 
 ## Examples

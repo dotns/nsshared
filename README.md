@@ -6,11 +6,11 @@ or enforce. The scope is defined on the docs site (`ns-shared/index.md`).
 This is the `next` workspace, rebuilt around the Quick protocol. It contains:
 
 - `nsshared-wire` — NS protocol v2 wire formats: identities, node records, relay
-  packets, region and in-tunnel control messages (normative source: docs
+  packets and in-tunnel control messages (normative source: docs
   `ns/quick-v2.md`)
 - `nsshared-rendezvous` — NS rendezvous v2 (`/quick/v2`): JSON transport,
   capabilities, actor `hello`, relay directory v2, mailbox phase rules, the
-  node registry, pairing payloads and the region forwarding bodies (normative
+  node registry and pairing payloads (normative
   source: docs `ns/rendezvous.md`, `ns/quick-v2.md` §7, §10.2)
 - `nsshared-telemetry` — shared telemetry conventions: `tracing` subscriber
   setup (text or JSON, env filter with a default), redaction helpers and the
