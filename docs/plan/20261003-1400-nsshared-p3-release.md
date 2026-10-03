@@ -1,6 +1,6 @@
 # 20261003-1400-nsshared-p3-release Complete nsshared for its first release (P3a) and publish
 
-- **status**: proposed
+- **status**: implementing
 - **createdAt**: 2026-10-03 14:00
 - **relatedPlan**: 20261002-1516-ns-shared-rebuild
 
@@ -37,6 +37,7 @@ P3a, contracts that M6 does not change (this release):
 4. Per-crate analysis note in `docs/design/` for `control`, `common`, `acl`,
    `tunnel-ws`: what returns in P3b (with M6), what moves to nsplane
    (`acl` -> `nsplane-acl`), what stays client- or gateway-specific.
+   Analysis: [v1 crate analysis](../design/v1-crate-analysis.md).
 
 Publish:
 
@@ -63,6 +64,29 @@ changelog.
 
 This repository: two crate additions or extensions, one design note, docs,
 QA, tags. ns: one dependency switch. nsgw: none in P3a.
+
+## Amendment 2026-10-03 (owner)
+
+The original text above is kept as proposed; this section governs where it
+differs.
+
+- **Implementation path**: nsshared -> ns -> nsgw. nsgw is not part of this
+  campaign. The following items and risks name nsgw and are deferred:
+  - Context: nsgw consuming nsshared for shared behavior.
+  - Item 1: nsgw dropping its local key helpers (ns still moves).
+  - Item 3: the nsgw `nsgw-relay` side of the shared relay carrier comparison.
+  - Item 4: the gateway-specific class of the analysis (the note classifies
+    without it).
+  - Item 5: keeping `main` on v1 until nsgw moves.
+  - Risks: nsgw CI and Docker fetch credentials; nsgw CI checking out `main`.
+  - Scope: "nsgw: none in P3a" stands.
+  - Alternatives: replacing `main` once nsgw consumes `next`.
+- **Libraries only**: nsshared ships libraries. The mock servers and mock
+  libraries ns needs for development and integration tests live under
+  `examples/` at the workspace root, as workspace members with
+  `publish = false` and the same lint policy.
+- **Single relay instance**: only one relay instance is in scope. Region
+  multi-member operation (mesh replication, owner fencing) is out of scope.
 
 ## Alternatives
 

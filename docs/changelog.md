@@ -10,6 +10,17 @@ labels), and the `path`, `transport` and `peer_source` label keys with their
 no exporter; NS `metrics.rs` names no metric carrying these labels, so no
 metric name is shared yet.
 
+## 2026-10-03 [docs]
+
+Add the [v1 crate analysis](design/v1-crate-analysis.md), which classifies
+every part of the archived v1 `control`, `common`, `acl` and `tunnel-ws`
+crates into: returns in P3b as the `nsshared-control` v2 contract, moves to
+`nsplane-acl`, stays in ns, or is superseded by `nsshared-wire` /
+`nsshared-rendezvous` or dropped. The P3a plan is now implementing, with an
+owner amendment: the path is nsshared -> ns -> nsgw with nsgw deferred,
+nsshared ships libraries only (mocks for ns live under `examples/` as
+unpublished workspace members), and only a single relay instance is in scope.
+
 ## 2026-10-03 [refactor]
 
 Drop the `ns-` prefix from the crate names: the wire and rendezvous crates are
