@@ -12,8 +12,9 @@ use nsshared_rendezvous::{
     },
     message::{Admission, Digits, Kind, MailboxId, OpenRequest, Stage},
     phase::{
-        Actor, IndexChange, Mailbox, Outcome, check_actor_mailboxes, check_pending_recv,
-        check_queued_bytes, check_stored_mailboxes,
+        Actor, IndexChange, Mailbox, Outcome, check_actor_mailboxes, check_actor_mailboxes_within,
+        check_pending_recv, check_pending_recv_within, check_queued_bytes,
+        check_queued_bytes_within, check_stored_mailboxes, check_stored_mailboxes_within,
     },
 };
 
@@ -751,4 +752,48 @@ fn broker_limits() {
     for (on_connection, global, expected) in rows {
         assert_eq!(check_pending_recv(on_connection, global), expected);
     }
+}
+
+#[test]
+fn broker_limits_within_a_configured_limit() {
+    assert_eq!(check_stored_mailboxes_within(1, 2), Ok(()));
+    assert_eq!(
+        check_stored_mailboxes_within(2, 2),
+        Err(ErrorCode::Capacity)
+    );
+    assert_eq!(
+        check_stored_mailboxes_within(0, 0),
+        Err(ErrorCode::Capacity)
+    );
+
+    assert_eq!(check_actor_mailboxes_within(0, 1), Ok(()));
+    assert_eq!(check_actor_mailboxes_within(1, 1), Err(ErrorCode::Capacity));
+
+    assert_eq!(check_queued_bytes_within(5, 5, 10), Ok(()));
+    assert_eq!(
+        check_queued_bytes_within(5, 6, 10),
+        Err(ErrorCode::QueueFull)
+    );
+    assert_eq!(
+        check_queued_bytes_within(usize::MAX, 1, usize::MAX),
+        Err(ErrorCode::QueueFull)
+    );
+
+    assert_eq!(check_pending_recv_within(1, 7, 2, 8), Ok(()));
+    assert_eq!(
+        check_pending_recv_within(2, 0, 2, 8),
+        Err(ErrorCode::Capacity)
+    );
+    assert_eq!(
+        check_pending_recv_within(0, 8, 2, 8),
+        Err(ErrorCode::Capacity)
+    );
+}
+
+#[test]
+fn digits_key_a_lookup_index_by_value() {
+    let mut index = std::collections::HashMap::new();
+    index.insert(Digits::parse("00000001").unwrap(), ID);
+    assert_eq!(index.get(&Digits::parse("00000001").unwrap()), Some(&ID));
+    assert_eq!(index.get(&Digits::parse("00000002").unwrap()), None);
 }

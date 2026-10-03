@@ -155,8 +155,9 @@ pub struct MailboxId(#[serde(with = "transport::bytes")] pub [u8; MAILBOX_ID_BYT
 /// The 8 lookup digits, leading zeros kept; a JSON string on the wire (rendezvous §5.1).
 ///
 /// Digits only locate a mailbox and never authorize, but they are kept out of logs:
-/// `Debug` is redacted and the bytes are zeroized on drop.
-#[derive(Clone, Eq, PartialEq)]
+/// `Debug` is redacted and the bytes are zeroized on drop. `Hash` lets a broker key its
+/// lookup index by digits.
+#[derive(Clone, Eq, Hash, PartialEq)]
 pub struct Digits([u8; DIGITS_LEN]);
 
 impl Digits {

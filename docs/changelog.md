@@ -11,6 +11,56 @@ replication, no owner fencing, no persistence and only simple per-node limits.
 Integration tests cover two-node DATA over UDP, WSS and mixed carriers, and the
 ns `RelayClient` byte layout. Not published.
 
+## 2026-10-03 [feat]
+
+Add `nsshared-mock-rendezvous` (`examples/mock-rendezvous`, `publish = false`),
+a single-instance mock of the NS rendezvous v2 relay for ns development and
+tests: `wss://{host:port}/quick/v2` with subprotocol `ns-quick-v2`, the
+connection challenge and actor `hello`, the mailbox broker with the `recv`
+long poll and sweeps, `directory` (its own entry or a configured directory)
+and the node registry (`publish`, `lookup_node`, §3.3 ordering and the
+conflict latch), with every rendezvous §6 and quick-v2 §7.4 limit
+configurable. One instance, no region: frames 10-12 are not served and the
+registry shard is the mock itself. All protocol rules come from
+`nsshared-rendezvous`. It interoperates with the ns overlay registry client
+and Quick pairing; integration tests drive pairing, transfer admission,
+the registry and the limits over TLS WebSocket. Embeddable as a library
+(`RendezvousServer`) or run as the `nsshared-mock-rendezvous` binary with a
+self-signed or PEM certificate. See `examples/mock-rendezvous/README.md`.
+
+## 2026-10-03 [feat]
+
+Add typed keys to `nsshared-wire` (quick-v2 §2.1, §2.3): `IdentityKey` (Ed25519 `I`,
+unpadded base64url text, node ID, address group, `N6`, `N4`, `lan6` and alias
+derivations by delegation), `IdentitySecret` (seed, OS-random generation, signing-key
+adapter), `WgSessionKey` and `WgSessionSecret` (X25519 `K`, `wg`-compatible padded base64),
+with strict text parsing, typed `KeyParseError`, redacted `Debug` and zeroize on drop for
+secrets. The module docs map each ns `NodeIdentity` helper to its replacement. Existing
+raw-byte APIs are unchanged.
+
+## 2026-10-03 [feat]
+
+Add `nsshared-telemetry`, the telemetry conventions shared with NS:
+`tracing` subscriber setup as composable pieces (`LogFormat` text or JSON, an
+env filter read from a configurable variable with a default directive, the
+boxed fmt layer, and `init`, which fails on an invalid filter or a second
+call), the `Redacted` wrapper with `SENSITIVE_FIELDS` (the NS forbidden
+labels), and the `path`, `transport` and `peer_source` label keys with their
+`Path`, `Transport` and `PeerSource` values. No OpenTelemetry dependency and
+no exporter; NS `metrics.rs` names no metric carrying these labels, so no
+metric name is shared yet.
+
+## 2026-10-03 [docs]
+
+Add the [v1 crate analysis](design/v1-crate-analysis.md), which classifies
+every part of the archived v1 `control`, `common`, `acl` and `tunnel-ws`
+crates into: returns in P3b as the `nsshared-control` v2 contract, moves to
+`nsplane-acl`, stays in ns, or is superseded by `nsshared-wire` /
+`nsshared-rendezvous` or dropped. The P3a plan is now implementing, with an
+owner amendment: the path is nsshared -> ns -> nsgw with nsgw deferred,
+nsshared ships libraries only (mocks for ns live under `examples/` as
+unpublished workspace members), and only a single relay instance is in scope.
+
 ## 2026-10-03 [refactor]
 
 Drop the `ns-` prefix from the crate names: the wire and rendezvous crates are
