@@ -1,5 +1,10 @@
 # Handoff: make `next` the nsshared main line
 
+> Done 2026-10-03: the archive tag is pushed and remote `main` is `next`
+> (tags `v0.1.0`, `v0.2.0`). Still open: switching the local checkout
+> `/srv/dotns/ns-shared` (still on v1 `main`, used by nsgw path dependencies),
+> deleting the old remote branches, and the consumer steps below.
+
 Status on 2026-10-03, for whoever continues the rewrite in this repository.
 
 ## Where things are

@@ -23,3 +23,10 @@ Moving consumers to the shared Quick crates
 ## Notes
 
 Plan: [20261002-1516-ns-shared-rebuild](../plan/20261002-1516-ns-shared-rebuild.md)
+
+2026-10-03 update: the target is `nsshared-proto` at tag `v0.2.0`. Order is
+ns first (switch from the `file://` commit to the remote tag, take over the
+pairing, in-tunnel control, alias, `lan6` and label code removed in `v0.2.0`,
+and move the registry client to `/rendezvous/v1`), then nsgw with the relay v2
+server (migration M2). Both are work in the consumer repositories; this task
+stays open here to track them.

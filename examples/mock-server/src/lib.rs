@@ -67,7 +67,7 @@ impl MockServer {
     ///
     /// # Errors
     ///
-    /// [`Error`] when binding, the configuration or the certificate fails.
+    /// [`enum@Error`] when binding, the configuration or the certificate fails.
     pub async fn bind(mut config: Config) -> Result<(Self, TcpListener), Error> {
         for token in [capability::UDP, capability::WSS] {
             if !config.capabilities.contains(&token) {

@@ -37,6 +37,7 @@ test:
 
 doc:
     cargo test --workspace --doc --locked
+    RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
 
 deny:
     cargo deny --locked check

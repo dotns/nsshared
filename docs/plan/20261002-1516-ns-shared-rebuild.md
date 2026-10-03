@@ -91,3 +91,8 @@ this repository; dependency changes in nsgw and ns in P2.
   ns-shared part of migration milestone M0.
 - 2026-10-02: P1a delivered as crate ns-wire (v2 wire layer); quick-wire deleted. Coverage: docs/spec-coverage/ns-wire.md.
 - 2026-10-03: P1b/P1c delivered as ns-rendezvous and tools/vectors; coverage: docs/spec-coverage/ns-rendezvous.md.
+- 2026-10-03: P0, P1 and P3a are released (`v0.1.0`); `next` replaced `main`
+  on the remote. `v0.2.0` narrowed the scope to generic protocols and merged
+  the protocol crates into `nsshared-proto` (plan
+  `20261003-2300-nsshared-v0-2-scope`). P2 (consumers) remains: ns first, nsgw
+  with migration M2; P3b (control contracts) follows M6.

@@ -193,7 +193,7 @@ impl MockRelay {
     ///
     /// # Errors
     ///
-    /// [`Error`] for an invalid configuration, a failed bind or a bad certificate.
+    /// [`enum@Error`] for an invalid configuration, a failed bind or a bad certificate.
     pub async fn start(config: MockRelayConfig) -> Result<Self, Error> {
         if !config.udp && !config.wss {
             return Err(Error::NoCarrier);
