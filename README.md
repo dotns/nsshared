@@ -21,6 +21,8 @@ This is the `next` workspace, rebuilt around the Quick protocol. It contains:
 - `nsshared-mock-rendezvous` (`examples/mock-rendezvous`, `publish = false`) —
   single-instance `/quick/v2` mock relay (mailbox broker, directory, node
   registry) over TLS WebSocket for ns development and tests
+- `nsshared-mock-server` (`examples/mock-server`, `publish = false`) — both
+  mocks on one `host:port` and certificate (UDP, `/ns/v2`, `/quick/v2`)
 
 `tools/vectors` is an independent Python generator of the conformance vectors
 both crates test against (`just vectors`, `just vectors-check`). Spec

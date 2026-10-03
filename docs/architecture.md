@@ -28,11 +28,14 @@ and tests, `publish = false`, never consumed by production components.
 | --- | --- |
 | `nsshared-mock-relay` | A single-instance, in-memory relay v2 over the UDP and WSS carriers on one port: REGISTER, PRESENCE-confirmed sessions and DATA forwarding, with a sans-IO core built on `nsshared-wire`; no region, mesh or owner fencing. Its integration tests include a client that reproduces the ns `RelayClient` byte layout |
 | `nsshared-mock-rendezvous` | A single-instance `/quick/v2` relay over TLS WebSocket: challenge and `hello`, the mailbox broker, `directory` and the node registry, with every rendezvous §6 and quick-v2 §7.4 limit configurable; no region |
+| `nsshared-mock-server` | Both mocks behind one authority: relay UDP and one TCP+TLS listener with one certificate on the same port, routing `/ns/v2` to the relay mock and `/quick/v2` to the rendezvous mock; the served directory is the server itself with `udp`, `wss`, `mailbox` and `registry` |
 
 The rendezvous mock reuses `nsshared-rendezvous` for every encoding and
 protocol rule and adds only storage, randomness, clocks, rate limits and I/O
 (tokio, rustls with aws-lc-rs, tokio-tungstenite). Its state modules do no I/O
-and take time and randomness from the caller.
+and take time and randomness from the caller. The combined server adds only the
+shared listener, the per-upgrade router and the lifecycle; each mock keeps its
+own state.
 
 ## Conformance
 

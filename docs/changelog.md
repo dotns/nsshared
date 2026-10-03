@@ -1,5 +1,18 @@
 ## 2026-10-03 [feat]
 
+Add `nsshared-mock-server` (`examples/mock-server`, `publish = false`), a
+combined mock for ns development: one `host:port` and one TLS certificate
+serve relay v2 UDP, `wss://host:port/ns/v2` (relay mock) and
+`wss://host:port/quick/v2` (rendezvous mock), routed per WebSocket upgrade
+(404 for other paths, 400 without the subprotocol). The served directory is
+the server itself announcing `udp`, `wss`, `mailbox` and `registry`, or a
+configured directory that lists it. `nsshared-mock-rendezvous` exports
+`accept_quick_request`, its `/quick/v2` upgrade check, for such routers. An
+integration test registers a node on `/ns/v2` and over UDP, publishes and
+looks up its record on `/quick/v2` and reads the directory, all on one port.
+
+## 2026-10-03 [feat]
+
 Add `examples/mock-relay`, the `nsshared-mock-relay` example: a single-instance,
 in-memory relay v2 mock (docs `ns/quick-v2.md` §8) for tests, as a library
 (`MockRelay`, a sans-IO `Relay` core over `nsshared-wire`, `testing` node

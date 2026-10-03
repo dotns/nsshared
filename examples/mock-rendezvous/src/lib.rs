@@ -18,5 +18,5 @@ pub mod server;
 pub mod tls;
 
 pub use config::{Config, Limits, TlsSource};
-pub use server::{RendezvousServer, ServerError};
+pub use server::{RendezvousServer, ServerError, accept_quick_request};
 pub use tls::{ServerTls, TlsError};
