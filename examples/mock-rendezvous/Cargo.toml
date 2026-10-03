@@ -1,0 +1,24 @@
+[package]
+name = "nsshared-mock-rendezvous"
+description = "Single-instance mock of the NS rendezvous v2 (/quick/v2) relay for tests"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+
+[lib]
+name = "nsshared_mock_rendezvous"
+
+[[bin]]
+name = "nsshared-mock-rendezvous"
+path = "src/main.rs"
+
+[dependencies]
+nsshared-rendezvous.workspace = true
+rand_core.workspace = true
+tokio = { workspace = true, features = ["sync"] }
+
+[lints]
+workspace = true
