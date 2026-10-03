@@ -53,7 +53,8 @@ fn record_with(signer: &SigningKey, generation: u64, key: u8, issued_at: u64) ->
             wg_key: [key; 32],
             generation,
             issued_at,
-            expires: EXPIRES,
+            // Keep the seven-day service period of the demo record (quick-v2 §3.2).
+            expires: issued_at + (EXPIRES - ISSUED_AT),
             relays: vec![relay_id()],
         },
     )

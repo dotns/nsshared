@@ -52,7 +52,6 @@ fn valid_records_match_vectors() {
         assert_eq!(decoded.fields(), &fields);
         assert_eq!(decoded.identity(), &v.hex_array::<32>("identity"));
         assert_eq!(decoded, signed);
-        assert!(decoded.check_service_period().is_ok());
     }
     assert!(positives >= 10);
 }
@@ -67,11 +66,10 @@ fn rejected_records_match_vectors() {
         let result = NodeRecord::decode(&encoded);
         let name = v.name();
         match v.reason() {
-            // Quick-v2 §3.1 caps the service period, but §3.2 does not list it as a
-            // validity condition: decoding succeeds and the separate check rejects.
-            "service_period" => {
-                assert!(result.unwrap().check_service_period().is_err(), "{name}");
-            }
+            "service_period" => assert!(
+                matches!(result, Err(NodeRecordError::ServicePeriodTooLong(_))),
+                "{name}: {result:?}"
+            ),
             "bad_signature" => assert_eq!(result, Err(NodeRecordError::BadSignature), "{name}"),
             "non_canonical" | "array_arity" => {
                 assert!(

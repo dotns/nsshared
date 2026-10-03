@@ -6,10 +6,10 @@ use base64::{
     Engine,
     engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD},
 };
-use ed25519_dalek::{SigningKey, VerifyingKey};
+use ed25519_dalek::{Signer, SigningKey, VerifyingKey};
 use ns_wire::{
     CborError, IssuedAtOverflow, MAX_NODE_RECORD_BYTES, NodeRecord, NodeRecordError,
-    NodeRecordFields, RecordExpired, RelayId, RelayIdError, ServicePeriodTooLong, next_issued_at,
+    NodeRecordFields, RecordExpired, RelayId, RelayIdError, next_issued_at,
 };
 use proptest::prelude::*;
 use sha2::{Digest, Sha256};
@@ -74,7 +74,7 @@ fn section_11_2_vector_decodes_and_verifies() {
     assert_eq!(record.fields(), &vector_fields());
     assert_eq!(record.node_id().to_string(), "5kemem6slxrgyd63rcqa");
     assert_eq!(record.as_bytes(), bytes.as_slice());
-    assert_eq!(record.check_service_period(), Ok(()));
+    assert_eq!(record.service_period(), 604_800);
 }
 
 #[test]
@@ -527,13 +527,32 @@ fn expiry_is_exclusive() {
 
 #[test]
 fn refutation_service_period_too_long() {
+    // The §11.2 vector already has the longest valid period, 604800 s.
     let mut fields = vector_fields();
     fields.expires += 1;
-    let record = NodeRecord::sign(&demo_signer(), fields).unwrap();
-    assert_eq!(record.service_period(), 604_801);
     assert_eq!(
-        record.check_service_period(),
-        Err(ServicePeriodTooLong(604_801))
+        NodeRecord::sign(&demo_signer(), fields),
+        Err(NodeRecordError::ServicePeriodTooLong(604_801))
+    );
+
+    // A correctly signed 604801 s record is rejected by decode, as is one whose signature
+    // no longer matches: the period is checked before the signature.
+    let mut expires = vec![0x1a];
+    expires.extend_from_slice(&1_767_830_401_u32.to_be_bytes());
+    let mut parts = Parts::vector().with(5, &expires);
+    assert_eq!(
+        parts.decode(),
+        Err(NodeRecordError::ServicePeriodTooLong(604_801))
+    );
+    let mut message = b"ns/node-record/v2\x87".to_vec();
+    for item in &parts.items[..7] {
+        message.extend_from_slice(item);
+    }
+    let signature = demo_signer().sign(&message).to_bytes();
+    parts.items[7] = bytes_item(&signature);
+    assert_eq!(
+        parts.decode(),
+        Err(NodeRecordError::ServicePeriodTooLong(604_801))
     );
 }
 
@@ -575,7 +594,7 @@ prop_compose! {
         wg_key in any::<[u8; 32]>(),
         generation in 1_u64..,
         issued_at in 0_u64..u64::MAX,
-        period in 1_u64..,
+        period in 1_u64..=604_800,
         relays in prop::collection::vec(0..RELAY_POOL.len(), 0..=4),
     ) -> NodeRecordFields {
         NodeRecordFields {

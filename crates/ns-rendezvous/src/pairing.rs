@@ -18,7 +18,7 @@ use crate::{
 use ed25519_dalek::{Signer, SigningKey};
 use ns_wire::{
     CborError, CborReader, CborWriter, Identity, MAX_NODE_RECORD_RELAYS, MAX_RELAY_ID_BYTES,
-    NodeRecord, NodeRecordError, RecordExpired, RelayId, RelayIdError, ServicePeriodTooLong,
+    NodeRecord, NodeRecordError, RecordExpired, RelayId, RelayIdError,
 };
 use thiserror::Error;
 use zeroize::Zeroizing;
@@ -85,9 +85,6 @@ pub enum PairingError {
     /// The embedded NodeRecord has expired (quick-v2 §3.2).
     #[error("{0}")]
     RecordExpired(#[from] RecordExpired),
-    /// The embedded NodeRecord's service period is too long (quick-v2 §3.1).
-    #[error("{0}")]
-    ServicePeriod(#[from] ServicePeriodTooLong),
     /// The signing key is not the identity `I` of the record (quick-v2 §10.2).
     #[error("signing key is not the record identity")]
     SignerMismatch,
@@ -682,11 +679,10 @@ fn check_name(name: Option<&str>) -> Result<Option<String>, PairingError> {
     }
 }
 
-/// Record validity at `now`: unexpired with a service period of at most seven days
-/// (quick-v2 §3.1-§3.2); the signature was verified by [`NodeRecord::decode`].
+/// Record validity at `now`: unexpired (quick-v2 §3.2); the service period and the
+/// signature were checked by [`NodeRecord::decode`].
 fn check_record(record: &NodeRecord, now: u64) -> Result<(), PairingError> {
     record.check_not_expired(now)?;
-    record.check_service_period()?;
     Ok(())
 }
 

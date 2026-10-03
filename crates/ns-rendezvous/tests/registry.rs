@@ -2,7 +2,7 @@
 
 #![allow(clippy::unwrap_used, reason = "test fixture helpers")]
 
-use ed25519_dalek::SigningKey;
+use ed25519_dalek::{Signer, SigningKey};
 use ns_rendezvous::{
     capability::{self, Capabilities},
     directory::{CODE_LETTERS, Directory, RelayEntry},
@@ -13,7 +13,10 @@ use ns_rendezvous::{
         VerifiedPublish,
     },
 };
-use ns_wire::{NodeId, NodeRecord, NodeRecordError, NodeRecordFields, RecordExpired, RelayId};
+use ns_wire::{
+    CborWriter, NODE_RECORD_CONTEXT, NodeId, NodeRecord, NodeRecordError, NodeRecordFields,
+    RecordExpired, RelayId,
+};
 use std::net::IpAddr;
 
 const NOW: u64 = 1_800_000_000;
@@ -227,6 +230,59 @@ fn invalid_or_expired_records_are_rejected() {
             Err(ErrorCode::InvalidMessage)
         );
     }
+}
+
+/// A correctly signed record with service period `period`, encoded by hand because
+/// [`NodeRecord::sign`] refuses periods above 604800 s (quick-v2 §3.1-§3.2).
+fn raw_record(signer: &SigningKey, issued_at: u64, period: u64) -> Vec<u8> {
+    let mut writer = CborWriter::with_capacity(256);
+    writer
+        .array(7)
+        .uint(2)
+        .bytes(&signer.verifying_key().to_bytes())
+        .bytes(&[1; 32])
+        .uint(1)
+        .uint(issued_at)
+        .uint(issued_at + period)
+        .array(1)
+        .text(authority().as_str());
+    let unsigned = writer.into_bytes();
+    let signature = signer
+        .sign(&[NODE_RECORD_CONTEXT, &unsigned].concat())
+        .to_bytes();
+    let mut tail = CborWriter::with_capacity(66);
+    tail.bytes(&signature);
+    [&[0x88], &unsigned[1..], &tail.into_bytes()].concat()
+}
+
+#[test]
+fn service_period_above_seven_days_is_rejected() {
+    let publish = |record: Vec<u8>| {
+        let proof = key(1)
+            .sign(&registry::publish_proof_message(
+                &NONCE,
+                &authority(),
+                &record,
+                false,
+            ))
+            .to_bytes();
+        PublishRequest {
+            record,
+            dns: false,
+            proof,
+        }
+    };
+    let longest = publish(raw_record(&key(1), NOW - 10, 604_800));
+    assert!(registry::verify_publish(&longest, &NONCE, &authority(), NOW).is_ok());
+    let overlong = publish(raw_record(&key(1), NOW - 10, 604_801));
+    assert_eq!(
+        NodeRecord::decode(&overlong.record),
+        Err(NodeRecordError::ServicePeriodTooLong(604_801))
+    );
+    assert_eq!(
+        registry::verify_publish(&overlong, &NONCE, &authority(), NOW),
+        Err(ErrorCode::InvalidMessage)
+    );
 }
 
 // ---- HRW sharding ----

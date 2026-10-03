@@ -64,8 +64,8 @@ def sign(signer, gen, issued_at, expires, relays, version=VERSION):
 def validate(encoded):
     """Returns None for a valid record or the first violated rule (quick-v2 §3.1-§3.2, §12.1).
 
-    `service_period` is reported last and separately: §3.1 caps `expires - issued_at` at
-    seven days, but §3.2 does not list it as a validity condition.
+    A service period `expires - issued_at` above 604800 s makes the record invalid
+    (quick-v2 §3.2, bound from §3.1 and §12.3); it is checked before the signature.
     """
     if len(encoded) > MAX_BYTES:
         return "too_large"
@@ -91,13 +91,13 @@ def validate(encoded):
         return "zero_generation"
     if expires <= issued_at:
         return "expires_not_after_issued"
+    if expires - issued_at > MAX_SERVICE_SECONDS:
+        return "service_period"
     point = ed25519.decode_point(ident)
     if point is not None and ed25519.is_small_order(point):
         return "weak_identity"
     if not ed25519.verify(ident, signing_message(record[:7]), sig):
         return "bad_signature"
-    if expires - issued_at > MAX_SERVICE_SECONDS:
-        return "service_period"
     return None
 
 
@@ -163,6 +163,7 @@ def vectors():
     assert len(size_max_enc) == MAX_BYTES
     out.append(size_max)
     out.append(positive("relay-255-bytes", demo, 1, ISSUED_AT, week, [relay_of_length(255, "long")])[0])
+    out.append(positive("longest-service-period", demo, 2, ISSUED_AT + 1, week + 1, [])[0])
     out.append(positive("shortest-service-period", demo, 1, ISSUED_AT, ISSUED_AT + 1, [])[0])
     out.append(positive("int-boundary-1-2-bytes", demo, 23, 255, 256, [])[0])
     out.append(positive("int-boundary-2-4-bytes", demo, 65535, 65536, 65536 + MAX_SERVICE_SECONDS, [])[0])
