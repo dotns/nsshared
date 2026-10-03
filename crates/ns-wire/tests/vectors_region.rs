@@ -1,5 +1,5 @@
-//! Generated relay region frame vectors, types 1-9 (quick-v2 §8.5, §12.1,
-//! quick-protocol §12.8).
+//! Generated relay region frame vectors, types 1-9, and the per-channel frame size limits
+//! (quick-v2 §8.5, §12.1, quick-protocol §12.8).
 
 #![allow(clippy::unwrap_used, clippy::panic, reason = "test fixture helpers")]
 
@@ -9,7 +9,7 @@ use ns_wire::{
     CborError, NodeId, RegionCarrier, RegionChannel, RegionChannelError, RegionForward,
     RegionFrame, RegionFrameError, RegionFrameType, RegionGone, RegionGoneReason, RegionHello,
     RegionLiveness, RegionMarks, RegionMiss, RegionMissStatus, RegionPresent, RegionSnapshot,
-    RelayId, check_region_channel, split_region_frame,
+    RelayId, check_region_channel, decode_region_envelope, region_frame_length, split_region_frame,
 };
 use support::vectors::{Vector, decode_hex, load};
 
@@ -205,7 +205,10 @@ fn build(v: &Vector) -> RegionFrame {
 fn region_frames_match_vectors() {
     let vectors = load("region_frames");
     let mut types = Vec::new();
-    for v in vectors.iter().filter(|v| !v.is_reject()) {
+    for v in vectors
+        .iter()
+        .filter(|v| !v.is_reject() && v.opt("kind").is_none())
+    {
         let name = v.name();
         let frame = build(v);
         let encoded = v.hex("frame");
@@ -224,7 +227,7 @@ fn region_frames_match_vectors() {
             "{name}"
         );
         assert_eq!(
-            split_region_frame(&wire).unwrap(),
+            split_region_frame(&wire, channel(v)).unwrap(),
             encoded.as_slice(),
             "{name}"
         );
@@ -288,6 +291,7 @@ fn rejected_region_frames_match_vectors() {
         let name = v.name();
         let reason = v.reason();
         match v.get("kind") {
+            "length" | "envelope" => continue,
             "frame" => {
                 let error = RegionFrame::decode(&v.hex("frame")).unwrap_err();
                 assert!(frame_error_matches(reason, &error), "{name}: {error:?}");
@@ -314,4 +318,38 @@ fn rejected_region_frames_match_vectors() {
         negatives += 1;
     }
     assert!(negatives >= 50);
+}
+
+#[test]
+fn region_frame_limits_match_vectors() {
+    let vectors = load("region_frames");
+    let (mut accepted, mut rejected) = (0, 0);
+    for v in vectors
+        .iter()
+        .filter(|v| matches!(v.opt("kind"), Some("length" | "envelope")))
+    {
+        let name = v.name();
+        let result = match v.get("kind") {
+            "length" => region_frame_length(v.hex_array("prefix"), channel(v)),
+            _ => {
+                let frame = v.hex("frame");
+                decode_region_envelope(&frame, channel(v)).map(|envelope| {
+                    assert_eq!(u64::from(envelope.frame_type), v.u64("type"), "{name}");
+                    frame.len()
+                })
+            }
+        };
+        if v.is_reject() {
+            let error = result.unwrap_err();
+            assert!(frame_error_matches(v.reason(), &error), "{name}: {error:?}");
+            rejected += 1;
+        } else {
+            assert_eq!(result, Ok(int(v, "frame_len")), "{name}");
+            accepted += 1;
+        }
+    }
+    assert!(
+        accepted >= 6 && rejected >= 6,
+        "{accepted} accepted, {rejected} rejected"
+    );
 }

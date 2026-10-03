@@ -1,9 +1,9 @@
-//! Region frame envelope, the bodies of types 1-9 and the channel rules
-//! (quick-v2 §8.5, quick-protocol §12.8).
+//! Region frame envelope, the bodies of types 1-9, the per-channel frame size limits and
+//! the channel rules (quick-v2 §8.5, quick-protocol §12.8).
 
 use crate::{
     codec::{CborError, CborReader, CborWriter},
-    constants::MAX_RELAY_PACKET_BYTES,
+    constants::{MAX_REGION_RENDEZVOUS_FRAME_BYTES, MAX_RELAY_PACKET_BYTES},
     identifier::{MAX_RELAY_ID_BYTES, RelayId, RelayIdError},
     identity::{Identity, NodeId},
     record::WireGuardKey,
@@ -15,7 +15,9 @@ use thiserror::Error;
 pub const REGION_FRAME_VERSION: u8 = 2;
 /// Length of the big-endian frame length prefix in bytes (quick-protocol §12.8).
 pub const REGION_FRAME_PREFIX_BYTES: usize = 4;
-/// Maximum encoded frame array length in bytes, prefix excluded (quick-protocol §12.8).
+/// Maximum encoded frame array length in bytes, prefix excluded, of every frame except
+/// types 10 and 11 on the control connection, which may reach
+/// [`MAX_REGION_RENDEZVOUS_FRAME_BYTES`] (quick-v2 §8.5, quick-protocol §12.8).
 pub const MAX_REGION_FRAME_BYTES: usize = 4096;
 /// Maximum FORWARD datagram length: one whole relay packet (quick-v2 §8.5,
 /// quick-protocol §12.8).
@@ -50,14 +52,19 @@ pub enum RegionFrameType {
     Ping = 8,
     /// 9 PONG, control liveness answer.
     Pong = 9,
-    /// 10 RENDEZVOUS_REQUEST, reserved; control connection only; body owned by rendezvous v2
-    /// and decoded as an unknown type until defined (quick-v2 §8.5).
+    /// 10 RENDEZVOUS_REQUEST, control connection only, up to
+    /// [`MAX_REGION_RENDEZVOUS_FRAME_BYTES`]; the body is defined by the rendezvous v2
+    /// messages (`ns_rendezvous::region`) and [`RegionFrame::decode`] refuses it as an
+    /// unknown type (quick-v2 §8.5).
     RendezvousRequest = 10,
-    /// 11 RENDEZVOUS_RESPONSE, reserved; control connection only; body owned by rendezvous v2
-    /// and decoded as an unknown type until defined (quick-v2 §8.5).
+    /// 11 RENDEZVOUS_RESPONSE, control connection only, up to
+    /// [`MAX_REGION_RENDEZVOUS_FRAME_BYTES`]; the body is defined by the rendezvous v2
+    /// messages (`ns_rendezvous::region`) and [`RegionFrame::decode`] refuses it as an
+    /// unknown type (quick-v2 §8.5).
     RendezvousResponse = 11,
-    /// 12 REGISTRY_RECORD, reserved; channel per the rendezvous v2 definition; body owned by
-    /// rendezvous v2 and decoded as an unknown type until defined (quick-v2 §8.5).
+    /// 12 REGISTRY_RECORD, control connection only, up to [`MAX_REGION_FRAME_BYTES`]; the
+    /// body is defined by the rendezvous v2 messages (`ns_rendezvous::region`) and
+    /// [`RegionFrame::decode`] refuses it as an unknown type (quick-v2 §7.1, §8.5).
     RegistryRecord = 12,
 }
 
@@ -89,8 +96,8 @@ impl RegionFrameType {
         self as u8
     }
 
-    /// Returns true for the reserved types 10-12, whose bodies are not defined yet
-    /// (quick-v2 §8.5).
+    /// Returns true for the types 10-12, whose bodies are defined by the rendezvous v2
+    /// messages rather than by [`RegionFrame`] (quick-v2 §8.5).
     #[must_use]
     pub const fn is_reserved(self) -> bool {
         matches!(
@@ -128,15 +135,12 @@ pub enum RegionChannelError {
         /// The connection kind.
         channel: RegionChannel,
     },
-    /// Type 12, whose channel is fixed by the rendezvous v2 definition (quick-v2 §8.5).
-    #[error("{0:?} has no channel until the rendezvous v2 definition")]
-    ChannelUndefined(RegionFrameType),
 }
 
 /// Checks that `frame_type` may appear on a `channel` connection: one HELLO first, then the
-/// control connection carries SNAPSHOT, PRESENT, GONE, MARKS, MISS, PING, PONG, 10 and 11,
-/// and the data connection carries only FORWARD; type 12 is refused until the rendezvous v2
-/// definition fixes its channel (quick-v2 §8.5, quick-protocol §12.8).
+/// control connection carries SNAPSHOT, PRESENT, GONE, MARKS, MISS, PING, PONG and the
+/// rendezvous types 10, 11 and 12, and the data connection carries only FORWARD
+/// (quick-v2 §7.1, §8.5, quick-protocol §12.8).
 ///
 /// `established` is true once the connection's HELLO has been received.
 ///
@@ -152,9 +156,6 @@ pub const fn check_region_channel(
         (false, RegionFrameType::Hello) => Ok(()),
         (false, other) => Err(RegionChannelError::HelloRequired(other)),
         (true, RegionFrameType::Hello) => Err(RegionChannelError::DuplicateHello),
-        (true, RegionFrameType::RegistryRecord) => Err(RegionChannelError::ChannelUndefined(
-            RegionFrameType::RegistryRecord,
-        )),
         (true, frame_type) => {
             let data_only = matches!(frame_type, RegionFrameType::Forward);
             let on_data = matches!(channel, RegionChannel::Data);
@@ -357,11 +358,37 @@ pub enum RegionFrame {
     Pong(RegionLiveness),
 }
 
+/// The largest frame of any type a `channel` connection accepts, prefix excluded: 20480
+/// bytes on control, where types 10 and 11 may exceed 4096, and 4096 bytes on data
+/// (quick-v2 §8.5, quick-protocol §12.8).
+#[must_use]
+pub const fn max_region_frame_bytes(channel: RegionChannel) -> usize {
+    match channel {
+        RegionChannel::Control => MAX_REGION_RENDEZVOUS_FRAME_BYTES,
+        RegionChannel::Data => MAX_REGION_FRAME_BYTES,
+    }
+}
+
+/// The largest frame of type byte `frame_type` on a `channel` connection, prefix excluded:
+/// [`MAX_REGION_RENDEZVOUS_FRAME_BYTES`] for types 10 and 11 on control, otherwise
+/// [`MAX_REGION_FRAME_BYTES`] (quick-v2 §8.5, quick-protocol §12.8).
+#[must_use]
+pub const fn max_region_frame_bytes_for(channel: RegionChannel, frame_type: u8) -> usize {
+    let rendezvous = frame_type == RegionFrameType::RendezvousRequest.as_u8()
+        || frame_type == RegionFrameType::RendezvousResponse.as_u8();
+    if rendezvous && matches!(channel, RegionChannel::Control) {
+        MAX_REGION_RENDEZVOUS_FRAME_BYTES
+    } else {
+        MAX_REGION_FRAME_BYTES
+    }
+}
+
 /// A rejected region frame (quick-v2 §8.5, §12.1, quick-protocol §12.8).
 #[derive(Clone, Debug, Eq, Error, PartialEq)]
 pub enum RegionFrameError {
-    /// The length prefix is 0 or exceeds 4096; rejected before allocating.
-    #[error("frame length prefix {0} is outside 1..={MAX_REGION_FRAME_BYTES}")]
+    /// The length prefix is 0 or exceeds the channel limit of [`max_region_frame_bytes`];
+    /// rejected before allocating.
+    #[error("frame length prefix {0} is 0 or above the channel limit")]
     FrameLength(u32),
     /// The input ends inside the length prefix or before the declared length.
     #[error("prefixed frame is truncated")]
@@ -369,8 +396,9 @@ pub enum RegionFrameError {
     /// Bytes follow the frame declared by the length prefix.
     #[error("bytes follow the prefixed frame")]
     TrailingFrameBytes,
-    /// The encoded frame array exceeds 4096 bytes.
-    #[error("frame of {0} bytes exceeds {MAX_REGION_FRAME_BYTES} bytes")]
+    /// The encoded frame array exceeds the limit of its channel and type, see
+    /// [`max_region_frame_bytes_for`].
+    #[error("frame of {0} bytes exceeds the limit of its channel and type")]
     TooLarge(usize),
     /// Not canonical CBOR of the frame shape: wrong arity, field types or widths of
     /// strings, or trailing bytes (quick-v2 §12.1).
@@ -379,7 +407,8 @@ pub enum RegionFrameError {
     /// `ver` is not 2.
     #[error("unknown region frame version {0}")]
     Version(u64),
-    /// The type is not 1..=9; the reserved types 10-12 are included (quick-v2 §8.5).
+    /// The type is not 1..=9; [`RegionFrame`] refuses the rendezvous types 10-12 as well
+    /// (quick-v2 §8.5).
     #[error("unknown region frame type {0}")]
     UnknownType(u64),
     /// An integer field exceeds its u8 / u32 width.
@@ -460,7 +489,7 @@ pub enum RegionFrameError {
 /// A checked frame envelope `[ver = 2, type, body]` with the raw body bytes
 /// (quick-v2 §8.5).
 ///
-/// The extension point for the reserved types 10-12: the body is the exact remaining bytes
+/// The extension point for the rendezvous types 10-12: the body is the exact remaining bytes
 /// of the frame, not yet checked; a body decoder must consume it as one canonical CBOR item
 /// with no trailing bytes.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -471,18 +500,25 @@ pub struct RegionEnvelope<'a> {
     pub body: &'a [u8],
 }
 
-/// Decodes the envelope of an unprefixed frame: size, canonical array head, `ver = 2` and a
-/// u8 type; the body is returned raw (quick-v2 §8.5, §12.1).
+/// Decodes the envelope of an unprefixed frame received on a `channel` connection: the
+/// channel size limit, canonical array head, `ver = 2`, a u8 type, then the size limit of
+/// that type on that channel; the body is returned raw (quick-v2 §8.5, §12.1).
+///
+/// A frame above 4096 bytes is accepted only for types 10 and 11 on control.
 ///
 /// # Errors
 ///
 /// [`RegionFrameError::TooLarge`], [`RegionFrameError::Cbor`],
 /// [`RegionFrameError::Version`] or [`RegionFrameError::UnknownType`] for a type above 255.
-pub fn decode_region_envelope(frame: &[u8]) -> Result<RegionEnvelope<'_>, RegionFrameError> {
-    if frame.len() > MAX_REGION_FRAME_BYTES {
+pub fn decode_region_envelope(
+    frame: &[u8],
+    channel: RegionChannel,
+) -> Result<RegionEnvelope<'_>, RegionFrameError> {
+    let maximum = max_region_frame_bytes(channel);
+    if frame.len() > maximum {
         return Err(RegionFrameError::TooLarge(frame.len()));
     }
-    let mut reader = CborReader::new(frame, MAX_REGION_FRAME_BYTES)?;
+    let mut reader = CborReader::new(frame, maximum)?;
     reader.array(3)?;
     let version = reader.uint()?;
     if version != u64::from(REGION_FRAME_VERSION) {
@@ -491,6 +527,9 @@ pub fn decode_region_envelope(frame: &[u8]) -> Result<RegionEnvelope<'_>, Region
     let frame_type = reader.uint()?;
     let frame_type =
         u8::try_from(frame_type).map_err(|_| RegionFrameError::UnknownType(frame_type))?;
+    if frame.len() > max_region_frame_bytes_for(channel, frame_type) {
+        return Err(RegionFrameError::TooLarge(frame.len()));
+    }
     let body = frame.get(reader.consumed().len()..).unwrap_or_default();
     if body.is_empty() {
         return Err(CborError::Truncated.into());
@@ -499,14 +538,19 @@ pub fn decode_region_envelope(frame: &[u8]) -> Result<RegionEnvelope<'_>, Region
 }
 
 /// Encodes an unprefixed frame `[ver = 2, frame_type, body]` from a raw body, for bodies
-/// defined outside this module (quick-v2 §8.5).
+/// defined outside this module, to be sent on a `channel` connection (quick-v2 §8.5).
 ///
 /// `body` must be exactly one canonical CBOR item; it is not inspected.
 ///
 /// # Errors
 ///
-/// [`RegionFrameError::TooLarge`] when the frame exceeds 4096 bytes.
-pub fn encode_region_envelope(frame_type: u8, body: &[u8]) -> Result<Vec<u8>, RegionFrameError> {
+/// [`RegionFrameError::TooLarge`] when the frame exceeds
+/// [`max_region_frame_bytes_for`] `(channel, frame_type)`.
+pub fn encode_region_envelope(
+    frame_type: u8,
+    body: &[u8],
+    channel: RegionChannel,
+) -> Result<Vec<u8>, RegionFrameError> {
     let mut writer = CborWriter::with_capacity(body.len().saturating_add(4));
     writer
         .array(3)
@@ -514,37 +558,50 @@ pub fn encode_region_envelope(frame_type: u8, body: &[u8]) -> Result<Vec<u8>, Re
         .uint(u64::from(frame_type));
     let mut encoded = writer.into_bytes();
     encoded.extend_from_slice(body);
-    if encoded.len() > MAX_REGION_FRAME_BYTES {
+    if encoded.len() > max_region_frame_bytes_for(channel, frame_type) {
         return Err(RegionFrameError::TooLarge(encoded.len()));
     }
     Ok(encoded)
 }
 
-/// Reads a 4-byte big-endian length prefix and returns the frame length, rejecting 0 and
-/// values above 4096 before any allocation (quick-protocol §12.8).
+/// Reads a 4-byte big-endian length prefix on a `channel` connection and returns the frame
+/// length, rejecting 0 and values above [`max_region_frame_bytes`] (20480 on control, 4096
+/// on data) before any allocation (quick-v2 §8.5, quick-protocol §12.8).
+///
+/// The type is not known yet: [`decode_region_envelope`] applies the per-type limit once it
+/// is.
 ///
 /// # Errors
 ///
 /// [`RegionFrameError::FrameLength`].
 pub fn region_frame_length(
     prefix: [u8; REGION_FRAME_PREFIX_BYTES],
+    channel: RegionChannel,
 ) -> Result<usize, RegionFrameError> {
     let length = u32::from_be_bytes(prefix);
     usize::try_from(length)
         .ok()
-        .filter(|length| (1..=MAX_REGION_FRAME_BYTES).contains(length))
+        .filter(|length| (1..=max_region_frame_bytes(channel)).contains(length))
         .ok_or(RegionFrameError::FrameLength(length))
 }
 
-/// Prepends the 4-byte big-endian length prefix to an encoded frame (quick-protocol §12.8).
+/// Prepends the 4-byte big-endian length prefix to an encoded frame to be sent on a
+/// `channel` connection (quick-v2 §8.5, quick-protocol §12.8).
+///
+/// A frame above 4096 bytes must be a type 10 or 11 envelope on control; its envelope head
+/// is decoded to check that.
 ///
 /// # Errors
 ///
-/// [`RegionFrameError::FrameLength`] for an empty frame or [`RegionFrameError::TooLarge`]
-/// above 4096 bytes.
-pub fn prefix_region_frame(frame: &[u8]) -> Result<Vec<u8>, RegionFrameError> {
+/// [`RegionFrameError::FrameLength`] for an empty frame, [`RegionFrameError::TooLarge`]
+/// above the limit of its channel and type, or an envelope error of
+/// [`decode_region_envelope`] for a frame above 4096 bytes.
+pub fn prefix_region_frame(
+    frame: &[u8],
+    channel: RegionChannel,
+) -> Result<Vec<u8>, RegionFrameError> {
     if frame.len() > MAX_REGION_FRAME_BYTES {
-        return Err(RegionFrameError::TooLarge(frame.len()));
+        decode_region_envelope(frame, channel)?;
     }
     let length = u32::try_from(frame.len()).map_err(|_| RegionFrameError::TooLarge(frame.len()))?;
     if length == 0 {
@@ -556,18 +613,19 @@ pub fn prefix_region_frame(frame: &[u8]) -> Result<Vec<u8>, RegionFrameError> {
     Ok(output)
 }
 
-/// Splits exactly one length-prefixed frame from `wire` and returns the frame bytes
+/// Splits exactly one length-prefixed frame received on a `channel` connection from `wire`
+/// and returns the frame bytes; the length is checked by [`region_frame_length`]
 /// (quick-protocol §12.8).
 ///
 /// # Errors
 ///
 /// [`RegionFrameError::Truncated`], [`RegionFrameError::FrameLength`] or
 /// [`RegionFrameError::TrailingFrameBytes`].
-pub fn split_region_frame(wire: &[u8]) -> Result<&[u8], RegionFrameError> {
+pub fn split_region_frame(wire: &[u8], channel: RegionChannel) -> Result<&[u8], RegionFrameError> {
     let (prefix, rest) = wire
         .split_first_chunk::<REGION_FRAME_PREFIX_BYTES>()
         .ok_or(RegionFrameError::Truncated)?;
-    let length = region_frame_length(*prefix)?;
+    let length = region_frame_length(*prefix, channel)?;
     let (frame, trailing) = rest
         .split_at_checked(length)
         .ok_or(RegionFrameError::Truncated)?;
@@ -714,11 +772,13 @@ impl RegionFrame {
 
     /// Encodes the frame with its 4-byte length prefix (quick-protocol §12.8).
     ///
+    /// Types 1-9 are at most 4096 bytes on either channel.
+    ///
     /// # Errors
     ///
     /// As [`RegionFrame::encode`].
     pub fn encode_prefixed(&self) -> Result<Vec<u8>, RegionFrameError> {
-        prefix_region_frame(&self.encode()?)
+        prefix_region_frame(&self.encode()?, RegionChannel::Data)
     }
 
     /// Decodes an unprefixed frame array: envelope, canonical body schema and trailing
@@ -726,10 +786,12 @@ impl RegionFrame {
     ///
     /// # Errors
     ///
-    /// [`RegionFrameError`] naming the first violated rule; the reserved types 10-12 yield
+    /// [`RegionFrameError`] naming the first violated rule; a frame above 4096 bytes yields
+    /// [`RegionFrameError::TooLarge`] and the rendezvous types 10-12 yield
     /// [`RegionFrameError::UnknownType`].
     pub fn decode(frame: &[u8]) -> Result<Self, RegionFrameError> {
-        let envelope = decode_region_envelope(frame)?;
+        // Types 1-9 are at most 4096 bytes on either channel: the data limit applies.
+        let envelope = decode_region_envelope(frame, RegionChannel::Data)?;
         let frame_type = RegionFrameType::from_u8(envelope.frame_type)
             .filter(|frame_type| !frame_type.is_reserved())
             .ok_or(RegionFrameError::UnknownType(u64::from(
@@ -786,13 +848,14 @@ impl RegionFrame {
         Ok(decoded)
     }
 
-    /// Decodes exactly one length-prefixed frame (quick-protocol §12.8).
+    /// Decodes exactly one length-prefixed frame of types 1-9, whose prefix may not exceed
+    /// 4096 on either channel (quick-protocol §12.8).
     ///
     /// # Errors
     ///
     /// As [`split_region_frame`] and [`RegionFrame::decode`].
     pub fn decode_prefixed(wire: &[u8]) -> Result<Self, RegionFrameError> {
-        Self::decode(split_region_frame(wire)?)
+        Self::decode(split_region_frame(wire, RegionChannel::Data)?)
     }
 }
 
