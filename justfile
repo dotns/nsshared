@@ -3,12 +3,21 @@
 
 set dotenv-load := false
 
-# Default: show available recipes
+# Show available recipes
 default:
     @just --list
 
-# Full quality gate for this library workspace.
-qa: fmt-check lint test deny shear typos
+# Fast static checks for daily development (fmt + clippy)
+dev-check: fmt-check lint
+
+# Full quality gate
+qa: qa-checks qa-tests
+
+# Static checks: formatting, lints, supply chain and spelling
+qa-checks: fmt-check lint deny shear typos vectors-check
+
+# Tests: nextest plus the doctests nextest does not run
+qa-tests: test doc
 
 check:
     cargo check --workspace --all-targets --locked
@@ -19,17 +28,29 @@ fmt:
 fmt-check:
     cargo fmt --all -- --check
 
+# The deny-warnings policy lives in [workspace.lints]
 lint:
-    cargo clippy --workspace --all-targets --locked -- -D warnings
+    cargo clippy --workspace --all-targets --locked
 
 test:
     cargo nextest run --workspace --locked
+
+doc:
+    cargo test --workspace --doc --locked
 
 deny:
     cargo deny --locked check
 
 shear:
-    cargo shear --locked
+    cargo shear --locked --deny-warnings
 
 typos:
-    typos
+    typos --config typos.toml
+
+# Regenerate the spec-derived test vector fixtures
+vectors:
+    python3 tools/vectors/generate.py
+
+# Check that the committed test vector fixtures match the generator
+vectors-check:
+    python3 tools/vectors/generate.py --check
