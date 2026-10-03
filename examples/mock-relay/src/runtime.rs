@@ -18,7 +18,7 @@ pub use wss::{accept_relay_request, relay_websocket_config};
 
 use crate::{ConfigError, Counters, Limits, Now, Peer, Relay, RelayConfig, SessionInfo, Transmit};
 use getrandom::SysRng;
-use nsshared_rendezvous::capability::{self, Capabilities};
+use nsshared_rendezvous::capability::{self, Capabilities, Capability, CapabilityError};
 use nsshared_wire::{DEFAULT_PRESENCE_TTL_SECONDS, RelayId, RelayIdError, WSS_CONNECTIONS_PER_IP};
 use rand_core::UnwrapErr;
 use std::{
@@ -79,6 +79,9 @@ pub struct MockRelayConfig {
     pub udp: bool,
     /// Serves the WSS carrier and announces `wss`.
     pub wss: bool,
+    /// Tokens announced after `udp` and `wss` in the tentative REGISTERED, duplicates
+    /// skipped; at most 16 tokens in total (rendezvous §3.1).
+    pub extra_capabilities: Vec<Capability>,
     /// With `wss`, binds no TCP listener and generates no certificate: the caller owns
     /// the TLS listener and passes `/ns/v2` connections to [`MockRelay::handle_stream`]
     /// or [`MockRelay::handle_websocket`]. `wss` is still announced and UDP still binds
@@ -106,6 +109,7 @@ impl Default for MockRelayConfig {
             wss_listen: None,
             udp: true,
             wss: true,
+            extra_capabilities: Vec::new(),
             external_wss: false,
             tls: TlsSource::SelfSigned { names: Vec::new() },
             presence_ttl_s: DEFAULT_TTL_S,
@@ -133,6 +137,9 @@ pub enum Error {
     /// The core rejected the configuration.
     #[error(transparent)]
     Config(#[from] ConfigError),
+    /// The announced capabilities exceed 16 tokens.
+    #[error(transparent)]
+    Capabilities(#[from] CapabilityError),
     /// The default relay identifier built from the bound address is invalid.
     #[error("relay identifier {text:?}: {source}")]
     RelayId {
@@ -211,8 +218,13 @@ impl MockRelay {
         if config.wss {
             tokens.push(capability::WSS);
         }
+        for token in &config.extra_capabilities {
+            if !tokens.contains(token) {
+                tokens.push(token.clone());
+            }
+        }
         let relay_config = RelayConfig {
-            capabilities: Capabilities::new(tokens).unwrap_or_default(),
+            capabilities: Capabilities::new(tokens)?,
             presence_ttl_s: config.presence_ttl_s,
             limits: config.limits,
             ..RelayConfig::new(relay_id.clone())
