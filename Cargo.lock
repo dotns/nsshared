@@ -702,6 +702,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "nsshared-mock-server"
+version = "0.1.0"
+dependencies = [
+ "futures-util",
+ "nsshared-mock-relay",
+ "nsshared-mock-rendezvous",
+ "nsshared-rendezvous",
+ "nsshared-wire",
+ "rustls",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tokio-rustls",
+ "tokio-tungstenite",
+]
+
+[[package]]
 name = "nsshared-rendezvous"
 version = "0.1.0"
 dependencies = [

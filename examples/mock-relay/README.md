@@ -55,7 +55,8 @@ certificate path. Ctrl-C shuts it down. `RUST_LOG` sets the log filter (default 
    with a root store holding the `--write-cert` PEM. rustls verifies the identifier host
    name, which the self-signed certificate always contains (IP literals as IP names).
 4. Capabilities: the tentative REGISTERED announces `udp` and `wss`, minus any carrier
-   disabled with `--no-udp` / `--no-wss`.
+   disabled with `--no-udp` / `--no-wss`. The library's
+   `MockRelayConfig::extra_capabilities` appends further tokens after them.
 
 ## Library
 

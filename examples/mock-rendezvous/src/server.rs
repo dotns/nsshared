@@ -11,8 +11,10 @@
 //!
 //! Another server can embed it: [`RendezvousServer::handle_tcp`] takes an accepted TCP
 //! connection, [`RendezvousServer::handle_stream`] an already decrypted (or plain)
-//! stream and [`RendezvousServer::handle_websocket`] an already upgraded socket; the
-//! embedder then runs [`RendezvousServer::run_sweeper`] once.
+//! stream and [`RendezvousServer::handle_websocket`] an already upgraded socket (a
+//! router upgrades with [`accept_quick_request`] and
+//! [`RendezvousServer::websocket_config`]); the embedder then runs
+//! [`RendezvousServer::run_sweeper`] once.
 
 use crate::{
     config::{Config, Limits, TlsSource},
@@ -368,24 +370,13 @@ impl RendezvousServer {
     where
         S: AsyncRead + AsyncWrite + Unpin,
     {
-        // tungstenite's `Callback` fixes the error type.
-        #[allow(clippy::result_large_err)]
-        let upgrade = |request: &HttpRequest, mut response: HttpResponse| {
-            if request.uri().path() != PATH {
-                return Err(refusal(StatusCode::NOT_FOUND));
-            }
-            if !offers_subprotocol(request) {
-                return Err(refusal(StatusCode::BAD_REQUEST));
-            }
-            response.headers_mut().insert(
-                SEC_WEBSOCKET_PROTOCOL,
-                HeaderValue::from_static(SUBPROTOCOL),
-            );
-            Ok(response)
-        };
         let accepted = timeout(
             HANDSHAKE_TIMEOUT,
-            accept_hdr_async_with_config(stream, upgrade, Some(Self::websocket_config())),
+            accept_hdr_async_with_config(
+                stream,
+                accept_quick_request,
+                Some(Self::websocket_config()),
+            ),
         )
         .await;
         if let Ok(Ok(socket)) = accepted {
@@ -597,6 +588,34 @@ impl RendezvousServer {
     }
 }
 
+/// The `/quick/v2` upgrade check, usable as an `accept_hdr_async` callback by a router
+/// that upgrades the socket itself before
+/// [`RendezvousServer::handle_websocket`]: 404 for a path other than `/quick/v2`, 400
+/// without the `ns-quick-v2` subprotocol, otherwise `response` selecting it
+/// (rendezvous §3). [`RendezvousServer::handle_stream`] runs the same check.
+///
+/// # Errors
+///
+/// The refusal [`ErrorResponse`] for a wrong path or a missing subprotocol.
+// tungstenite's `Callback` fixes the error type.
+#[allow(clippy::result_large_err)]
+pub fn accept_quick_request(
+    request: &HttpRequest,
+    mut response: HttpResponse,
+) -> Result<HttpResponse, ErrorResponse> {
+    if request.uri().path() != PATH {
+        return Err(refusal(StatusCode::NOT_FOUND));
+    }
+    if !offers_subprotocol(request) {
+        return Err(refusal(StatusCode::BAD_REQUEST));
+    }
+    response.headers_mut().insert(
+        SEC_WEBSOCKET_PROTOCOL,
+        HeaderValue::from_static(SUBPROTOCOL),
+    );
+    Ok(response)
+}
+
 /// Whether the upgrade request offers the `ns-quick-v2` subprotocol (rendezvous §3).
 fn offers_subprotocol(request: &HttpRequest) -> bool {
     request
@@ -646,4 +665,46 @@ fn now_ms() -> u64 {
         .map_or(0, |elapsed| {
             u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX)
         })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::accept_quick_request;
+    use tokio_tungstenite::tungstenite::{
+        handshake::server::{Request, Response},
+        http::{StatusCode, header::SEC_WEBSOCKET_PROTOCOL},
+    };
+
+    fn request(path: &str, subprotocol: Option<&str>) -> Request {
+        let mut builder = Request::builder().uri(format!("wss://localhost:8443{path}"));
+        if let Some(subprotocol) = subprotocol {
+            builder = builder.header(SEC_WEBSOCKET_PROTOCOL, subprotocol);
+        }
+        builder.body(()).unwrap()
+    }
+
+    fn status(path: &str, subprotocol: Option<&str>) -> StatusCode {
+        accept_quick_request(&request(path, subprotocol), Response::default())
+            .unwrap_err()
+            .status()
+    }
+
+    #[test]
+    fn accept_quick_request_routes_by_path_and_subprotocol() {
+        assert_eq!(status("/ns/v2", Some("ns-quick-v2")), StatusCode::NOT_FOUND);
+        assert_eq!(status("/quick/v2", None), StatusCode::BAD_REQUEST);
+        assert_eq!(
+            status("/quick/v2", Some("ns-relay-v2")),
+            StatusCode::BAD_REQUEST
+        );
+        let accepted = accept_quick_request(
+            &request("/quick/v2", Some("other, ns-quick-v2")),
+            Response::default(),
+        )
+        .unwrap();
+        assert_eq!(
+            accepted.headers().get(SEC_WEBSOCKET_PROTOCOL).unwrap(),
+            "ns-quick-v2"
+        );
+    }
 }

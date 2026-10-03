@@ -6,6 +6,7 @@ members = [
     "crates/nsshared-wire",
     "examples/mock-relay",
     "examples/mock-rendezvous",
+    "examples/mock-server",
 ]
 
 # ============================================================================
@@ -32,6 +33,8 @@ publish = false
 
 [workspace.dependencies]
 # Internal crates.
+nsshared-mock-relay = { path = "examples/mock-relay", version = "0.1.0" }
+nsshared-mock-rendezvous = { path = "examples/mock-rendezvous", version = "0.1.0" }
 nsshared-rendezvous = { path = "crates/nsshared-rendezvous", version = "0.1.0" }
 nsshared-wire = { path = "crates/nsshared-wire", version = "0.1.0" }
 
