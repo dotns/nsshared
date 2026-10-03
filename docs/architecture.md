@@ -1,6 +1,6 @@
-# ns-shared Architecture
+# nsshared Architecture
 
-`ns-shared` holds the contracts that two or more NSIO components encode or
+`nsshared` holds the contracts that two or more NSIO components encode or
 enforce, together with their reference implementations. Code used by a single
 component stays in that component's repository. The scope and the ownership
 rules are defined on the docs site (`ns-shared/index.md`).
@@ -12,18 +12,22 @@ previous workspace is archived at tag `archive/v1-20261002`.
 
 | Crate | Contract | Encoded by |
 | --- | --- | --- |
-| `ns-wire` | NS protocol v2 wire formats: identities, node records, relay packets, region and in-tunnel control messages | nsgw quick relay and Quick nodes |
-| `quick-rendezvous` | Invitation locators, identity proofs, encrypted handoffs; target rendezvous v2 mailbox messages | nsgw quick relay and Quick nodes |
+| `nsshared-wire` | NS protocol v2 wire formats: identities, node records, relay packets, region and in-tunnel control messages | nsgw quick relay and Quick nodes |
+| `nsshared-rendezvous` | NS rendezvous v2 (`/quick/v2`): JSON transport, capabilities, actor `hello`, relay directory v2, mailbox phase rules, node registry, pairing payloads, region frame bodies 10-12 | nsgw quick relay and Quick nodes |
 
 Both crates are pure: no I/O, no async runtime, no TLS. They forbid `unsafe`
 and deny `unwrap`, `expect` and `panic` outside tests.
 
 ## Conformance
 
-`crates/ns-wire/tests/fixtures` holds conformance vectors. Vectors are
-produced by generators that implement the specification directly and never
-call `ns-wire`, so the vectors cross-check the Rust implementation.
-`just vectors-check` reruns the generators in check mode.
+`crates/nsshared-wire/tests/fixtures/vectors` and
+`crates/nsshared-rendezvous/tests/fixtures/vectors` hold conformance vectors. They
+are produced by `tools/vectors`, a standard-library Python generator that
+implements the specification directly and never builds or calls the Rust
+crates, so the vectors cross-check the implementation. `just vectors`
+regenerates them; `just vectors-check` reruns the generator in check mode and
+is part of `just qa`. The specification-to-code tables are
+`docs/spec-coverage/nsshared-wire.md` and `docs/spec-coverage/nsshared-rendezvous.md`.
 
 ## Consumers
 

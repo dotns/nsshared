@@ -1,19 +1,56 @@
+## 2026-10-03 [refactor]
+
+Drop the `ns-` prefix from the crate names: the wire and rendezvous crates are
+now `nsshared-wire` and `nsshared-rendezvous` (libraries `nsshared_wire`,
+`nsshared_rendezvous`), and the repository is now nsshared
+(`https://git.pvv.cc/nsiod/nsshared.git`); no behaviour change.
+Consumers update their dependency keys and git URLs.
+
+## 2026-10-03 [feat]
+
+Replace the v1 rendezvous crate with `nsshared-rendezvous`, the NS rendezvous v2
+messages (docs `ns/rendezvous.md`, `ns/quick-v2.md` §7, §10.2): the
+`/quick/v2` JSON transport, capability tokens, the connection challenge and
+actor `hello`, the relay directory v2 and its update rules, error codes and
+broker limits, the mailbox model with its phase rules as pure checks, the node
+registry (publish proof, HRW sharding, §3.3 acceptance, `lookup_node`),
+pairing Invite / Join / ACCEPT / COMPLETE payloads and the PSK, and the region
+frame bodies of types 10 RENDEZVOUS_REQUEST, 11 RENDEZVOUS_RESPONSE and
+12 REGISTRY_RECORD. In `nsshared-wire`, types 10-12 are control-connection only,
+types 10 and 11 may reach 20480 bytes on the control connection, a NodeRecord
+with a service period above 604800 s is invalid, and the canonical CBOR reader
+and writer are public. See
+[nsshared-rendezvous spec coverage](spec-coverage/nsshared-rendezvous.md).
+
+## 2026-10-03 [feat]
+
+Add `tools/vectors`, an independent conformance vector generator: Python
+standard library only, implementing the specification text directly and
+self-tested against RFC 8032, 7748, 5869 and 8949 vectors. It writes `.vec`
+fixtures for both crates (identities, `lan6`, alias candidates, node records,
+relay packets, control messages, region frames; hello signatures, registry
+proofs and shard order, pairing payloads, `/quick/v2` JSON messages, region
+frames 10-12), which the `vectors_*` tests consume byte for byte.
+`just vectors` regenerates them and `just vectors-check`, part of `just qa`,
+verifies them. See [nsshared-rendezvous spec coverage](spec-coverage/nsshared-rendezvous.md)
+(Vectors) and [Quick conformance vectors](task/20261002-1516-quick-vectors.md).
+
 ## 2026-10-02 [feat]
 
-Replace `quick-wire` with `ns-wire`, the NS protocol v2 wire layer (docs
+Replace `quick-wire` with `nsshared-wire`, the NS protocol v2 wire layer (docs
 `ns/quick-v2.md`): identity derivations (node ID, address group, `lan6`, alias
 candidates), node records and the §3.3 ordering state, relay packets v2 with
 REGISTER admission, session key and MACs, the region member protocol v2 and the
 in-tunnel control messages. There is no v1 compatibility: KeyBinding,
 INTRO / INTRO_ACK, `revoked_through` and the region QUICK frames are gone. The
-consumers, the nsgw quick relay and ns, switch to `ns-wire` in migration
-milestone M5 (plan P2). See [ns-wire spec coverage](spec-coverage/ns-wire.md)
-and [ns-wire protocol crate](task/20261002-1516-quick-wire.md).
+consumers, the nsgw quick relay and ns, switch to `nsshared-wire` in migration
+milestone M5 (plan P2). See [nsshared-wire spec coverage](spec-coverage/nsshared-wire.md)
+and [nsshared-wire protocol crate](task/20261002-1516-quick-wire.md).
 
 ## 2026-10-02 [refactor]
 
 Rebuild ns-shared on `next` around the Quick protocol. The workspace starts
-with `quick-wire` (from `keynet-proto`) and `quick-rendezvous` (from
+with `quick-wire` (from `keynet-proto`) and the v1 rendezvous crate (from
 `keynet-quick`) on the pma-rust baseline: workspace lints that also deny
 `unwrap`, `expect` and `panic` outside tests, rustfmt 2024 style, latest stable
 dependencies (`ed25519-dalek` and `x25519-dalek` 3, `blake2` 0.11, `getrandom`
