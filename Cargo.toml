@@ -29,7 +29,7 @@ publish = false
 
 [workspace.dependencies]
 # Internal crates.
-ns-wire = { path = "crates/ns-wire" }
+ns-wire = { path = "crates/ns-wire", version = "0.1.0" }
 
 # External crates: latest stable versions as of 2026-10-02.
 base64           = "0.23.1"

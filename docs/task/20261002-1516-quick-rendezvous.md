@@ -1,8 +1,8 @@
 # 20261002-1516-quick-rendezvous Define the quick-rendezvous message types
 
-- **status**: pending
+- **status**: completed
 - **priority**: P1
-- **owner**: (unassigned)
+- **owner**: R workstream
 - **createdAt**: 2026-10-02 15:16
 
 ## Description
@@ -23,3 +23,6 @@ Defining quick-rendezvous
 ## Notes
 
 Plan: [20261002-1516-ns-shared-rebuild](../plan/20261002-1516-ns-shared-rebuild.md)
+
+Completed 2026-10-03: delivered as crate `ns-rendezvous` (the v1 rendezvous
+crate is deleted). Coverage: [ns-rendezvous spec coverage](../spec-coverage/ns-rendezvous.md).
