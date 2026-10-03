@@ -1,3 +1,36 @@
+## 2026-10-03 [feat]
+
+Add typed keys to `nsshared-wire` (quick-v2 §2.1, §2.3): `IdentityKey` (Ed25519 `I`,
+unpadded base64url text, node ID, address group, `N6`, `N4`, `lan6` and alias
+derivations by delegation), `IdentitySecret` (seed, OS-random generation, signing-key
+adapter), `WgSessionKey` and `WgSessionSecret` (X25519 `K`, `wg`-compatible padded base64),
+with strict text parsing, typed `KeyParseError`, redacted `Debug` and zeroize on drop for
+secrets. The module docs map each ns `NodeIdentity` helper to its replacement. Existing
+raw-byte APIs are unchanged.
+
+## 2026-10-03 [feat]
+
+Add `nsshared-telemetry`, the telemetry conventions shared with NS:
+`tracing` subscriber setup as composable pieces (`LogFormat` text or JSON, an
+env filter read from a configurable variable with a default directive, the
+boxed fmt layer, and `init`, which fails on an invalid filter or a second
+call), the `Redacted` wrapper with `SENSITIVE_FIELDS` (the NS forbidden
+labels), and the `path`, `transport` and `peer_source` label keys with their
+`Path`, `Transport` and `PeerSource` values. No OpenTelemetry dependency and
+no exporter; NS `metrics.rs` names no metric carrying these labels, so no
+metric name is shared yet.
+
+## 2026-10-03 [docs]
+
+Add the [v1 crate analysis](design/v1-crate-analysis.md), which classifies
+every part of the archived v1 `control`, `common`, `acl` and `tunnel-ws`
+crates into: returns in P3b as the `nsshared-control` v2 contract, moves to
+`nsplane-acl`, stays in ns, or is superseded by `nsshared-wire` /
+`nsshared-rendezvous` or dropped. The P3a plan is now implementing, with an
+owner amendment: the path is nsshared -> ns -> nsgw with nsgw deferred,
+nsshared ships libraries only (mocks for ns live under `examples/` as
+unpublished workspace members), and only a single relay instance is in scope.
+
 ## 2026-10-03 [refactor]
 
 Drop the `ns-` prefix from the crate names: the wire and rendezvous crates are
