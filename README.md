@@ -12,6 +12,10 @@ This is the `next` workspace, rebuilt around the Quick protocol. It contains:
   capabilities, actor `hello`, relay directory v2, mailbox phase rules, the
   node registry, pairing payloads and the region forwarding bodies (normative
   source: docs `ns/rendezvous.md`, `ns/quick-v2.md` §7, §10.2)
+- `nsshared-telemetry` — shared telemetry conventions: `tracing` subscriber
+  setup (text or JSON, env filter with a default), redaction helpers and the
+  sensitive field names, and the shared `path`, `transport` and `peer_source`
+  label names and values (source: NS `telemetry` labels); no exporter
 - `nsshared-mock-rendezvous` (`examples/mock-rendezvous`, `publish = false`) —
   single-instance `/quick/v2` mock relay (mailbox broker, directory, node
   registry) over TLS WebSocket for ns development and tests
