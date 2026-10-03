@@ -8,12 +8,26 @@ license.workspace = true
 authors.workspace = true
 publish = false
 
+[[bin]]
+name = "nsshared-mock-relay"
+path = "src/main.rs"
+
 [dependencies]
+clap.workspace = true
 ed25519-dalek.workspace = true
+futures-util.workspace = true
+getrandom.workspace = true
 nsshared-rendezvous.workspace = true
 nsshared-wire.workspace = true
 rand_core.workspace = true
+rcgen.workspace = true
+rustls.workspace = true
 thiserror.workspace = true
+tokio.workspace = true
+tokio-rustls.workspace = true
+tokio-tungstenite.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
 
 [lints]
 workspace = true

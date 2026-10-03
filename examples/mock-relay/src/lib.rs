@@ -27,15 +27,22 @@
 //! - §8.5 budgets: only the per-node values listed in [`Limits`].
 //!
 //! The [`testing`] module holds a node-side helper that builds the packets a node sends.
+//!
+//! [`MockRelay`] runs the core on tokio: the UDP carrier and the WSS carrier
+//! (`wss://host:port/ns/v2`, subprotocol `ns-relay-v2`) on the relay identifier's port,
+//! with a self-signed or PEM certificate (quick-v2 §8.5, §8.6). The
+//! `nsshared-mock-relay` binary wraps it.
 
 mod bucket;
 mod config;
 mod inspect;
 mod peer;
 mod relay;
+mod runtime;
 pub mod testing;
 
 pub use config::{ConfigError, Limits, PROVISIONAL_LIFETIME, RelayConfig};
 pub use inspect::{Counters, Reason, SessionInfo};
 pub use peer::{Carrier, Now, Peer, Transmit};
 pub use relay::Relay;
+pub use runtime::{Error, GeneratedCert, MockRelay, MockRelayConfig, TlsSource};
