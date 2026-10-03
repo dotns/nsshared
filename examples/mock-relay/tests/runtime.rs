@@ -4,6 +4,7 @@
 
 use futures_util::{SinkExt, StreamExt};
 use nsshared_mock_relay::{MockRelay, MockRelayConfig, testing::TestNode};
+use nsshared_rendezvous::capability;
 use nsshared_wire::{MAX_RELAY_PACKET_BYTES, RELAY_WSS_PATH, RELAY_WSS_SUBPROTOCOL};
 use rustls::{
     ClientConfig, RootCertStore,
@@ -142,6 +143,36 @@ async fn disabled_carrier_is_not_bound_or_announced() {
         .unwrap();
     let (registered, _) = attempt.accept(&buf[..len]).unwrap();
     assert_eq!(registered.capabilities, ["udp"]);
+    relay.shutdown().await;
+}
+
+#[tokio::test]
+async fn extra_capabilities_follow_the_carriers_in_registered() {
+    let relay = MockRelay::start(MockRelayConfig {
+        extra_capabilities: vec![capability::MAILBOX, capability::WSS, capability::REGISTRY],
+        ..MockRelayConfig::default()
+    })
+    .await
+    .unwrap();
+    let node = TestNode::new([7; 32], relay.relay_id(), unix_now() - 60).unwrap();
+    let attempt = node
+        .register(relay.relay_id(), 1, unix_now(), [1; 32])
+        .unwrap();
+    let socket = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+    socket
+        .send_to(attempt.packet(), relay.udp_addr().unwrap())
+        .await
+        .unwrap();
+    let mut buf = vec![0; MAX_RELAY_PACKET_BYTES];
+    let (len, _) = timeout(WAIT, socket.recv_from(&mut buf))
+        .await
+        .unwrap()
+        .unwrap();
+    let (registered, _) = attempt.accept(&buf[..len]).unwrap();
+    assert_eq!(
+        registered.capabilities,
+        ["udp", "wss", "mailbox", "registry"]
+    );
     relay.shutdown().await;
 }
 

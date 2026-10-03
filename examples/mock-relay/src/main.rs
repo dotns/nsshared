@@ -87,6 +87,7 @@ async fn run(args: Args) -> Result<(), Box<dyn Error>> {
         wss_listen: args.wss_listen,
         udp: !args.no_udp,
         wss: !args.no_wss,
+        extra_capabilities: Vec::new(),
         external_wss: false,
         tls,
         presence_ttl_s: args.presence_ttl,

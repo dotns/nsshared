@@ -90,6 +90,7 @@ impl MockServer {
                 relay_id: Some(rendezvous.authority()),
                 listen: bound.listen,
                 external_wss: true,
+                extra_capabilities: vec![capability::MAILBOX, capability::REGISTRY],
                 ..MockRelayConfig::default()
             })
             .await;

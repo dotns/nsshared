@@ -10,6 +10,8 @@ configured directory that lists it. `nsshared-mock-rendezvous` exports
 `accept_quick_request`, its `/quick/v2` upgrade check, for such routers. An
 integration test registers a node on `/ns/v2` and over UDP, publishes and
 looks up its record on `/quick/v2` and reads the directory, all on one port.
+The relay's tentative REGISTERED announces the same tokens, through the new
+`MockRelayConfig::extra_capabilities`.
 
 ## 2026-10-03 [feat]
 

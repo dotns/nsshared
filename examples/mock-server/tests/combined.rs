@@ -11,7 +11,6 @@ use nsshared_mock_rendezvous::Config;
 use nsshared_mock_server::MockServer;
 use nsshared_rendezvous::{
     auth::Challenge,
-    capability,
     message::{LookupNodeRequest, RecordResult},
     registry,
     transport::{PATH, Request, Response, SUBPROTOCOL, decode_response, encode_request},
@@ -297,14 +296,19 @@ async fn one_port_serves_relay_and_rendezvous() {
         combined.server.relay().relay_id()
     );
     assert_eq!(&reader.challenge.capabilities, entry.capabilities());
-    for token in [capability::UDP, capability::WSS] {
-        assert!(
-            registered
-                .capabilities
-                .iter()
-                .any(|c| c.as_str() == token.as_str())
-        );
-    }
+    // The relay lists its carriers first, so compare the three announcements as sorted
+    // token sets (rendezvous §3.1).
+    let challenged = capability_tokens(
+        reader
+            .challenge
+            .capabilities
+            .as_slice()
+            .iter()
+            .map(|c| c.as_str()),
+    );
+    let relayed = capability_tokens(registered.capabilities.iter().map(String::as_str));
+    assert_eq!(relayed, announced);
+    assert_eq!(challenged, announced);
 
     // (d) Other paths get 404, a missing subprotocol 400.
     assert_eq!(
