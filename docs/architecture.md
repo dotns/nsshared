@@ -19,6 +19,20 @@ previous workspace is archived at tag `archive/v1-20261002`.
 Both crates are pure: no I/O, no async runtime, no TLS. They forbid `unsafe`
 and deny `unwrap`, `expect` and `panic` outside tests.
 
+## Examples
+
+`examples/` holds mock crates: libraries (with a binary) for ns development
+and tests, `publish = false`, never consumed by production components.
+
+| Crate | Serves |
+| --- | --- |
+| `nsshared-mock-rendezvous` | A single-instance `/quick/v2` relay over TLS WebSocket: challenge and `hello`, the mailbox broker, `directory` and the node registry, with every rendezvous §6 and quick-v2 §7.4 limit configurable; no region |
+
+The mock reuses `nsshared-rendezvous` for every encoding and protocol rule and
+adds only storage, randomness, clocks, rate limits and I/O (tokio, rustls with
+aws-lc-rs, tokio-tungstenite). Its state modules do no I/O and take time and
+randomness from the caller.
+
 ## Conformance
 
 `crates/nsshared-wire/tests/fixtures/vectors` and

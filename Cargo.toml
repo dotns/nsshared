@@ -4,6 +4,7 @@ members = [
     "crates/nsshared-rendezvous",
     "crates/nsshared-telemetry",
     "crates/nsshared-wire",
+    "examples/mock-rendezvous",
 ]
 
 # ============================================================================
@@ -30,20 +31,28 @@ publish = false
 
 [workspace.dependencies]
 # Internal crates.
+nsshared-rendezvous = { path = "crates/nsshared-rendezvous", version = "0.1.0" }
 nsshared-wire = { path = "crates/nsshared-wire", version = "0.1.0" }
 
 # External crates: latest stable versions as of 2026-10-02.
 base64           = "0.23.1"
 blake2           = "0.11.0"
 ed25519-dalek    = { version = "3.0.0", features = ["zeroize"] }
-getrandom        = "0.4.3"
+futures-util     = { version = "0.3.34", default-features = false, features = ["sink", "std"] }
+getrandom        = { version = "0.4.3", features = ["sys_rng"] }
 hkdf             = "0.13.0"
 hmac             = "0.13.0"
 proptest         = "1.11.0"
+rand_core        = "0.10.1"
+rcgen            = { version = "0.14.10", default-features = false, features = ["aws_lc_rs", "pem"] }
+rustls           = { version = "0.23.45", default-features = false, features = ["aws_lc_rs", "std", "tls12"] }
 serde            = { version = "1.0.229", features = ["derive"] }
 serde_json       = "1.0.151"
 sha2             = "0.11.0"
 thiserror        = "2.0.21"
+tokio            = { version = "1.53.2", default-features = false }
+tokio-rustls     = { version = "0.26.6", default-features = false, features = ["aws_lc_rs", "tls12"] }
+tokio-tungstenite = { version = "0.30.0", default-features = false, features = ["handshake"] }
 tracing          = "0.1.44"
 tracing-subscriber = { version = "0.3.23", default-features = false, features = ["env-filter", "fmt", "json", "registry", "std"] }
 x25519-dalek     = { version = "3.0.0", features = ["static_secrets", "zeroize"] }

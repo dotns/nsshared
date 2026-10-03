@@ -1,5 +1,22 @@
 ## 2026-10-03 [feat]
 
+Add `nsshared-mock-rendezvous` (`examples/mock-rendezvous`, `publish = false`),
+a single-instance mock of the NS rendezvous v2 relay for ns development and
+tests: `wss://{host:port}/quick/v2` with subprotocol `ns-quick-v2`, the
+connection challenge and actor `hello`, the mailbox broker with the `recv`
+long poll and sweeps, `directory` (its own entry or a configured directory)
+and the node registry (`publish`, `lookup_node`, §3.3 ordering and the
+conflict latch), with every rendezvous §6 and quick-v2 §7.4 limit
+configurable. One instance, no region: frames 10-12 are not served and the
+registry shard is the mock itself. All protocol rules come from
+`nsshared-rendezvous`. It interoperates with the ns overlay registry client
+and Quick pairing; integration tests drive pairing, transfer admission,
+the registry and the limits over TLS WebSocket. Embeddable as a library
+(`RendezvousServer`) or run as the `nsshared-mock-rendezvous` binary with a
+self-signed or PEM certificate. See `examples/mock-rendezvous/README.md`.
+
+## 2026-10-03 [feat]
+
 Add typed keys to `nsshared-wire` (quick-v2 §2.1, §2.3): `IdentityKey` (Ed25519 `I`,
 unpadded base64url text, node ID, address group, `N6`, `N4`, `lan6` and alias
 derivations by delegation), `IdentitySecret` (seed, OS-random generation, signing-key

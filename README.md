@@ -16,6 +16,9 @@ This is the `next` workspace, rebuilt around the Quick protocol. It contains:
   setup (text or JSON, env filter with a default), redaction helpers and the
   sensitive field names, and the shared `path`, `transport` and `peer_source`
   label names and values (source: NS `telemetry` labels); no exporter
+- `nsshared-mock-rendezvous` (`examples/mock-rendezvous`, `publish = false`) —
+  single-instance `/quick/v2` mock relay (mailbox broker, directory, node
+  registry) over TLS WebSocket for ns development and tests
 
 `tools/vectors` is an independent Python generator of the conformance vectors
 both crates test against (`just vectors`, `just vectors-check`). Spec
