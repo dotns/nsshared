@@ -27,8 +27,9 @@ use tokio_rustls::{TlsConnector, client::TlsStream};
 use tokio_tungstenite::{
     WebSocketStream, client_async_with_config,
     tungstenite::{
-        Message,
+        self, Message,
         client::IntoClientRequest,
+        handshake::client::Response,
         http::{HeaderValue, header::SEC_WEBSOCKET_PROTOCOL},
     },
 };
@@ -57,12 +58,15 @@ pub fn unix_now() -> u64 {
         .as_secs()
 }
 
+/// A client WebSocket over TLS.
+pub type Ws = WebSocketStream<TlsStream<TcpStream>>;
+
 /// One carrier connection from a simulated node to the relay.
 pub enum Link {
     /// A UDP socket bound to 127.0.0.1:0 sending to the relay UDP address.
     Udp { socket: UdpSocket, to: SocketAddr },
     /// A WSS connection to `wss://{relay_id}/ns/v2` with `ns-relay-v2` selected.
-    Wss(Box<WebSocketStream<TlsStream<TcpStream>>>),
+    Wss(Box<Ws>),
 }
 
 impl Link {
@@ -82,39 +86,21 @@ impl Link {
     /// verifying the identifier host, then runs the WebSocket handshake for
     /// `wss://{relay_id}/ns/v2` offering `ns-relay-v2` and asserts it is selected.
     pub async fn wss(relay: &MockRelay) -> Self {
-        let mut roots = RootCertStore::empty();
         let der = relay.generated_cert().unwrap().der.clone();
-        roots.add(CertificateDer::from(der)).unwrap();
-        let config = ClientConfig::builder_with_provider(Arc::new(aws_lc_rs::default_provider()))
-            .with_safe_default_protocol_versions()
-            .unwrap()
-            .with_root_certificates(roots)
-            .with_no_client_auth();
-        let relay_id = relay.relay_id().as_str();
-        let (host, _) = relay_id.rsplit_once(':').unwrap();
-        let tcp = timeout(WAIT, TcpStream::connect(relay.wss_addr().unwrap()))
-            .await
-            .unwrap()
-            .unwrap();
-        let tls = timeout(
-            WAIT,
-            TlsConnector::from(Arc::new(config))
-                .connect(ServerName::try_from(host.to_owned()).unwrap(), tcp),
+        Self::wss_via(relay, relay.wss_addr().unwrap(), &der).await
+    }
+
+    /// As [`Link::wss`], but dials `addr` trusting `cert_der`: a listener the test owns.
+    pub async fn wss_via(relay: &MockRelay, addr: SocketAddr, cert_der: &[u8]) -> Self {
+        let (ws, response) = ws_connect(
+            relay.relay_id().as_str(),
+            addr,
+            cert_der,
+            RELAY_WSS_PATH,
+            Some(RELAY_WSS_SUBPROTOCOL),
         )
         .await
-        .unwrap()
         .unwrap();
-        let mut request = format!("wss://{relay_id}{RELAY_WSS_PATH}")
-            .into_client_request()
-            .unwrap();
-        request.headers_mut().insert(
-            SEC_WEBSOCKET_PROTOCOL,
-            HeaderValue::from_static(RELAY_WSS_SUBPROTOCOL),
-        );
-        let (ws, response) = timeout(WAIT, client_async_with_config(request, tls, None))
-            .await
-            .unwrap()
-            .unwrap();
         assert_eq!(
             response.headers().get(SEC_WEBSOCKET_PROTOCOL).unwrap(),
             RELAY_WSS_SUBPROTOCOL
@@ -170,6 +156,50 @@ impl Link {
             },
         }
     }
+}
+
+/// Opens TLS to `addr` trusting only `cert_der` (aws-lc-rs provider) and verifying the
+/// host of `authority`, then runs the WebSocket handshake for `wss://{authority}{path}`,
+/// offering `subprotocol` if any.
+pub async fn ws_connect(
+    authority: &str,
+    addr: SocketAddr,
+    cert_der: &[u8],
+    path: &str,
+    subprotocol: Option<&str>,
+) -> Result<(Ws, Response), tungstenite::Error> {
+    let mut roots = RootCertStore::empty();
+    roots.add(CertificateDer::from(cert_der.to_vec())).unwrap();
+    let config = ClientConfig::builder_with_provider(Arc::new(aws_lc_rs::default_provider()))
+        .with_safe_default_protocol_versions()
+        .unwrap()
+        .with_root_certificates(roots)
+        .with_no_client_auth();
+    let (host, _) = authority.rsplit_once(':').unwrap();
+    let tcp = timeout(WAIT, TcpStream::connect(addr))
+        .await
+        .unwrap()
+        .unwrap();
+    let tls = timeout(
+        WAIT,
+        TlsConnector::from(Arc::new(config))
+            .connect(ServerName::try_from(host.to_owned()).unwrap(), tcp),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    let mut request = format!("wss://{authority}{path}")
+        .into_client_request()
+        .unwrap();
+    if let Some(subprotocol) = subprotocol {
+        request.headers_mut().insert(
+            SEC_WEBSOCKET_PROTOCOL,
+            HeaderValue::from_str(subprotocol).unwrap(),
+        );
+    }
+    timeout(WAIT, client_async_with_config(request, tls, None))
+        .await
+        .unwrap()
 }
 
 /// Registers `node` through `link` with the `testing` helpers: REGISTER, tentative

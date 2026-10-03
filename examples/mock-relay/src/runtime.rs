@@ -5,10 +5,16 @@
 //! `host:port` and WSS connects to `wss://host:port/ns/v2`. The mock therefore binds UDP
 //! and TCP on the same port unless told otherwise. WSS is TLS only: the ns WSS carrier
 //! always dials `wss://` with a rustls client configuration, so there is no plain `ws://`.
+//!
+//! A combined server that owns the TLS listener itself sets
+//! [`MockRelayConfig::external_wss`] and hands each `/ns/v2` connection to
+//! [`MockRelay::handle_stream`] or [`MockRelay::handle_websocket`].
 
 mod tls;
 mod udp;
 mod wss;
+
+pub use wss::{accept_relay_request, relay_websocket_config};
 
 use crate::{ConfigError, Counters, Limits, Now, Peer, Relay, RelayConfig, SessionInfo, Transmit};
 use getrandom::SysRng;
@@ -20,15 +26,17 @@ use std::{
     io,
     net::{IpAddr, Ipv4Addr, SocketAddr},
     path::PathBuf,
-    sync::{Arc, Mutex, MutexGuard, PoisonError},
+    sync::{Arc, Mutex, MutexGuard, PoisonError, atomic::AtomicU64},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use thiserror::Error;
 use tokio::{
+    io::{AsyncRead, AsyncWrite},
     net::{TcpListener, UdpSocket},
     sync::{mpsc, watch},
     task::JoinHandle,
 };
+use tokio_tungstenite::WebSocketStream;
 use tracing::{debug, warn};
 
 /// How often the tick task drives the core's expiry.
@@ -71,6 +79,12 @@ pub struct MockRelayConfig {
     pub udp: bool,
     /// Serves the WSS carrier and announces `wss`.
     pub wss: bool,
+    /// With `wss`, binds no TCP listener and generates no certificate: the caller owns
+    /// the TLS listener and passes `/ns/v2` connections to [`MockRelay::handle_stream`]
+    /// or [`MockRelay::handle_websocket`]. `wss` is still announced and UDP still binds
+    /// `udp_listen` or `listen`, which should carry the caller's TCP port because ns uses
+    /// the identifier port for both carriers. Ignored without `wss`.
+    pub external_wss: bool,
     /// The WSS server certificate.
     pub tls: TlsSource,
     /// The presence TTL in seconds, 30..=3600 (quick-v2 §8.3 rule 5).
@@ -92,6 +106,7 @@ impl Default for MockRelayConfig {
             wss_listen: None,
             udp: true,
             wss: true,
+            external_wss: false,
             tls: TlsSource::SelfSigned { names: Vec::new() },
             presence_ttl_s: DEFAULT_TTL_S,
             limits: Limits::default(),
@@ -153,7 +168,8 @@ pub enum Error {
 /// A running single-instance relay mock serving UDP and WSS.
 ///
 /// Dropping the handle also stops the tasks, but without waiting for them; use
-/// [`MockRelay::shutdown`] to know the sockets are released.
+/// [`MockRelay::shutdown`] to know the sockets are released. Share it as
+/// `Arc<MockRelay>` to serve external connections from several tasks.
 #[derive(Debug)]
 pub struct MockRelay {
     relay_id: RelayId,
@@ -162,7 +178,7 @@ pub struct MockRelay {
     cert: Option<GeneratedCert>,
     shared: Arc<Shared>,
     stop: watch::Sender<()>,
-    tasks: Vec<JoinHandle<()>>,
+    tasks: Mutex<Vec<JoinHandle<()>>>,
 }
 
 impl MockRelay {
@@ -212,27 +228,29 @@ impl MockRelay {
         };
 
         let udp_socket = udp_socket.map(Arc::new);
+        let (stop, stopped) = watch::channel(());
         let shared = Arc::new(Shared {
             relay: Mutex::new(relay),
-            udp: udp_socket.clone(),
+            udp: Mutex::new(udp_socket.clone()),
             wss: Mutex::new(HashMap::new()),
+            ip_slots: Arc::new(Mutex::new(HashMap::new())),
+            wss_per_ip: config.wss_connections_per_ip,
+            next_connection: AtomicU64::new(1),
+            stopped: stopped.clone(),
         });
-        let (stop, stopped) = watch::channel(());
         let mut tasks = vec![tokio::spawn(tick(Arc::clone(&shared), stopped.clone()))];
         if let Some(socket) = udp_socket {
             tasks.push(tokio::spawn(udp::serve(
                 socket,
                 Arc::clone(&shared),
-                stopped.clone(),
+                stopped,
             )));
         }
         if let (Some(listener), Some(server_tls)) = (tcp_listener, server_tls) {
             tasks.push(tokio::spawn(wss::serve(
                 listener,
                 server_tls,
-                config.wss_connections_per_ip,
                 Arc::clone(&shared),
-                stopped,
             )));
         }
         Ok(Self {
@@ -242,7 +260,7 @@ impl MockRelay {
             cert,
             shared,
             stop,
-            tasks,
+            tasks: Mutex::new(tasks),
         })
     }
 
@@ -258,13 +276,14 @@ impl MockRelay {
         self.udp_addr
     }
 
-    /// Returns the bound WSS (TCP) address, `None` when WSS is disabled.
+    /// Returns the bound WSS (TCP) address, `None` when WSS is disabled or external.
     #[must_use]
     pub const fn wss_addr(&self) -> Option<SocketAddr> {
         self.wss_addr
     }
 
-    /// Returns the generated certificate, `None` for PEM files or without WSS.
+    /// Returns the generated certificate, `None` for PEM files, external WSS or without
+    /// WSS.
     #[must_use]
     pub const fn generated_cert(&self) -> Option<&GeneratedCert> {
         self.cert.as_ref()
@@ -282,24 +301,71 @@ impl MockRelay {
         self.shared.relay().counters().clone()
     }
 
-    /// Stops every task, closes the WSS connections and releases the sockets.
-    pub async fn shutdown(mut self) {
+    /// Serves one TLS-terminated connection from `remote`, handed over by a caller-owned
+    /// listener in [`MockRelayConfig::external_wss`] mode: the same WebSocket handshake as
+    /// the built-in listener ([`accept_relay_request`], [`relay_websocket_config`]), then
+    /// relay packets until the connection closes or [`shutdown`](Self::shutdown) closes it
+    /// with code 1001. `remote`'s IP counts toward the per-IP WSS connection limit; a
+    /// connection over it is dropped before the handshake.
+    ///
+    /// The future resolves when the connection ends, so spawn it per connection, e.g.
+    /// from an `Arc<MockRelay>`. `S` needs no `Send` or `'static` of its own.
+    pub async fn handle_stream<S>(&self, stream: S, remote: SocketAddr)
+    where
+        S: AsyncRead + AsyncWrite + Unpin,
+    {
+        wss::handle_stream(Arc::clone(&self.shared), stream, remote).await;
+    }
+
+    /// Serves a WebSocket from `remote` that the caller has already upgraded: it must
+    /// have validated the request and selected `ns-relay-v2` with
+    /// [`accept_relay_request`] and should apply [`relay_websocket_config`]; under a larger
+    /// limit (a router sharing one config with `/quick/v2`) the relay still closes a
+    /// message over 2048 bytes with code 1009. A connection over
+    /// the per-IP limit is closed with code 1013. Otherwise as
+    /// [`handle_stream`](Self::handle_stream).
+    pub async fn handle_websocket<S>(&self, ws: WebSocketStream<S>, remote: SocketAddr)
+    where
+        S: AsyncRead + AsyncWrite + Unpin,
+    {
+        wss::handle_websocket(Arc::clone(&self.shared), ws, remote).await;
+    }
+
+    /// Stops every task, closes the WSS connections, including those served through
+    /// [`handle_stream`](Self::handle_stream) and
+    /// [`handle_websocket`](Self::handle_websocket), and releases the sockets.
+    /// Later calls return at once.
+    pub async fn shutdown(&self) {
         // Every task watches the channel and returns once the value changes.
         self.stop.send_replace(());
-        for task in self.tasks.drain(..) {
+        let tasks = std::mem::take(&mut *self.tasks.lock().unwrap_or_else(PoisonError::into_inner));
+        for task in tasks {
             if let Err(error) = task.await {
                 warn!(%error, "relay task failed");
             }
         }
+        wss::drain(&self.shared).await;
+        self.shared
+            .udp
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take();
     }
 }
 
-/// State shared by the tasks: the core, the UDP socket and the WSS connection queues.
+/// State shared by the tasks: the core, the UDP socket and the WSS connection state.
 #[derive(Debug)]
 struct Shared {
     relay: Mutex<Relay<UnwrapErr<SysRng>>>,
-    udp: Option<Arc<UdpSocket>>,
+    /// Taken on shutdown so the socket is released while external connections linger.
+    udp: Mutex<Option<Arc<UdpSocket>>>,
     wss: Mutex<HashMap<u64, mpsc::Sender<Vec<u8>>>>,
+    /// Open WSS connections per remote IP, built-in and external alike.
+    ip_slots: Arc<Mutex<HashMap<IpAddr, usize>>>,
+    wss_per_ip: usize,
+    next_connection: AtomicU64,
+    /// Changes once on shutdown; WSS connections clone it.
+    stopped: watch::Receiver<()>,
 }
 
 impl Shared {
@@ -322,7 +388,12 @@ impl Shared {
         for Transmit { to, packet } in transmits {
             match to {
                 Peer::Udp(address) => {
-                    let Some(socket) = &self.udp else { continue };
+                    let socket = self
+                        .udp
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner)
+                        .clone();
+                    let Some(socket) = socket else { continue };
                     if let Err(error) = socket.send_to(&packet, address).await {
                         debug!(%address, %error, "relay UDP send failed");
                     }
@@ -363,8 +434,9 @@ fn now() -> Now {
 
 /// Binds the enabled carriers; UDP and TCP share `listen`'s port unless overridden.
 async fn bind(config: &MockRelayConfig) -> Result<(Option<UdpSocket>, Option<TcpListener>), Error> {
+    let listen_wss = config.wss && !config.external_wss;
     let shared_port =
-        config.udp && config.wss && config.udp_listen.is_none() && config.wss_listen.is_none();
+        config.udp && listen_wss && config.udp_listen.is_none() && config.wss_listen.is_none();
     if shared_port && config.listen.port() == 0 {
         return bind_shared_ephemeral(config.listen).await;
     }
@@ -373,7 +445,7 @@ async fn bind(config: &MockRelayConfig) -> Result<(Option<UdpSocket>, Option<Tcp
     } else {
         None
     };
-    let tcp = if config.wss {
+    let tcp = if listen_wss {
         Some(bind_tcp(config.wss_listen.unwrap_or(config.listen)).await?)
     } else {
         None

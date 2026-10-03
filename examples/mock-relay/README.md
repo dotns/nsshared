@@ -63,3 +63,62 @@ certificate path. Ctrl-C shuts it down. `RUST_LOG` sets the log filter (default 
 `udp_addr()`, `wss_addr()` and `generated_cert()` (DER and PEM) describe it; `sessions()`
 and `counters()` inspect the core; `shutdown().await` stops every task and releases the
 sockets.
+
+## Embedding behind a shared listener (combined server)
+
+`/quick/v2` rides the relay's TLS listener (same authority), so a combined server owns the
+single TCP+TLS listener and hands `/ns/v2` to the relay. Set
+`MockRelayConfig::external_wss`: the mock then binds no TCP listener and generates no
+certificate (`wss_addr()` and `generated_cert()` are `None`), but still announces `wss`
+and binds UDP on `udp_listen` or `listen`. Give it the listener's port, because ns uses
+the identifier port for both carriers.
+
+Per connection, either:
+
+- `relay.handle_stream(tls, remote).await`: the relay runs the WebSocket handshake itself
+  (404 for a path other than `/ns/v2`, 400 without `ns-relay-v2`), or
+- upgrade in the router with `relay_websocket_config()` and `accept_relay_request` in the
+  `accept_hdr_async` callback, then `relay.handle_websocket(ws, remote).await`.
+
+Both resolve when the connection ends, count toward the per-IP WSS limit, disconnect the
+session on close, and are closed with 1001 by `shutdown()`. `S` only needs
+`AsyncRead + AsyncWrite + Unpin`; share the relay as `Arc<MockRelay>` to spawn them.
+
+```rust
+let listener = TcpListener::bind("127.0.0.1:4433").await?;
+let relay = Arc::new(MockRelay::start(MockRelayConfig {
+    listen: listener.local_addr()?, // UDP on the same port
+    external_wss: true,
+    ..MockRelayConfig::default()
+}).await?);
+loop {
+    let (tcp, remote) = listener.accept().await?;
+    let (acceptor, relay) = (acceptor.clone(), Arc::clone(&relay));
+    tokio::spawn(async move {
+        let Ok(tls) = acceptor.accept(tcp).await else { return };
+        let mut quick = false;
+        let callback = |request: &Request, response: Response| {
+            if request.uri().path() == "/quick/v2" {
+                quick = true;
+                return quick_v2_accept(request, response); // the rendezvous check
+            }
+            accept_relay_request(request, response) // 404 unless /ns/v2
+        };
+        // One config for both paths: the larger rendezvous limit. The relay still
+        // closes a message over 2048 bytes with 1009; a relay-only router would pass
+        // relay_websocket_config() instead.
+        let config = Some(RendezvousServer::websocket_config());
+        let Ok(ws) = accept_hdr_async_with_config(tls, callback, config).await else { return };
+        if quick {
+            rendezvous.handle_websocket(ws, remote.ip()).await;
+        } else {
+            relay.handle_websocket(ws, remote).await;
+        }
+    });
+}
+```
+
+`handle_websocket` expects `relay_websocket_config()` (2048-byte messages and frames);
+with a larger limit the relay itself still closes any message over 2048 bytes with 1009.
+When the router already knows the path some other way, `relay.handle_stream(tls, remote)`
+skips the router-side upgrade for `/ns/v2`. `relay.shutdown().await` takes `&self`.

@@ -9,16 +9,13 @@ use nsshared_wire::{MAX_RELAY_PACKET_BYTES, RELAY_WSS_PATH, RELAY_WSS_SUBPROTOCO
 use rustls::ServerConfig;
 use std::{
     collections::HashMap,
-    net::IpAddr,
-    sync::{
-        Arc, Mutex, PoisonError,
-        atomic::{AtomicU64, Ordering},
-    },
+    net::{IpAddr, SocketAddr},
+    sync::{Arc, Mutex, PoisonError, atomic::Ordering},
     time::Duration,
 };
 use tokio::{
     io::{AsyncRead, AsyncWrite},
-    net::{TcpListener, TcpStream},
+    net::TcpListener,
     sync::{mpsc, watch},
     task::JoinSet,
 };
@@ -40,20 +37,16 @@ const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 /// Bound on closing the open connections at shutdown.
 const CLOSE_GRACE: Duration = Duration::from_secs(1);
 
+/// How often [`drain`] checks for the last connection to end.
+const DRAIN_POLL: Duration = Duration::from_millis(10);
+
 /// Relay packets queued toward one connection before new ones are dropped.
 const SEND_QUEUE: usize = 256;
 
 /// Accepts WSS connections until stopped, then closes every open connection.
-pub(super) async fn serve(
-    listener: TcpListener,
-    tls: Arc<ServerConfig>,
-    per_ip: usize,
-    shared: Arc<Shared>,
-    mut stopped: watch::Receiver<()>,
-) {
+pub(super) async fn serve(listener: TcpListener, tls: Arc<ServerConfig>, shared: Arc<Shared>) {
     let acceptor = TlsAcceptor::from(tls);
-    let counts = Arc::new(Mutex::new(HashMap::new()));
-    let next_id = AtomicU64::new(1);
+    let mut stopped = shared.stopped.clone();
     let mut connections = JoinSet::new();
     loop {
         while connections.try_join_next().is_some() {}
@@ -68,22 +61,19 @@ pub(super) async fn serve(
                 continue;
             }
         };
-        let Some(slot) = IpSlot::take(&counts, remote.ip(), per_ip) else {
+        let Some(slot) = IpSlot::take(&shared.ip_slots, remote.ip(), shared.wss_per_ip) else {
             debug!(%remote, "relay WSS per-IP connection limit reached");
             continue;
         };
-        let peer = Peer::Wss {
-            connection: next_id.fetch_add(1, Ordering::Relaxed),
-            remote,
-        };
-        connections.spawn(connection(
-            stream,
-            acceptor.clone(),
-            peer,
-            slot,
-            Arc::clone(&shared),
-            stopped.clone(),
-        ));
+        let acceptor = acceptor.clone();
+        let shared = Arc::clone(&shared);
+        connections.spawn(async move {
+            match tokio::time::timeout(HANDSHAKE_TIMEOUT, acceptor.accept(stream)).await {
+                Ok(Ok(tls)) => upgrade(tls, remote, slot, shared).await,
+                Ok(Err(error)) => debug!(%remote, %error, "relay TLS handshake failed"),
+                Err(_) => debug!(%remote, "relay TLS handshake timed out"),
+            }
+        });
     }
     // Open connections send a close frame on the stop signal; give them a moment.
     let drain = async { while connections.join_next().await.is_some() {} };
@@ -92,38 +82,88 @@ pub(super) async fn serve(
     }
 }
 
-/// Runs one connection: handshake, then packets both ways until either side closes.
-async fn connection(
-    stream: TcpStream,
-    acceptor: TlsAcceptor,
-    peer: Peer,
-    _slot: IpSlot,
-    shared: Arc<Shared>,
-    stopped: watch::Receiver<()>,
-) {
-    let handshake = async {
-        let tls = acceptor.accept(stream).await?;
-        accept_hdr_async_with_config(tls, check_request, Some(websocket_config()))
-            .await
-            .map_err(std::io::Error::other)
-    };
-    let ws = match tokio::time::timeout(HANDSHAKE_TIMEOUT, handshake).await {
-        Ok(Ok(ws)) => ws,
-        Ok(Err(error)) => {
-            debug!(?peer, %error, "relay WSS handshake failed");
-            return;
-        }
-        Err(_) => {
-            debug!(?peer, "relay WSS handshake timed out");
-            return;
-        }
-    };
-    let Peer::Wss { connection, .. } = peer else {
+/// Serves one TLS-terminated stream from a caller-owned listener.
+pub(super) async fn handle_stream<S>(shared: Arc<Shared>, stream: S, remote: SocketAddr)
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
+    let Some(slot) = IpSlot::take(&shared.ip_slots, remote.ip(), shared.wss_per_ip) else {
+        debug!(%remote, "relay WSS per-IP connection limit reached");
         return;
     };
+    upgrade(stream, remote, slot, shared).await;
+}
+
+/// Serves one WebSocket the caller has already upgraded.
+pub(super) async fn handle_websocket<S>(
+    shared: Arc<Shared>,
+    mut ws: WebSocketStream<S>,
+    remote: SocketAddr,
+) where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
+    let Some(slot) = IpSlot::take(&shared.ip_slots, remote.ip(), shared.wss_per_ip) else {
+        debug!(%remote, "relay WSS per-IP connection limit reached");
+        close(&mut ws, CloseCode::Again, "per-IP connection limit").await;
+        return;
+    };
+    run(ws, remote, slot, shared).await;
+}
+
+/// Waits briefly until every WSS connection, built-in or external, has ended.
+pub(super) async fn drain(shared: &Shared) {
+    let idle = async {
+        while !shared
+            .ip_slots
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .is_empty()
+        {
+            tokio::time::sleep(DRAIN_POLL).await;
+        }
+    };
+    if tokio::time::timeout(CLOSE_GRACE, idle).await.is_err() {
+        debug!("relay WSS connections still open after shutdown");
+    }
+}
+
+/// Runs the WebSocket handshake on a TLS-terminated stream, then [`run`].
+async fn upgrade<S>(stream: S, remote: SocketAddr, slot: IpSlot, shared: Arc<Shared>)
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
+    let mut stopped = shared.stopped.clone();
+    let handshake = tokio::time::timeout(
+        HANDSHAKE_TIMEOUT,
+        accept_hdr_async_with_config(stream, accept_relay_request, Some(relay_websocket_config())),
+    );
+    let ws = tokio::select! {
+        _ = stopped.changed() => return,
+        handshake = handshake => match handshake {
+            Ok(Ok(ws)) => ws,
+            Ok(Err(error)) => {
+                debug!(%remote, %error, "relay WSS handshake failed");
+                return;
+            }
+            Err(_) => {
+                debug!(%remote, "relay WSS handshake timed out");
+                return;
+            }
+        },
+    };
+    run(ws, remote, slot, shared).await;
+}
+
+/// Serves one upgraded connection until either side closes, then disconnects it.
+async fn run<S>(ws: WebSocketStream<S>, remote: SocketAddr, _slot: IpSlot, shared: Arc<Shared>)
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
+    let connection = shared.next_connection.fetch_add(1, Ordering::Relaxed);
+    let peer = Peer::Wss { connection, remote };
     let (queue, outgoing) = mpsc::channel(SEND_QUEUE);
     shared.connections().insert(connection, queue);
-    pump(ws, peer, outgoing, &shared, stopped).await;
+    pump(ws, peer, outgoing, &shared, shared.stopped.clone()).await;
     shared.connections().remove(&connection);
     shared.relay().disconnect(&peer);
 }
@@ -174,20 +214,32 @@ async fn pump<S>(
     }
 }
 
-/// Bounds incoming messages and frames by the relay packet limit (quick-v2 §8.1).
-fn websocket_config() -> WebSocketConfig {
+/// The WebSocket limits of the relay carrier: messages and frames of at most 2048 bytes
+/// (`MAX_RELAY_PACKET_BYTES`, quick-v2 §8.1). A router that upgrades `/ns/v2` itself
+/// must apply it before [`MockRelay::handle_websocket`](super::MockRelay::handle_websocket).
+#[must_use]
+pub fn relay_websocket_config() -> WebSocketConfig {
     WebSocketConfig::default()
         .max_message_size(Some(MAX_RELAY_PACKET_BYTES))
         .max_frame_size(Some(MAX_RELAY_PACKET_BYTES))
 }
 
-/// Accepts only `RELAY_WSS_PATH` (else 404) offering `ns-relay-v2` (else 400), and
-/// selects that subprotocol in the response.
+/// The relay's WebSocket handshake check, usable as or inside a tungstenite
+/// `accept_hdr_async` callback: accepts only the path `/ns/v2` (else HTTP 404) offering
+/// the `ns-relay-v2` subprotocol (else HTTP 400), and selects that subprotocol in the
+/// response.
+///
+/// # Errors
+///
+/// The 404 or 400 [`ErrorResponse`] to send instead of upgrading.
 #[expect(
     clippy::result_large_err,
     reason = "the tungstenite callback signature fixes the error type"
 )]
-fn check_request(request: &Request, mut response: Response) -> Result<Response, ErrorResponse> {
+pub fn accept_relay_request(
+    request: &Request,
+    mut response: Response,
+) -> Result<Response, ErrorResponse> {
     if request.uri().path() != RELAY_WSS_PATH {
         return Err(reject(StatusCode::NOT_FOUND));
     }
