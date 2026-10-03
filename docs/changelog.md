@@ -1,3 +1,15 @@
+## 2026-10-03 [feat]
+
+Add `nsshared-telemetry`, the telemetry conventions shared with NS:
+`tracing` subscriber setup as composable pieces (`LogFormat` text or JSON, an
+env filter read from a configurable variable with a default directive, the
+boxed fmt layer, and `init`, which fails on an invalid filter or a second
+call), the `Redacted` wrapper with `SENSITIVE_FIELDS` (the NS forbidden
+labels), and the `path`, `transport` and `peer_source` label keys with their
+`Path`, `Transport` and `PeerSource` values. No OpenTelemetry dependency and
+no exporter; NS `metrics.rs` names no metric carrying these labels, so no
+metric name is shared yet.
+
 ## 2026-10-03 [refactor]
 
 Drop the `ns-` prefix from the crate names: the wire and rendezvous crates are
