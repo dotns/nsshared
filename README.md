@@ -13,6 +13,9 @@ This is the `next` workspace, rebuilt around the Quick protocol. It contains:
   node registry, pairing payloads and the region forwarding bodies (normative
   source: docs `ns/rendezvous.md`, `ns/quick-v2.md` §7, §10.2)
 
+`examples/mock-relay` (`nsshared-mock-relay`, not published) is an in-memory
+relay v2 mock over UDP and WSS for tests, as a library and a binary.
+
 `tools/vectors` is an independent Python generator of the conformance vectors
 both crates test against (`just vectors`, `just vectors-check`). Spec
 coverage: `docs/spec-coverage/nsshared-wire.md`, `docs/spec-coverage/nsshared-rendezvous.md`.

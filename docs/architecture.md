@@ -18,6 +18,16 @@ previous workspace is archived at tag `archive/v1-20261002`.
 Both crates are pure: no I/O, no async runtime, no TLS. They forbid `unsafe`
 and deny `unwrap`, `expect` and `panic` outside tests.
 
+## Examples
+
+`examples/mock-relay` (`nsshared-mock-relay`, `publish = false`) is a
+single-instance, in-memory relay v2 mock for tests: a sans-IO core built on
+`nsshared-wire` plus a tokio runtime serving the UDP and WSS carriers on one
+port, as a library (`MockRelay`) and a binary. Unlike the crates above it does
+I/O and TLS (rustls with the aws-lc-rs provider). It has no region, mesh or
+owner fencing and keeps all state in memory. Its integration tests include a
+client that reproduces the ns `RelayClient` byte layout.
+
 ## Conformance
 
 `crates/nsshared-wire/tests/fixtures/vectors` and
