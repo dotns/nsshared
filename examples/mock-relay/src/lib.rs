@@ -45,4 +45,7 @@ pub use config::{ConfigError, Limits, PROVISIONAL_LIFETIME, RelayConfig};
 pub use inspect::{Counters, Reason, SessionInfo};
 pub use peer::{Carrier, Now, Peer, Transmit};
 pub use relay::Relay;
-pub use runtime::{Error, GeneratedCert, MockRelay, MockRelayConfig, TlsSource};
+pub use runtime::{
+    Error, GeneratedCert, MockRelay, MockRelayConfig, TlsSource, accept_relay_request,
+    relay_websocket_config,
+};
