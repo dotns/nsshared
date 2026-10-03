@@ -14,19 +14,25 @@ previous workspace is archived at tag `archive/v1-20261002`.
 | --- | --- | --- |
 | `nsshared-wire` | NS protocol v2 wire formats: identities, node records, relay packets, region and in-tunnel control messages | nsgw quick relay and Quick nodes |
 | `nsshared-rendezvous` | NS rendezvous v2 (`/quick/v2`): JSON transport, capabilities, actor `hello`, relay directory v2, mailbox phase rules, node registry, pairing payloads, region frame bodies 10-12 | nsgw quick relay and Quick nodes |
+| `nsshared-telemetry` | Telemetry conventions: `tracing` subscriber setup (text or JSON, env filter with a default; installs the global subscriber, no exporter), `Redacted` and the sensitive field names, `path` / `transport` / `peer_source` label names and values | NS, the mock servers and the relay |
 
 Both crates are pure: no I/O, no async runtime, no TLS. They forbid `unsafe`
 and deny `unwrap`, `expect` and `panic` outside tests.
 
 ## Examples
 
-`examples/mock-relay` (`nsshared-mock-relay`, `publish = false`) is a
-single-instance, in-memory relay v2 mock for tests: a sans-IO core built on
-`nsshared-wire` plus a tokio runtime serving the UDP and WSS carriers on one
-port, as a library (`MockRelay`) and a binary. Unlike the crates above it does
-I/O and TLS (rustls with the aws-lc-rs provider). It has no region, mesh or
-owner fencing and keeps all state in memory. Its integration tests include a
-client that reproduces the ns `RelayClient` byte layout.
+`examples/` holds mock crates: libraries (with a binary) for ns development
+and tests, `publish = false`, never consumed by production components.
+
+| Crate | Serves |
+| --- | --- |
+| `nsshared-mock-relay` | A single-instance, in-memory relay v2 over the UDP and WSS carriers on one port: REGISTER, PRESENCE-confirmed sessions and DATA forwarding, with a sans-IO core built on `nsshared-wire`; no region, mesh or owner fencing. Its integration tests include a client that reproduces the ns `RelayClient` byte layout |
+| `nsshared-mock-rendezvous` | A single-instance `/quick/v2` relay over TLS WebSocket: challenge and `hello`, the mailbox broker, `directory` and the node registry, with every rendezvous §6 and quick-v2 §7.4 limit configurable; no region |
+
+The rendezvous mock reuses `nsshared-rendezvous` for every encoding and
+protocol rule and adds only storage, randomness, clocks, rate limits and I/O
+(tokio, rustls with aws-lc-rs, tokio-tungstenite). Its state modules do no I/O
+and take time and randomness from the caller.
 
 ## Conformance
 

@@ -1,0 +1,20 @@
+[package]
+name = "nsshared-telemetry"
+description = "Shared telemetry conventions: tracing subscriber setup, redaction helpers and shared metric label names"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true
