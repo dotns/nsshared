@@ -1,4 +1,4 @@
-"""`/quick/v2` JSON messages: one per request and result kind, valid and rejected
+"""`/rendezvous/v1` JSON messages: one per request and result kind, valid and rejected
 (rendezvous §3, §3.1, §4, §5.2, §5.4; quick-v2 §7.2)."""
 
 import base64
@@ -6,13 +6,13 @@ import json
 import re
 
 from .. import derive
-from . import control_messages, node_records, rendezvous_registry
+from . import node_records, rendezvous_registry
 from . import rendezvous_common as common
 from .rendezvous_common import b64u
 
 CRATE = common.CRATE
 GROUP = "mailbox_json"
-TITLE = "NS rendezvous v2 /quick/v2 JSON messages, valid and rejected"
+TITLE = "NS rendezvous /rendezvous/v1 JSON messages, valid and rejected"
 SECTIONS = "ns/rendezvous.md §3, §3.1, §4, §5.2, §5.4; ns/quick-v2.md §7.2"
 
 MAX_INTRO = 4096
@@ -44,6 +44,20 @@ ERROR_CODES = (
 class Reject(Exception):
     pass
 
+
+
+_LABEL = re.compile(r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$")
+
+
+def dns_relay_ok(text):
+    """A lowercase DNS-name relay identifier `host:port` (quick-v2 §8.6); the vectors use no
+    IP literals."""
+    if not 1 <= len(text.encode()) <= 255 or text.count(":") != 1:
+        return False
+    host, port = text.split(":")
+    if not re.fullmatch(r"[1-9][0-9]{0,4}", port) or int(port) > 65535:
+        return False
+    return all(_LABEL.match(label) for label in host.split("."))
 
 def _b64(value, exact=None, maximum=None):
     """Unpadded base64url in its canonical form (rendezvous §3)."""
@@ -121,7 +135,7 @@ def _capabilities(value):
 
 
 def _relay_id(value):
-    if type(value) is not str or not control_messages.dns_relay_ok(value):
+    if type(value) is not str or not dns_relay_ok(value):
         raise Reject("range")
 
 

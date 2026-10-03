@@ -1,6 +1,6 @@
 [package]
 name = "nsshared-mock-relay"
-description = "Single-instance, in-memory relay v2 mock for tests: sans-IO core over nsshared-wire"
+description = "Single-instance, in-memory relay v2 mock for tests: sans-IO core over nsshared-proto"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -17,8 +17,7 @@ clap.workspace = true
 ed25519-dalek.workspace = true
 futures-util.workspace = true
 getrandom.workspace = true
-nsshared-rendezvous.workspace = true
-nsshared-wire.workspace = true
+nsshared-proto.workspace = true
 rand_core.workspace = true
 rcgen.workspace = true
 rustls.workspace = true

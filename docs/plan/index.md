@@ -69,3 +69,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**20260927-2212-region-quick-owner-decision Region quick owner agreement decision**](20260927-2212-region-quick-owner-decision.md) `2026-09-27`
 - [-] [**20261002-1516-ns-shared-rebuild Rebuild ns-shared around a complete Quick protocol**](20261002-1516-ns-shared-rebuild.md) `2026-10-02`
 - [x] [**20261003-1400-nsshared-p3-release Complete nsshared for its first release (P3a) and publish**](20261003-1400-nsshared-p3-release.md) `2026-10-03`
+- [x] [**20261003-2300-nsshared-v0-2-scope Narrow nsshared to generic protocols and release v0.2.0**](20261003-2300-nsshared-v0-2-scope.md) `2026-10-03`

@@ -662,14 +662,13 @@ dependencies = [
 
 [[package]]
 name = "nsshared-mock-relay"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "clap",
  "ed25519-dalek",
  "futures-util",
  "getrandom 0.4.3",
- "nsshared-rendezvous",
- "nsshared-wire",
+ "nsshared-proto",
  "rand_core 0.10.1",
  "rcgen",
  "rustls",
@@ -683,13 +682,12 @@ dependencies = [
 
 [[package]]
 name = "nsshared-mock-rendezvous"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "ed25519-dalek",
  "futures-util",
  "getrandom 0.4.3",
- "nsshared-rendezvous",
- "nsshared-wire",
+ "nsshared-proto",
  "rand_core 0.10.1",
  "rcgen",
  "rustls",
@@ -698,18 +696,16 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tokio-tungstenite",
- "x25519-dalek",
 ]
 
 [[package]]
 name = "nsshared-mock-server"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "futures-util",
  "nsshared-mock-relay",
  "nsshared-mock-rendezvous",
- "nsshared-rendezvous",
- "nsshared-wire",
+ "nsshared-proto",
  "rustls",
  "serde_json",
  "thiserror",
@@ -719,14 +715,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "nsshared-rendezvous"
-version = "0.1.0"
+name = "nsshared-proto"
+version = "0.2.0"
 dependencies = [
  "base64",
  "blake2",
  "ed25519-dalek",
+ "getrandom 0.4.3",
  "hkdf",
- "nsshared-wire",
+ "hmac",
+ "proptest",
  "serde",
  "serde_json",
  "sha2",
@@ -737,29 +735,12 @@ dependencies = [
 
 [[package]]
 name = "nsshared-telemetry"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde_json",
  "thiserror",
  "tracing",
  "tracing-subscriber",
-]
-
-[[package]]
-name = "nsshared-wire"
-version = "0.1.0"
-dependencies = [
- "base64",
- "blake2",
- "ed25519-dalek",
- "getrandom 0.4.3",
- "hkdf",
- "hmac",
- "proptest",
- "sha2",
- "thiserror",
- "x25519-dalek",
- "zeroize",
 ]
 
 [[package]]

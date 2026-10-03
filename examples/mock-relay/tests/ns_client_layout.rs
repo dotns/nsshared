@@ -1,5 +1,5 @@
 //! The ns `RelayClient` byte layout against the mock. The client side is rebuilt here from
-//! `nsshared-wire` calls that mirror ns `crates/overlay/src/relay/{session,data}.rs` and
+//! `nsshared-proto` calls that mirror ns `crates/overlay/src/relay/{session,data}.rs` and
 //! `carrier/{udp,wss}.rs`, without depending on ns and without the `testing` helpers, so
 //! it checks the wire layout independently.
 #![allow(clippy::unwrap_used, clippy::panic, reason = "test fixture helpers")]
@@ -13,8 +13,8 @@ mod common;
 use common::{Link, start, stop, unix_now};
 use ed25519_dalek::SigningKey;
 use nsshared_mock_relay::MockRelay;
-use nsshared_rendezvous::capability::{self, Capabilities, Capability};
-use nsshared_wire::{
+use nsshared_proto::rendezvous::capability::{self, Capabilities, Capability};
+use nsshared_proto::{
     NodeId, NodeRecord, NodeRecordFields, Presence, RELAY_HEADER_BYTES, RELAY_MAGIC, RELAY_SLOT,
     Register, RelayBody, RelayPacket, RelayType, SessionKey, accept_relayed_data, ephemeral_public,
 };

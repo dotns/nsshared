@@ -10,7 +10,7 @@
 //! limiter prunes expired keys on use and refuses new keys while still full, and
 //! [`RateLimiter::prune`] drops expired keys explicitly.
 
-use nsshared_rendezvous::error::ErrorCode;
+use nsshared_proto::rendezvous::error::ErrorCode;
 use std::{collections::HashMap, hash::Hash};
 
 /// Milliseconds in a second.
@@ -120,7 +120,7 @@ impl<K: Eq + Hash> RateLimiter<K> {
 #[cfg(test)]
 mod tests {
     use super::{MINUTE_MS, RateLimiter, SECOND_MS};
-    use nsshared_rendezvous::error::ErrorCode;
+    use nsshared_proto::rendezvous::error::ErrorCode;
     use std::net::{IpAddr, Ipv4Addr};
 
     const T: u64 = 1_800_000_000_000;

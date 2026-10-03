@@ -6,7 +6,7 @@
 
 mod support;
 
-use nsshared_rendezvous::{
+use nsshared_proto::rendezvous::{
     error::ErrorCode,
     message::{Admission, Kind, OpenRequest, RejectRequest, Stage},
     transport::Request,

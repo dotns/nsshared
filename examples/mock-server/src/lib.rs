@@ -1,13 +1,13 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
-//! Combined single-instance mock: relay v2 and rendezvous v2 on one `host:port`
+//! Combined single-instance mock: relay v2 and rendezvous on one `host:port`
 //! (docs ns/quick-v2.md §8.6; ns/rendezvous.md §3, §3.1, §5.4).
 //!
 //! [`MockServer`] owns one TCP+TLS listener with one certificate and routes each
 //! WebSocket upgrade by path: `/ns/v2` to the relay mock
 //! ([`MockRelay::handle_websocket`], relay started with
-//! [`MockRelayConfig::external_wss`]) and `/quick/v2` to the rendezvous mock
+//! [`MockRelayConfig::external_wss`]) and `/rendezvous/v1` to the rendezvous mock
 //! ([`RendezvousServer::handle_websocket`]). The relay's UDP carrier binds the same port.
 //! Both services keep their own state; this crate adds only the shared listener, the
 //! router and the lifecycle. The served directory lists the mock itself announcing
@@ -17,8 +17,8 @@ use nsshared_mock_relay::{MockRelay, MockRelayConfig, accept_relay_request};
 use nsshared_mock_rendezvous::{
     Config, RendezvousServer, ServerError, accept_quick_request, server::HANDSHAKE_TIMEOUT,
 };
-use nsshared_rendezvous::{capability, transport::PATH};
-use nsshared_wire::RelayId;
+use nsshared_proto::RelayId;
+use nsshared_proto::rendezvous::{capability, transport::PATH};
 use std::{io, net::SocketAddr, sync::Arc, time::Duration};
 use thiserror::Error;
 use tokio::{
@@ -50,7 +50,7 @@ pub enum Error {
     Relay(#[from] nsshared_mock_relay::Error),
 }
 
-/// Relay v2 (UDP and `/ns/v2`) and rendezvous v2 (`/quick/v2`) behind one authority.
+/// Relay v2 (UDP and `/ns/v2`) and rendezvous (`/rendezvous/v1`) behind one authority.
 /// Cloning yields another handle to the same server.
 #[derive(Clone, Debug)]
 pub struct MockServer {
@@ -165,8 +165,8 @@ impl MockServer {
         }
     }
 
-    /// Upgrades one decrypted stream and routes it by path: `/quick/v2` (400 without
-    /// `ns-quick-v2`) to the rendezvous mock, `/ns/v2` (400 without `ns-relay-v2`) to the
+    /// Upgrades one decrypted stream and routes it by path: `/rendezvous/v1` (400 without
+    /// `ns-rendezvous-v1`) to the rendezvous mock, `/ns/v2` (400 without `ns-relay-v2`) to the
     /// relay mock, 404 otherwise. The upgrade applies the larger rendezvous WebSocket
     /// limit; the relay still closes a message over 2048 bytes with 1009.
     pub async fn route<S>(&self, stream: S, remote: SocketAddr)

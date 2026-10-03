@@ -10,7 +10,7 @@ mod common;
 
 use common::{Link, register, start, stop, unix_now};
 use nsshared_mock_relay::testing::{TestNode, data_packet};
-use nsshared_wire::{NODE_ID_BYTES, NodeId, RelayBody, RelayType, StatusCode};
+use nsshared_proto::{NODE_ID_BYTES, NodeId, RelayBody, RelayType, StatusCode};
 use std::net::SocketAddr;
 
 #[tokio::test]

@@ -5,14 +5,14 @@ from . import rendezvous_common as common
 
 CRATE = common.CRATE
 GROUP = "hello"
-TITLE = "NS rendezvous v2 actor hello signatures, valid and rejected"
+TITLE = "NS rendezvous actor hello signatures, valid and rejected"
 SECTIONS = "ns/rendezvous.md §3, §4; ns/quick-v2.md §12.2"
 
-ACTOR_CONTEXT = b"ns-quick-actor-v2\x00"
+ACTOR_CONTEXT = b"ns-rendezvous-actor-v1\x00"
 
 
 def signed_message(nonce, authority):
-    """`"ns-quick-actor-v2\\0" ‖ nonce ‖ authority`, no length prefixes (rendezvous §4)."""
+    """`"ns-rendezvous-actor-v1\\0" ‖ nonce ‖ authority`, no length prefixes (rendezvous §4)."""
     return ACTOR_CONTEXT + nonce + authority.encode("ascii")
 
 

@@ -1,18 +1,18 @@
 //! Broker limits and mock configuration (rendezvous §6; quick-v2 §7.4).
 //!
 //! Every §6 and §7.4 limit is a relay configuration item; [`Limits::default`] takes the
-//! production defaults from `nsshared_rendezvous::limits` and
-//! `nsshared_rendezvous::registry`.
+//! production defaults from `nsshared_proto::rendezvous::limits` and
+//! `nsshared_proto::rendezvous::registry`.
 //!
 //! The broker owns, and enforces at the configured value: stored mailboxes, mailboxes
 //! per actor, global queued bytes, pending `recv`, message bytes, every rate limit and
 //! registry records. The per-mailbox limits (candidates, rejected actors, peer rejects,
 //! `intro` / `data` bytes, unacknowledged messages and bytes per direction, cumulative
-//! messages and bytes per mailbox) are fixed by the `nsshared_rendezvous::phase` rules
+//! messages and bytes per mailbox) are fixed by the `nsshared_proto::rendezvous::phase` rules
 //! and the message decoders: those fields only report the library values, and changing
 //! them has no effect.
 
-use nsshared_rendezvous::{capability::Capability, directory::Directory, limits, registry};
+use nsshared_proto::rendezvous::{capability::Capability, directory::Directory, limits, registry};
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
     path::PathBuf,
@@ -186,7 +186,7 @@ impl Default for Config {
 #[cfg(test)]
 mod tests {
     use super::{Config, Limits};
-    use nsshared_rendezvous::{limits, registry};
+    use nsshared_proto::rendezvous::{limits, registry};
 
     #[test]
     fn defaults_are_the_production_values() {

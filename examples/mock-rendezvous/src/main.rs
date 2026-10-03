@@ -1,11 +1,11 @@
-//! `nsshared-mock-rendezvous`: a single-instance `/quick/v2` relay over TLS WebSocket
+//! `nsshared-mock-rendezvous`: a single-instance `/rendezvous/v1` relay over TLS WebSocket
 //! (rendezvous §3; quick-v2 §7).
 //!
 //! Prints the authority and the served directory JSON on startup and runs until
 //! interrupted.
 
 use nsshared_mock_rendezvous::{Config, RendezvousServer, TlsSource};
-use nsshared_rendezvous::directory::Directory;
+use nsshared_proto::rendezvous::directory::Directory;
 use std::{net::SocketAddr, path::PathBuf, process::ExitCode};
 
 const USAGE: &str = "usage: nsshared-mock-rendezvous [--listen <ip:port>] [--host <tls name>]

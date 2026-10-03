@@ -8,7 +8,7 @@ import json
 from .. import derive
 from . import node_records
 
-CRATE = "nsshared-rendezvous"
+CRATE = "nsshared-proto"
 
 # Fixed time: one hour into the records' service period.
 NOW = node_records.ISSUED_AT + 3600

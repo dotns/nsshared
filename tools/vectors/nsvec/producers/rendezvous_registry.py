@@ -11,7 +11,7 @@ from . import rendezvous_common as common
 
 CRATE = common.CRATE
 GROUP = "registry"
-TITLE = "NS rendezvous v2 registry publish proofs and shard order, valid and rejected"
+TITLE = "NS rendezvous registry publish proofs and shard order, valid and rejected"
 SECTIONS = "ns/quick-v2.md §7.1, §7.2, §12.2; ns/rendezvous.md §3.1, §5.4"
 
 PUBLISH_CONTEXT = b"ns/registry-publish/v2"

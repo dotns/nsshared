@@ -1,4 +1,4 @@
-//! Node-side test helpers built only on `nsshared-wire`: a signed record, a signed
+//! Node-side test helpers built only on `nsshared-proto`: a signed record, a signed
 //! REGISTER, the node session key and sealed PRESENCE / REFLECT / REVOKE packets
 //! (quick-v2 §3.1, §8.2-§8.3).
 //!
@@ -16,7 +16,7 @@
 //! [`TestRng`] is a deterministic random source for [`crate::Relay`] in tests.
 
 use ed25519_dalek::SigningKey;
-use nsshared_wire::{
+use nsshared_proto::{
     Identity, NodeId, NodeRecord, NodeRecordError, NodeRecordFields, Presence, RELAY_SLOT, Reflect,
     Register, Registered, RelayBody, RelayId, RelayMacError, RelayPacket, RelayPacketError, Revoke,
     RevokeReason, SessionKey, SignerMismatch, ZeroSharedSecret, ephemeral_public,

@@ -1,6 +1,6 @@
 use super::*;
 use crate::testing::{NodeSession, TestNode, TestRng, data_packet};
-use nsshared_wire::{NodeRecordFields, ObservedAddr, RateLimit, RelayId, RelayType, RevokeReason};
+use nsshared_proto::{NodeRecordFields, ObservedAddr, RateLimit, RelayId, RelayType, RevokeReason};
 use std::{
     net::SocketAddr,
     time::{Duration, Instant},

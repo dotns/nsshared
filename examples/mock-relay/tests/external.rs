@@ -14,7 +14,7 @@ use nsshared_mock_relay::{
     Carrier, MockRelay, MockRelayConfig, accept_relay_request, relay_websocket_config,
     testing::TestNode,
 };
-use nsshared_wire::{RELAY_WSS_PATH, RELAY_WSS_SUBPROTOCOL};
+use nsshared_proto::{RELAY_WSS_PATH, RELAY_WSS_SUBPROTOCOL};
 use rustls::{
     ServerConfig,
     crypto::aws_lc_rs,
@@ -36,8 +36,8 @@ use tokio_tungstenite::{
     },
 };
 
-/// The second route of the combined server, standing in for `/quick/v2`.
-const DUMMY_PATH: &str = "/quick/v2";
+/// The second route of the combined server, standing in for `/rendezvous/v1`.
+const DUMMY_PATH: &str = "/rendezvous/v1";
 
 /// How the router hands `/ns/v2` to the relay.
 #[derive(Clone, Copy)]

@@ -7,14 +7,14 @@ use nsshared_mock_rendezvous::{
     config::Limits,
     registry::{RegistryStore, self_entry},
 };
-use nsshared_rendezvous::{
+use nsshared_proto::rendezvous::{
     capability::{self, Capabilities},
     directory::{Directory, RelayEntry},
     error::ErrorCode,
     message::{LookupNodeRequest, PublishRequest, RecordResult},
     registry,
 };
-use nsshared_wire::{NodeId, NodeRecord, NodeRecordFields, RelayId};
+use nsshared_proto::{NodeId, NodeRecord, NodeRecordFields, RelayId};
 use std::net::IpAddr;
 
 const NOW: u64 = 1_800_000_000;

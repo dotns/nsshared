@@ -4,7 +4,7 @@ import base64
 
 from .. import derive, x25519
 
-CRATE = "nsshared-wire"
+CRATE = "nsshared-proto"
 GROUP = "identities"
 TITLE = "NS v2 identities: node ID, address group g, N6 and N4"
 SECTIONS = "ns/quick-v2.md §2.1, §2.2, §2.3"

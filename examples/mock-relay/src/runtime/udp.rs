@@ -3,7 +3,7 @@
 
 use super::Shared;
 use crate::Peer;
-use nsshared_wire::MAX_RELAY_PACKET_BYTES;
+use nsshared_proto::MAX_RELAY_PACKET_BYTES;
 use std::sync::Arc;
 use tokio::{net::UdpSocket, sync::watch};
 use tracing::debug;

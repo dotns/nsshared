@@ -12,7 +12,7 @@
 //! Every call takes the current [`Now`], the [`Peer`] a packet came from and the packet
 //! bytes, and returns the [`Transmit`]s to send. The relay ephemeral comes from an
 //! injected [`rand_core::CryptoRng`], so tests are deterministic. Encodings, admission
-//! checks, the session key and MACs all come from `nsshared-wire`.
+//! checks, the session key and MACs all come from `nsshared-proto`.
 //!
 //! Spec coverage (quick-v2 §8, with the v1 rules of quick-protocol §12.5 it inherits):
 //!

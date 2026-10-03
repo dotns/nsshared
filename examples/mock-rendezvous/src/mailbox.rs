@@ -1,7 +1,7 @@
 //! Mailbox broker state (rendezvous §5.1-§5.3, §6).
 //!
 //! [`MailboxBroker`] stores the mailboxes and the bookkeeping around them; every phase
-//! rule, permission check and payload comes from `nsshared_rendezvous::phase`. The
+//! rule, permission check and payload comes from `nsshared_proto::rendezvous::phase`. The
 //! broker adds the digits lookup index, per-actor live-mailbox counts, the global
 //! queued-byte total, id and digits allocation, removal and a per-mailbox change signal
 //! for long polls. It is synchronous and meant to sit behind a `std::sync::Mutex`; it
@@ -10,7 +10,7 @@
 //! cadence are the server's job.
 
 use crate::config::Limits;
-use nsshared_rendezvous::{
+use nsshared_proto::rendezvous::{
     error::ErrorCode,
     limits::{DIGITS_LEN, MAILBOX_ID_BYTES},
     message::{Digits, Found, MailboxId, MailboxView, OpenRequest, Opened, Sent},
@@ -412,7 +412,7 @@ fn random_digits<R: TryCryptoRng + ?Sized>(rng: &mut R) -> Result<Digits, ErrorC
 mod tests {
     use super::MailboxBroker;
     use crate::config::Limits;
-    use nsshared_rendezvous::{
+    use nsshared_proto::rendezvous::{
         error::ErrorCode,
         limits::{CLOSING_GRACE_SECONDS, INACTIVITY_SECONDS, MAX_DATA_BYTES},
         message::{Admission, Digits, Kind, MailboxId, OpenRequest, Stage},

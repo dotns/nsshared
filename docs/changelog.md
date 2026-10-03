@@ -1,5 +1,26 @@
 ## 2026-10-03 [refactor]
 
+Release `v0.2.0`: nsshared keeps only generic protocols and tools (docs
+`ns-shared/index.md`, commit `8ec71f3`). Breaking for every consumer:
+
+- Merge `nsshared-wire` and `nsshared-rendezvous` into `nsshared-proto`; the
+  rendezvous messages are `nsshared_proto::rendezvous`, the wire items stay at
+  the crate root.
+- Rename the rendezvous service: path `/rendezvous/v1`, subprotocol
+  `ns-rendezvous-v1`, actor context `ns-rendezvous-actor-v1\0` (was the
+  undeployed `/quick/v2`, `ns-quick-v2`, `ns-quick-actor-v2\0`).
+- Move to ns: pairing payloads and PSK (now the ns app channel, docs
+  `ns/app-channel.md`), the in-tunnel control channel, IPv4 alias candidates
+  and `lan6`, and the `path` / `transport` / `peer_source` labels of
+  `nsshared-telemetry`. Their vectors (`pairing`, `control_messages`,
+  `alias4`, `lan6`) are dropped here; the last version is tag `v0.1.0`.
+- Add `nsshared_proto::encoding`: strict base64url and padded standard base64.
+
+Consumers: ns switches to `nsshared-proto` at `v0.2.0` and takes over the
+moved code; nsgw adopts it with the relay v2 server.
+
+## 2026-10-03 [refactor]
+
 Keep only protocols shared by several components. Remove the relay region
 member protocol from `nsshared-wire` (region frames, channel rules, snapshot
 chunking, the mark join and `MAX_REGION_RENDEZVOUS_FRAME_BYTES`) and the region

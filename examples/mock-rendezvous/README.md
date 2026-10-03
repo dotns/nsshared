@@ -1,7 +1,7 @@
 # nsshared-mock-rendezvous
 
-A single-instance mock of the NS rendezvous v2 relay (`wss://{host:port}/quick/v2`,
-subprotocol `ns-quick-v2`) for ns development and tests. `publish = false`.
+A single-instance mock of the NS rendezvous relay (`wss://{host:port}/rendezvous/v1`,
+subprotocol `ns-rendezvous-v1`) for ns development and tests. `publish = false`.
 
 It serves, over TLS WebSocket:
 
@@ -18,7 +18,7 @@ It serves, over TLS WebSocket:
 It is one instance: no region, owner epochs, forwarding or replication (region
 frames 10-12 are not served), and its registry domain is its own single entry,
 so every node ID is in its shard. Encodings, validation, phase rules, proofs
-and record acceptance all come from `nsshared-rendezvous`; the mock adds only
+and record acceptance all come from `nsshared_proto::rendezvous`; the mock adds only
 storage, randomness, clocks, rate limits and I/O. State is in memory and lost
 on exit.
 

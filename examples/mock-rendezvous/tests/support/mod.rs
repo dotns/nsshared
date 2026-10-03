@@ -1,5 +1,5 @@
-//! Shared client for the integration tests: an ns-style `/quick/v2` client over TLS
-//! WebSocket (TLS to the entry's IP with SNI = host, subprotocol `ns-quick-v2`) driving
+//! Shared client for the integration tests: an ns-style `/rendezvous/v1` client over TLS
+//! WebSocket (TLS to the entry's IP with SNI = host, subprotocol `ns-rendezvous-v1`) driving
 //! a [`RendezvousServer`] bound to a free loopback port.
 
 #![allow(
@@ -12,7 +12,8 @@
 use ed25519_dalek::SigningKey;
 use futures_util::{SinkExt, StreamExt};
 use nsshared_mock_rendezvous::{Config, Limits, RendezvousServer};
-use nsshared_rendezvous::{
+use nsshared_proto::RelayId;
+use nsshared_proto::rendezvous::{
     auth::{Challenge, Hello},
     error::ErrorCode,
     message::{
@@ -23,7 +24,6 @@ use nsshared_rendezvous::{
         MAX_MESSAGE_BYTES, PATH, Request, Response, SUBPROTOCOL, decode_response, encode_request,
     },
 };
-use nsshared_wire::RelayId;
 use rustls::{
     ClientConfig, RootCertStore,
     crypto::aws_lc_rs,
@@ -157,7 +157,7 @@ impl Mock {
         }
     }
 
-    /// A `/quick/v2` client that has read and checked the challenge.
+    /// A `/rendezvous/v1` client that has read and checked the challenge.
     pub async fn connect(&self) -> Client {
         let mut socket = self.websocket(PATH, true).await.unwrap();
         let Response::Challenge(challenge) = receive(&mut socket).await else {
@@ -194,7 +194,7 @@ async fn receive(socket: &mut Socket) -> Response {
     .unwrap()
 }
 
-/// One `/quick/v2` connection.
+/// One `/rendezvous/v1` connection.
 pub struct Client {
     pub socket: Socket,
     pub challenge: Challenge,

@@ -67,7 +67,7 @@ sockets.
 
 ## Embedding behind a shared listener (combined server)
 
-`/quick/v2` rides the relay's TLS listener (same authority), so a combined server owns the
+`/rendezvous/v1` rides the relay's TLS listener (same authority), so a combined server owns the
 single TCP+TLS listener and hands `/ns/v2` to the relay. Set
 `MockRelayConfig::external_wss`: the mock then binds no TCP listener and generates no
 certificate (`wss_addr()` and `generated_cert()` are `None`), but still announces `wss`
@@ -99,7 +99,7 @@ loop {
         let Ok(tls) = acceptor.accept(tcp).await else { return };
         let mut quick = false;
         let callback = |request: &Request, response: Response| {
-            if request.uri().path() == "/quick/v2" {
+            if request.uri().path() == "/rendezvous/v1" {
                 quick = true;
                 return quick_v2_accept(request, response); // the rendezvous check
             }

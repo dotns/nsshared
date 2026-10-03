@@ -1,7 +1,7 @@
 # nsshared-mock-server
 
 One process, one `host:port`, one certificate: the relay v2 mock
-(`nsshared-mock-relay`) and the rendezvous v2 mock (`nsshared-mock-rendezvous`)
+(`nsshared-mock-relay`) and the rendezvous mock (`nsshared-mock-rendezvous`)
 behind a single authority, for ns development and tests. Library
 (`MockServer`) and binary (`nsshared-mock-server`).
 
@@ -10,13 +10,13 @@ It serves, on the listen port:
 - relay v2 UDP (one relay packet per datagram), bound on the same port as TCP;
 - one TCP+TLS listener that routes each WebSocket upgrade by path:
   - `wss://host:port/ns/v2` (subprotocol `ns-relay-v2`) to the relay mock,
-  - `wss://host:port/quick/v2` (subprotocol `ns-quick-v2`) to the rendezvous
+  - `wss://host:port/rendezvous/v1` (subprotocol `ns-rendezvous-v1`) to the rendezvous
     mock (mailbox broker, `directory`, registry `publish` / `lookup_node`),
   - any other path gets 404, a missing subprotocol 400.
 
 The served directory lists the server itself (`--relay-id`, `--code`, `--host`,
 `--advertise-ip`, the listen port) announcing `mailbox`, `registry`, `udp` and
-`wss`; the `/quick/v2` challenge announces the same set. The relay handshake
+`wss`; the `/rendezvous/v1` challenge announces the same set. The relay handshake
 reply (REGISTERED) announces `udp` and `wss`, the tokens `nsshared-mock-relay`
 emits.
 
@@ -46,7 +46,7 @@ directory JSON). Ctrl-C shuts both services down.
 ## Pointing ns at it
 
 ns uses one identifier `host:port` for everything: UDP to that port,
-`wss://host:port/ns/v2` for the relay WSS carrier and `wss://host:port/quick/v2`
+`wss://host:port/ns/v2` for the relay WSS carrier and `wss://host:port/rendezvous/v1`
 for the registry and the mailbox, dialling the directory entry's `ips` and
 verifying `host`.
 

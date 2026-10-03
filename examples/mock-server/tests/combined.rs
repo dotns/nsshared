@@ -1,5 +1,5 @@
 //! The combined server on one loopback port: a node registers on `/ns/v2` and over UDP,
-//! publishes its record on `/quick/v2`, another connection looks it up, the directory
+//! publishes its record on `/rendezvous/v1`, another connection looks it up, the directory
 //! lists the server itself, and other paths are refused (quick-v2 §7.2, §8.3, §8.6;
 //! rendezvous §3, §3.1, §5.4).
 
@@ -9,13 +9,13 @@ use futures_util::{SinkExt, StreamExt};
 use nsshared_mock_relay::{Carrier, testing::TestNode};
 use nsshared_mock_rendezvous::Config;
 use nsshared_mock_server::MockServer;
-use nsshared_rendezvous::{
+use nsshared_proto::rendezvous::{
     auth::Challenge,
     message::{LookupNodeRequest, RecordResult},
     registry,
     transport::{PATH, Request, Response, SUBPROTOCOL, decode_response, encode_request},
 };
-use nsshared_wire::{
+use nsshared_proto::{
     IdentitySecret, MAX_RELAY_PACKET_BYTES, NODE_ID_BYTES, RELAY_WSS_PATH, RELAY_WSS_SUBPROTOCOL,
     RelayBody, RelayId,
 };
@@ -144,7 +144,7 @@ impl Combined {
         }
     }
 
-    /// A `/quick/v2` connection that has read the challenge.
+    /// A `/rendezvous/v1` connection that has read the challenge.
     async fn quick(&self) -> Quick {
         let mut ws = self.ws(PATH, Some(SUBPROTOCOL)).await.unwrap();
         let Response::Challenge(challenge) = quick_receive(&mut ws).await else {
@@ -243,7 +243,7 @@ async fn one_port_serves_relay_and_rendezvous() {
     assert!(sessions[0].confirmed);
     assert_eq!(sessions[0].carrier, Carrier::Wss);
 
-    // (b) The same identity publishes its record on /quick/v2; another connection
+    // (b) The same identity publishes its record on /rendezvous/v1; another connection
     // looks it up (hit) and an unknown node ID (miss).
     let identity = IdentitySecret::from_seed(seed);
     assert_eq!(identity.public().node_id(), node.node_id());

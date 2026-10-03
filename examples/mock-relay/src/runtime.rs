@@ -18,8 +18,8 @@ pub use wss::{accept_relay_request, relay_websocket_config};
 
 use crate::{ConfigError, Counters, Limits, Now, Peer, Relay, RelayConfig, SessionInfo, Transmit};
 use getrandom::SysRng;
-use nsshared_rendezvous::capability::{self, Capabilities, Capability, CapabilityError};
-use nsshared_wire::{DEFAULT_PRESENCE_TTL_SECONDS, RelayId, RelayIdError, WSS_CONNECTIONS_PER_IP};
+use nsshared_proto::rendezvous::capability::{self, Capabilities, Capability, CapabilityError};
+use nsshared_proto::{DEFAULT_PRESENCE_TTL_SECONDS, RelayId, RelayIdError, WSS_CONNECTIONS_PER_IP};
 use rand_core::UnwrapErr;
 use std::{
     collections::HashMap,
@@ -332,7 +332,7 @@ impl MockRelay {
     /// Serves a WebSocket from `remote` that the caller has already upgraded: it must
     /// have validated the request and selected `ns-relay-v2` with
     /// [`accept_relay_request`] and should apply [`relay_websocket_config`]; under a larger
-    /// limit (a router sharing one config with `/quick/v2`) the relay still closes a
+    /// limit (a router sharing one config with `/rendezvous/v1`) the relay still closes a
     /// message over 2048 bytes with code 1009. A connection over
     /// the per-IP limit is closed with code 1013. Otherwise as
     /// [`handle_stream`](Self::handle_stream).

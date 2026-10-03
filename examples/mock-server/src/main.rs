@@ -1,4 +1,4 @@
-//! `nsshared-mock-server`: relay v2 (UDP and `/ns/v2`) and rendezvous v2 (`/quick/v2`)
+//! `nsshared-mock-server`: relay v2 (UDP and `/ns/v2`) and rendezvous (`/rendezvous/v1`)
 //! on one `host:port` with one certificate (quick-v2 §8.6; rendezvous §3, §5.4).
 //!
 //! Prints the authority and the served directory JSON on startup and runs until
@@ -6,7 +6,7 @@
 
 use nsshared_mock_rendezvous::{Config, TlsSource};
 use nsshared_mock_server::MockServer;
-use nsshared_rendezvous::directory::Directory;
+use nsshared_proto::rendezvous::directory::Directory;
 use std::{net::SocketAddr, path::PathBuf, process::ExitCode};
 
 const USAGE: &str = "usage: nsshared-mock-server [--listen <ip:port>] [--host <tls name>]

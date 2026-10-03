@@ -6,7 +6,7 @@ use crate::{
     inspect::{Counters, Reason, SessionInfo},
     peer::{Carrier, Now, Peer, Transmit},
 };
-use nsshared_wire::{
+use nsshared_proto::{
     Identity, NODE_ID_BYTES, NodeId, NodeRecord, Presence, RELAY_HEADER_BYTES, RELAY_MAGIC,
     RELAY_SLOT, RecordDecision, RecordMarks, Reflect, Reflected, RegisterCandidate,
     RegisterRejection, Registered, RelayBody, RelayHeader, RelayPacket, RelayPacketError,

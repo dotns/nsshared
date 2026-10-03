@@ -6,7 +6,7 @@ use nsshared_mock_relay::{
     MockRelay, MockRelayConfig,
     testing::{NodeSession, TestNode},
 };
-use nsshared_wire::{
+use nsshared_proto::{
     MAX_RELAY_PACKET_BYTES, RELAY_WSS_PATH, RELAY_WSS_SUBPROTOCOL, Registered, RelayBody,
 };
 use rustls::{

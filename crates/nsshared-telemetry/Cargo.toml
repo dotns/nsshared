@@ -1,6 +1,6 @@
 [package]
 name = "nsshared-telemetry"
-description = "Shared telemetry conventions: tracing subscriber setup, redaction helpers and shared metric label names"
+description = "Shared logging conventions: tracing subscriber setup and redaction helpers"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

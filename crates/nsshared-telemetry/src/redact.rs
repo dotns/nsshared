@@ -2,7 +2,7 @@
 //!
 //! Policy: the fields in [`SENSITIVE_FIELDS`] identify a user, a peer, an
 //! address or a single flow. They are never metric labels (they are
-//! unbounded and identifying; see [`crate::labels`]). When one is recorded as
+//! unbounded and identifying). When one is recorded as
 //! a log or span field, the value goes through [`redacted`]
 //! (`remote_ip = %redacted(&addr)`) so the field stays visible while the
 //! value does not. The list follows the forbidden labels of NS

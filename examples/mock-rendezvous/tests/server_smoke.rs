@@ -1,12 +1,12 @@
 //! Smoke test: a client built like the ns registry connection (TLS to the entry's IP
-//! with SNI = host, `wss://{host:port}/quick/v2`, subprotocol `ns-quick-v2`) completes
+//! with SNI = host, `wss://{host:port}/rendezvous/v1`, subprotocol `ns-rendezvous-v1`) completes
 //! the handshake, reads the `challenge` and gets a `directory`.
 
 #![allow(clippy::unwrap_used, clippy::panic, reason = "test fixture helpers")]
 
 use futures_util::{SinkExt, StreamExt};
 use nsshared_mock_rendezvous::{Config, RendezvousServer};
-use nsshared_rendezvous::{
+use nsshared_proto::rendezvous::{
     capability,
     transport::{
         MAX_MESSAGE_BYTES, PATH, Request, Response, SUBPROTOCOL, decode_response, encode_request,

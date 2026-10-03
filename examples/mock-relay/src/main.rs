@@ -3,7 +3,7 @@
 
 use clap::Parser;
 use nsshared_mock_relay::{Limits, MockRelay, MockRelayConfig, TlsSource};
-use nsshared_wire::{RelayId, WSS_CONNECTIONS_PER_IP};
+use nsshared_proto::{RelayId, WSS_CONNECTIONS_PER_IP};
 use std::{error::Error, net::SocketAddr, path::PathBuf, process::ExitCode};
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;

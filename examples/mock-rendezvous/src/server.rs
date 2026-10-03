@@ -1,8 +1,8 @@
-//! TLS WebSocket server for `wss://{host:port}/quick/v2` (rendezvous §3, §4, §5.2, §6,
+//! TLS WebSocket server for `wss://{host:port}/rendezvous/v1` (rendezvous §3, §4, §5.2, §6,
 //! §7; quick-v2 §7.2).
 //!
-//! [`RendezvousServer`] terminates TLS, accepts only path `/quick/v2` with subprotocol
-//! `ns-quick-v2`, bounds every incoming message by the §6 message size before parsing,
+//! [`RendezvousServer`] terminates TLS, accepts only path `/rendezvous/v1` with subprotocol
+//! `ns-rendezvous-v1`, bounds every incoming message by the §6 message size before parsing,
 //! sends the `challenge`, then answers one text message per request, in order. Each
 //! request runs against the [`MailboxBroker`] and [`RegistryStore`] behind one mutex;
 //! the server adds the `hello` binding, the §6 and quick-v2 §7.4 rate limits, the
@@ -25,7 +25,7 @@ use crate::{
 };
 use futures_util::{SinkExt, StreamExt};
 use getrandom::SysRng;
-use nsshared_rendezvous::{
+use nsshared_proto::rendezvous::{
     auth::Challenge,
     capability,
     directory::{Directory, RelayEntry},
@@ -38,7 +38,7 @@ use nsshared_rendezvous::{
         encode_response,
     },
 };
-use nsshared_wire::{Identity, RelayId};
+use nsshared_proto::{Identity, RelayId};
 use rand_core::TryRng;
 use std::{
     io,
@@ -184,7 +184,7 @@ impl Drop for PendingRecv<'_> {
     }
 }
 
-/// A single-instance `/quick/v2` relay: mailbox broker and registry over TLS
+/// A single-instance `/rendezvous/v1` relay: mailbox broker and registry over TLS
 /// WebSocket. Cloning yields another handle to the same server.
 #[derive(Clone, Debug)]
 pub struct RendezvousServer {
@@ -364,7 +364,7 @@ impl RendezvousServer {
     }
 
     /// Serves one decrypted (or plain) stream from `peer`: the WebSocket upgrade, which
-    /// answers 404 for a path other than `/quick/v2` and 400 without the `ns-quick-v2`
+    /// answers 404 for a path other than `/rendezvous/v1` and 400 without the `ns-rendezvous-v1`
     /// subprotocol, then [`handle_websocket`](Self::handle_websocket).
     pub async fn handle_stream<S>(&self, stream: S, peer: IpAddr)
     where
@@ -384,7 +384,7 @@ impl RendezvousServer {
         }
     }
 
-    /// Runs the `/quick/v2` protocol on an upgraded socket from `peer` until it closes,
+    /// Runs the `/rendezvous/v1` protocol on an upgraded socket from `peer` until it closes,
     /// sends a non-text message or the server shuts down. The upgrade must have checked
     /// the path and subprotocol and applied [`websocket_config`](Self::websocket_config).
     pub async fn handle_websocket<S>(&self, mut socket: WebSocketStream<S>, peer: IpAddr)
@@ -588,10 +588,10 @@ impl RendezvousServer {
     }
 }
 
-/// The `/quick/v2` upgrade check, usable as an `accept_hdr_async` callback by a router
+/// The `/rendezvous/v1` upgrade check, usable as an `accept_hdr_async` callback by a router
 /// that upgrades the socket itself before
-/// [`RendezvousServer::handle_websocket`]: 404 for a path other than `/quick/v2`, 400
-/// without the `ns-quick-v2` subprotocol, otherwise `response` selecting it
+/// [`RendezvousServer::handle_websocket`]: 404 for a path other than `/rendezvous/v1`, 400
+/// without the `ns-rendezvous-v1` subprotocol, otherwise `response` selecting it
 /// (rendezvous §3). [`RendezvousServer::handle_stream`] runs the same check.
 ///
 /// # Errors
@@ -616,7 +616,7 @@ pub fn accept_quick_request(
     Ok(response)
 }
 
-/// Whether the upgrade request offers the `ns-quick-v2` subprotocol (rendezvous §3).
+/// Whether the upgrade request offers the `ns-rendezvous-v1` subprotocol (rendezvous §3).
 fn offers_subprotocol(request: &HttpRequest) -> bool {
     request
         .headers()
@@ -691,20 +691,23 @@ mod tests {
 
     #[test]
     fn accept_quick_request_routes_by_path_and_subprotocol() {
-        assert_eq!(status("/ns/v2", Some("ns-quick-v2")), StatusCode::NOT_FOUND);
-        assert_eq!(status("/quick/v2", None), StatusCode::BAD_REQUEST);
         assert_eq!(
-            status("/quick/v2", Some("ns-relay-v2")),
+            status("/ns/v2", Some("ns-rendezvous-v1")),
+            StatusCode::NOT_FOUND
+        );
+        assert_eq!(status("/rendezvous/v1", None), StatusCode::BAD_REQUEST);
+        assert_eq!(
+            status("/rendezvous/v1", Some("ns-relay-v2")),
             StatusCode::BAD_REQUEST
         );
         let accepted = accept_quick_request(
-            &request("/quick/v2", Some("other, ns-quick-v2")),
+            &request("/rendezvous/v1", Some("other, ns-rendezvous-v1")),
             Response::default(),
         )
         .unwrap();
         assert_eq!(
             accepted.headers().get(SEC_WEBSOCKET_PROTOCOL).unwrap(),
-            "ns-quick-v2"
+            "ns-rendezvous-v1"
         );
     }
 }

@@ -1,7 +1,7 @@
 //! Relay configuration and limits (quick-v2 §8.3 rule 5, §8.5; quick-protocol §5.2.1).
 
-use nsshared_rendezvous::capability::{self, Capabilities};
-use nsshared_wire::{
+use nsshared_proto::rendezvous::capability::{self, Capabilities};
+use nsshared_proto::{
     ACTIVE_SLOTS_GLOBAL, DATA_BYTES_PER_NODE, DATA_PACKETS_PER_NODE, DEFAULT_PRESENCE_TTL_SECONDS,
     HANDSHAKE_INITIATIONS_PER_DESTINATION, MAX_PRESENCE_TTL_SECONDS, MIN_PRESENCE_TTL_SECONDS,
     PROVISIONAL_PER_IP, RateLimit, RelayId,

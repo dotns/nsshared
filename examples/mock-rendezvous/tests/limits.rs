@@ -9,7 +9,7 @@ mod support;
 use ed25519_dalek::SigningKey;
 use futures_util::StreamExt;
 use nsshared_mock_rendezvous::Limits;
-use nsshared_rendezvous::{
+use nsshared_proto::rendezvous::{
     auth::Hello,
     error::ErrorCode,
     limits::{MAX_UNACKED_MESSAGES, MAX_WAIT_MS},

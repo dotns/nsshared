@@ -1,4 +1,4 @@
-//! Server TLS for `wss://{host:port}/quick/v2` (rendezvous §3, §5.4).
+//! Server TLS for `wss://{host:port}/rendezvous/v1` (rendezvous §3, §5.4).
 //!
 //! The certificate either comes from PEM files or is generated self-signed for the
 //! relay host name and its directory IPs, so a client that dials an entry's `ips` and

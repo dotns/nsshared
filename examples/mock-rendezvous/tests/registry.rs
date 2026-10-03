@@ -7,13 +7,13 @@
 mod support;
 
 use ed25519_dalek::SigningKey;
-use nsshared_rendezvous::{
+use nsshared_proto::rendezvous::{
     error::ErrorCode,
     message::{LookupNodeRequest, PublishRequest, RecordResult},
     registry,
     transport::{Request, Response},
 };
-use nsshared_wire::{NodeId, NodeRecord, NodeRecordFields, RelayId};
+use nsshared_proto::{NodeId, NodeRecord, NodeRecordFields, RelayId};
 use support::{Client, Mock, key, now, relaxed_limits};
 
 fn record(identity: &SigningKey, authority: &RelayId, generation: u64, wg: u8) -> NodeRecord {

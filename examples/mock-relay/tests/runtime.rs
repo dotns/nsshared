@@ -4,8 +4,8 @@
 
 use futures_util::{SinkExt, StreamExt};
 use nsshared_mock_relay::{MockRelay, MockRelayConfig, testing::TestNode};
-use nsshared_rendezvous::capability;
-use nsshared_wire::{MAX_RELAY_PACKET_BYTES, RELAY_WSS_PATH, RELAY_WSS_SUBPROTOCOL};
+use nsshared_proto::rendezvous::capability;
+use nsshared_proto::{MAX_RELAY_PACKET_BYTES, RELAY_WSS_PATH, RELAY_WSS_SUBPROTOCOL};
 use rustls::{
     ClientConfig, RootCertStore,
     crypto::aws_lc_rs,
