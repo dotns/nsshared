@@ -2,7 +2,7 @@
 
 from .. import cbor, derive, ed25519, x25519
 
-CRATE = "ns-wire"
+CRATE = "nsshared-wire"
 GROUP = "node_records"
 TITLE = "NS v2 NodeRecord encodings and signatures, valid and rejected"
 SECTIONS = "ns/quick-v2.md §3.1, §3.2, §12.1, §12.2, §12.3"
