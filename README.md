@@ -16,6 +16,8 @@ This is the `next` workspace, rebuilt around the Quick protocol. It contains:
   setup (text or JSON, env filter with a default), redaction helpers and the
   sensitive field names, and the shared `path`, `transport` and `peer_source`
   label names and values (source: NS `telemetry` labels); no exporter
+- `nsshared-mock-relay` (`examples/mock-relay`, `publish = false`) — in-memory
+  relay v2 mock over UDP and WSS for tests, as a library and a binary
 - `nsshared-mock-rendezvous` (`examples/mock-rendezvous`, `publish = false`) —
   single-instance `/quick/v2` mock relay (mailbox broker, directory, node
   registry) over TLS WebSocket for ns development and tests

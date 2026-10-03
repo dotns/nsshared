@@ -1,5 +1,18 @@
 ## 2026-10-03 [feat]
 
+Add `examples/mock-relay`, the `nsshared-mock-relay` example: a single-instance,
+in-memory relay v2 mock (docs `ns/quick-v2.md` §8) for tests, as a library
+(`MockRelay`, a sans-IO `Relay` core over `nsshared-wire`, `testing` node
+helpers) and a binary. It serves the UDP carrier and the WSS carrier
+(`wss://host:port/ns/v2`, subprotocol `ns-relay-v2`, self-signed or PEM
+certificate) on one port, admits REGISTER, confirms sessions by PRESENCE and
+forwards DATA between them. It is not a production relay: no region or mesh
+replication, no owner fencing, no persistence and only simple per-node limits.
+Integration tests cover two-node DATA over UDP, WSS and mixed carriers, and the
+ns `RelayClient` byte layout. Not published.
+
+## 2026-10-03 [feat]
+
 Add `nsshared-mock-rendezvous` (`examples/mock-rendezvous`, `publish = false`),
 a single-instance mock of the NS rendezvous v2 relay for ns development and
 tests: `wss://{host:port}/quick/v2` with subprotocol `ns-quick-v2`, the

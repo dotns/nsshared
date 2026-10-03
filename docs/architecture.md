@@ -26,12 +26,13 @@ and tests, `publish = false`, never consumed by production components.
 
 | Crate | Serves |
 | --- | --- |
+| `nsshared-mock-relay` | A single-instance, in-memory relay v2 over the UDP and WSS carriers on one port: REGISTER, PRESENCE-confirmed sessions and DATA forwarding, with a sans-IO core built on `nsshared-wire`; no region, mesh or owner fencing. Its integration tests include a client that reproduces the ns `RelayClient` byte layout |
 | `nsshared-mock-rendezvous` | A single-instance `/quick/v2` relay over TLS WebSocket: challenge and `hello`, the mailbox broker, `directory` and the node registry, with every rendezvous §6 and quick-v2 §7.4 limit configurable; no region |
 
-The mock reuses `nsshared-rendezvous` for every encoding and protocol rule and
-adds only storage, randomness, clocks, rate limits and I/O (tokio, rustls with
-aws-lc-rs, tokio-tungstenite). Its state modules do no I/O and take time and
-randomness from the caller.
+The rendezvous mock reuses `nsshared-rendezvous` for every encoding and
+protocol rule and adds only storage, randomness, clocks, rate limits and I/O
+(tokio, rustls with aws-lc-rs, tokio-tungstenite). Its state modules do no I/O
+and take time and randomness from the caller.
 
 ## Conformance
 

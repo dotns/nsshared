@@ -4,6 +4,7 @@ members = [
     "crates/nsshared-rendezvous",
     "crates/nsshared-telemetry",
     "crates/nsshared-wire",
+    "examples/mock-relay",
     "examples/mock-rendezvous",
 ]
 
@@ -37,6 +38,7 @@ nsshared-wire = { path = "crates/nsshared-wire", version = "0.1.0" }
 # External crates: latest stable versions as of 2026-10-02.
 base64           = "0.23.1"
 blake2           = "0.11.0"
+clap             = { version = "4.6.7", features = ["derive"] }
 ed25519-dalek    = { version = "3.0.0", features = ["zeroize"] }
 futures-util     = { version = "0.3.34", default-features = false, features = ["sink", "std"] }
 getrandom        = { version = "0.4.3", features = ["sys_rng"] }
@@ -44,13 +46,14 @@ hkdf             = "0.13.0"
 hmac             = "0.13.0"
 proptest         = "1.11.0"
 rand_core        = "0.10.1"
-rcgen            = { version = "0.14.10", default-features = false, features = ["aws_lc_rs", "pem"] }
+# TLS uses rustls with the explicit aws-lc-rs provider; ring stays out.
+rcgen            = { version = "0.14.10", default-features = false, features = ["aws_lc_rs", "crypto", "pem"] }
 rustls           = { version = "0.23.45", default-features = false, features = ["aws_lc_rs", "std", "tls12"] }
 serde            = { version = "1.0.229", features = ["derive"] }
 serde_json       = "1.0.151"
 sha2             = "0.11.0"
 thiserror        = "2.0.21"
-tokio            = { version = "1.53.2", default-features = false }
+tokio            = { version = "1.53.2", default-features = false, features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-rustls     = { version = "0.26.6", default-features = false, features = ["aws_lc_rs", "tls12"] }
 tokio-tungstenite = { version = "0.30.0", default-features = false, features = ["handshake"] }
 tracing          = "0.1.44"
