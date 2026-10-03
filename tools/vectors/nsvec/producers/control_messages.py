@@ -95,7 +95,7 @@ def check(datagram):
     if mtype == RECORD:
         if len(body) != 1:
             return "schema"
-        return None if node_records.validate(cbor.encode(body[0])) in (None, "service_period") else "record"
+        return None if node_records.validate(cbor.encode(body[0])) is None else "record"
     if len(body) != 3 or type(body[0]) is not int or type(body[1]) is not list:
         return "schema"
     revision, candidates, relays = body
