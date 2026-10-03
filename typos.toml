@@ -19,4 +19,6 @@ extend-ignore-identifiers-re = [
 extend-exclude = [
     "Cargo.lock",
     "target/",
+    # Generated fixtures; their base64url JSON values tokenize into dictionary words.
+    "crates/ns-rendezvous/tests/fixtures/vectors/",
 ]
