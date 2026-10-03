@@ -2,6 +2,7 @@
 resolver = "3"
 members = [
     "crates/nsshared-rendezvous",
+    "crates/nsshared-telemetry",
     "crates/nsshared-wire",
 ]
 
@@ -42,5 +43,7 @@ serde            = { version = "1.0.229", features = ["derive"] }
 serde_json       = "1.0.151"
 sha2             = "0.11.0"
 thiserror        = "2.0.21"
+tracing          = "0.1.44"
+tracing-subscriber = { version = "0.3.23", default-features = false, features = ["env-filter", "fmt", "json", "registry", "std"] }
 x25519-dalek     = { version = "3.0.0", features = ["static_secrets", "zeroize"] }
 zeroize          = "1.9.0"
