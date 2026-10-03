@@ -1,0 +1,38 @@
+[package]
+name = "nsshared-mock-rendezvous"
+description = "Single-instance mock of the NS rendezvous v2 (/quick/v2) relay for tests"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+
+[lib]
+name = "nsshared_mock_rendezvous"
+
+[[bin]]
+name = "nsshared-mock-rendezvous"
+path = "src/main.rs"
+
+[dependencies]
+futures-util.workspace = true
+getrandom.workspace = true
+nsshared-rendezvous.workspace = true
+nsshared-wire.workspace = true
+rand_core.workspace = true
+rcgen.workspace = true
+rustls.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
+tokio-rustls.workspace = true
+tokio-tungstenite.workspace = true
+
+[dev-dependencies]
+ed25519-dalek.workspace = true
+tokio-tungstenite = { workspace = true, features = ["connect", "rustls-tls-webpki-roots"] }
+x25519-dalek.workspace = true
+
+[lints]
+workspace = true
