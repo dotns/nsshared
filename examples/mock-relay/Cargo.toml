@@ -1,0 +1,19 @@
+[package]
+name = "nsshared-mock-relay"
+description = "Single-instance, in-memory relay v2 mock for tests: sans-IO core over nsshared-wire"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+ed25519-dalek.workspace = true
+nsshared-rendezvous.workspace = true
+nsshared-wire.workspace = true
+rand_core.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true
