@@ -1,0 +1,34 @@
+[package]
+name = "nsshared-mock-server"
+description = "Combined mock: relay v2 (UDP, /ns/v2) and rendezvous v2 (/quick/v2) on one host:port"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+
+[lib]
+name = "nsshared_mock_server"
+
+[[bin]]
+name = "nsshared-mock-server"
+path = "src/main.rs"
+
+[dependencies]
+nsshared-mock-relay.workspace = true
+nsshared-mock-rendezvous.workspace = true
+nsshared-rendezvous.workspace = true
+nsshared-wire.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tokio-rustls.workspace = true
+tokio-tungstenite.workspace = true
+
+[dev-dependencies]
+futures-util.workspace = true
+rustls.workspace = true
+
+[lints]
+workspace = true
