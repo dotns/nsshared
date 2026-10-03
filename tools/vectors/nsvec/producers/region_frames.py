@@ -1,5 +1,6 @@
-"""Relay region member frames v2, types 1-9, valid and rejected (quick-v2 §8.5, §12.1; frame
-semantics of quick-protocol §12.8 as modified by quick-v2 §8.5)."""
+"""Relay region member frames v2, types 1-9, valid and rejected, plus the per-channel frame
+size limits and the control-only rendezvous types 10-12 (quick-v2 §8.5, §12.1; frame semantics
+of quick-protocol §12.8 as modified by quick-v2 §8.5)."""
 
 from .. import cbor, derive
 from . import relay_packets
@@ -12,7 +13,10 @@ SECTIONS = "ns/quick-v2.md §8.5, §12.1; ns/quick-protocol.md §12.8"
 
 VERSION = 2
 HELLO, SNAPSHOT, PRESENT, GONE, MARKS, FORWARD, MISS, PING, PONG = range(1, 10)
+RENDEZVOUS_REQUEST, RENDEZVOUS_RESPONSE, REGISTRY_RECORD = 10, 11, 12
 MAX_FRAME_BYTES = 4096
+# Types 10 and 11 on the control connection only; every other frame stays at 4096.
+MAX_RENDEZVOUS_FRAME_BYTES = 20480
 MAX_ENTRIES = 256
 MAX_DATAGRAM_BYTES = relay_packets.MAX_PACKET_BYTES
 U32_MAX = 2**32 - 1
@@ -196,9 +200,44 @@ def check_prefixed(wire):
     return check(wire[4:])
 
 
+def max_frame_bytes(channel):
+    """The largest frame of any type on a connection, checked from the prefix."""
+    return MAX_RENDEZVOUS_FRAME_BYTES if channel == CONTROL else MAX_FRAME_BYTES
+
+
+def max_frame_bytes_for(channel, ftype):
+    """The largest frame of `ftype` on a connection: 20480 for types 10 and 11 on control."""
+    if channel == CONTROL and ftype in (RENDEZVOUS_REQUEST, RENDEZVOUS_RESPONSE):
+        return MAX_RENDEZVOUS_FRAME_BYTES
+    return MAX_FRAME_BYTES
+
+
+def check_length(prefix, channel):
+    """The 4-byte length prefix on a connection, before the frame is allocated."""
+    length = int.from_bytes(prefix, "big")
+    return None if 1 <= length <= max_frame_bytes(channel) else "frame_length"
+
+
+def check_envelope(data, channel):
+    """`[ver = 2, type u8, body]` with the channel limit first, then the type limit."""
+    if len(data) > max_frame_bytes(channel):
+        return "too_large"
+    try:
+        item = cbor.decode(data)
+    except cbor.CborError as err:
+        return "trailing_bytes" if str(err) == "trailing bytes" else "non_canonical"
+    if not (type(item) is list and len(item) == 3 and _uint(item[0]) and _uint(item[1])):
+        return "schema"
+    if item[0] != VERSION:
+        return "version"
+    if item[1] > 255:
+        return "unknown_type"
+    return "too_large" if len(data) > max_frame_bytes_for(channel, item[1]) else None
+
+
 def check_channel(ftype, channel, established):
-    """One HELLO first; then the control connection carries types 2-5 and 7-9 and the data
-    connection only FORWARD (quick-protocol §12.8)."""
+    """One HELLO first; then the control connection carries types 2-5, 7-9 and 10-12 and the
+    data connection only FORWARD (quick-protocol §12.8, quick-v2 §8.5)."""
     if not established:
         return None if ftype == HELLO else "hello_required"
     if ftype == HELLO:
@@ -263,6 +302,56 @@ def negative_channel(name, data, channel, established, reason):
         ("expect", "reject"),
         ("reason", reason),
     ]
+
+
+def length_vector(name, length, channel):
+    prefix = length.to_bytes(4, "big")
+    reason = check_length(prefix, channel)
+    vector = [("name", name), ("kind", "length"), ("prefix", prefix), ("channel", CHANNEL_NAMES[channel])]
+    if reason is None:
+        return vector + [("frame_len", length)]
+    return vector + [("expect", "reject"), ("reason", reason)]
+
+
+def sized_frame(ftype, length):
+    """`[2, ftype, bytes]` of exactly `length` bytes."""
+    payload = length - 6
+    while len(frame(ftype, bytes(payload))) > length:
+        payload -= 1
+    data = frame(ftype, bytes(payload))
+    assert len(data) == length
+    return data
+
+
+def envelope_vector(name, data, channel, reason=None):
+    actual = check_envelope(data, channel)
+    if actual != reason:
+        raise AssertionError(f"envelope {name}: expected {reason}, checker says {actual}")
+    vector = [("name", name), ("kind", "envelope"), ("channel", CHANNEL_NAMES[channel])]
+    if reason is None:
+        return vector + [("type", cbor.decode(data)[1]), ("frame_len", len(data)), ("frame", data)]
+    return vector + [("frame", data), ("expect", "reject"), ("reason", reason)]
+
+
+def limit_vectors():
+    """Prefix and envelope size limits per channel and type (quick-v2 §8.5)."""
+    out = [
+        length_vector("length-control-1", 1, CONTROL),
+        length_vector("length-control-4097", MAX_FRAME_BYTES + 1, CONTROL),
+        length_vector("length-control-20480", MAX_RENDEZVOUS_FRAME_BYTES, CONTROL),
+        length_vector("length-data-4096", MAX_FRAME_BYTES, DATA),
+        length_vector("length-control-0", 0, CONTROL),
+        length_vector("length-control-20481", MAX_RENDEZVOUS_FRAME_BYTES + 1, CONTROL),
+        length_vector("length-data-4097", MAX_FRAME_BYTES + 1, DATA),
+    ]
+    over = MAX_FRAME_BYTES + 1
+    for ftype in (RENDEZVOUS_REQUEST, RENDEZVOUS_RESPONSE):
+        out.append(envelope_vector(f"envelope-type-{ftype}-control-4097", sized_frame(ftype, over), CONTROL))
+    out.append(envelope_vector("envelope-type-12-control-4096", sized_frame(REGISTRY_RECORD, MAX_FRAME_BYTES), CONTROL))
+    out.append(envelope_vector("envelope-type-10-data-4097", sized_frame(RENDEZVOUS_REQUEST, over), DATA, "too_large"))
+    out.append(envelope_vector("envelope-type-12-control-4097", sized_frame(REGISTRY_RECORD, over), CONTROL, "too_large"))
+    out.append(envelope_vector("envelope-ping-control-4097", sized_frame(PING, over), CONTROL, "too_large"))
+    return out
 
 
 def snapshot_vector(name, snapshot_id, base_revision, marks_revision, chunk_index, presence, mark_entries, more):
@@ -500,4 +589,4 @@ def vectors():
     out.append(negative_channel("hello-after-hello", hello_frame, CONTROL, True, "duplicate_hello"))
     out.append(negative_channel("ping-before-hello", ping_frame, CONTROL, False, "hello_required"))
     out.append(negative_channel("forward-before-hello", forward_frame, DATA, False, "hello_required"))
-    return out
+    return out + limit_vectors()

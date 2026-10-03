@@ -4,13 +4,14 @@
 #![allow(clippy::unwrap_used, clippy::panic, reason = "test fixture helpers")]
 
 use ns_wire::{
-    CborError, Identity, MAX_REGION_FORWARD_DATAGRAM_BYTES, MAX_REGION_FRAME_BYTES, NodeId,
-    REGION_FRAME_VERSION, Reflect, RegionCarrier, RegionChannel, RegionChannelError,
-    RegionEnvelope, RegionForward, RegionFrame, RegionFrameError, RegionFrameType, RegionGone,
-    RegionGoneReason, RegionHello, RegionLiveness, RegionMarks, RegionMiss, RegionMissStatus,
-    RegionPresent, RegionSnapshot, RelayBody, RelayId, RelayPacket, RelayPacketError, RelayType,
-    check_region_channel, decode_region_envelope, encode_region_envelope, prefix_region_frame,
-    region_frame_length, split_region_frame,
+    CborError, Identity, MAX_REGION_FORWARD_DATAGRAM_BYTES, MAX_REGION_FRAME_BYTES,
+    MAX_REGION_RENDEZVOUS_FRAME_BYTES, NodeId, REGION_FRAME_VERSION, Reflect, RegionCarrier,
+    RegionChannel, RegionChannelError, RegionEnvelope, RegionForward, RegionFrame,
+    RegionFrameError, RegionFrameType, RegionGone, RegionGoneReason, RegionHello, RegionLiveness,
+    RegionMarks, RegionMiss, RegionMissStatus, RegionPresent, RegionSnapshot, RelayBody, RelayId,
+    RelayPacket, RelayPacketError, RelayType, check_region_channel, decode_region_envelope,
+    encode_region_envelope, max_region_frame_bytes, max_region_frame_bytes_for,
+    prefix_region_frame, region_frame_length, split_region_frame,
 };
 use proptest::prelude::*;
 
@@ -283,9 +284,9 @@ fn reserved_types_have_numbers_and_an_envelope_extension_point() {
     assert_eq!(RegionFrameType::from_u8(13), None);
 
     let body = Raw::default().array(1).bytes(b"opaque").0;
-    let frame = encode_region_envelope(10, &body).unwrap();
+    let frame = encode_region_envelope(10, &body, RegionChannel::Control).unwrap();
     assert_eq!(
-        decode_region_envelope(&frame),
+        decode_region_envelope(&frame, RegionChannel::Control),
         Ok(RegionEnvelope {
             frame_type: 10,
             body: &body,
@@ -297,42 +298,218 @@ fn reserved_types_have_numbers_and_an_envelope_extension_point() {
 // Framing refutations
 // ---------------------------------------------------------------------------
 
+const CHANNELS: [RegionChannel; 2] = [RegionChannel::Control, RegionChannel::Data];
+
+/// A frame of type `frame_type` whose body is one byte string, exactly `length` bytes long.
+fn sized_frame(frame_type: u8, length: usize) -> Vec<u8> {
+    let mut payload = length - 3 - 3;
+    loop {
+        let frame = Raw::frame(u64::from(frame_type)).bytes(&vec![0; payload]).0;
+        match frame.len().cmp(&length) {
+            std::cmp::Ordering::Equal => return frame,
+            std::cmp::Ordering::Greater => payload -= 1,
+            std::cmp::Ordering::Less => panic!("no frame of {length} bytes"),
+        }
+    }
+}
+
 #[test]
 fn refutation_length_prefix_zero_or_above_limit() {
+    for channel in CHANNELS {
+        let maximum = max_region_frame_bytes(channel);
+        let above = u32::try_from(maximum + 1).unwrap();
+        assert_eq!(
+            region_frame_length([0, 0, 0, 0], channel),
+            Err(RegionFrameError::FrameLength(0))
+        );
+        assert_eq!(
+            region_frame_length(above.to_be_bytes(), channel),
+            Err(RegionFrameError::FrameLength(above))
+        );
+        assert_eq!(
+            region_frame_length(u32::MAX.to_be_bytes(), channel),
+            Err(RegionFrameError::FrameLength(u32::MAX))
+        );
+        assert_eq!(
+            region_frame_length(u32::try_from(maximum).unwrap().to_be_bytes(), channel),
+            Ok(maximum)
+        );
+        assert_eq!(region_frame_length(1_u32.to_be_bytes(), channel), Ok(1));
+        assert_eq!(
+            split_region_frame(&[0, 0, 0, 0], channel),
+            Err(RegionFrameError::FrameLength(0))
+        );
+        assert_eq!(
+            prefix_region_frame(&[], channel),
+            Err(RegionFrameError::FrameLength(0))
+        );
+    }
+}
+
+#[test]
+fn length_limits_depend_on_channel_and_type() {
+    assert_eq!(MAX_REGION_RENDEZVOUS_FRAME_BYTES, 20_480);
     assert_eq!(
-        region_frame_length([0, 0, 0, 0]),
-        Err(RegionFrameError::FrameLength(0))
+        max_region_frame_bytes(RegionChannel::Control),
+        MAX_REGION_RENDEZVOUS_FRAME_BYTES
     );
     assert_eq!(
-        region_frame_length(4097_u32.to_be_bytes()),
+        max_region_frame_bytes(RegionChannel::Data),
+        MAX_REGION_FRAME_BYTES
+    );
+    for frame_type in 0..=u8::MAX {
+        let control = if matches!(frame_type, 10 | 11) {
+            MAX_REGION_RENDEZVOUS_FRAME_BYTES
+        } else {
+            MAX_REGION_FRAME_BYTES
+        };
+        assert_eq!(
+            max_region_frame_bytes_for(RegionChannel::Control, frame_type),
+            control
+        );
+        assert_eq!(
+            max_region_frame_bytes_for(RegionChannel::Data, frame_type),
+            MAX_REGION_FRAME_BYTES
+        );
+    }
+    // The data prefix limit stays 4096; control accepts 4097..=20480 before the type.
+    assert_eq!(
+        region_frame_length(4097_u32.to_be_bytes(), RegionChannel::Data),
         Err(RegionFrameError::FrameLength(4097))
     );
     assert_eq!(
-        region_frame_length(u32::MAX.to_be_bytes()),
-        Err(RegionFrameError::FrameLength(u32::MAX))
-    );
-    assert_eq!(region_frame_length(4096_u32.to_be_bytes()), Ok(4096));
-    assert_eq!(region_frame_length(1_u32.to_be_bytes()), Ok(1));
-    assert_eq!(
-        split_region_frame(&[0, 0, 0, 0]),
-        Err(RegionFrameError::FrameLength(0))
+        region_frame_length(4097_u32.to_be_bytes(), RegionChannel::Control),
+        Ok(4097)
     );
     assert_eq!(
-        prefix_region_frame(&[]),
-        Err(RegionFrameError::FrameLength(0))
+        region_frame_length(20_481_u32.to_be_bytes(), RegionChannel::Control),
+        Err(RegionFrameError::FrameLength(20_481))
+    );
+}
+
+#[test]
+fn rendezvous_frames_up_to_20480_bytes_on_control() {
+    for frame_type in [10_u8, 11] {
+        for length in [
+            MAX_REGION_FRAME_BYTES + 1,
+            MAX_REGION_RENDEZVOUS_FRAME_BYTES,
+        ] {
+            let frame = sized_frame(frame_type, length);
+            let envelope = decode_region_envelope(&frame, RegionChannel::Control).unwrap();
+            assert_eq!(envelope.frame_type, frame_type);
+            let body = envelope.body.to_vec();
+            assert_eq!(
+                encode_region_envelope(frame_type, &body, RegionChannel::Control),
+                Ok(frame.clone())
+            );
+            let wire = prefix_region_frame(&frame, RegionChannel::Control).unwrap();
+            assert_eq!(
+                split_region_frame(&wire, RegionChannel::Control),
+                Ok(&frame[..])
+            );
+            // Never on data, and never through the typed decoder of types 1-9.
+            for refused in [
+                decode_region_envelope(&frame, RegionChannel::Data).map(|_| ()),
+                encode_region_envelope(frame_type, &body, RegionChannel::Data).map(|_| ()),
+                prefix_region_frame(&frame, RegionChannel::Data).map(|_| ()),
+                decode(&frame).map(|_| ()),
+            ] {
+                assert_eq!(refused, Err(RegionFrameError::TooLarge(length)));
+            }
+        }
+        let frame = sized_frame(frame_type, MAX_REGION_RENDEZVOUS_FRAME_BYTES + 1);
+        assert_eq!(
+            decode_region_envelope(&frame, RegionChannel::Control),
+            Err(RegionFrameError::TooLarge(frame.len()))
+        );
+        assert_eq!(
+            prefix_region_frame(&frame, RegionChannel::Control),
+            Err(RegionFrameError::TooLarge(frame.len()))
+        );
+        let body = decode_region_envelope(&sized_frame(frame_type, 5000), RegionChannel::Control)
+            .unwrap()
+            .body
+            .to_vec();
+        let mut larger = body.clone();
+        larger.resize(MAX_REGION_RENDEZVOUS_FRAME_BYTES, 0);
+        assert!(matches!(
+            encode_region_envelope(frame_type, &larger, RegionChannel::Control),
+            Err(RegionFrameError::TooLarge(_))
+        ));
+        let wire = [
+            &u32::try_from(frame.len()).unwrap().to_be_bytes()[..],
+            &frame,
+        ]
+        .concat();
+        assert_eq!(
+            split_region_frame(&wire, RegionChannel::Control),
+            Err(RegionFrameError::FrameLength(
+                u32::try_from(frame.len()).unwrap()
+            ))
+        );
+    }
+}
+
+#[test]
+fn refutation_other_types_above_4096_on_control() {
+    for frame_type in (0..=u8::MAX).filter(|frame_type| !matches!(frame_type, 10 | 11)) {
+        let frame = sized_frame(frame_type, MAX_REGION_FRAME_BYTES + 1);
+        assert_eq!(
+            decode_region_envelope(&frame, RegionChannel::Control),
+            Err(RegionFrameError::TooLarge(frame.len()))
+        );
+        assert_eq!(
+            prefix_region_frame(&frame, RegionChannel::Control),
+            Err(RegionFrameError::TooLarge(frame.len()))
+        );
+        let body = decode_region_envelope(
+            &sized_frame(frame_type, MAX_REGION_FRAME_BYTES),
+            RegionChannel::Control,
+        )
+        .unwrap()
+        .body
+        .to_vec();
+        assert!(
+            encode_region_envelope(frame_type, &body, RegionChannel::Control).is_ok(),
+            "{frame_type}"
+        );
+        let mut larger = body;
+        larger.push(0);
+        assert_eq!(
+            encode_region_envelope(frame_type, &larger, RegionChannel::Control),
+            Err(RegionFrameError::TooLarge(frame.len()))
+        );
+        // The prefix alone is accepted on control; the type check follows the envelope.
+        let wire =
+            prefix_region_frame(&sized_frame(10, frame.len()), RegionChannel::Control).unwrap();
+        let prefix: [u8; 4] = wire[..4].try_into().unwrap();
+        assert_eq!(
+            region_frame_length(prefix, RegionChannel::Control),
+            Ok(frame.len())
+        );
+    }
+}
+
+#[test]
+fn refutation_prefix_of_oversize_garbage() {
+    assert_eq!(
+        prefix_region_frame(&[0; MAX_REGION_FRAME_BYTES + 1], RegionChannel::Control),
+        Err(RegionFrameError::Cbor(CborError::UnexpectedType))
     );
 }
 
 #[test]
 fn refutation_truncated_prefixed_frame() {
-    assert_eq!(
-        split_region_frame(&[0, 0, 0]),
-        Err(RegionFrameError::Truncated)
-    );
-    assert_eq!(
-        split_region_frame(&[0, 0, 0, 2, 0x83]),
-        Err(RegionFrameError::Truncated)
-    );
+    for channel in CHANNELS {
+        assert_eq!(
+            split_region_frame(&[0, 0, 0], channel),
+            Err(RegionFrameError::Truncated)
+        );
+        assert_eq!(
+            split_region_frame(&[0, 0, 0, 2, 0x83], channel),
+            Err(RegionFrameError::Truncated)
+        );
+    }
 }
 
 #[test]
@@ -352,11 +529,15 @@ fn refutation_frame_above_limit() {
         Err(RegionFrameError::TooLarge(MAX_REGION_FRAME_BYTES + 1))
     );
     assert_eq!(
-        prefix_region_frame(&[0; MAX_REGION_FRAME_BYTES + 1]),
+        prefix_region_frame(&[0; MAX_REGION_FRAME_BYTES + 1], RegionChannel::Data),
         Err(RegionFrameError::TooLarge(MAX_REGION_FRAME_BYTES + 1))
     );
     assert_eq!(
-        encode_region_envelope(10, &[0; MAX_REGION_FRAME_BYTES]),
+        encode_region_envelope(10, &[0; MAX_REGION_FRAME_BYTES], RegionChannel::Data),
+        Err(RegionFrameError::TooLarge(MAX_REGION_FRAME_BYTES + 3))
+    );
+    assert_eq!(
+        encode_region_envelope(12, &[0; MAX_REGION_FRAME_BYTES], RegionChannel::Control),
         Err(RegionFrameError::TooLarge(MAX_REGION_FRAME_BYTES + 3))
     );
 }
@@ -445,12 +626,12 @@ fn refutation_unknown_types() {
 fn refutation_reserved_types_decode_as_unknown() {
     for frame_type in [10_u8, 11, 12] {
         let body = Raw::default().array(1).uint(1).0;
-        let frame = encode_region_envelope(frame_type, &body).unwrap();
+        let frame = encode_region_envelope(frame_type, &body, RegionChannel::Control).unwrap();
         assert_eq!(
             decode(&frame),
             Err(RegionFrameError::UnknownType(u64::from(frame_type)))
         );
-        let wire = prefix_region_frame(&frame).unwrap();
+        let wire = prefix_region_frame(&frame, RegionChannel::Control).unwrap();
         assert_eq!(
             RegionFrame::decode_prefixed(&wire),
             Err(RegionFrameError::UnknownType(u64::from(frame_type)))
@@ -1005,7 +1186,7 @@ fn refutation_liveness_progress_without_data_connection() {
 // Channel rules
 // ---------------------------------------------------------------------------
 
-const CONTROL_TYPES: [RegionFrameType; 9] = [
+const CONTROL_TYPES: [RegionFrameType; 10] = [
     RegionFrameType::Snapshot,
     RegionFrameType::Present,
     RegionFrameType::Gone,
@@ -1015,6 +1196,7 @@ const CONTROL_TYPES: [RegionFrameType; 9] = [
     RegionFrameType::Pong,
     RegionFrameType::RendezvousRequest,
     RegionFrameType::RendezvousResponse,
+    RegionFrameType::RegistryRecord,
 ];
 
 #[test]
@@ -1080,14 +1262,29 @@ fn refutation_second_hello() {
 }
 
 #[test]
-fn refutation_registry_record_channel_undefined() {
-    for channel in [RegionChannel::Control, RegionChannel::Data] {
+fn rendezvous_types_are_control_only() {
+    for frame_type in [
+        RegionFrameType::RendezvousRequest,
+        RegionFrameType::RendezvousResponse,
+        RegionFrameType::RegistryRecord,
+    ] {
         assert_eq!(
-            check_region_channel(channel, true, RegionFrameType::RegistryRecord),
-            Err(RegionChannelError::ChannelUndefined(
-                RegionFrameType::RegistryRecord
-            ))
+            check_region_channel(RegionChannel::Control, true, frame_type),
+            Ok(())
         );
+        assert_eq!(
+            check_region_channel(RegionChannel::Data, true, frame_type),
+            Err(RegionChannelError::WrongChannel {
+                frame_type,
+                channel: RegionChannel::Data
+            })
+        );
+        for channel in CHANNELS {
+            assert_eq!(
+                check_region_channel(channel, false, frame_type),
+                Err(RegionChannelError::HelloRequired(frame_type))
+            );
+        }
     }
 }
 
@@ -1278,18 +1475,22 @@ proptest! {
         prop_assert!(encoded.len() <= MAX_REGION_FRAME_BYTES);
         prop_assert_eq!(decode(&encoded), Ok(frame.clone()));
         let wire = frame.encode_prefixed().unwrap();
-        prop_assert_eq!(split_region_frame(&wire), Ok(&encoded[..]));
+        for channel in CHANNELS {
+            prop_assert_eq!(split_region_frame(&wire, channel), Ok(&encoded[..]));
+        }
         prop_assert_eq!(RegionFrame::decode_prefixed(&wire), Ok(frame));
     }
 
     #[test]
     fn envelope_round_trips(frame_type in any::<u8>(), payload in prop::collection::vec(any::<u8>(), 0..64)) {
         let body = Raw::default().bytes(&payload).0;
-        let frame = encode_region_envelope(frame_type, &body).unwrap();
-        prop_assert_eq!(
-            decode_region_envelope(&frame),
-            Ok(RegionEnvelope { frame_type, body: &body })
-        );
+        for channel in CHANNELS {
+            let frame = encode_region_envelope(frame_type, &body, channel).unwrap();
+            prop_assert_eq!(
+                decode_region_envelope(&frame, channel),
+                Ok(RegionEnvelope { frame_type, body: &body })
+            );
+        }
     }
 
     #[test]
