@@ -285,12 +285,14 @@ dependencies = [
  "base64",
  "blake2",
  "ed25519-dalek",
+ "getrandom 0.4.3",
  "hkdf",
  "hmac",
  "proptest",
  "sha2",
  "thiserror",
  "x25519-dalek",
+ "zeroize",
 ]
 
 [[package]]
