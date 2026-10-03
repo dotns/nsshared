@@ -9,7 +9,7 @@ from .. import cbor
 from . import node_records
 from .relay_packets import expand
 
-CRATE = "ns-wire"
+CRATE = "nsshared-wire"
 GROUP = "control_messages"
 TITLE = "NS v2 in-tunnel control messages, valid and rejected"
 SECTIONS = "ns/quick-v2.md §9, §12.1, §12.3; ns/quick-protocol.md §12.7"

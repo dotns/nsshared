@@ -5,7 +5,7 @@ import ipaddress
 from .. import derive
 from .identities import IDENTITY_LABELS
 
-CRATE = "ns-wire"
+CRATE = "nsshared-wire"
 GROUP = "lan6"
 TITLE = "NS v2 published LAN prefixes lan6(I, subnet_id) with embedded IPv4"
 SECTIONS = "ns/next.md §4.1"

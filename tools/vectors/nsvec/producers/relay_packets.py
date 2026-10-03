@@ -9,7 +9,7 @@ from .. import cbor, derive, ed25519, x25519
 from ..kdf import hkdf
 from . import node_records
 
-CRATE = "ns-wire"
+CRATE = "nsshared-wire"
 GROUP = "relay_packets"
 TITLE = "NS v2 relay packets, REGISTER signatures, session keys and MACs, valid and rejected"
 SECTIONS = "ns/quick-v2.md §8.1, §8.2, §8.3, §12.1, §12.2, §12.3"

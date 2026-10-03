@@ -1,4 +1,4 @@
-"""Inputs and JSON helpers shared by the ns-rendezvous producers (rendezvous §3, §4, §5.2,
+"""Inputs and JSON helpers shared by the nsshared-rendezvous producers (rendezvous §3, §4, §5.2,
 §5.4; quick-v2 §7.2). Not a producer itself."""
 
 import base64
@@ -8,7 +8,7 @@ import json
 from .. import derive
 from . import node_records
 
-CRATE = "ns-rendezvous"
+CRATE = "nsshared-rendezvous"
 
 # Fixed time: one hour into the records' service period.
 NOW = node_records.ISSUED_AT + 3600

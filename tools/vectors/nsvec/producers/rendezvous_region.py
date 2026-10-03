@@ -1,7 +1,7 @@
 """Region rendezvous frames 10 RENDEZVOUS_REQUEST, 11 RENDEZVOUS_RESPONSE and 12
 REGISTRY_RECORD: bodies and full frames, valid and rejected (quick-v2 §7.1, §7.2, §8.5, §12.1;
 rendezvous §5.3). The bodies follow the definitions proposed with the region module of
-ns-rendezvous for quick-v2 §8.5, which leaves them to the rendezvous v2 message types."""
+nsshared-rendezvous for quick-v2 §8.5, which leaves them to the rendezvous v2 message types."""
 
 import ipaddress
 import json

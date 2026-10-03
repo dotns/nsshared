@@ -3,7 +3,7 @@
 from .. import derive
 from .identities import IDENTITY_LABELS
 
-CRATE = "ns-wire"
+CRATE = "nsshared-wire"
 GROUP = "alias4"
 TITLE = "NS v2 IPv4 alias candidates in the default pool 100.64.0.0/10"
 SECTIONS = "ns/quick-v2.md §2.2, §6.2"

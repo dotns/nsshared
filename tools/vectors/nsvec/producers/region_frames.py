@@ -6,7 +6,7 @@ from .. import cbor, derive
 from . import relay_packets
 from .control_messages import dns_relay_ok
 
-CRATE = "ns-wire"
+CRATE = "nsshared-wire"
 GROUP = "region_frames"
 TITLE = "NS v2 relay region frames, valid and rejected"
 SECTIONS = "ns/quick-v2.md §8.5, §12.1; ns/quick-protocol.md §12.8"

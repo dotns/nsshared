@@ -262,14 +262,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 
 [[package]]
-name = "ns-rendezvous"
+name = "nsshared-rendezvous"
 version = "0.1.0"
 dependencies = [
  "base64",
  "blake2",
  "ed25519-dalek",
  "hkdf",
- "ns-wire",
+ "nsshared-wire",
  "serde",
  "serde_json",
  "sha2",
@@ -279,7 +279,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ns-wire"
+name = "nsshared-wire"
 version = "0.1.0"
 dependencies = [
  "base64",

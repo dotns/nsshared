@@ -1,4 +1,4 @@
-# ns-shared - task runner
+# nsshared - task runner
 # https://github.com/casey/just
 
 set dotenv-load := false

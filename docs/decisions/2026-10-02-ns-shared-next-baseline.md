@@ -2,11 +2,11 @@
 
 Status : Accepted
 Date   : 2026-10-02
-Sunset : none; revisit if ns-shared is published to a registry
+Sunset : none; revisit if nsshared is published to a registry
 
 ## Context
 
-ns-shared was consumed only by nsgw, through `../ns-shared` path dependencies
+nsshared was consumed only by nsgw, through `../ns-shared` path dependencies
 and a commit pinned in nsgw's `[workspace.metadata.release] ns-shared-rev`,
 with CI checking out the sibling repository separately. ns kept diverged
 copies of the same crates. The workspace is rebuilt on `next` around the
@@ -23,11 +23,11 @@ Quick protocol (plan `20261002-1516-ns-shared-rebuild`).
 - TLS, when a future crate needs it, uses rustls with the aws-lc-rs provider,
   the same as ns, so a consumer process links one provider.
 - Consumers use Cargo git dependencies on
-  `https://git.pvv.cc/nsiod/ns-shared.git` pinned by `tag`; `Cargo.lock`
+  `https://git.pvv.cc/nsiod/nsshared.git` pinned by `tag`; `Cargo.lock`
   records the exact commit. CI and release jobs need read credentials for the
   repository (`CARGO_NET_GIT_FETCH_WITH_CLI=true` with a token-backed git
   credential). Local development overrides the dependencies with an
-  uncommitted `[patch."https://git.pvv.cc/nsiod/ns-shared.git"]` entry pointing
+  uncommitted `[patch."https://git.pvv.cc/nsiod/nsshared.git"]` entry pointing
   at the sibling checkout.
 - A change to a wire contract is released in one window for every consumer,
   and the changelog lists the affected consumers and the switch order.

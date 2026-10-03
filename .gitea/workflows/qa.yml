@@ -55,7 +55,7 @@ jobs:
       - name: Restore Rust cache
         uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32
         with:
-          prefix-key: ns-shared-qa-v1
+          prefix-key: nsshared-qa-v1
           shared-key: workspace
           add-job-id-key: "false"
           add-rust-environment-hash-key: "true"
