@@ -12,7 +12,11 @@
 //! and the message decoders: those fields only report the library values, and changing
 //! them has no effect.
 
-use nsshared_rendezvous::{limits, registry};
+use nsshared_rendezvous::{capability::Capability, directory::Directory, limits, registry};
+use std::{
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    path::PathBuf,
+};
 
 /// Every rendezvous §6 and quick-v2 §7.4 limit.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -107,6 +111,24 @@ impl Default for Limits {
 /// Default number of keys one rate limiter tracks before refusing new keys.
 pub const DEFAULT_RATE_KEYS: usize = 65_536;
 
+/// Default listen address of the mock server.
+pub const DEFAULT_LISTEN: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8443);
+
+/// Where the server's TLS certificate comes from.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub enum TlsSource {
+    /// A self-signed certificate for the host name and the advertised IPs.
+    #[default]
+    SelfSigned,
+    /// A PEM certificate chain and private key.
+    Pem {
+        /// Certificate chain file.
+        certificate: PathBuf,
+        /// Private key file.
+        key: PathBuf,
+    },
+}
+
 /// Mock configuration.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Config {
@@ -114,6 +136,34 @@ pub struct Config {
     pub limits: Limits,
     /// Keys (source IPs, identities) one rate limiter tracks at most; bounds its memory.
     pub rate_keys: usize,
+    /// Listen address; its port is the advertised port (rendezvous §5.4).
+    pub listen: SocketAddr,
+    /// Directory relay id of the mock (rendezvous §5.4).
+    pub relay_id: u16,
+    /// Two-letter directory code of the mock (rendezvous §5.4).
+    pub code: String,
+    /// TLS host name; `host:port` is the authority (rendezvous §3, §5.4).
+    pub host: String,
+    /// Advertised IPs; empty means the listen IP (rendezvous §5.4).
+    pub advertise_ips: Vec<IpAddr>,
+    /// Capabilities announced besides `mailbox` and `registry` (rendezvous §3.1).
+    pub capabilities: Vec<Capability>,
+    /// Served directory; `None` serves version 1 listing only the mock (rendezvous §5.4).
+    pub directory: Option<Directory>,
+    /// TLS certificate source.
+    pub tls: TlsSource,
+}
+
+impl Config {
+    /// The advertised IPs: [`advertise_ips`](Self::advertise_ips), or the listen IP.
+    #[must_use]
+    pub fn ips(&self) -> Vec<IpAddr> {
+        if self.advertise_ips.is_empty() {
+            vec![self.listen.ip()]
+        } else {
+            self.advertise_ips.clone()
+        }
+    }
 }
 
 impl Default for Config {
@@ -121,6 +171,14 @@ impl Default for Config {
         Self {
             limits: Limits::default(),
             rate_keys: DEFAULT_RATE_KEYS,
+            listen: DEFAULT_LISTEN,
+            relay_id: 1,
+            code: "MK".to_owned(),
+            host: "localhost".to_owned(),
+            advertise_ips: Vec::new(),
+            capabilities: Vec::new(),
+            directory: None,
+            tls: TlsSource::SelfSigned,
         }
     }
 }
