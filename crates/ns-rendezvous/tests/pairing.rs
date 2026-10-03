@@ -14,7 +14,10 @@ use ns_rendezvous::{
         pairing_open_request, pairing_psk, transfer_open_request, verify_accept,
     },
 };
-use ns_wire::{CborError, CborWriter, NodeRecord, NodeRecordError, NodeRecordFields, RelayId};
+use ns_wire::{
+    CborError, CborWriter, NODE_RECORD_CONTEXT, NodeRecord, NodeRecordError, NodeRecordFields,
+    RelayId,
+};
 use sha2::{Digest, Sha256};
 use x25519_dalek::{PublicKey, StaticSecret};
 
@@ -94,15 +97,33 @@ fn sha256(bytes: &[u8]) -> [u8; 32] {
 
 /// Encodes `[ver, record, tail...]` with the given array length, independently of the
 /// library encoder.
-fn assemble(length: usize, version: u64, record: &NodeRecord, tail: CborWriter) -> Vec<u8> {
+fn assemble(length: usize, version: u64, record: &[u8], tail: CborWriter) -> Vec<u8> {
     let mut head = CborWriter::with_capacity(2);
     head.array(length).uint(version);
-    [
-        head.into_bytes(),
-        record.as_bytes().to_vec(),
-        tail.into_bytes(),
-    ]
-    .concat()
+    [head.into_bytes(), record.to_vec(), tail.into_bytes()].concat()
+}
+
+/// A correctly signed record with `expires = issued_at + period`, encoded by hand because
+/// [`NodeRecord::sign`] refuses periods above 604800 s (quick-v2 §3.1-§3.2).
+fn raw_record(key: &SigningKey, issued_at: u64, period: u64) -> Vec<u8> {
+    let mut writer = CborWriter::with_capacity(256);
+    writer
+        .array(7)
+        .uint(2)
+        .bytes(&key.verifying_key().to_bytes())
+        .bytes(&[7; 32])
+        .uint(1)
+        .uint(issued_at)
+        .uint(issued_at + period)
+        .array(1)
+        .text(authority().as_str());
+    let unsigned = writer.into_bytes();
+    let signature = key
+        .sign(&[NODE_RECORD_CONTEXT, &unsigned].concat())
+        .to_bytes();
+    let mut tail = CborWriter::with_capacity(66);
+    tail.bytes(&signature);
+    [&[0x88], &unsigned[1..], &tail.into_bytes()].concat()
 }
 
 /// A raw Invite whose record, signer and fields are chosen freely.
@@ -128,11 +149,11 @@ fn raw_invite(
         }
         writer
     };
-    let unsigned = assemble(6, 2, record, tail(None));
+    let unsigned = assemble(6, 2, record.as_bytes(), tail(None));
     let signature = signer
         .sign(&[INVITE_CONTEXT, &unsigned].concat())
         .to_bytes();
-    assemble(7, 2, record, tail(Some(&signature)))
+    assemble(7, 2, record.as_bytes(), tail(Some(&signature)))
 }
 
 /// A raw Join whose record, signer and fields are chosen freely.
@@ -154,9 +175,9 @@ fn raw_join(
         }
         writer
     };
-    let unsigned = assemble(6, 2, record, tail(None));
+    let unsigned = assemble(6, 2, record.as_bytes(), tail(None));
     let signature = signer.sign(&[JOIN_CONTEXT, &unsigned].concat()).to_bytes();
-    assemble(7, 2, record, tail(Some(&signature)))
+    assemble(7, 2, record.as_bytes(), tail(Some(&signature)))
 }
 
 fn flip_last(bytes: &[u8]) -> Vec<u8> {
@@ -469,7 +490,7 @@ fn decode_rejects_an_invalid_authority_or_record() {
         .uint(INVITE_EXPIRES)
         .null()
         .bytes(&[0; 64]);
-    let bytes = assemble(7, 2, &record(&key_a()), writer);
+    let bytes = assemble(7, 2, record(&key_a()).as_bytes(), writer);
     assert!(matches!(
         Invite::decode(&bytes),
         Err(PairingError::InvalidAuthority(_))
@@ -543,7 +564,7 @@ fn invite_verify_rejects_expiry() {
 }
 
 #[test]
-fn verify_rejects_an_expired_or_overlong_record() {
+fn verify_rejects_an_expired_record() {
     let invite = invite();
     assert!(matches!(
         invite.verify(&authority(), RECORD_EXPIRES),
@@ -553,20 +574,56 @@ fn verify_rejects_an_expired_or_overlong_record() {
         join(&invite).verify(&MAILBOX, &invite.hash(), RECORD_EXPIRES),
         Err(PairingError::RecordExpired(_))
     ));
-    let overlong = record_with(&key_a(), RECORD_ISSUED, RECORD_ISSUED + 604_801);
+    // 604800 s is the longest valid service period.
+    let longest = record_with(&key_a(), RECORD_ISSUED, RECORD_ISSUED + 604_800);
     let invite = Invite::create(
         &key_a(),
-        overlong,
+        longest,
         &public(&E_A),
         &authority(),
         INVITE_EXPIRES,
         None,
     )
     .unwrap();
-    assert!(matches!(
-        invite.verify(&authority(), NOW),
-        Err(PairingError::ServicePeriod(_))
-    ));
+    assert!(invite.verify(&authority(), NOW).is_ok());
+}
+
+#[test]
+fn decode_rejects_a_record_with_an_overlong_service_period() {
+    // NodeRecord::decode rejects the embedded record, so Invite and Join never decode.
+    let overlong = raw_record(&key_a(), RECORD_ISSUED, 604_801);
+    let rejected = PairingError::Record(NodeRecordError::ServicePeriodTooLong(604_801));
+    let mut invite = CborWriter::with_capacity(512);
+    invite
+        .bytes(&public(&E_A))
+        .text(authority().as_str())
+        .uint(INVITE_EXPIRES)
+        .null()
+        .bytes(&[0; 64]);
+    assert_eq!(
+        Invite::decode(&assemble(7, 2, &overlong, invite)).unwrap_err(),
+        rejected
+    );
+    let mut join = CborWriter::with_capacity(512);
+    join.bytes(&public(&E_B))
+        .bytes(&MAILBOX.0)
+        .bytes(&[0; 32])
+        .null()
+        .bytes(&[0; 64]);
+    assert_eq!(
+        Join::decode(&assemble(7, 2, &overlong, join)).unwrap_err(),
+        rejected
+    );
+    // The same hand encoding at 604800 s decodes.
+    let mut invite = CborWriter::with_capacity(512);
+    invite
+        .bytes(&public(&E_A))
+        .text(authority().as_str())
+        .uint(INVITE_EXPIRES)
+        .null()
+        .bytes(&[0; 64]);
+    let longest = raw_record(&key_a(), RECORD_ISSUED, 604_800);
+    assert!(Invite::decode(&assemble(7, 2, &longest, invite)).is_ok());
 }
 
 #[test]

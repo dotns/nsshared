@@ -36,8 +36,9 @@ pub struct NodeRecordFields {
 /// A valid NodeRecord together with its exact canonical encoding (quick-v2 §3.1-§3.2).
 ///
 /// Values are only produced by [`NodeRecord::sign`] and [`NodeRecord::decode`], so every
-/// value is valid: canonical, `ver = 2`, `gen >= 1`, `expires > issued_at`, at most four
-/// valid relays and a strictly verified signature under `I`.
+/// value is valid: canonical, `ver = 2`, `gen >= 1`, `expires > issued_at`, a service
+/// period `expires - issued_at` of at most 604800 s, at most four valid relays and a
+/// strictly verified signature under `I`.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NodeRecord {
     identity: Identity,
@@ -75,6 +76,10 @@ pub enum NodeRecordError {
         /// The record `expires`.
         expires: u64,
     },
+    /// The service period `expires - issued_at` exceeds 604800 s, so the record is
+    /// invalid (quick-v2 §3.1-§3.2, §12.3).
+    #[error("node record service period {0} s exceeds {MAX_RECORD_SERVICE_SECONDS} s")]
+    ServicePeriodTooLong(u64),
     /// `I` is not a valid Ed25519 point (quick-v2 §12.2).
     #[error("identity is not a valid Ed25519 public key")]
     InvalidIdentity,
@@ -95,11 +100,6 @@ pub struct RecordExpired {
     /// The caller-supplied time.
     pub now: u64,
 }
-
-/// A record whose service period `expires - issued_at` exceeds seven days (quick-v2 §3.1).
-#[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
-#[error("node record service period {0} s exceeds {MAX_RECORD_SERVICE_SECONDS} s")]
-pub struct ServicePeriodTooLong(pub u64);
 
 /// The next `issued_at` would exceed `u64::MAX` (quick-v2 §3.1).
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
@@ -129,8 +129,9 @@ impl NodeRecord {
     /// # Errors
     ///
     /// [`NodeRecordError::ZeroGeneration`], [`NodeRecordError::ExpiresNotAfterIssued`],
-    /// [`NodeRecordError::TooManyRelays`] or [`NodeRecordError::TooLarge`] for fields that
-    /// would not form a valid record.
+    /// [`NodeRecordError::ServicePeriodTooLong`], [`NodeRecordError::TooManyRelays`] or
+    /// [`NodeRecordError::TooLarge`] for fields that would not form a valid record
+    /// (quick-v2 §3.2).
     pub fn sign(signer: &SigningKey, fields: NodeRecordFields) -> Result<Self, NodeRecordError> {
         let identity = signer.verifying_key().to_bytes();
         check_fields(&fields)?;
@@ -150,7 +151,8 @@ impl NodeRecord {
     /// Decodes and validates a record (quick-v2 §3.1-§3.2, §12.1).
     ///
     /// Size, canonical CBOR, version, arity, trailing bytes, relay count and syntax,
-    /// `gen` and `expires > issued_at` are all checked before the signature.
+    /// `gen`, `expires > issued_at` and the service period of at most 604800 s are all
+    /// checked before the signature.
     ///
     /// # Errors
     ///
@@ -198,13 +200,15 @@ impl NodeRecord {
         Ok(record)
     }
 
-    /// Strictly verifies the signature under `I` (quick-v2 §3.2, §12.2).
+    /// Checks the service period, then strictly verifies the signature under `I`
+    /// (quick-v2 §3.2, §12.2).
     ///
     /// # Errors
     ///
-    /// [`NodeRecordError::InvalidIdentity`], [`NodeRecordError::WeakIdentity`] or
-    /// [`NodeRecordError::BadSignature`].
+    /// [`NodeRecordError::ServicePeriodTooLong`], [`NodeRecordError::InvalidIdentity`],
+    /// [`NodeRecordError::WeakIdentity`] or [`NodeRecordError::BadSignature`].
     pub fn verify(&self) -> Result<(), NodeRecordError> {
+        check_service_period(&self.fields)?;
         let key = VerifyingKey::from_bytes(&self.identity)
             .map_err(|_| NodeRecordError::InvalidIdentity)?;
         if key.is_weak() {
@@ -307,20 +311,6 @@ impl NodeRecord {
         self.fields.expires.saturating_sub(self.fields.issued_at)
     }
 
-    /// Checks `expires - issued_at <= 604800` (quick-v2 §3.1).
-    ///
-    /// # Errors
-    ///
-    /// [`ServicePeriodTooLong`] with the actual period.
-    pub const fn check_service_period(&self) -> Result<(), ServicePeriodTooLong> {
-        let period = self.service_period();
-        if period > MAX_RECORD_SERVICE_SECONDS {
-            Err(ServicePeriodTooLong(period))
-        } else {
-            Ok(())
-        }
-    }
-
     /// Returns true when less than half of the service period remains at `now`, so the
     /// node re-signs with the same `gen` and `K` (quick-v2 §3.1). A change of `relays`
     /// also requires re-signing; that is the caller's comparison.
@@ -341,10 +331,21 @@ fn check_fields(fields: &NodeRecordFields) -> Result<(), NodeRecordError> {
             expires: fields.expires,
         });
     }
+    check_service_period(fields)?;
     if fields.relays.len() > MAX_NODE_RECORD_RELAYS {
         return Err(NodeRecordError::TooManyRelays(fields.relays.len()));
     }
     Ok(())
+}
+
+/// `expires - issued_at <= 604800` is a validity condition (quick-v2 §3.1-§3.2, §12.3).
+const fn check_service_period(fields: &NodeRecordFields) -> Result<(), NodeRecordError> {
+    let period = fields.expires.saturating_sub(fields.issued_at);
+    if period > MAX_RECORD_SERVICE_SECONDS {
+        Err(NodeRecordError::ServicePeriodTooLong(period))
+    } else {
+        Ok(())
+    }
 }
 
 /// Encodes the eight-element record, or the seven signed fields when `signature` is
