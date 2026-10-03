@@ -18,7 +18,6 @@ use x25519_dalek::{PublicKey, StaticSecret};
 use zeroize::Zeroize;
 
 /// SHA-256 over the concatenation of `parts`.
-#[allow(dead_code, reason = "used by the registry and pairing modules")]
 pub(crate) fn sha256(parts: &[&[u8]]) -> [u8; 32] {
     let mut hasher = Sha256::new();
     for part in parts {
@@ -31,7 +30,6 @@ pub(crate) fn sha256(parts: &[&[u8]]) -> [u8; 32] {
 ///
 /// `key` must be at most 32 bytes (an empty key is unkeyed BLAKE2s); callers pass
 /// constant labels. A longer key yields all zeros instead of a panic.
-#[allow(dead_code, reason = "used by the registry and pairing modules")]
 pub(crate) fn blake2s_keyed<const N: usize>(key: &[u8], parts: &[&[u8]]) -> [u8; N]
 where
     [u8; N]: AssocArraySize,
@@ -63,7 +61,6 @@ pub(crate) struct HkdfLength;
 /// # Errors
 ///
 /// [`HkdfLength`] when `out` is longer than 8160 bytes; `out` is then zeroed.
-#[allow(dead_code, reason = "used by the pairing module")]
 pub(crate) fn hkdf_sha256(
     ikm: &[u8],
     info_parts: &[&[u8]],
@@ -96,7 +93,6 @@ pub(crate) struct AllZeroSharedSecret;
 /// # Errors
 ///
 /// [`AllZeroSharedSecret`] for a small-order `public`.
-#[allow(dead_code, reason = "used by the pairing module")]
 pub(crate) fn x25519(
     secret: &[u8; 32],
     public: &[u8; 32],
