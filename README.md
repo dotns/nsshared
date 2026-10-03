@@ -12,6 +12,9 @@ This is the `next` workspace, rebuilt around the Quick protocol. It contains:
   capabilities, actor `hello`, relay directory v2, mailbox phase rules, the
   node registry, pairing payloads and the region forwarding bodies (normative
   source: docs `ns/rendezvous.md`, `ns/quick-v2.md` §7, §10.2)
+- `nsshared-mock-rendezvous` (`examples/mock-rendezvous`, `publish = false`) —
+  single-instance `/quick/v2` mock relay (mailbox broker, directory, node
+  registry) over TLS WebSocket for ns development and tests
 
 `tools/vectors` is an independent Python generator of the conformance vectors
 both crates test against (`just vectors`, `just vectors-check`). Spec
