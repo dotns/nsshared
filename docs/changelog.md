@@ -1,5 +1,15 @@
 ## 2026-10-03 [feat]
 
+Add typed keys to `nsshared-wire` (quick-v2 §2.1, §2.3): `IdentityKey` (Ed25519 `I`,
+unpadded base64url text, node ID, address group, `N6`, `N4`, `lan6` and alias
+derivations by delegation), `IdentitySecret` (seed, OS-random generation, signing-key
+adapter), `WgSessionKey` and `WgSessionSecret` (X25519 `K`, `wg`-compatible padded base64),
+with strict text parsing, typed `KeyParseError`, redacted `Debug` and zeroize on drop for
+secrets. The module docs map each ns `NodeIdentity` helper to its replacement. Existing
+raw-byte APIs are unchanged.
+
+## 2026-10-03 [feat]
+
 Add `nsshared-telemetry`, the telemetry conventions shared with NS:
 `tracing` subscriber setup as composable pieces (`LogFormat` text or JSON, an
 env filter read from a configurable variable with a default directive, the
