@@ -13,7 +13,8 @@ It contains:
   (normative source: docs `ns/quick-v2.md`), the rendezvous service
   `/rendezvous/v1` messages in `nsshared_proto::rendezvous` (transport,
   capabilities, actor `hello`, relay directory v2, mailbox phase rules, node
-  registry; docs `ns/rendezvous.md`), and the shared encodings
+  registry; docs `ns/rendezvous.md`), public DNS discovery of records
+  (`nsshared_proto::discovery`, quick-v2 §11.2), and the shared encodings
   (`nsshared_proto::encoding` base64url / base64, canonical CBOR)
 - `nsshared-telemetry` — `tracing` subscriber setup (text or JSON, env filter
   with a default) and redaction helpers; no exporter
@@ -38,7 +39,7 @@ archived at tag `archive/v1-20261002`; see `docs/design/v1-crate-analysis.md`.
 Consumers use Cargo git dependencies pinned by tag:
 
 ```toml
-nsshared-proto = { git = "https://git.pvv.cc/nsiod/nsshared.git", tag = "v0.3.0" }
+nsshared-proto = { git = "https://git.pvv.cc/nsiod/nsshared.git", tag = "v0.4.0" }
 ```
 
 For local development against a sibling checkout, add an uncommitted override

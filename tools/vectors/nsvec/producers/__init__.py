@@ -2,6 +2,7 @@
 register a new producer by adding its module to PRODUCERS."""
 
 from . import (
+    dns_txt,
     identities,
     node_records,
     relay_packets,
@@ -13,6 +14,7 @@ from . import (
 PRODUCERS = [
     identities,
     node_records,
+    dns_txt,
     relay_packets,
     rendezvous_hello,
     rendezvous_registry,

@@ -1,3 +1,14 @@
+## 2026-10-04 [feat]
+
+Release `v0.4.0`: add `nsshared_proto::discovery`, public DNS discovery of
+node records (quick-v2 §11.2): `node_dns_name`, `encode_dns_txt` (the
+`v=ns2 r=` TXT value split into 255-byte character-strings) and
+`verify_dns_answer` (string and total length, prefix, strict base64url,
+record validity, expiry, queried node ID and AAAA = `N6`). The independent
+generator adds the `dns_txt` vectors and reproduces the §11.2 example TXT.
+Additive; consumers: ns (resolver side) and the planned authoritative DNS
+(M8, publisher side). The equivalent ns overlay helper can move here.
+
 ## 2026-10-04 [refactor]
 
 Release `v0.3.0`: prepare the public API for stability. Breaking:

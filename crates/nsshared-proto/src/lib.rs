@@ -9,6 +9,7 @@
 //! | [`identity`] | Raw identities, node ID, address group, `node6` / `node4`, address conflicts |
 //! | [`record`] | `NodeRecord`, its signature and the §3.3 ordering / conflict rules |
 //! | [`relay`] | Relay identifiers and relay packets v2; budget defaults in [`relay::budget`] |
+//! | [`discovery`] | Public DNS discovery of records: TXT encoding and answer checks |
 //! | [`rendezvous`] | The `/rendezvous/v1` messages: transport, capabilities, `hello`, directory, mailbox, registry |
 //! | [`encoding`] | Strict base64url / base64 and canonical CBOR |
 //! | [`constants`] | Protocol constants, derivation labels and signature contexts |
@@ -18,6 +19,7 @@
 
 mod codec;
 pub mod constants;
+pub mod discovery;
 pub mod encoding;
 mod identifier;
 pub mod identity;

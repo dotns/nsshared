@@ -3,7 +3,10 @@
 > Done 2026-10-03: the archive tag is pushed, remote `main` is `next` (tags
 > `v0.1.0`, `v0.2.0`) and the local checkout `/srv/dotns/ns-shared` follows
 > `main`. The old remote branches are kept as a record (owner decision; also in
-> the bundle backup), so the cleanup command below is not run. Still open: the
+> the bundle backup), so the cleanup command below is not run. Branch
+> `refactor/unified-engine` is kept the same way: its author retired the
+> duplicate `ns-proto` crate onto this line (its PLAN-027, code equal to
+> `12c76b9`); its plan and task records stay on that branch. Still open: the
 > consumer steps below.
 
 Status on 2026-10-03, for whoever continues the rewrite in this repository.

@@ -14,6 +14,11 @@ extend-ignore-identifiers-re = [
     # commit-id length.
     "\\b[0-9a-f]{7,40}\\b",
 ]
+# Quoted base64url literals copied from the specification (for example the
+# quick-v2 §11.2 TXT example in tools/vectors) tokenize into dictionary words.
+extend-ignore-re = [
+    "\"(?:v=ns2 r=)?[A-Za-z0-9_-]{60,}\"",
+]
 
 [files]
 extend-exclude = [
