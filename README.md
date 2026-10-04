@@ -39,7 +39,7 @@ archived at tag `archive/v1-20261002`; see `docs/design/v1-crate-analysis.md`.
 Consumers use Cargo git dependencies pinned by tag:
 
 ```toml
-nsshared-proto = { git = "https://git.pvv.cc/nsiod/nsshared.git", tag = "v0.4.0" }
+nsshared-proto = { git = "https://git.pvv.cc/nsiod/nsshared.git", tag = "v0.5.0" }
 ```
 
 For local development against a sibling checkout, add an uncommitted override

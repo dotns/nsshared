@@ -9,6 +9,7 @@ mod support;
 use ed25519_dalek::SigningKey;
 use nsshared_proto::rendezvous::{
     error::ErrorCode,
+    message::DnsPublication,
     message::{LookupNodeRequest, PublishRequest, RecordResult},
     registry,
     transport::{Request, Response},
@@ -37,7 +38,7 @@ fn publish_on(client: &Client, identity: &SigningKey, record: &NodeRecord) -> Pu
         &client.nonce(),
         &client.challenge.authority,
         record,
-        false,
+        DnsPublication::None,
     )
 }
 

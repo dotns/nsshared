@@ -9,9 +9,10 @@ use nsshared_proto::rendezvous::{
     directory::{Directory, RelayEntry},
     error::ErrorCode,
     message::{
-        Admission, AdmitRequest, CloseRequest, Digits, Found, JoinRequest, Kind, LookupNodeRequest,
-        MailboxId, MailboxMessage, MailboxView, OpenRequest, Opened, PublishRequest, Published,
-        RecordResult, RecvRequest, RejectRequest, SendRequest, Sent, Stage, Waiting,
+        Admission, AdmitRequest, CloseRequest, Digits, DnsPublication, Found, JoinRequest, Kind,
+        LookupNodeRequest, MailboxId, MailboxMessage, MailboxView, OpenRequest, Opened,
+        PublishRequest, Published, RecordResult, RecvRequest, RejectRequest, SendRequest, Sent,
+        Stage, Waiting,
     },
     transport::{
         MAX_MESSAGE_BYTES, Operation, PATH, Request, Response, SUBPROTOCOL, decode_request,
@@ -66,7 +67,7 @@ fn requests() -> Vec<Request> {
         Request::Directory,
         Request::Publish(PublishRequest {
             record: vec![0x8a; 40],
-            dns: true,
+            dns: DnsPublication::Record,
             proof: [5; 64],
         }),
         Request::LookupNode(LookupNodeRequest { node_id: [9; 12] }),
@@ -287,7 +288,7 @@ fn payload_fields_are_required_and_unknown_fields_rejected() {
         r#"{"operation":"open","value":{"kind":"pairing","ttl":60,"admission":"owner","candidates":1}}"#.to_owned(),
         r#"{"operation":"open","value":{"kind":"pairing","ttl":60,"admission":"owner","candidates":1,"intro":"","x":0}}"#.to_owned(),
         format!(r#"{{"operation":"hello","value":{{"actor":"{actor}"}}}}"#),
-        r#"{"operation":"publish","value":{"record":"AA","dns":false}}"#.to_owned(),
+        r#"{"operation":"publish","value":{"record":"AA","dns":"none"}}"#.to_owned(),
         r#"{"operation":"lookup_node","value":{}}"#.to_owned(),
         format!(r#"{{"operation":"close","value":{{"id":"{id}","id":"{id}"}}}}"#),
     ] {
@@ -487,7 +488,7 @@ fn out_of_range_values_are_rejected() {
 
     let publish = |record: &[u8]| {
         format!(
-            r#"{{"operation":"publish","value":{{"record":"{}","dns":false,"proof":"{}"}}}}"#,
+            r#"{{"operation":"publish","value":{{"record":"{}","dns":"none","proof":"{}"}}}}"#,
             b64(record),
             b64(&[0; 64])
         )
@@ -591,4 +592,29 @@ fn only_directory_publish_and_lookup_node_skip_hello() {
     );
     assert!(Operation::Lookup.requires_hello());
     assert!(Operation::Hello.requires_hello());
+}
+
+#[test]
+fn publish_dns_level_is_a_string_and_defaults_to_none() {
+    let proof = encode_base64url(&[1; 64]);
+    let record = encode_base64url(&[0xa0]);
+    let parse = |dns: &str| {
+        decode_request(&format!(
+            r#"{{"operation":"publish","value":{{"record":"{record}",{dns}"proof":"{proof}"}}}}"#
+        ))
+    };
+    for (field, level) in [
+        ("", DnsPublication::None),
+        (r#""dns":"none","#, DnsPublication::None),
+        (r#""dns":"address","#, DnsPublication::Address),
+        (r#""dns":"record","#, DnsPublication::Record),
+    ] {
+        match parse(field) {
+            Ok(Request::Publish(publish)) => assert_eq!(publish.dns, level, "{field}"),
+            other => panic!("{field}: {other:?}"),
+        }
+    }
+    for field in [r#""dns":true,"#, r#""dns":"txt","#, r#""dns":2,"#] {
+        assert!(parse(field).is_err(), "{field}");
+    }
 }

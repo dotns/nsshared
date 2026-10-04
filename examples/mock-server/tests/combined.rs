@@ -11,6 +11,7 @@ use nsshared_mock_rendezvous::Config;
 use nsshared_mock_server::MockServer;
 use nsshared_proto::rendezvous::{
     auth::Challenge,
+    message::DnsPublication,
     message::{LookupNodeRequest, RecordResult},
     registry,
     transport::{PATH, Request, Response, SUBPROTOCOL, decode_response, encode_request},
@@ -253,7 +254,7 @@ async fn one_port_serves_relay_and_rendezvous() {
         &publisher.challenge.nonce,
         &publisher.challenge.authority,
         node.record(),
-        false,
+        DnsPublication::None,
     );
     match publisher.request(&Request::Publish(publish)).await {
         Response::Published(published) => assert_eq!(published.expires, node.record().expires()),

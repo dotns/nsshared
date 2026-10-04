@@ -12,7 +12,7 @@ use ed25519_dalek::{Signature, SigningKey, VerifyingKey};
 use nsshared_proto::rendezvous::{
     directory::Directory,
     error::ErrorCode,
-    message::PublishRequest,
+    message::{DnsPublication, PublishRequest},
     registry,
     transport::{self, Request, Response},
 };
@@ -28,6 +28,16 @@ fn directory(v: &Vector) -> Directory {
 
 fn ids(v: &Vector, key: &str) -> Vec<u16> {
     v.all(key).iter().map(|id| id.parse().unwrap()).collect()
+}
+
+/// The `dns` level of a vector, as written in the fixture.
+fn dns_level(v: &Vector) -> DnsPublication {
+    match v.get("dns") {
+        "none" => DnsPublication::None,
+        "address" => DnsPublication::Address,
+        "record" => DnsPublication::Record,
+        other => panic!("{}: dns {other}", v.name()),
+    }
 }
 
 #[test]
@@ -93,7 +103,7 @@ fn publish_proofs_match_vectors() {
         let record = NodeRecord::decode(&v.hex("record")).unwrap();
         let nonce = v.hex_array::<32>("nonce");
         let authority = RelayId::parse(v.get("authority")).unwrap();
-        let dns = v.bool("dns");
+        let dns = dns_level(v);
         let now = v.u64("now");
 
         let message = registry::publish_proof_message(&nonce, &authority, record.as_bytes(), dns);
@@ -131,7 +141,8 @@ fn publish_proofs_match_vectors() {
             "{name}"
         );
     }
-    assert_eq!(positives, 4);
+    // Two authorities times the three DNS levels.
+    assert_eq!(positives, 6);
 }
 
 #[test]
@@ -151,7 +162,7 @@ fn rejected_publishes_match_vectors() {
         );
         let request = PublishRequest {
             record: v.hex("record"),
-            dns: v.bool("dns"),
+            dns: dns_level(v),
             proof: v.hex_array("proof"),
         };
         let authority = RelayId::parse(v.get("authority")).unwrap();

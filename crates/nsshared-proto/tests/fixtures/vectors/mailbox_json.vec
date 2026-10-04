@@ -12,9 +12,9 @@ name = request-publish
 kind = request
 operation = publish
 record = 8802582016da877d15bd877833ba671fd98a6f920996880cfbea2d1bfd579e463dc7ef8658200fa6e1e38d58e895b27e64d9e71f3afeba28b659c7d1fc2cdadbf59a0cfaf81a011a6ab13b801a6aba7600817818686b672d61312e72656c61792e6e732e696f3a35313832325840fa7f61f06f81e1f8c5d5c11d1bf1fce3490cc11e2d7ff0f04228c5526dd6ad858e97ecf79dc1b8113a8d3670e6e6171985522b570de0854735190554ce0b1108
-dns = true
+dns = address
 proof = aed0a721f35ddafd6083f5b0a56604936706bc1fae5ccea8e20e7941cdc901c5aed0a721f35ddafd6083f5b0a56604936706bc1fae5ccea8e20e7941cdc901c5
-json = {"operation":"publish","value":{"record":"iAJYIBbah30VvYd4M7pnH9mKb5IJlogM--otG_1XnkY9x--GWCAPpuHjjVjolbJ-ZNnnHzr-uii2WcfR_Cza2_WaDPr4GgEaarE7gBpqunYAgXgYaGtnLWExLnJlbGF5Lm5zLmlvOjUxODIyWED6f2Hwb4Hh-MXVwR0b8fzjSQzBHi1_8PBCKMVSbdathY6X7PedwbgROo02cObmFxmFUitXDeCFRzUZBVTOCxEI","dns":true,"proof":"rtCnIfNd2v1gg_WwpWYEk2cGvB-uXM6o4g55Qc3JAcWu0Kch813a_WCD9bClZgSTZwa8H65czqjiDnlBzckBxQ"}}
+json = {"operation":"publish","value":{"record":"iAJYIBbah30VvYd4M7pnH9mKb5IJlogM--otG_1XnkY9x--GWCAPpuHjjVjolbJ-ZNnnHzr-uii2WcfR_Cza2_WaDPr4GgEaarE7gBpqunYAgXgYaGtnLWExLnJlbGF5Lm5zLmlvOjUxODIyWED6f2Hwb4Hh-MXVwR0b8fzjSQzBHi1_8PBCKMVSbdathY6X7PedwbgROo02cObmFxmFUitXDeCFRzUZBVTOCxEI","dns":"address","proof":"rtCnIfNd2v1gg_WwpWYEk2cGvB-uXM6o4g55Qc3JAcWu0Kch813a_WCD9bClZgSTZwa8H65czqjiDnlBzckBxQ"}}
 
 name = request-lookup-node
 kind = request

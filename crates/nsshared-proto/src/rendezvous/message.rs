@@ -33,6 +33,9 @@ pub enum MessageError {
     /// `admission` is not `first` or `owner`.
     #[error("admission must be first or owner")]
     Admission,
+    /// `dns` is not `none`, `address` or `record`.
+    #[error("dns must be none, address or record")]
+    Dns,
     /// `stage` is not `open`, `admitted` or `closing`.
     #[error("stage must be open, admitted or closing")]
     Stage,
@@ -109,6 +112,56 @@ pub enum Admission {
     First,
     /// The owner admits a waiting candidate.
     Owner,
+}
+
+/// The public DNS publication level of a registry record (quick-v2 §7.2, §11.2).
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case", try_from = "String")]
+pub enum DnsPublication {
+    /// Not published; the record is only found by exact `lookup_node` (the default).
+    #[default]
+    None,
+    /// Only `<node id>.n.ns.io AAAA N6` is published; the AAAA is unauthenticated.
+    Address,
+    /// The AAAA and the TXT carrying the whole record are published.
+    Record,
+}
+
+impl DnsPublication {
+    /// The `dns_u8` of the publish proof: 0, 1 or 2 (quick-v2 §7.2).
+    #[must_use]
+    pub const fn as_u8(self) -> u8 {
+        match self {
+            Self::None => 0,
+            Self::Address => 1,
+            Self::Record => 2,
+        }
+    }
+
+    /// Whether the AAAA is published.
+    #[must_use]
+    pub const fn publishes_address(self) -> bool {
+        !matches!(self, Self::None)
+    }
+
+    /// Whether the TXT record is published.
+    #[must_use]
+    pub const fn publishes_record(self) -> bool {
+        matches!(self, Self::Record)
+    }
+}
+
+impl TryFrom<String> for DnsPublication {
+    type Error = MessageError;
+
+    fn try_from(text: String) -> Result<Self, Self::Error> {
+        match text.as_str() {
+            "none" => Ok(Self::None),
+            "address" => Ok(Self::Address),
+            "record" => Ok(Self::Record),
+            _ => Err(MessageError::Dns),
+        }
+    }
 }
 
 /// The mailbox stage (rendezvous §5.1, §5.3).
@@ -424,8 +477,9 @@ pub struct PublishRequest {
         deserialize_with = "record"
     )]
     pub record: Vec<u8>,
-    /// Whether the relay publishes the record as public DNS.
-    pub dns: bool,
+    /// The public DNS publication level; `none` when omitted.
+    #[serde(default)]
+    pub dns: DnsPublication,
     /// Registry publish proof signed by the record's `I`.
     #[serde(with = "transport::bytes")]
     pub proof: [u8; 64],

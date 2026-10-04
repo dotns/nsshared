@@ -169,7 +169,12 @@ SEQ = lambda v: _uint(v, 1)  # noqa: E731
 REQUESTS = {
     "directory": _null,
     "publish": lambda v: _object(
-        v, {"record": lambda r: _b64(r, maximum=node_records.MAX_BYTES), "dns": lambda d: None if type(d) is bool else _raise("type"), "proof": lambda p: _b64(p, 64)}
+        {"dns": "none", **v} if type(v) is dict else v,
+        {
+            "record": lambda r: _b64(r, maximum=node_records.MAX_BYTES),
+            "dns": lambda d: None if d in rendezvous_registry.DNS_LEVELS else _raise("type"),
+            "proof": lambda p: _b64(p, 64),
+        },
     ),
     "lookup_node": lambda v: _object(v, {"node_id": lambda n: _b64(n, 12)}),
     "hello": lambda v: _object(v, {"actor": ACTOR, "signature": lambda s: _b64(s, 64)}),
@@ -270,8 +275,8 @@ def vectors():
             "request-publish",
             "request",
             "publish",
-            rendezvous_registry.publish_value(record, True, proof),
-            [("record", record), ("dns", "true"), ("proof", proof)],
+            rendezvous_registry.publish_value(record, "address", proof),
+            [("record", record), ("dns", "address"), ("proof", proof)],
         ),
         positive("request-lookup-node", "request", "lookup_node", {"node_id": b64u(node_id)}, [("node_id", node_id)]),
         positive(

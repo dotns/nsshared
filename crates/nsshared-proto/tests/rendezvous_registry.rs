@@ -7,7 +7,7 @@ use nsshared_proto::rendezvous::{
     capability::{self, Capabilities},
     directory::{CODE_LETTERS, Directory, RelayEntry},
     error::ErrorCode,
-    message::{PublishRequest, Published},
+    message::{DnsPublication, PublishRequest, Published},
     registry::{
         self, DELETION_GRACE_SECONDS, LookupError, PUBLISH_CONTEXT, RegistryEntry, SHARD_LABEL,
         VerifiedPublish,
@@ -48,7 +48,7 @@ fn record(generation: u64, wg: u8) -> NodeRecord {
     record_with(&key(1), generation, wg, NOW - 10)
 }
 
-fn verified(record: &NodeRecord, dns: bool) -> VerifiedPublish {
+fn verified(record: &NodeRecord, dns: DnsPublication) -> VerifiedPublish {
     let request = registry::publish_request(&key(1), &NONCE, &authority(), record, dns);
     registry::verify_publish(&request, &NONCE, &authority(), NOW).unwrap()
 }
@@ -98,7 +98,8 @@ fn constants_match_the_spec() {
 
 #[test]
 fn proof_message_layout() {
-    let message = registry::publish_proof_message(&NONCE, &authority(), b"rec", true);
+    let message =
+        registry::publish_proof_message(&NONCE, &authority(), b"rec", DnsPublication::Address);
     let authority = b"relay-1.relay.ns.io:443";
     let mut expected = PUBLISH_CONTEXT.to_vec();
     expected.extend_from_slice(&NONCE);
@@ -115,15 +116,26 @@ fn proof_message_layout() {
         &NONCE,
         &RelayId::parse("relay-1.relay.ns.io:443").unwrap(),
         b"rec",
-        false,
+        DnsPublication::None,
     );
     assert_eq!(off.last(), Some(&0));
+    let record = registry::publish_proof_message(
+        &NONCE,
+        &RelayId::parse("relay-1.relay.ns.io:443").unwrap(),
+        b"rec",
+        DnsPublication::Record,
+    );
+    assert_eq!(record.last(), Some(&2));
 }
 
 #[test]
 fn proof_round_trip() {
     let record = record(1, 1);
-    for dns in [false, true] {
+    for dns in [
+        DnsPublication::None,
+        DnsPublication::Address,
+        DnsPublication::Record,
+    ] {
         let request = registry::publish_request(&key(1), &NONCE, &authority(), &record, dns);
         assert_eq!(request.record, record.as_bytes());
         let verified = registry::verify_publish(&request, &NONCE, &authority(), NOW).unwrap();
@@ -136,7 +148,13 @@ fn proof_round_trip() {
 #[test]
 fn proof_fails_for_any_changed_input() {
     let record = record(1, 1);
-    let request = registry::publish_request(&key(1), &NONCE, &authority(), &record, true);
+    let request = registry::publish_request(
+        &key(1),
+        &NONCE,
+        &authority(),
+        &record,
+        DnsPublication::Record,
+    );
     let invalid = Err(ErrorCode::InvalidMessage);
 
     let mut other_nonce = NONCE;
@@ -152,7 +170,7 @@ fn proof_fails_for_any_changed_input() {
     );
 
     let flipped_dns = PublishRequest {
-        dns: false,
+        dns: DnsPublication::None,
         ..request.clone()
     };
     assert_eq!(
@@ -177,7 +195,7 @@ fn proof_fails_for_any_changed_input() {
             &NONCE,
             &authority(),
             record.as_bytes(),
-            true,
+            DnsPublication::Record,
         ),
         ..request.clone()
     };
@@ -197,7 +215,8 @@ fn proof_fails_for_any_changed_input() {
 #[test]
 fn any_flipped_record_byte_is_rejected() {
     let record = record(1, 1);
-    let request = registry::publish_request(&key(1), &NONCE, &authority(), &record, false);
+    let request =
+        registry::publish_request(&key(1), &NONCE, &authority(), &record, DnsPublication::None);
     for index in 0..request.record.len() {
         let mut tampered = request.clone();
         tampered.record[index] ^= 1;
@@ -213,7 +232,7 @@ fn any_flipped_record_byte_is_rejected() {
 fn invalid_or_expired_records_are_rejected() {
     let garbage = PublishRequest {
         record: vec![0x80],
-        dns: false,
+        dns: DnsPublication::None,
         proof: [0; 64],
     };
     assert_eq!(
@@ -222,7 +241,8 @@ fn invalid_or_expired_records_are_rejected() {
     );
 
     let record = record(1, 1);
-    let request = registry::publish_request(&key(1), &NONCE, &authority(), &record, false);
+    let request =
+        registry::publish_request(&key(1), &NONCE, &authority(), &record, DnsPublication::None);
     assert!(registry::verify_publish(&request, &NONCE, &authority(), record.expires() - 1).is_ok());
     for now in [record.expires(), record.expires() + 1] {
         assert_eq!(
@@ -263,12 +283,12 @@ fn service_period_above_seven_days_is_rejected() {
                 &NONCE,
                 &authority(),
                 &record,
-                false,
+                DnsPublication::None,
             ))
             .to_bytes();
         PublishRequest {
             record,
-            dns: false,
+            dns: DnsPublication::None,
             proof,
         }
     };
@@ -413,13 +433,13 @@ fn first_publish_is_accepted() {
     assert!(state.record().is_none());
     let first = record(1, 1);
     assert_eq!(
-        state.apply_publish(&verified(&first, true), NOW),
+        state.apply_publish(&verified(&first, DnsPublication::Record), NOW),
         Ok(Published {
             expires: first.expires()
         })
     );
     assert_eq!(state.record(), Some(&first));
-    assert!(state.dns());
+    assert_eq!(state.dns(), DnsPublication::Record);
     assert_eq!(state.marks().committed_gen(), 1);
 }
 
@@ -427,34 +447,36 @@ fn first_publish_is_accepted() {
 fn higher_generation_is_accepted_and_lower_rejected() {
     let mut state = RegistryEntry::new(*key(1).verifying_key().as_bytes());
     let second = record(2, 2);
-    state.apply_publish(&verified(&second, false), NOW).unwrap();
+    state
+        .apply_publish(&verified(&second, DnsPublication::None), NOW)
+        .unwrap();
     let before = state.clone();
     assert_eq!(
-        state.apply_publish(&verified(&record(1, 1), true), NOW),
+        state.apply_publish(&verified(&record(1, 1), DnsPublication::Record), NOW),
         Err(ErrorCode::Conflict)
     );
     assert_eq!(state, before);
 
     let third = record_with(&key(1), 3, 3, NOW - 5);
     assert_eq!(
-        state.apply_publish(&verified(&third, true), NOW),
+        state.apply_publish(&verified(&third, DnsPublication::Record), NOW),
         Ok(Published {
             expires: third.expires()
         })
     );
     assert_eq!(state.record(), Some(&third));
-    assert!(state.dns());
+    assert_eq!(state.dns(), DnsPublication::Record);
 }
 
 #[test]
 fn same_generation_refresh_replaces_the_record() {
     let mut state = RegistryEntry::new(*key(1).verifying_key().as_bytes());
     state
-        .apply_publish(&verified(&record(1, 1), false), NOW)
+        .apply_publish(&verified(&record(1, 1), DnsPublication::None), NOW)
         .unwrap();
     let refreshed = record_with(&key(1), 1, 1, NOW - 5);
     assert_eq!(
-        state.apply_publish(&verified(&refreshed, false), NOW),
+        state.apply_publish(&verified(&refreshed, DnsPublication::None), NOW),
         Ok(Published {
             expires: refreshed.expires()
         })
@@ -466,26 +488,35 @@ fn same_generation_refresh_replaces_the_record() {
 fn dns_follows_the_latest_accepted_publish() {
     let mut state = RegistryEntry::new(*key(1).verifying_key().as_bytes());
     let first = record(1, 1);
-    state.apply_publish(&verified(&first, true), NOW).unwrap();
-    assert!(state.dns());
+    state
+        .apply_publish(&verified(&first, DnsPublication::Record), NOW)
+        .unwrap();
+    assert_eq!(state.dns(), DnsPublication::Record);
     // The same record again is idempotent for §3.3 but still an accepted publish.
     assert_eq!(
-        state.apply_publish(&verified(&first, false), NOW),
+        state.apply_publish(&verified(&first, DnsPublication::None), NOW),
         Ok(Published {
             expires: first.expires()
         })
     );
-    assert!(!state.dns());
+    assert_eq!(state.dns(), DnsPublication::None);
     assert_eq!(state.record(), Some(&first));
+    state
+        .apply_publish(&verified(&first, DnsPublication::Address), NOW)
+        .unwrap();
+    assert_eq!(state.dns(), DnsPublication::Address);
+    state
+        .apply_publish(&verified(&first, DnsPublication::None), NOW)
+        .unwrap();
     // A rejected publish never changes the choice.
     state
-        .apply_publish(&verified(&record(2, 2), false), NOW)
+        .apply_publish(&verified(&record(2, 2), DnsPublication::None), NOW)
         .unwrap();
     assert_eq!(
-        state.apply_publish(&verified(&first, true), NOW),
+        state.apply_publish(&verified(&first, DnsPublication::Record), NOW),
         Err(ErrorCode::Conflict)
     );
-    assert!(!state.dns());
+    assert_eq!(state.dns(), DnsPublication::None);
 }
 
 #[test]
@@ -493,15 +524,15 @@ fn conflict_latches_until_a_higher_generation() {
     let mut state = RegistryEntry::new(*key(1).verifying_key().as_bytes());
     let original = record(1, 1);
     state
-        .apply_publish(&verified(&original, false), NOW)
+        .apply_publish(&verified(&original, DnsPublication::None), NOW)
         .unwrap();
     // Same gen, different K.
     assert_eq!(
-        state.apply_publish(&verified(&record(1, 9), true), NOW),
+        state.apply_publish(&verified(&record(1, 9), DnsPublication::Record), NOW),
         Err(ErrorCode::Conflict)
     );
     assert!(state.marks().is_conflicted());
-    assert!(!state.dns());
+    assert_eq!(state.dns(), DnsPublication::None);
     assert_eq!(state.record(), Some(&original));
     assert_eq!(
         registry::lookup(Some(&state), NOW),
@@ -512,7 +543,7 @@ fn conflict_latches_until_a_higher_generation() {
     let before = state.clone();
     for candidate in [original.clone(), record_with(&key(1), 1, 1, NOW - 5)] {
         assert_eq!(
-            state.apply_publish(&verified(&candidate, false), NOW),
+            state.apply_publish(&verified(&candidate, DnsPublication::None), NOW),
             Err(ErrorCode::Conflict)
         );
         assert_eq!(state, before);
@@ -520,7 +551,9 @@ fn conflict_latches_until_a_higher_generation() {
 
     // A higher generation clears it.
     let rotated = record_with(&key(1), 2, 2, NOW - 5);
-    state.apply_publish(&verified(&rotated, true), NOW).unwrap();
+    state
+        .apply_publish(&verified(&rotated, DnsPublication::Record), NOW)
+        .unwrap();
     assert!(!state.marks().is_conflicted());
     assert_eq!(
         registry::lookup(Some(&state), NOW).unwrap().record,
@@ -531,7 +564,7 @@ fn conflict_latches_until_a_higher_generation() {
 #[test]
 fn apply_rejects_foreign_or_expired_publishes() {
     let mut state = RegistryEntry::new(*key(2).verifying_key().as_bytes());
-    let publish = verified(&record(1, 1), false);
+    let publish = verified(&record(1, 1), DnsPublication::None);
     assert_eq!(
         state.apply_publish(&publish, NOW),
         Err(ErrorCode::InvalidMessage)
@@ -548,12 +581,13 @@ fn apply_rejects_foreign_or_expired_publishes() {
 fn deleted_state_accepts_a_fresh_record() {
     let mut state = RegistryEntry::new(*key(1).verifying_key().as_bytes());
     let old = record_with(&key(1), 5, 5, NOW - 4000);
-    let request = registry::publish_request(&key(1), &NONCE, &authority(), &old, false);
+    let request =
+        registry::publish_request(&key(1), &NONCE, &authority(), &old, DnsPublication::None);
     let old = registry::verify_publish(&request, &NONCE, &authority(), NOW - 3900).unwrap();
     state.apply_publish(&old, NOW - 3900).unwrap();
     let expires = old.record().expires();
     // Within the grace a lower generation is still a conflict; after it, a fresh start.
-    let lower = verified(&record(1, 1), false);
+    let lower = verified(&record(1, 1), DnsPublication::None);
     assert_eq!(
         state.apply_publish(&lower, expires + DELETION_GRACE_SECONDS),
         Err(ErrorCode::Conflict)
@@ -576,7 +610,9 @@ fn lookup_semantics() {
 
     let mut state = RegistryEntry::new(*key(1).verifying_key().as_bytes());
     let first = record(1, 1);
-    state.apply_publish(&verified(&first, true), NOW).unwrap();
+    state
+        .apply_publish(&verified(&first, DnsPublication::Record), NOW)
+        .unwrap();
     let expires = first.expires();
     assert_eq!(
         registry::lookup(Some(&state), expires - 1).unwrap().record,
@@ -592,7 +628,9 @@ fn deletion_grace() {
     assert!(RegistryEntry::new([1; 32]).deletion_due(0));
     let mut state = RegistryEntry::new(*key(1).verifying_key().as_bytes());
     let first = record(1, 1);
-    state.apply_publish(&verified(&first, false), NOW).unwrap();
+    state
+        .apply_publish(&verified(&first, DnsPublication::None), NOW)
+        .unwrap();
     let expires = first.expires();
     assert!(!state.deletion_due(expires));
     assert!(!state.deletion_due(expires + DELETION_GRACE_SECONDS));
@@ -629,4 +667,32 @@ fn client_verifies_lookup_results() {
         registry::verify_lookup_result(&node_id, &tampered, NOW),
         Err(LookupError::Record(NodeRecordError::BadSignature))
     );
+}
+
+#[test]
+fn dns_publication_levels() {
+    use DnsPublication::{Address, None, Record};
+    assert_eq!(DnsPublication::default(), None);
+    assert_eq!([None.as_u8(), Address.as_u8(), Record.as_u8()], [0, 1, 2]);
+    assert_eq!(
+        [None, Address, Record].map(DnsPublication::publishes_address),
+        [false, true, true]
+    );
+    assert_eq!(
+        [None, Address, Record].map(DnsPublication::publishes_record),
+        [false, false, true]
+    );
+    // A proof for one level never verifies for another.
+    let record = record(1, 1);
+    let request = registry::publish_request(&key(1), &NONCE, &authority(), &record, Address);
+    for other in [None, Record] {
+        let replayed = PublishRequest {
+            dns: other,
+            ..request.clone()
+        };
+        assert_eq!(
+            registry::verify_publish(&replayed, &NONCE, &authority(), NOW),
+            Err(ErrorCode::InvalidMessage)
+        );
+    }
 }

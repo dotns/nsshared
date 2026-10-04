@@ -11,6 +11,7 @@ use nsshared_proto::rendezvous::{
     capability::{self, Capabilities},
     directory::{Directory, RelayEntry},
     error::ErrorCode,
+    message::DnsPublication,
     message::{LookupNodeRequest, PublishRequest, RecordResult},
     registry,
 };
@@ -79,7 +80,7 @@ fn record(generation: u64, wg: u8) -> NodeRecord {
 }
 
 fn request(signer: &SigningKey, record: &NodeRecord) -> PublishRequest {
-    registry::publish_request(signer, &NONCE, &authority(), record, false)
+    registry::publish_request(signer, &NONCE, &authority(), record, DnsPublication::None)
 }
 
 fn publish(store: &mut RegistryStore, record: &NodeRecord) -> Result<u64, ErrorCode> {
@@ -157,7 +158,8 @@ fn proof_for_another_challenge_nonce_is_rejected() {
 fn proof_for_another_authority_is_rejected() {
     let mut store = store();
     let other = RelayId::parse("other.relay.ns.io:443").unwrap();
-    let request = registry::publish_request(&key(1), &NONCE, &other, &record(1, 1), false);
+    let request =
+        registry::publish_request(&key(1), &NONCE, &other, &record(1, 1), DnsPublication::None);
     assert_eq!(
         store.publish(&request, &NONCE, NOW),
         Err(ErrorCode::InvalidMessage)

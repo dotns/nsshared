@@ -67,5 +67,3 @@ def response(result, value):
     return compact({"result": result, "value": value})
 
 
-def text_bool(value):
-    return "true" if value else "false"

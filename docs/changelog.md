@@ -1,5 +1,22 @@
 ## 2026-10-04 [feat]
 
+Release `v0.5.0`: public DNS publication has three levels (quick-v2 §7.2,
+§11.2, §11.3 in the docs change after `faca1ec`). Breaking:
+
+- `rendezvous::message::PublishRequest::dns` is a `DnsPublication`
+  (`none`, the default and the value when the JSON field is omitted;
+  `address`, AAAA only; `record`, AAAA and TXT) instead of a `bool`; on the
+  wire it is a string. `dns_u8` in the publish proof is 0, 1 or 2.
+- `registry::publish_proof_message`, `create_publish_proof`,
+  `publish_request`, `VerifiedPublish::dns` and `RegistryEntry::dns` take or
+  return `DnsPublication`; `MessageError::Dns` rejects other values.
+- The `registry` and `mailbox_json` vectors use the three levels.
+
+Consumers: ns publishes with `none` unless configured; the registry operator
+publishes AAAA for `address` and AAAA plus TXT for `record`.
+
+## 2026-10-04 [feat]
+
 Release `v0.4.0`: add `nsshared_proto::discovery`, public DNS discovery of
 node records (quick-v2 §11.2): `node_dns_name`, `encode_dns_txt` (the
 `v=ns2 r=` TXT value split into 255-byte character-strings) and

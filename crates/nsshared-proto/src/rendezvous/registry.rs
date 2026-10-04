@@ -8,7 +8,7 @@ use crate::rendezvous::{
     capability, crypto,
     directory::{Directory, RelayEntry},
     error::ErrorCode,
-    message::{PublishRequest, Published, RecordResult},
+    message::{DnsPublication, PublishRequest, Published, RecordResult},
 };
 use crate::{
     NodeId, NodeRecord, RelayId, constants::REGISTRY_LOOKUP_MAX,
@@ -50,7 +50,7 @@ pub fn publish_proof_message(
     nonce: &[u8; 32],
     authority: &RelayId,
     record: &[u8],
-    dns: bool,
+    dns: DnsPublication,
 ) -> Vec<u8> {
     let authority = authority.as_str().as_bytes();
     let mut message =
@@ -59,7 +59,7 @@ pub fn publish_proof_message(
     message.extend_from_slice(nonce);
     message.extend_from_slice(authority);
     message.extend_from_slice(&crypto::sha256(&[record]));
-    message.push(u8::from(dns));
+    message.push(dns.as_u8());
     message
 }
 
@@ -70,7 +70,7 @@ pub fn create_publish_proof(
     nonce: &[u8; 32],
     authority: &RelayId,
     record: &[u8],
-    dns: bool,
+    dns: DnsPublication,
 ) -> [u8; 64] {
     identity_key
         .sign(&publish_proof_message(nonce, authority, record, dns))
@@ -84,7 +84,7 @@ pub fn publish_request(
     nonce: &[u8; 32],
     authority: &RelayId,
     record: &NodeRecord,
-    dns: bool,
+    dns: DnsPublication,
 ) -> PublishRequest {
     PublishRequest {
         record: record.as_bytes().to_vec(),
@@ -97,7 +97,7 @@ pub fn publish_request(
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VerifiedPublish {
     record: NodeRecord,
-    dns: bool,
+    dns: DnsPublication,
 }
 
 impl VerifiedPublish {
@@ -107,9 +107,9 @@ impl VerifiedPublish {
         &self.record
     }
 
-    /// Whether the publisher asked for public DNS.
+    /// The public DNS publication level the publisher asked for.
     #[must_use]
-    pub const fn dns(&self) -> bool {
+    pub const fn dns(&self) -> DnsPublication {
         self.dns
     }
 
@@ -237,16 +237,16 @@ pub fn check_responsible(
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RegistryEntry {
     marks: RecordMarks,
-    dns: bool,
+    dns: DnsPublication,
 }
 
 impl RegistryEntry {
-    /// The empty state for `identity`: no record, `committed_gen = 0`, `dns = false`.
+    /// The empty state for `identity`: no record, `committed_gen = 0`, `dns = none`.
     #[must_use]
     pub const fn new(identity: Identity) -> Self {
         Self {
             marks: RecordMarks::new(identity),
-            dns: false,
+            dns: DnsPublication::None,
         }
     }
 
@@ -256,9 +256,9 @@ impl RegistryEntry {
         self.marks.current()
     }
 
-    /// Whether the stored record is published as public DNS (quick-v2 §7.2, §11.2).
+    /// The public DNS publication level of the stored record (quick-v2 §7.2, §11.2).
     #[must_use]
-    pub const fn dns(&self) -> bool {
+    pub const fn dns(&self) -> DnsPublication {
         self.dns
     }
 

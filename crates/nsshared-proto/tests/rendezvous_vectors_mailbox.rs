@@ -11,9 +11,10 @@ use nsshared_proto::rendezvous::{
     capability::{Capabilities, Capability},
     error::ErrorCode,
     message::{
-        Admission, AdmitRequest, CloseRequest, Digits, Found, JoinRequest, Kind, LookupNodeRequest,
-        MailboxId, MailboxMessage, MailboxView, OpenRequest, Opened, PublishRequest, Published,
-        RecordResult, RecvRequest, RejectRequest, SendRequest, Sent, Stage, Waiting,
+        Admission, AdmitRequest, CloseRequest, Digits, DnsPublication, Found, JoinRequest, Kind,
+        LookupNodeRequest, MailboxId, MailboxMessage, MailboxView, OpenRequest, Opened,
+        PublishRequest, Published, RecordResult, RecvRequest, RejectRequest, SendRequest, Sent,
+        Stage, Waiting,
     },
     transport::{self, Request, Response},
 };
@@ -47,7 +48,7 @@ fn request(v: &Vector) -> Request {
         "directory" => Request::Directory,
         "publish" => Request::Publish(PublishRequest {
             record: v.hex("record"),
-            dns: v.bool("dns"),
+            dns: dns_level(v),
             proof: v.hex_array("proof"),
         }),
         "lookup_node" => Request::LookupNode(LookupNodeRequest {
@@ -151,6 +152,16 @@ fn response(v: &Vector) -> Option<Response> {
         "error" => Response::Error(v.get("error").parse::<ErrorCode>().unwrap()),
         other => panic!("{}: result {other}", v.name()),
     })
+}
+
+/// The `dns` level of a vector, as written in the fixture.
+fn dns_level(v: &Vector) -> DnsPublication {
+    match v.get("dns") {
+        "none" => DnsPublication::None,
+        "address" => DnsPublication::Address,
+        "record" => DnsPublication::Record,
+        other => panic!("{}: dns {other}", v.name()),
+    }
 }
 
 #[test]

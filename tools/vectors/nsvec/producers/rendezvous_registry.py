@@ -68,10 +68,13 @@ def shard_order(node_id, domain):
     return sorted(domain, key=lambda rid: (-int.from_bytes(shard_weight(node_id, rid), "big"), rid))
 
 
+DNS_LEVELS = {"none": 0, "address": 1, "record": 2}
+
+
 def proof_message(nonce, authority, record, dns):
     """`"ns/registry-publish/v2" ‖ challenge.nonce ‖ authority ‖ SHA-256(record) ‖ dns_u8`
     (quick-v2 §7.2)."""
-    return PUBLISH_CONTEXT + nonce + authority.encode("ascii") + hashlib.sha256(record).digest() + bytes([int(dns)])
+    return PUBLISH_CONTEXT + nonce + authority.encode("ascii") + hashlib.sha256(record).digest() + bytes([DNS_LEVELS[dns]])
 
 
 def publish_value(record, dns, proof):
@@ -121,7 +124,7 @@ def publish_vector(name, signer, record, nonce, authority, dns):
         ("now", common.NOW),
         ("nonce", nonce),
         ("authority", authority),
-        ("dns", common.text_bool(dns)),
+        ("dns", dns),
         ("record_sha256", hashlib.sha256(record).digest()),
         ("message", message),
         ("proof", proof),
@@ -136,7 +139,7 @@ def publish_negative(name, record, dns, proof, nonce, authority, now, reason):
     return [
         ("name", name),
         ("record", record),
-        ("dns", common.text_bool(dns)),
+        ("dns", dns),
         ("proof", proof),
         ("nonce", nonce),
         ("authority", authority),
@@ -161,27 +164,28 @@ def vectors():
     record = common.record(signer)
     proofs = {}
     for authority, nonce, tag in ((common.AUTHORITY, common.NONCE, "a"), (common.OTHER_AUTHORITY, common.OTHER_NONCE, "b")):
-        for dns in (True, False):
-            vector, proof = publish_vector(f"publish-{tag}-dns-{common.text_bool(dns)}", signer, record, nonce, authority, dns)
+        for dns in DNS_LEVELS:
+            vector, proof = publish_vector(f"publish-{tag}-dns-{dns}", signer, record, nonce, authority, dns)
             proofs[authority, dns] = proof
             out.append(vector)
 
-    proof = proofs[common.AUTHORITY, True]
+    proof = proofs[common.AUTHORITY, "record"]
     args = (common.NONCE, common.AUTHORITY, common.NOW)
     tampered = bytearray(proof)
     tampered[10] ^= 0x01
-    out.append(publish_negative("tampered-proof", record, True, bytes(tampered), *args, "bad_proof"))
-    out.append(publish_negative("dns-flipped", record, False, proof, *args, "bad_proof"))
+    out.append(publish_negative("tampered-proof", record, "record", bytes(tampered), *args, "bad_proof"))
+    out.append(publish_negative("dns-lowered", record, "none", proof, *args, "bad_proof"))
+    out.append(publish_negative("dns-record-to-address", record, "address", proof, *args, "bad_proof"))
     out.append(
-        publish_negative("wrong-authority", record, True, proof, common.NONCE, common.OTHER_AUTHORITY, common.NOW, "bad_proof")
+        publish_negative("wrong-authority", record, "record", proof, common.NONCE, common.OTHER_AUTHORITY, common.NOW, "bad_proof")
     )
-    out.append(publish_negative("wrong-nonce", record, True, proof, common.OTHER_NONCE, common.AUTHORITY, common.NOW, "bad_proof"))
-    other_proof = ed25519.sign(other.seed, proof_message(common.NONCE, common.AUTHORITY, record, True))
-    out.append(publish_negative("proof-by-other-identity", record, True, other_proof, *args, "bad_proof"))
+    out.append(publish_negative("wrong-nonce", record, "record", proof, common.OTHER_NONCE, common.AUTHORITY, common.NOW, "bad_proof"))
+    other_proof = ed25519.sign(other.seed, proof_message(common.NONCE, common.AUTHORITY, record, "record"))
+    out.append(publish_negative("proof-by-other-identity", record, "record", other_proof, *args, "bad_proof"))
     out.append(
-        publish_negative("record-expired", record, True, proof, common.NONCE, common.AUTHORITY, common.WEEK, "record_expired")
+        publish_negative("record-expired", record, "record", proof, common.NONCE, common.AUTHORITY, common.WEEK, "record_expired")
     )
     bad_record = bytearray(record)
     bad_record[-5] ^= 0x01
-    out.append(publish_negative("record-bad-signature", bytes(bad_record), True, proof, *args, "record_bad_signature"))
+    out.append(publish_negative("record-bad-signature", bytes(bad_record), "record", proof, *args, "record_bad_signature"))
     return out
