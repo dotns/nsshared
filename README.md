@@ -38,7 +38,7 @@ archived at tag `archive/v1-20261002`; see `docs/design/v1-crate-analysis.md`.
 Consumers use Cargo git dependencies pinned by tag:
 
 ```toml
-nsshared-proto = { git = "https://git.pvv.cc/nsiod/nsshared.git", tag = "v0.2.0" }
+nsshared-proto = { git = "https://git.pvv.cc/nsiod/nsshared.git", tag = "v0.3.0" }
 ```
 
 For local development against a sibling checkout, add an uncommitted override
@@ -50,6 +50,14 @@ nsshared-proto = { path = "../nsshared/crates/nsshared-proto" }
 ```
 
 See `docs/decisions/2026-10-02-ns-shared-next-baseline.md`.
+
+## Versioning
+
+Tags `vX.Y.Z` mark releases. While in 0.x, a minor bump may break the API and
+a patch bump must not; from 1.0, semver applies. `just semver` enforces this
+for `nsshared-proto` and `nsshared-telemetry` against the previous tag. Wire
+formats change only with a new protocol version or context string, never
+silently within one.
 
 ## Development
 

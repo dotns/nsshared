@@ -30,6 +30,7 @@ pub struct Capability(Cow<'static, str>);
 
 /// A malformed capability announcement (rendezvous §3.1).
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum CapabilityError {
     /// A token is not `[a-z0-9.-]{1,32}`.
     #[error("capability token must be [a-z0-9.-]{{1,{MAX_CAPABILITY_BYTES}}}")]

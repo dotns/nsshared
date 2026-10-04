@@ -38,7 +38,7 @@ use nsshared_proto::rendezvous::{
         encode_response,
     },
 };
-use nsshared_proto::{Identity, RelayId};
+use nsshared_proto::{RelayId, identity::Identity};
 use rand_core::TryRng;
 use std::{
     io,

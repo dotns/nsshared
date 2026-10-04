@@ -4,11 +4,14 @@
 
 use ed25519_dalek::SigningKey;
 use nsshared_proto::{
-    CborError, DataRejection, MAX_RELAY_CONTROL_BYTES, MAX_RELAY_DATA_BODY_BYTES,
-    MAX_RELAY_PACKET_BYTES, NodeId, NodeRecord, NodeRecordFields, ObservedAddr, Presence,
-    RELAY_SLOT, RELAY_WSS_PATH, RELAY_WSS_SUBPROTOCOL, Reflect, Reflected, Register, Registered,
-    RelayBody, RelayHeader, RelayId, RelayPacket, RelayPacketError, RelayType, Revoke,
-    RevokeReason, SignerMismatch, Status, StatusCode, accept_relayed_data, is_handshake_initiation,
+    NodeId, NodeRecord, RelayId, constants::MAX_RELAY_CONTROL_BYTES,
+    constants::MAX_RELAY_DATA_BODY_BYTES, constants::MAX_RELAY_PACKET_BYTES,
+    constants::RELAY_WSS_PATH, constants::RELAY_WSS_SUBPROTOCOL, encoding::CborError,
+    record::NodeRecordFields, relay::DataRejection, relay::ObservedAddr, relay::Presence,
+    relay::RELAY_SLOT, relay::Reflect, relay::Reflected, relay::Register, relay::Registered,
+    relay::RelayBody, relay::RelayHeader, relay::RelayPacket, relay::RelayPacketError,
+    relay::RelayType, relay::Revoke, relay::RevokeReason, relay::SignerMismatch, relay::Status,
+    relay::StatusCode, relay::accept_relayed_data, relay::is_handshake_initiation,
 };
 use proptest::prelude::*;
 use sha2::{Digest, Sha256};
@@ -746,9 +749,9 @@ fn arb_header() -> impl Strategy<Value = RelayHeader> {
     (1..=8_u8, nonzero_slot(), nonzero_slot()).prop_map(|(packet_type, node, peer)| {
         let packet_type = RelayType::from_u8(packet_type).unwrap();
         let (src, dst) = match packet_type.direction() {
-            nsshared_proto::RelayDirection::ToRelay => (node, RELAY_SLOT),
-            nsshared_proto::RelayDirection::FromRelay => (RELAY_SLOT, node),
-            nsshared_proto::RelayDirection::NodeToNode => (node, peer),
+            nsshared_proto::relay::RelayDirection::ToRelay => (node, RELAY_SLOT),
+            nsshared_proto::relay::RelayDirection::FromRelay => (RELAY_SLOT, node),
+            nsshared_proto::relay::RelayDirection::NodeToNode => (node, peer),
         };
         RelayHeader {
             packet_type,

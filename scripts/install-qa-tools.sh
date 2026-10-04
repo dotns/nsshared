@@ -95,3 +95,11 @@ install_tool \
   72a930c9a94fc3914aa56835c5b859c892a797d40c1c42638b98d93f16ff519c \
   typos \
   https://github.com/crate-ci/typos/releases/download/v1.48.0/typos-v1.48.0-x86_64-unknown-linux-musl.tar.gz
+
+install_tool \
+  cargo-semver-checks \
+  0.51.0 \
+  cargo-semver-checks-x86_64-unknown-linux-musl.tar.gz \
+  396c8508d973c83de52660943a057e971b586f7511c3ba695762373452b43d5b \
+  cargo-semver-checks \
+  https://github.com/obi1kenobi/cargo-semver-checks/releases/download/v0.51.0/cargo-semver-checks-x86_64-unknown-linux-musl.tar.gz

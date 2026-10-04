@@ -28,6 +28,8 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+          # `just semver` compares against the previous release tag.
+          fetch-depth: 0
 
       - name: Install Rust toolchain
         run: |

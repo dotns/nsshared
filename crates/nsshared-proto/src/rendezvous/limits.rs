@@ -6,7 +6,7 @@
 /// Minimum mailbox `ttl` in seconds (rendezvous §5.2).
 pub const MIN_TTL_SECONDS: u64 = 1;
 /// Maximum mailbox `ttl` in seconds; a mailbox never lives longer (rendezvous §5.1-§5.3).
-pub const MAX_TTL_SECONDS: u64 = crate::MAX_PAIRING_MAILBOX_TTL_SECONDS;
+pub const MAX_TTL_SECONDS: u64 = 900;
 /// Maximum `recv` `wait_ms` in milliseconds (rendezvous §5.2).
 pub const MAX_WAIT_MS: u64 = 20_000;
 /// Maximum `intro` length in bytes (rendezvous §5.2, §6).

@@ -81,6 +81,7 @@ impl NodeId {
 
 /// A rejected node ID text form (quick-v2 §2.2).
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum NodeIdParseError {
     /// The text contains `=` padding.
     #[error("node ID must not be padded")]

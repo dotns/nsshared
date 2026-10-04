@@ -11,8 +11,9 @@ use crate::rendezvous::{
     message::{PublishRequest, Published, RecordResult},
 };
 use crate::{
-    Identity, NodeId, NodeRecord, NodeRecordError, REGISTRY_LOOKUP_MAX, REGISTRY_SHARD_REPLICAS,
-    RecordDecision, RecordExpired, RecordMarks, RelayId,
+    NodeId, NodeRecord, RelayId, constants::REGISTRY_LOOKUP_MAX,
+    constants::REGISTRY_SHARD_REPLICAS, identity::Identity, record::NodeRecordError,
+    record::RecordDecision, record::RecordExpired, record::RecordMarks,
 };
 use ed25519_dalek::{Signer, SigningKey};
 use std::cmp::Reverse;
@@ -354,6 +355,7 @@ pub fn lookup(entry: Option<&RegistryEntry>, now: u64) -> Result<RecordResult, E
 
 /// A `record` result the client discards (quick-v2 §3.2, §7.5).
 #[derive(Clone, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum LookupError {
     /// The bytes are not a valid NodeRecord.
     #[error(transparent)]

@@ -26,6 +26,7 @@ pub const DEFAULT_FILTER: &str = "info";
 
 /// A telemetry setup failure.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum TelemetryError {
     /// The log format is neither `text` nor `json`.
     #[error("unknown log format {0:?}, expected \"text\" or \"json\"")]

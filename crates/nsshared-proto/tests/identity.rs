@@ -6,8 +6,8 @@ use base64::{
 };
 use ed25519_dalek::SigningKey;
 use nsshared_proto::{
-    AddressConflict, AddressGroup, GroupOwner, Identity, NodeId, NodeIdParseError,
-    check_address_conflict,
+    NodeId, identity::AddressConflict, identity::AddressGroup, identity::GroupOwner,
+    identity::Identity, identity::NodeIdParseError, identity::check_address_conflict,
 };
 use proptest::prelude::*;
 use sha2::{Digest, Sha256};

@@ -1,28 +1,32 @@
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
-//! NS shared protocols: identities and keys, node records, relay packets v2 (docs
-//! ns/quick-v2.md) and the rendezvous service `/rendezvous/v1` ([`rendezvous`], docs
-//! ns/rendezvous.md), plus the shared encodings ([`encoding`], canonical CBOR).
+//! NS shared protocols (docs ns/quick-v2.md, ns/rendezvous.md).
 //!
-//! Pure: no I/O, async runtime or TLS. Typed keys ([`IdentityKey`], [`IdentitySecret`],
-//! [`WgSessionKey`], [`WgSessionSecret`]) carry key generation, the canonical key encodings
-//! and the identity derivations.
+//! | Module | Contents |
+//! | --- | --- |
+//! | [`keys`] | Typed identity and WireGuard keys: generation, canonical encodings, derivations |
+//! | [`identity`] | Raw identities, node ID, address group, `node6` / `node4`, address conflicts |
+//! | [`record`] | `NodeRecord`, its signature and the §3.3 ordering / conflict rules |
+//! | [`relay`] | Relay identifiers and relay packets v2; budget defaults in [`relay::budget`] |
+//! | [`rendezvous`] | The `/rendezvous/v1` messages: transport, capabilities, `hello`, directory, mailbox, registry |
+//! | [`encoding`] | Strict base64url / base64 and canonical CBOR |
+//! | [`constants`] | Protocol constants, derivation labels and signature contexts |
+//!
+//! The most used types are also re-exported at the crate root. Pure: no I/O, async
+//! runtime or TLS; callers pass time, randomness and keys.
 
 mod codec;
-mod constants;
+pub mod constants;
 pub mod encoding;
 mod identifier;
-mod identity;
-mod keys;
-mod record;
-mod relay;
+pub mod identity;
+pub mod keys;
+pub mod record;
+pub mod relay;
 pub mod rendezvous;
 
-pub use codec::{CborError, CborReader, CborWriter};
-pub use constants::*;
-pub use identifier::*;
-pub use identity::*;
-pub use keys::*;
-pub use record::*;
-pub use relay::*;
+pub use identity::NodeId;
+pub use keys::{IdentityKey, IdentitySecret, WgSessionKey, WgSessionSecret};
+pub use record::NodeRecord;
+pub use relay::RelayId;

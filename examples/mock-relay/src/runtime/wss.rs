@@ -5,7 +5,9 @@
 use super::Shared;
 use crate::Peer;
 use futures_util::{SinkExt, StreamExt};
-use nsshared_proto::{MAX_RELAY_PACKET_BYTES, RELAY_WSS_PATH, RELAY_WSS_SUBPROTOCOL};
+use nsshared_proto::{
+    constants::MAX_RELAY_PACKET_BYTES, constants::RELAY_WSS_PATH, constants::RELAY_WSS_SUBPROTOCOL,
+};
 use rustls::ServerConfig;
 use std::{
     collections::HashMap,

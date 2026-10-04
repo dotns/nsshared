@@ -1,6 +1,6 @@
 //! Connection challenge and actor `hello` (rendezvous §3, §4).
 
-use crate::RelayId;
+use crate::relay::RelayId;
 use crate::rendezvous::{capability::Capabilities, crypto, error::ErrorCode, transport};
 use ed25519_dalek::{Signer, SigningKey};
 use serde::{Deserialize, Deserializer, Serialize, de::Error as _};
@@ -28,6 +28,7 @@ pub struct Challenge {
 
 /// A failed challenge or `hello` check (rendezvous §3, §4).
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum AuthError {
     /// The challenge authority differs from the relay or region the client expected; the
     /// client disconnects.
@@ -124,7 +125,7 @@ fn nonzero_nonce<'de, D: Deserializer<'de>>(deserializer: D) -> Result<[u8; 32],
 
 /// Serde for a canonical [`RelayId`] string (quick-v2 §8.6).
 pub(crate) mod relay_id {
-    use crate::RelayId;
+    use crate::relay::RelayId;
     use serde::{Deserialize, Deserializer, Serializer, de::Error as _};
 
     pub(crate) fn serialize<S: Serializer>(

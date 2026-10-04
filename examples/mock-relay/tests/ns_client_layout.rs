@@ -15,8 +15,10 @@ use ed25519_dalek::SigningKey;
 use nsshared_mock_relay::MockRelay;
 use nsshared_proto::rendezvous::capability::{self, Capabilities, Capability};
 use nsshared_proto::{
-    NodeId, NodeRecord, NodeRecordFields, Presence, RELAY_HEADER_BYTES, RELAY_MAGIC, RELAY_SLOT,
-    Register, RelayBody, RelayPacket, RelayType, SessionKey, accept_relayed_data, ephemeral_public,
+    NodeId, NodeRecord, constants::RELAY_HEADER_BYTES, constants::RELAY_MAGIC,
+    record::NodeRecordFields, relay::Presence, relay::RELAY_SLOT, relay::Register,
+    relay::RelayBody, relay::RelayPacket, relay::RelayType, relay::SessionKey,
+    relay::accept_relayed_data, relay::ephemeral_public,
 };
 use std::net::SocketAddr;
 

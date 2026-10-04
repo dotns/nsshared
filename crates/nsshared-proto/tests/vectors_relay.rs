@@ -7,10 +7,12 @@ mod support;
 
 use ed25519_dalek::{Signature, SigningKey, VerifyingKey};
 use nsshared_proto::{
-    NodeId, NodeRecord, ObservedAddr, Presence, RecordMarks, Reflect, Reflected, Register,
-    RegisterRejection, Registered, RelayBody, RelayId, RelayMacError, RelayPacket,
-    RelayPacketError, RelayType, Revoke, RevokeReason, SessionKey, Status, StatusCode,
-    ZeroSharedSecret, check_register, derive_session_key, ephemeral_public,
+    NodeId, NodeRecord, RelayId, record::RecordMarks, relay::ObservedAddr, relay::Presence,
+    relay::Reflect, relay::Reflected, relay::Register, relay::RegisterRejection, relay::Registered,
+    relay::RelayBody, relay::RelayMacError, relay::RelayPacket, relay::RelayPacketError,
+    relay::RelayType, relay::Revoke, relay::RevokeReason, relay::SessionKey, relay::Status,
+    relay::StatusCode, relay::ZeroSharedSecret, relay::check_register, relay::derive_session_key,
+    relay::ephemeral_public,
 };
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use support::vectors::{Vector, load};
@@ -266,7 +268,7 @@ fn packets_match_vectors() {
 }
 
 fn packet_error_matches(reason: &str, error: &RelayPacketError) -> bool {
-    use nsshared_proto::CborError;
+    use nsshared_proto::encoding::CborError;
     match reason {
         "too_large" => matches!(error, RelayPacketError::TooLarge { .. }),
         "too_short" => matches!(error, RelayPacketError::TooShort(_)),

@@ -49,6 +49,7 @@ pub struct NodeRecord {
 
 /// A rejected NodeRecord (quick-v2 §3.1-§3.2).
 #[derive(Clone, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum NodeRecordError {
     /// The encoding exceeds 600 bytes (quick-v2 §3.1, §12.3).
     #[error("node record of {0} bytes exceeds {MAX_NODE_RECORD_BYTES} bytes")]

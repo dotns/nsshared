@@ -4,13 +4,15 @@
 //!
 //! Decoding is canonical: padding where it is not expected, missing padding where it is,
 //! other alphabets and non-zero trailing bits are rejected, so every byte string has
-//! exactly one text form. Canonical CBOR is [`crate::CborReader`] / [`crate::CborWriter`].
+//! exactly one text form. Canonical CBOR (quick-v2 §12.1) is [`CborReader`] / [`CborWriter`].
 
 use base64::{
     Engine,
     engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD},
 };
 use thiserror::Error;
+
+pub use crate::codec::{CborError, CborReader, CborWriter};
 
 /// A text that is not strict base64 of an accepted length.
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]

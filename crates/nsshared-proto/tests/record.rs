@@ -8,8 +8,9 @@ use base64::{
 };
 use ed25519_dalek::{Signer, SigningKey, VerifyingKey};
 use nsshared_proto::{
-    CborError, IssuedAtOverflow, MAX_NODE_RECORD_BYTES, NodeRecord, NodeRecordError,
-    NodeRecordFields, RecordExpired, RelayId, RelayIdError, next_issued_at,
+    NodeRecord, RelayId, constants::MAX_NODE_RECORD_BYTES, encoding::CborError,
+    record::IssuedAtOverflow, record::NodeRecordError, record::NodeRecordFields,
+    record::RecordExpired, record::next_issued_at, relay::RelayIdError,
 };
 use proptest::prelude::*;
 use sha2::{Digest, Sha256};

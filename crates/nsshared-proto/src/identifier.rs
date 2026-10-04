@@ -23,6 +23,7 @@ pub struct RelayId(String);
 
 /// A rejected relay identifier (quick-v2 §8.6, quick-protocol §12.5.1).
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum RelayIdError {
     /// The identifier is empty or longer than 255 bytes.
     #[error("relay identifier must be 1..={MAX_RELAY_ID_BYTES} bytes")]

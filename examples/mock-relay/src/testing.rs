@@ -17,9 +17,11 @@
 
 use ed25519_dalek::SigningKey;
 use nsshared_proto::{
-    Identity, NodeId, NodeRecord, NodeRecordError, NodeRecordFields, Presence, RELAY_SLOT, Reflect,
-    Register, Registered, RelayBody, RelayId, RelayMacError, RelayPacket, RelayPacketError, Revoke,
-    RevokeReason, SessionKey, SignerMismatch, ZeroSharedSecret, ephemeral_public,
+    NodeId, NodeRecord, RelayId, identity::Identity, record::NodeRecordError,
+    record::NodeRecordFields, relay::Presence, relay::RELAY_SLOT, relay::Reflect, relay::Register,
+    relay::Registered, relay::RelayBody, relay::RelayMacError, relay::RelayPacket,
+    relay::RelayPacketError, relay::Revoke, relay::RevokeReason, relay::SessionKey,
+    relay::SignerMismatch, relay::ZeroSharedSecret, relay::ephemeral_public,
 };
 use rand_core::{Infallible, TryCryptoRng, TryRng};
 use thiserror::Error;

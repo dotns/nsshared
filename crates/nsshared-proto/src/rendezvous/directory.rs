@@ -5,7 +5,7 @@
 //! `ips` and `capabilities` but never removes an id, reassigns a code or reuses a retired
 //! one. Every change needs a higher version and an equal version must be identical.
 
-use crate::RelayId;
+use crate::relay::RelayId;
 use crate::rendezvous::{capability::Capabilities, error::ErrorCode, transport::Object};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeSet, net::IpAddr, str::FromStr};
@@ -21,6 +21,7 @@ pub const MAX_RELAY_IPS: usize = 4;
 /// An invalid directory or directory update (rendezvous §5.4); every case is reported
 /// on the wire as [`ErrorCode::InvalidDirectory`].
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum DirectoryError {
     /// The version is 0.
     #[error("directory version must be at least 1")]

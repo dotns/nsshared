@@ -14,7 +14,7 @@ use nsshared_proto::rendezvous::{
     message::{LookupNodeRequest, PublishRequest, RecordResult},
     registry,
 };
-use nsshared_proto::{NodeId, NodeRecord, NodeRecordFields, RelayId};
+use nsshared_proto::{NodeId, NodeRecord, RelayId, record::NodeRecordFields};
 use std::net::IpAddr;
 
 const NOW: u64 = 1_800_000_000;

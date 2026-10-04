@@ -6,11 +6,15 @@ use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 use hkdf::Hkdf;
 use hmac::{Hmac, KeyInit, Mac};
 use nsshared_proto::{
-    BadRegisterSignature, NodeId, NodeRecord, NodeRecordError, NodeRecordFields, ObservedAddr,
-    Presence, RELAY_SLOT, RecordDecision, RecordExpired, RecordMarks, Reflect, Reflected, Register,
-    RegisterCandidate, RegisterRejection, Registered, RelayBody, RelayId, RelayMacError,
-    RelayPacket, RelayPacketError, RelayType, Revoke, RevokeReason, SessionKey, Status, StatusCode,
-    ZeroSharedSecret, check_register, derive_session_key, ephemeral_public,
+    NodeId, NodeRecord, RelayId, record::NodeRecordError, record::NodeRecordFields,
+    record::RecordDecision, record::RecordExpired, record::RecordMarks,
+    relay::BadRegisterSignature, relay::ObservedAddr, relay::Presence, relay::RELAY_SLOT,
+    relay::Reflect, relay::Reflected, relay::Register, relay::RegisterCandidate,
+    relay::RegisterRejection, relay::Registered, relay::RelayBody, relay::RelayMacError,
+    relay::RelayPacket, relay::RelayPacketError, relay::RelayType, relay::Revoke,
+    relay::RevokeReason, relay::SessionKey, relay::Status, relay::StatusCode,
+    relay::ZeroSharedSecret, relay::check_register, relay::derive_session_key,
+    relay::ephemeral_public,
 };
 use sha2::{Digest, Sha256};
 use std::net::{IpAddr, Ipv6Addr};
@@ -518,7 +522,7 @@ fn refutation_rule1_packet_checks() {
     assert_eq!(
         rejection(&trailing),
         RegisterRejection::Packet(RelayPacketError::Body(
-            nsshared_proto::CborError::TrailingBytes
+            nsshared_proto::encoding::CborError::TrailingBytes
         ))
     );
     let mut oversize = demo_packet();

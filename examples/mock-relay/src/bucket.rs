@@ -1,6 +1,6 @@
 //! Token buckets refilled by monotonic time (quick-protocol §5.2.1).
 
-use nsshared_proto::RateLimit;
+use nsshared_proto::relay::budget::RateLimit;
 use std::time::Instant;
 
 const NANOS_PER_SECOND: u128 = 1_000_000_000;

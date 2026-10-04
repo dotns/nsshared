@@ -1,6 +1,6 @@
 //! Relay identifiers: quick-v2 §8.6, authority syntax of quick-protocol §12.5.1.
 
-use nsshared_proto::{MAX_RELAY_ID_BYTES, RelayId, RelayIdError};
+use nsshared_proto::{RelayId, relay::MAX_RELAY_ID_BYTES, relay::RelayIdError};
 use proptest::prelude::*;
 
 #[test]

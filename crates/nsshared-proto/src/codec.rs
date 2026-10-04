@@ -22,6 +22,7 @@ const NULL: u8 = 0xf6;
 
 /// A non-canonical or malformed CBOR input (quick-v2 §12.1).
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum CborError {
     /// The input exceeds the caller-supplied maximum size.
     #[error("input of {length} bytes exceeds the {maximum}-byte limit")]

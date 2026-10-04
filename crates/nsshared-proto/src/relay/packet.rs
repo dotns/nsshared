@@ -103,6 +103,7 @@ impl RelayType {
 
 /// A rejected relay packet (quick-v2 §8.1-§8.2, §12.1, quick-protocol §12.5).
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum RelayPacketError {
     /// The packet is shorter than the 29-byte header (quick-v2 §8.1).
     #[error("relay packet of {0} bytes is shorter than the {RELAY_HEADER_BYTES}-byte header")]
@@ -282,7 +283,7 @@ impl From<ObservedAddr> for SocketAddr {
 /// (quick-v2 §8.2-§8.3).
 ///
 /// The record is kept as its exact nested canonical array; it is only structurally
-/// checked here, its validity and signature are checked by [`crate::check_register`].
+/// checked here, its validity and signature are checked by [`crate::relay::check_register`].
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Register {
     record: Vec<u8>,
@@ -535,6 +536,7 @@ pub struct Reflected {
 /// A STATUS code (quick-v2 §8.2).
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 #[repr(u8)]
+#[non_exhaustive]
 pub enum StatusCode {
     /// 1: no destination.
     NoDestination = 1,

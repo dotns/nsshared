@@ -1,6 +1,6 @@
 //! Time, peers and output of the sans-IO core (quick-v2 §8.2, §8.5).
 
-use nsshared_proto::ObservedAddr;
+use nsshared_proto::relay::ObservedAddr;
 use std::{
     net::{IpAddr, SocketAddr},
     time::Instant,

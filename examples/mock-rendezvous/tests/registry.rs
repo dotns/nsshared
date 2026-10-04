@@ -13,7 +13,7 @@ use nsshared_proto::rendezvous::{
     registry,
     transport::{Request, Response},
 };
-use nsshared_proto::{NodeId, NodeRecord, NodeRecordFields, RelayId};
+use nsshared_proto::{NodeId, NodeRecord, RelayId, record::NodeRecordFields};
 use support::{Client, Mock, key, now, relaxed_limits};
 
 fn record(identity: &SigningKey, authority: &RelayId, generation: u64, wg: u8) -> NodeRecord {

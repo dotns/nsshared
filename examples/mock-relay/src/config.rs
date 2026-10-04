@@ -2,9 +2,11 @@
 
 use nsshared_proto::rendezvous::capability::{self, Capabilities};
 use nsshared_proto::{
-    ACTIVE_SLOTS_GLOBAL, DATA_BYTES_PER_NODE, DATA_PACKETS_PER_NODE, DEFAULT_PRESENCE_TTL_SECONDS,
-    HANDSHAKE_INITIATIONS_PER_DESTINATION, MAX_PRESENCE_TTL_SECONDS, MIN_PRESENCE_TTL_SECONDS,
-    PROVISIONAL_PER_IP, RateLimit, RelayId,
+    RelayId, constants::DEFAULT_PRESENCE_TTL_SECONDS, constants::MAX_PRESENCE_TTL_SECONDS,
+    constants::MIN_PRESENCE_TTL_SECONDS, relay::budget::ACTIVE_SLOTS_GLOBAL,
+    relay::budget::DATA_BYTES_PER_NODE, relay::budget::DATA_PACKETS_PER_NODE,
+    relay::budget::HANDSHAKE_INITIATIONS_PER_DESTINATION, relay::budget::PROVISIONAL_PER_IP,
+    relay::budget::RateLimit,
 };
 use std::time::Duration;
 use thiserror::Error;

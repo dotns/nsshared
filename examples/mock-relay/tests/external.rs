@@ -14,7 +14,7 @@ use nsshared_mock_relay::{
     Carrier, MockRelay, MockRelayConfig, accept_relay_request, relay_websocket_config,
     testing::TestNode,
 };
-use nsshared_proto::{RELAY_WSS_PATH, RELAY_WSS_SUBPROTOCOL};
+use nsshared_proto::{constants::RELAY_WSS_PATH, constants::RELAY_WSS_SUBPROTOCOL};
 use rustls::{
     ServerConfig,
     crypto::aws_lc_rs,

@@ -11,7 +11,7 @@ use crate::rendezvous::{
     },
     transport::{self, Object},
 };
-use crate::{MAX_NODE_RECORD_BYTES, NODE_ID_BYTES};
+use crate::{constants::MAX_NODE_RECORD_BYTES, constants::NODE_ID_BYTES};
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error as _};
 use std::fmt;
 use thiserror::Error;
@@ -22,6 +22,7 @@ pub const MAX_KIND_BYTES: usize = 32;
 
 /// A payload field outside its rendezvous §5.1-§5.2 or quick-v2 §7.2 rule.
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum MessageError {
     /// `kind` is not `[a-z0-9-]{1,32}`.
     #[error("kind must be [a-z0-9-]{{1,{MAX_KIND_BYTES}}}")]

@@ -16,8 +16,8 @@ use nsshared_proto::rendezvous::{
     transport::{PATH, Request, Response, SUBPROTOCOL, decode_response, encode_request},
 };
 use nsshared_proto::{
-    IdentitySecret, MAX_RELAY_PACKET_BYTES, NODE_ID_BYTES, RELAY_WSS_PATH, RELAY_WSS_SUBPROTOCOL,
-    RelayBody, RelayId,
+    IdentitySecret, RelayId, constants::MAX_RELAY_PACKET_BYTES, constants::NODE_ID_BYTES,
+    constants::RELAY_WSS_PATH, constants::RELAY_WSS_SUBPROTOCOL, relay::RelayBody,
 };
 use rustls::{
     ClientConfig, RootCertStore,

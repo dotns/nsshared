@@ -13,7 +13,7 @@ use nsshared_mock_relay::{
     Carrier,
     testing::{NodeSession, TestNode, data_packet},
 };
-use nsshared_proto::RelayBody;
+use nsshared_proto::relay::RelayBody;
 
 /// Sends DATA from `from` to `to` and checks it arrives byte-identical.
 async fn exchange(from: (&mut Link, &NodeSession), to: (&mut Link, &NodeSession), payload: &[u8]) {

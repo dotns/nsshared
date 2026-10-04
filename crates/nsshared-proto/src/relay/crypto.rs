@@ -101,6 +101,7 @@ pub fn derive_session_key(
 
 /// A relay MAC that cannot be produced or does not verify (quick-v2 §8.3).
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum RelayMacError {
     /// The packet type carries no MAC (REGISTER, DATA, STATUS).
     #[error("{0:?} packets carry no MAC")]

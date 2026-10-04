@@ -9,7 +9,7 @@ use base64::{
     engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD},
 };
 use ed25519_dalek::SigningKey;
-use nsshared_proto::{AddressGroup, NodeId};
+use nsshared_proto::{NodeId, identity::AddressGroup};
 
 use support::vectors::{Vector, load};
 use x25519_dalek::{PublicKey, StaticSecret};

@@ -1,3 +1,24 @@
+## 2026-10-04 [refactor]
+
+Release `v0.3.0`: prepare the public API for stability. Breaking:
+
+- `nsshared-proto` exports modules instead of flat glob re-exports: `keys`,
+  `identity`, `record`, `relay` (with `relay::budget`), `rendezvous`,
+  `encoding` (now also `CborReader`, `CborWriter`, `CborError`) and
+  `constants`. `IdentityKey`, `IdentitySecret`, `WgSessionKey`,
+  `WgSessionSecret`, `NodeId`, `NodeRecord` and `RelayId` stay at the root.
+  `RelayId` and `RelayIdError` moved under `relay`.
+- Every public error and rejection enum and `rendezvous::error::ErrorCode`
+  is `#[non_exhaustive]`; matches need a wildcard arm.
+- Removed the application constants `DEFAULT_PAIRING_MAILBOX_TTL_SECONDS`,
+  `MAX_PAIRING_MAILBOX_TTL_SECONDS`, `PREPARE_DEADLINE_SECONDS` and
+  `MAX_RELAYED_INNER_MTU` (ns owns them).
+
+QA: `just semver` (cargo-semver-checks 0.51.0) checks `nsshared-proto` and
+`nsshared-telemetry` against the previous release tag and runs in `just qa`;
+`just doc` denies rustdoc warnings. Version policy: while in 0.x, a minor
+bump may break the API and a patch bump must not; from 1.0, semver applies.
+
 ## 2026-10-03 [refactor]
 
 Release `v0.2.0`: nsshared keeps only generic protocols and tools (docs

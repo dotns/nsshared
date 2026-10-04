@@ -1,6 +1,6 @@
 //! Canonical CBOR through the public reader and writer: quick-v2 §12.1.
 
-use nsshared_proto::{CborError, CborReader, CborWriter};
+use nsshared_proto::{encoding::CborError, encoding::CborReader, encoding::CborWriter};
 
 #[test]
 fn writer_output_round_trips_through_the_reader() {

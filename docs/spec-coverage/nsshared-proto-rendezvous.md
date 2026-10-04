@@ -12,7 +12,7 @@ generator `tools/vectors`.
   `git -C <docs checkout> show 957de97a79f7:website/src/content/docs/<path>`.
 - **Paths.** Code paths are relative to `crates/nsshared-proto/src/rendezvous`, test
   paths to `crates/nsshared-proto/tests`. `file.rs::name` names an item or a test
-  function. Crate-root items of `nsshared-proto` are written `nsshared_proto::Name`; their
+  function. Other `nsshared-proto` items are written with their module path (`nsshared_proto::record::RecordMarks`); their
   coverage is [nsshared-proto spec coverage](nsshared-proto.md).
 - **Renamed 2026-10-03.** The service path, subprotocol and actor context are
   `/rendezvous/v1`, `ns-rendezvous-v1` and `ns-rendezvous-actor-v1` (docs commit
@@ -217,7 +217,7 @@ Decisions of the module tasks (R2-R5) and of the NodeRecord validity task (S1):
 | ns/quick-v2.md §12.2 (415) | Pure Ed25519 with strict verification | `src/crypto.rs` (`verify_strict`) | `tests/rendezvous_auth.rs::hello_rejects_wrong_nonce_authority_actor_and_signature`, `tests/rendezvous_registry.rs::proof_fails_for_any_changed_input` | implemented; ns-owned parts moved to ns 2026-10-03 |
 | ns/quick-v2.md §12.2 (420, 424-425) | Contexts `ns/registry-publish/v2`, `ns/pairing-invite/v2`, `ns/pairing-join/v2`, `ns/pairing-accept/v2`, `ns/pairing-psk/v2` | `src/registry.rs::PUBLISH_CONTEXT` | `tests/rendezvous_registry.rs::constants_match_the_spec`, `tests/rendezvous_vectors_registry.rs::publish_proofs_match_vectors` | implemented; ns-owned parts moved to ns 2026-10-03 |
 | ns/quick-v2.md §12.3 (432) | Record service period at most 604800 s (decision 16) | see §3.2 row | see §3.2 row | implemented |
-| ns/quick-v2.md §12.3 (440) | Registry shard replicas 2, lookups ask at most 4 | `src/registry.rs::shard_relays`, `src/registry.rs::lookup_relays` (`nsshared_proto::REGISTRY_SHARD_REPLICAS`, `nsshared_proto::REGISTRY_LOOKUP_MAX`) | `tests/rendezvous_registry.rs::small_domains`, `tests/rendezvous_vectors_registry.rs::shard_order_matches_vectors` | implemented |
+| ns/quick-v2.md §12.3 (440) | Registry shard replicas 2, lookups ask at most 4 | `src/registry.rs::shard_relays`, `src/registry.rs::lookup_relays` (`nsshared_proto::constants::REGISTRY_SHARD_REPLICAS`, `nsshared_proto::constants::REGISTRY_LOOKUP_MAX`) | `tests/rendezvous_registry.rs::small_domains`, `tests/rendezvous_vectors_registry.rs::shard_order_matches_vectors` | implemented |
 | ns/quick-v2.md §12.3 (441) | Pairing mailbox TTL default 600 s, at most 900 s | none | none | out of scope: ns (moved 2026-10-03; last in tag `v0.1.0`) |
 
 ## Vectors

@@ -7,10 +7,12 @@ use crate::{
     peer::{Carrier, Now, Peer, Transmit},
 };
 use nsshared_proto::{
-    Identity, NODE_ID_BYTES, NodeId, NodeRecord, Presence, RELAY_HEADER_BYTES, RELAY_MAGIC,
-    RELAY_SLOT, RecordDecision, RecordMarks, Reflect, Reflected, RegisterCandidate,
-    RegisterRejection, Registered, RelayBody, RelayHeader, RelayPacket, RelayPacketError,
-    SessionKey, Status, StatusCode, ephemeral_public, is_handshake_initiation,
+    NodeId, NodeRecord, constants::NODE_ID_BYTES, constants::RELAY_HEADER_BYTES,
+    constants::RELAY_MAGIC, identity::Identity, record::RecordDecision, record::RecordMarks,
+    relay::Presence, relay::RELAY_SLOT, relay::Reflect, relay::Reflected, relay::RegisterCandidate,
+    relay::RegisterRejection, relay::Registered, relay::RelayBody, relay::RelayHeader,
+    relay::RelayPacket, relay::RelayPacketError, relay::SessionKey, relay::Status,
+    relay::StatusCode, relay::ephemeral_public, relay::is_handshake_initiation,
 };
 use rand_core::CryptoRng;
 use std::{collections::BTreeMap, time::Instant};
@@ -803,6 +805,7 @@ fn register_reason(rejection: &RegisterRejection) -> Reason {
         RegisterRejection::MarksIdentity => Reason::SlotCollision,
         RegisterRejection::StaleGeneration { .. } => Reason::Stale,
         RegisterRejection::Conflict(_) | RegisterRejection::ConflictLatched(_) => Reason::Conflict,
+        _ => Reason::Malformed,
     }
 }
 

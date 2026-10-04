@@ -4,7 +4,8 @@
 
 use ed25519_dalek::SigningKey;
 use nsshared_proto::{
-    IdentityMismatch, NodeRecord, NodeRecordFields, RecordDecision, RecordMarks, RelayId,
+    NodeRecord, RelayId, record::IdentityMismatch, record::NodeRecordFields,
+    record::RecordDecision, record::RecordMarks,
 };
 use proptest::prelude::*;
 

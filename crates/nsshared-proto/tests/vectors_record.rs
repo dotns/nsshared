@@ -5,7 +5,9 @@
 mod support;
 
 use ed25519_dalek::{Signature, SigningKey, VerifyingKey};
-use nsshared_proto::{CborError, NodeRecord, NodeRecordError, NodeRecordFields, RelayId};
+use nsshared_proto::{
+    NodeRecord, RelayId, encoding::CborError, record::NodeRecordError, record::NodeRecordFields,
+};
 use support::vectors::load;
 
 #[test]

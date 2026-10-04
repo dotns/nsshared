@@ -16,6 +16,7 @@ pub fn is_handshake_initiation(data: &[u8]) -> bool {
 
 /// A relayed packet dropped by the receiver before decryption (quick-v2 §8.4).
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum DataRejection {
     /// The packet is not DATA.
     #[error("{0:?} packet is not DATA")]

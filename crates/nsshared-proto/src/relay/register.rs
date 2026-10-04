@@ -15,6 +15,7 @@ use thiserror::Error;
 /// A REGISTER rejected by §8.3 rule 1; variants are listed in check order
 /// (quick-v2 §8.3 rule 1).
 #[derive(Clone, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum RegisterRejection {
     /// Length, magic, type, direction, size or body schema (quick-v2 §8.1-§8.2).
     #[error("invalid relay packet: {0}")]

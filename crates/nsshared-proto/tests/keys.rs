@@ -1,8 +1,8 @@
 //! Typed identity and session keys: quick-v2 §2.1, §2.3.
 
 use nsshared_proto::{
-    AddressGroup, GroupOwner, IdentityKey, IdentitySecret, KeyParseError, NodeId, NodeRecord,
-    NodeRecordFields, WgSessionKey, WgSessionSecret,
+    IdentityKey, IdentitySecret, NodeId, NodeRecord, WgSessionKey, WgSessionSecret,
+    identity::AddressGroup, identity::GroupOwner, keys::KeyParseError, record::NodeRecordFields,
 };
 use proptest::prelude::*;
 use sha2::{Digest, Sha256};

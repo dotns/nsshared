@@ -11,7 +11,7 @@
 //! non-canonical trailing bits are rejected, so every key has exactly one text form.
 //! Secrets have no `Display`, print a redacted `Debug` and are zeroized on drop.
 //!
-//! The WireGuard types carry a `Wg` prefix because [`SessionKey`](crate::SessionKey) already
+//! The WireGuard types carry a `Wg` prefix because [`SessionKey`](crate::relay::SessionKey) already
 //! names the relay session key `sk` (quick-v2 §8.3).
 //!
 //! # Replaces in ns
@@ -29,7 +29,7 @@
 //! | `NodeIdentity::n6` | [`IdentityKey::node6`] |
 //! | `NodeIdentity::n4` | [`IdentityKey::node4`] |
 //! | `NodeIdentity::alias_candidates`, `NodeIdentity::select_alias`, `NodeIdentity::lan6` | Stay in ns: IPv4 aliases and LAN prefixes are node address planning, not a shared contract. |
-//! | `NodeIdentity::check_peer` | Stays ns-specific: it checks against the node's own cached [`GroupOwner`] and its peer table; the primitive is [`check_address_conflict`](crate::check_address_conflict) with [`IdentityKey::group_owner`]. |
+//! | `NodeIdentity::check_peer` | Stays ns-specific: it checks against the node's own cached [`GroupOwner`] and its peer table; the primitive is [`check_address_conflict`](crate::identity::check_address_conflict) with [`IdentityKey::group_owner`]. |
 //! | `ed25519_dalek::SigningKey` held directly (registry, relay client and session) and built with `SigningKey::from_bytes` | [`IdentitySecret::from_seed`] / [`IdentitySecret::generate`], passed to the signing APIs through [`IdentitySecret::signing_key`] |
 //!
 //! ns has no base64 key text or key generation helpers in its overlay crate; the
@@ -61,6 +61,7 @@ pub const WG_SESSION_KEY_TEXT_LEN: usize = 44;
 
 /// A rejected binary or text key encoding.
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum KeyParseError {
     /// The binary form is not exactly 32 bytes.
     #[error("key must be {KEY_BYTES} bytes, got {0}")]

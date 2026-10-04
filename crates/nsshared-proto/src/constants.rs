@@ -49,16 +49,6 @@ pub const REGISTRY_SHARD_REPLICAS: usize = 2;
 /// Maximum registry nodes asked per lookup (quick-v2 §12.3).
 pub const REGISTRY_LOOKUP_MAX: usize = 4;
 
-/// Default pairing mailbox TTL in seconds (quick-v2 §12.3).
-pub const DEFAULT_PAIRING_MAILBOX_TTL_SECONDS: u64 = 600;
-/// Maximum pairing mailbox TTL in seconds (quick-v2 §12.3).
-pub const MAX_PAIRING_MAILBOX_TTL_SECONDS: u64 = 900;
-
-/// Prepare deadline in seconds (quick-v2 §12.3).
-pub const PREPARE_DEADLINE_SECONDS: u64 = 5;
-/// Maximum inner MTU for traffic carried through a relay (quick-v2 §12.3).
-pub const MAX_RELAYED_INNER_MTU: usize = 1376;
-
 /// Keyed BLAKE2s label for the node ID (quick-v2 §2.2).
 pub const NODE_ID_LABEL: &[u8] = b"ns-node-id-v2";
 /// Keyed BLAKE2s label for the address group (quick-v2 §2.2).

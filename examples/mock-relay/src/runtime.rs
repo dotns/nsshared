@@ -19,7 +19,10 @@ pub use wss::{accept_relay_request, relay_websocket_config};
 use crate::{ConfigError, Counters, Limits, Now, Peer, Relay, RelayConfig, SessionInfo, Transmit};
 use getrandom::SysRng;
 use nsshared_proto::rendezvous::capability::{self, Capabilities, Capability, CapabilityError};
-use nsshared_proto::{DEFAULT_PRESENCE_TTL_SECONDS, RelayId, RelayIdError, WSS_CONNECTIONS_PER_IP};
+use nsshared_proto::{
+    RelayId, constants::DEFAULT_PRESENCE_TTL_SECONDS, relay::RelayIdError,
+    relay::budget::WSS_CONNECTIONS_PER_IP,
+};
 use rand_core::UnwrapErr;
 use std::{
     collections::HashMap,

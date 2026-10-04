@@ -1,7 +1,7 @@
 //! Inspection hooks for tests: session snapshots and counters.
 
 use crate::peer::{Carrier, Peer};
-use nsshared_proto::{Identity, NodeId};
+use nsshared_proto::{NodeId, identity::Identity};
 use std::collections::BTreeMap;
 
 /// One provisional or confirmed registration, as returned by

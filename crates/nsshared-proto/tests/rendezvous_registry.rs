@@ -14,8 +14,8 @@ use nsshared_proto::rendezvous::{
     },
 };
 use nsshared_proto::{
-    CborWriter, NODE_RECORD_CONTEXT, NodeId, NodeRecord, NodeRecordError, NodeRecordFields,
-    RecordExpired, RelayId,
+    NodeId, NodeRecord, RelayId, constants::NODE_RECORD_CONTEXT, encoding::CborWriter,
+    record::NodeRecordError, record::NodeRecordFields, record::RecordExpired,
 };
 use std::net::IpAddr;
 

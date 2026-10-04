@@ -10,6 +10,7 @@ use thiserror::Error;
 /// A rendezvous error code (rendezvous §7).
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Error, Hash, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case", try_from = "String")]
+#[non_exhaustive]
 pub enum ErrorCode {
     /// The message is malformed, oversize or violates a field rule.
     #[error("invalid message")]
