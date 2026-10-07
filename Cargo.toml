@@ -25,16 +25,16 @@ todo        = "warn"
 [workspace.package]
 edition = "2024"
 rust-version = "1.96"
-version = "0.5.0"
+version = "0.6.0"
 license = "MIT"
 authors = ["NSIO Project Contributors"]
 publish = false
 
 [workspace.dependencies]
 # Internal crates.
-nsshared-mock-relay = { path = "examples/mock-relay", version = "0.5.0" }
-nsshared-mock-rendezvous = { path = "examples/mock-rendezvous", version = "0.5.0" }
-nsshared-proto = { path = "crates/nsshared-proto", version = "0.5.0" }
+nsshared-mock-relay = { path = "examples/mock-relay", version = "0.6.0" }
+nsshared-mock-rendezvous = { path = "examples/mock-rendezvous", version = "0.6.0" }
+nsshared-proto = { path = "crates/nsshared-proto", version = "0.6.0" }
 
 # External crates: latest stable versions as of 2026-10-02.
 base64           = "0.23.1"

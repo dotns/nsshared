@@ -5,6 +5,7 @@ from . import (
     dns_txt,
     identities,
     node_records,
+    registry_state,
     relay_packets,
     rendezvous_hello,
     rendezvous_mailbox,
@@ -18,5 +19,6 @@ PRODUCERS = [
     relay_packets,
     rendezvous_hello,
     rendezvous_registry,
+    registry_state,
     rendezvous_mailbox,
 ]

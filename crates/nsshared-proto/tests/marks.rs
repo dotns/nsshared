@@ -85,15 +85,22 @@ fn refutation_row_2_higher_generation_replaces_and_clears_conflict() {
 fn refutation_row_3_same_generation_other_key_latches_conflict() {
     let first = record(3, 1, 100);
     let mut marks = marks_at(&first);
-    step(&mut marks, &record(3, 2, 50), RecordDecision::Conflict);
+    let other = record(3, 2, 50);
+    step(&mut marks, &other, RecordDecision::Conflict);
     assert!(marks.is_conflicted());
+    // R stays the larger record; the conflicting one is kept as evidence.
     assert_eq!(marks.current(), Some(&first));
+    assert_eq!(marks.conflict_evidence(), Some(&other));
     assert_eq!(marks.committed_gen(), 3);
+    // A larger conflicting record becomes R and the previous R becomes the evidence.
+    let larger = record(3, 2, 500);
+    step(&mut marks, &larger, RecordDecision::Conflict);
+    assert_eq!(marks.current(), Some(&larger));
+    assert_eq!(marks.conflict_evidence(), Some(&first));
     // Same-generation inputs keep the latch, whatever their key or issued_at.
-    step(&mut marks, &record(3, 2, 500), RecordDecision::Conflict);
     step(&mut marks, &record(3, 9, 100), RecordDecision::Conflict);
-    step(&mut marks, &record(3, 1, 100), RecordDecision::Unchanged);
-    let refreshed = record(3, 1, 200);
+    step(&mut marks, &record(3, 2, 50), RecordDecision::Unchanged);
+    let refreshed = record(3, 2, 600);
     step(&mut marks, &refreshed, RecordDecision::Refreshed);
     assert!(marks.is_conflicted());
     assert_eq!(marks.current(), Some(&refreshed));
@@ -115,14 +122,22 @@ fn refutation_row_4_same_key_larger_issued_at_replaces_bytes_only() {
 fn refutation_row_5_other_inputs_are_idempotent() {
     let first = record(3, 1, 100);
     let mut marks = marks_at(&first);
-    for candidate in [
-        first.clone(),
-        record(3, 1, 99),
-        record_with(3, 1, 100, &["relay.example:51822"]),
-    ] {
+    for candidate in [first.clone(), record(3, 1, 99)] {
         let before = step(&mut marks, &candidate, RecordDecision::Unchanged);
         assert_eq!(marks, before);
     }
+    // Equal issued_at with other bytes: the larger canonical encoding is R, whatever
+    // the arrival order.
+    let sibling = record_with(3, 1, 100, &["relay.example:51822"]);
+    let expected = if sibling.as_bytes() > first.as_bytes() {
+        RecordDecision::Refreshed
+    } else {
+        RecordDecision::Unchanged
+    };
+    step(&mut marks, &sibling, expected);
+    let mut reversed = marks_at(&sibling);
+    reversed.apply(&first).unwrap();
+    assert_eq!(reversed, marks);
 }
 
 #[test]

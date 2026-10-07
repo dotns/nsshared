@@ -11,9 +11,16 @@ use crate::rendezvous::{
     message::{DnsPublication, PublishRequest, Published, RecordResult},
 };
 use crate::{
-    NodeId, NodeRecord, RelayId, constants::REGISTRY_LOOKUP_MAX,
-    constants::REGISTRY_SHARD_REPLICAS, identity::Identity, record::NodeRecordError,
-    record::RecordDecision, record::RecordExpired, record::RecordMarks,
+    NodeId, NodeRecord, RelayId,
+    constants::REGISTRY_LOOKUP_MAX,
+    constants::REGISTRY_SHARD_REPLICAS,
+    encoding::{CborError, CborReader, CborWriter},
+    identity::Identity,
+    record::NodeRecordError,
+    record::{
+        IdentityMismatch, MAX_RECORD_STATE_BYTES, MarksDecodeError, RecordDecision, RecordExpired,
+        RecordMarks,
+    },
 };
 use ed25519_dalek::{Signer, SigningKey};
 use std::cmp::Reverse;
@@ -232,21 +239,58 @@ pub fn check_responsible(
     }
 }
 
-/// The registry state of one identity on a shard relay: the [`RecordMarks`] ordering
-/// state and the `dns` choice of the most recent accepted publish (quick-v2 §3.3, §7.2).
+/// The `RegistryState` format version (quick-v2 §7.6).
+pub const REGISTRY_STATE_VERSION: u64 = 1;
+/// Maximum encoded `RegistryState` length in bytes.
+pub const MAX_REGISTRY_STATE_BYTES: usize = MAX_RECORD_STATE_BYTES + 32;
+
+/// A rejected exported [`RegistryEntry`] (quick-v2 §7.6).
+#[derive(Clone, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
+pub enum RegistryStateError {
+    /// The encoding is not the canonical `RegistryState` array.
+    #[error(transparent)]
+    Cbor(#[from] CborError),
+    /// The state version is not 1.
+    #[error("registry state version must be 1")]
+    Version,
+    /// The embedded `RecordState` is invalid.
+    #[error(transparent)]
+    Marks(#[from] MarksDecodeError),
+    /// The publication tiers are inconsistent: a bit above bit 2, tiers without a
+    /// revision or a revision without tiers, or tiers without a record.
+    #[error("publication tiers inconsistent")]
+    Tiers,
+}
+
+/// The bit of `tier` in the tiers bitmap (quick-v2 §7.6).
+const fn tier_bit(tier: DnsPublication) -> u8 {
+    1 << tier.as_u8()
+}
+
+/// The registry state of one identity on a shard relay: the §3.3 [`RecordMarks`] and the
+/// publication tiers seen at the publication revision `pub_rev = (gen, issued_at)`
+/// (quick-v2 §7.2, §7.6).
+///
+/// A tier changes only with a record of a larger revision; a lower revision never
+/// changes it; two different tiers at the same revision latch a publication conflict
+/// that suppresses DNS until a larger revision. [`RegistryEntry::merge`] combines the
+/// states of region members deterministically.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RegistryEntry {
     marks: RecordMarks,
-    dns: DnsPublication,
+    pub_rev: (u64, u64),
+    tiers: u8,
 }
 
 impl RegistryEntry {
-    /// The empty state for `identity`: no record, `committed_gen = 0`, `dns = none`.
+    /// The empty state for `identity`: no record, `committed_gen = 0`, no publication.
     #[must_use]
     pub const fn new(identity: Identity) -> Self {
         Self {
             marks: RecordMarks::new(identity),
-            dns: DnsPublication::None,
+            pub_rev: (0, 0),
+            tiers: 0,
         }
     }
 
@@ -256,10 +300,40 @@ impl RegistryEntry {
         self.marks.current()
     }
 
-    /// The public DNS publication level of the stored record (quick-v2 §7.2, §11.2).
+    /// The tier the authoritative DNS serves (quick-v2 §7.2, §11.2): the single tier
+    /// seen at the publication revision, or [`DnsPublication::None`] when nothing was
+    /// published, during a publication conflict or while the record conflict is latched.
     #[must_use]
-    pub const fn dns(&self) -> DnsPublication {
-        self.dns
+    pub fn dns(&self) -> DnsPublication {
+        if self.marks.is_conflicted() || self.tiers.count_ones() != 1 {
+            return DnsPublication::None;
+        }
+        [
+            DnsPublication::None,
+            DnsPublication::Address,
+            DnsPublication::Record,
+        ]
+        .into_iter()
+        .find(|tier| self.tiers == tier_bit(*tier))
+        .unwrap_or(DnsPublication::None)
+    }
+
+    /// True while two different tiers were published at the same revision (quick-v2
+    /// §7.2).
+    #[must_use]
+    pub const fn is_publish_conflicted(&self) -> bool {
+        self.tiers.count_ones() > 1
+    }
+
+    /// The publication revision `(gen, issued_at)`, `None` before the first accepted
+    /// publish (quick-v2 §7.2).
+    #[must_use]
+    pub const fn publish_revision(&self) -> Option<(u64, u64)> {
+        if self.tiers == 0 {
+            None
+        } else {
+            Some(self.pub_rev)
+        }
     }
 
     /// The §3.3 ordering state.
@@ -270,11 +344,12 @@ impl RegistryEntry {
 
     /// Applies a verified publish (quick-v2 §3.3, §7.2).
     ///
-    /// A lower `gen`, a new same-`gen` conflict (which is latched) and any publish
-    /// below a higher `gen` while a conflict is latched are rejected with `conflict`;
-    /// rejected publishes change nothing else. An accepted publish stores the record
-    /// as §3.3 decides and takes its `dns` choice. A state past its deletion grace is
-    /// treated as deleted first.
+    /// A lower `gen`, a new same-`gen` conflict (which is latched, keeping the record as
+    /// evidence) and any publish while a conflict is latched are rejected with
+    /// `conflict`; rejected publishes change no tier. An accepted publish adds its record
+    /// as §3.3 decides and its tier at the record's revision: a larger revision replaces
+    /// the tiers, an equal one adds to them, a smaller one changes nothing. A state past
+    /// its deletion grace is treated as deleted first.
     ///
     /// # Errors
     ///
@@ -315,12 +390,26 @@ impl RegistryEntry {
         self.marks
             .apply(&verified.record)
             .map_err(|_| ErrorCode::InvalidMessage)?;
-        self.dns = verified.dns;
+        let revision = (verified.record.generation(), verified.record.issued_at());
+        self.add_tiers(revision, tier_bit(verified.dns));
         let expires = self
             .marks
             .current()
             .map_or(verified.record.expires(), NodeRecord::expires);
         Ok(Published { expires })
+    }
+
+    /// Adds `tiers` seen at `revision` (quick-v2 §7.2, §7.6).
+    fn add_tiers(&mut self, revision: (u64, u64), tiers: u8) {
+        if tiers == 0 || revision < self.pub_rev {
+            return;
+        }
+        if revision > self.pub_rev {
+            self.pub_rev = revision;
+            self.tiers = tiers;
+        } else {
+            self.tiers |= tiers;
+        }
     }
 
     /// True once `now > expires + 10`, when the relay deletes the state; an empty state
@@ -330,6 +419,70 @@ impl RegistryEntry {
         self.marks
             .current()
             .is_none_or(|record| now > record.expires().saturating_add(DELETION_GRACE_SECONDS))
+    }
+
+    /// Merges another member's state for the same identity at `now` (quick-v2 §7.6): a
+    /// state past its deletion grace counts as empty, the record states merge as the
+    /// union of their records, and the tiers of the larger revision win, equal revisions
+    /// combining their tiers. Commutative, associative and idempotent for one `now`.
+    ///
+    /// # Errors
+    ///
+    /// [`IdentityMismatch`] when the identities differ; the state is unchanged.
+    pub fn merge(&mut self, other: &Self, now: u64) -> Result<(), IdentityMismatch> {
+        if other.marks.identity() != self.marks.identity() {
+            return Err(IdentityMismatch);
+        }
+        if self.deletion_due(now) {
+            *self = Self::new(*self.marks.identity());
+        }
+        if other.deletion_due(now) {
+            return Ok(());
+        }
+        self.marks.merge(&other.marks)?;
+        self.add_tiers(other.pub_rev, other.tiers);
+        Ok(())
+    }
+
+    /// Encodes the state as `RegistryState = [1, RecordState, pub_gen, pub_issued_at,
+    /// tiers]` (quick-v2 §7.6).
+    #[must_use]
+    pub fn encode(&self) -> Vec<u8> {
+        let mut writer = CborWriter::with_capacity(MAX_REGISTRY_STATE_BYTES);
+        writer.array(5).uint(REGISTRY_STATE_VERSION);
+        self.marks.write(&mut writer);
+        writer
+            .uint(self.pub_rev.0)
+            .uint(self.pub_rev.1)
+            .uint(u64::from(self.tiers));
+        writer.into_bytes()
+    }
+
+    /// Decodes and validates an exported state (quick-v2 §7.6).
+    ///
+    /// # Errors
+    ///
+    /// [`RegistryStateError`] naming the first violated rule.
+    pub fn decode(encoded: &[u8]) -> Result<Self, RegistryStateError> {
+        let mut reader = CborReader::new(encoded, MAX_REGISTRY_STATE_BYTES)?;
+        reader.array(5)?;
+        if reader.uint()? != REGISTRY_STATE_VERSION {
+            return Err(RegistryStateError::Version);
+        }
+        let marks = RecordMarks::read(&mut reader)?;
+        let pub_rev = (reader.uint()?, reader.uint()?);
+        let tiers = u8::try_from(reader.uint()?).map_err(|_| RegistryStateError::Tiers)?;
+        reader.finish()?;
+        let unpublished = pub_rev == (0, 0);
+        if tiers > 0b111 || (tiers == 0) != unpublished || (tiers != 0 && marks.current().is_none())
+        {
+            return Err(RegistryStateError::Tiers);
+        }
+        Ok(Self {
+            marks,
+            pub_rev,
+            tiers,
+        })
     }
 }
 

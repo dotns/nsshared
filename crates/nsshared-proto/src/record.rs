@@ -378,8 +378,15 @@ fn signing_message(identity: &Identity, fields: &NodeRecordFields) -> Vec<u8> {
     message
 }
 
-/// The per-identity ordering state: current record, `committed_gen` and conflict flag
-/// (quick-v2 §3.3).
+/// The per-identity ordering state of quick-v2 §3.3: `committed_gen`, the current
+/// record `R` and the conflict evidence `E`.
+///
+/// The state is the deterministic summary of every valid record received for the
+/// committed generation: `R` is the largest by `(issued_at, canonical bytes)` and `E`
+/// the largest among those whose `K` differs from `R`'s. `E` present means the
+/// generation is latched as conflicted, and keeps the record that caused it. Applying
+/// records in any order gives the same state, and [`RecordMarks::merge`] combines two
+/// states as the union of their records (quick-v2 §7.6).
 ///
 /// The initial state holds no record and `committed_gen = 0`; since every valid record
 /// has `gen >= 1`, the first valid record is always accepted.
@@ -387,7 +394,7 @@ fn signing_message(identity: &Identity, fields: &NodeRecordFields) -> Vec<u8> {
 pub struct RecordMarks {
     identity: Identity,
     current: Option<NodeRecord>,
-    conflicted: bool,
+    evidence: Option<NodeRecord>,
 }
 
 /// The outcome of evaluating a valid candidate record against [`RecordMarks`]
@@ -402,8 +409,8 @@ pub enum RecordDecision {
     /// `gen == committed_gen` with a different `K`: the generation is latched as
     /// conflicted until a higher `gen`; report `record_conflict`.
     Conflict,
-    /// `gen == committed_gen`, same `K`, larger `issued_at`: only the record bytes
-    /// (`relays`, `expires`) are replaced; a latched conflict stays latched.
+    /// `gen == committed_gen`, same `K`, larger by `(issued_at, bytes)`: the record
+    /// bytes (`relays`, `expires`) are replaced; a latched conflict stays latched.
     Refreshed,
     /// Any other input: idempotent, state unchanged.
     Unchanged,
@@ -414,6 +421,43 @@ pub enum RecordDecision {
 #[error("candidate record identity differs from the state identity")]
 pub struct IdentityMismatch;
 
+/// A rejected exported [`RecordMarks`] (quick-v2 §7.6).
+#[derive(Clone, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
+pub enum MarksDecodeError {
+    /// The encoding is not the canonical `RecordState` array.
+    #[error(transparent)]
+    Cbor(#[from] CborError),
+    /// The state version is not 1.
+    #[error("record state version must be 1")]
+    Version,
+    /// A record is invalid.
+    #[error(transparent)]
+    Record(#[from] NodeRecordError),
+    /// A record belongs to another identity.
+    #[error("record identity differs from the state identity")]
+    Identity,
+    /// `E` is present without `R`, or is not a valid conflict with `R` (same `gen`,
+    /// different `K`, smaller than `R`).
+    #[error("conflict evidence inconsistent with the current record")]
+    Evidence,
+}
+
+/// The `RecordState` format version (quick-v2 §7.6).
+pub const RECORD_STATE_VERSION: u64 = 1;
+/// Maximum encoded `RecordState` length in bytes: two records and the framing.
+pub const MAX_RECORD_STATE_BYTES: usize = 2 * MAX_NODE_RECORD_BYTES + 64;
+
+/// The §3.3 order inside one generation: `issued_at`, then the canonical bytes.
+fn rank(record: &NodeRecord) -> (u64, &[u8]) {
+    (record.issued_at(), record.as_bytes())
+}
+
+/// The largest record by [`rank`].
+fn largest<'a>(records: impl Iterator<Item = &'a NodeRecord>) -> Option<&'a NodeRecord> {
+    records.max_by(|a, b| rank(a).cmp(&rank(b)))
+}
+
 impl RecordMarks {
     /// Returns the initial state for `identity`: no record, `committed_gen = 0`, no
     /// conflict (quick-v2 §3.3).
@@ -422,7 +466,7 @@ impl RecordMarks {
         Self {
             identity,
             current: None,
-            conflicted: false,
+            evidence: None,
         }
     }
 
@@ -432,10 +476,17 @@ impl RecordMarks {
         &self.identity
     }
 
-    /// Returns the current record, if any (quick-v2 §3.3).
+    /// Returns the current record `R`, if any (quick-v2 §3.3).
     #[must_use]
     pub const fn current(&self) -> Option<&NodeRecord> {
         self.current.as_ref()
+    }
+
+    /// Returns the conflict evidence `E`: the largest record of the committed generation
+    /// whose `K` differs from `R`'s (quick-v2 §3.3).
+    #[must_use]
+    pub const fn conflict_evidence(&self) -> Option<&NodeRecord> {
+        self.evidence.as_ref()
     }
 
     /// Returns `committed_gen`, 0 before the first record (quick-v2 §3.3).
@@ -448,7 +499,7 @@ impl RecordMarks {
     /// generation is disabled until a higher `gen` (quick-v2 §3.3).
     #[must_use]
     pub const fn is_conflicted(&self) -> bool {
-        self.conflicted
+        self.evidence.is_some()
     }
 
     /// Classifies a valid candidate without changing state (quick-v2 §3.3).
@@ -469,7 +520,7 @@ impl RecordMarks {
             RecordDecision::Advanced
         } else if candidate.wg_key() != current.wg_key() {
             RecordDecision::Conflict
-        } else if candidate.issued_at() > current.issued_at() {
+        } else if rank(candidate) > rank(current) {
             RecordDecision::Refreshed
         } else {
             RecordDecision::Unchanged
@@ -477,7 +528,7 @@ impl RecordMarks {
         Ok(decision)
     }
 
-    /// Evaluates a valid candidate and applies the decision (quick-v2 §3.3).
+    /// Evaluates a valid candidate and adds it to the state (quick-v2 §3.3).
     ///
     /// # Errors
     ///
@@ -485,15 +536,116 @@ impl RecordMarks {
     /// is unchanged.
     pub fn apply(&mut self, candidate: &NodeRecord) -> Result<RecordDecision, IdentityMismatch> {
         let decision = self.evaluate(candidate)?;
-        match decision {
-            RecordDecision::Advanced => {
-                self.current = Some(candidate.clone());
-                self.conflicted = false;
-            }
-            RecordDecision::Refreshed => self.current = Some(candidate.clone()),
-            RecordDecision::Conflict => self.conflicted = true,
-            RecordDecision::Stale | RecordDecision::Unchanged => {}
-        }
+        self.absorb([candidate]);
         Ok(decision)
+    }
+
+    /// Merges another state for the same identity: the result summarizes the union of
+    /// both states' records, so merging is commutative, associative and idempotent
+    /// (quick-v2 §7.6).
+    ///
+    /// # Errors
+    ///
+    /// [`IdentityMismatch`] when the identities differ; the state is unchanged.
+    pub fn merge(&mut self, other: &Self) -> Result<(), IdentityMismatch> {
+        if other.identity != self.identity {
+            return Err(IdentityMismatch);
+        }
+        self.absorb(other.current.iter().chain(other.evidence.iter()));
+        Ok(())
+    }
+
+    /// Recomputes the summary over the current records and `records`, all of this
+    /// identity.
+    fn absorb<'a>(&mut self, records: impl IntoIterator<Item = &'a NodeRecord>) {
+        let mut pool: Vec<NodeRecord> = self
+            .current
+            .take()
+            .into_iter()
+            .chain(self.evidence.take())
+            .collect();
+        pool.extend(records.into_iter().cloned());
+        let Some(generation) = pool.iter().map(NodeRecord::generation).max() else {
+            return;
+        };
+        pool.retain(|record| record.generation() == generation);
+        let current = largest(pool.iter()).cloned();
+        if let Some(current) = &current {
+            self.evidence = largest(
+                pool.iter()
+                    .filter(|record| record.wg_key() != current.wg_key()),
+            )
+            .cloned();
+        }
+        self.current = current;
+    }
+
+    /// Encodes the state as `RecordState = [1, I, R | null, E | null]` (quick-v2 §7.6).
+    #[must_use]
+    pub fn encode(&self) -> Vec<u8> {
+        let mut writer = CborWriter::with_capacity(MAX_RECORD_STATE_BYTES);
+        self.write(&mut writer);
+        writer.into_bytes()
+    }
+
+    pub(crate) fn write(&self, writer: &mut CborWriter) {
+        writer
+            .array(4)
+            .uint(RECORD_STATE_VERSION)
+            .bytes(&self.identity);
+        for record in [&self.current, &self.evidence] {
+            match record {
+                Some(record) => writer.bytes(record.as_bytes()),
+                None => writer.null(),
+            };
+        }
+    }
+
+    /// Decodes and validates an exported state (quick-v2 §7.6): every record is valid
+    /// and of the state identity, and `E` is a conflict with `R` that is smaller than
+    /// `R`.
+    ///
+    /// # Errors
+    ///
+    /// [`MarksDecodeError`] naming the first violated rule.
+    pub fn decode(encoded: &[u8]) -> Result<Self, MarksDecodeError> {
+        let mut reader = CborReader::new(encoded, MAX_RECORD_STATE_BYTES)?;
+        let state = Self::read(&mut reader)?;
+        reader.finish()?;
+        Ok(state)
+    }
+
+    pub(crate) fn read(reader: &mut CborReader<'_>) -> Result<Self, MarksDecodeError> {
+        reader.array(4)?;
+        if reader.uint()? != RECORD_STATE_VERSION {
+            return Err(MarksDecodeError::Version);
+        }
+        let identity: Identity = reader.fixed_bytes()?;
+        let mut records = [None, None];
+        for slot in &mut records {
+            if !reader.take_null() {
+                let record = NodeRecord::decode(reader.bytes_up_to(MAX_NODE_RECORD_BYTES)?)?;
+                if record.identity != identity {
+                    return Err(MarksDecodeError::Identity);
+                }
+                *slot = Some(record);
+            }
+        }
+        let [current, evidence] = records;
+        if let Some(evidence) = &evidence {
+            let consistent = current.as_ref().is_some_and(|current| {
+                evidence.generation() == current.generation()
+                    && evidence.wg_key() != current.wg_key()
+                    && rank(evidence) < rank(current)
+            });
+            if !consistent {
+                return Err(MarksDecodeError::Evidence);
+            }
+        }
+        Ok(Self {
+            identity,
+            current,
+            evidence,
+        })
     }
 }

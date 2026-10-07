@@ -485,38 +485,58 @@ fn same_generation_refresh_replaces_the_record() {
 }
 
 #[test]
-fn dns_follows_the_latest_accepted_publish() {
+fn tier_changes_need_a_larger_revision() {
     let mut state = RegistryEntry::new(*key(1).verifying_key().as_bytes());
     let first = record(1, 1);
+    assert_eq!(state.publish_revision(), None);
     state
         .apply_publish(&verified(&first, DnsPublication::Record), NOW)
         .unwrap();
     assert_eq!(state.dns(), DnsPublication::Record);
-    // The same record again is idempotent for §3.3 but still an accepted publish.
+    assert_eq!(state.publish_revision(), Some((1, NOW - 10)));
+    // The same record with the same tier is idempotent.
+    state
+        .apply_publish(&verified(&first, DnsPublication::Record), NOW)
+        .unwrap();
+    assert_eq!(state.dns(), DnsPublication::Record);
+    assert!(!state.is_publish_conflicted());
+    // The same revision with another tier latches a publication conflict: no DNS.
     assert_eq!(
         state.apply_publish(&verified(&first, DnsPublication::None), NOW),
         Ok(Published {
             expires: first.expires()
         })
     );
+    assert!(state.is_publish_conflicted());
     assert_eq!(state.dns(), DnsPublication::None);
+    // An older record of the same key never changes the tier.
+    let older = record_with(&key(1), 1, 1, NOW - 20);
+    state
+        .apply_publish(&verified(&older, DnsPublication::Address), NOW)
+        .unwrap();
+    assert!(state.is_publish_conflicted());
     assert_eq!(state.record(), Some(&first));
+    // A re-signed record with a larger issued_at sets the tier and clears the latch.
+    let resigned = record_with(&key(1), 1, 1, NOW - 5);
     state
-        .apply_publish(&verified(&first, DnsPublication::Address), NOW)
+        .apply_publish(&verified(&resigned, DnsPublication::Address), NOW)
         .unwrap();
+    assert!(!state.is_publish_conflicted());
     assert_eq!(state.dns(), DnsPublication::Address);
+    assert_eq!(state.publish_revision(), Some((1, NOW - 5)));
+    // A rejected (stale) publish never changes the tier.
     state
-        .apply_publish(&verified(&first, DnsPublication::None), NOW)
-        .unwrap();
-    // A rejected publish never changes the choice.
-    state
-        .apply_publish(&verified(&record(2, 2), DnsPublication::None), NOW)
+        .apply_publish(
+            &verified(&record_with(&key(1), 2, 2, NOW - 4), DnsPublication::None),
+            NOW,
+        )
         .unwrap();
     assert_eq!(
-        state.apply_publish(&verified(&first, DnsPublication::Record), NOW),
+        state.apply_publish(&verified(&resigned, DnsPublication::Record), NOW),
         Err(ErrorCode::Conflict)
     );
     assert_eq!(state.dns(), DnsPublication::None);
+    assert_eq!(state.publish_revision(), Some((2, NOW - 4)));
 }
 
 #[test]
@@ -524,37 +544,46 @@ fn conflict_latches_until_a_higher_generation() {
     let mut state = RegistryEntry::new(*key(1).verifying_key().as_bytes());
     let original = record(1, 1);
     state
-        .apply_publish(&verified(&original, DnsPublication::None), NOW)
+        .apply_publish(&verified(&original, DnsPublication::Record), NOW)
         .unwrap();
-    // Same gen, different K.
+    // Same gen, different K: latched, and the conflicting record is kept as evidence.
+    let conflicting = record(1, 9);
     assert_eq!(
-        state.apply_publish(&verified(&record(1, 9), DnsPublication::Record), NOW),
+        state.apply_publish(&verified(&conflicting, DnsPublication::Record), NOW),
         Err(ErrorCode::Conflict)
     );
     assert!(state.marks().is_conflicted());
+    let mut kept = [
+        state.record().unwrap().clone(),
+        state.marks().conflict_evidence().unwrap().clone(),
+    ];
+    kept.sort_by(|a, b| a.as_bytes().cmp(b.as_bytes()));
+    let mut expected = [original.clone(), conflicting];
+    expected.sort_by(|a, b| a.as_bytes().cmp(b.as_bytes()));
+    assert_eq!(kept, expected);
     assert_eq!(state.dns(), DnsPublication::None);
-    assert_eq!(state.record(), Some(&original));
     assert_eq!(
         registry::lookup(Some(&state), NOW),
         Err(ErrorCode::Conflict)
     );
 
-    // While latched, the same generation is rejected even with the original K.
-    let before = state.clone();
+    // While latched, the same generation is rejected, even with the original K.
     for candidate in [original.clone(), record_with(&key(1), 1, 1, NOW - 5)] {
         assert_eq!(
-            state.apply_publish(&verified(&candidate, DnsPublication::None), NOW),
+            state.apply_publish(&verified(&candidate, DnsPublication::Record), NOW),
             Err(ErrorCode::Conflict)
         );
-        assert_eq!(state, before);
+        assert!(state.marks().is_conflicted());
+        assert_eq!(state.dns(), DnsPublication::None);
     }
 
     // A higher generation clears it.
-    let rotated = record_with(&key(1), 2, 2, NOW - 5);
+    let rotated = record_with(&key(1), 2, 2, NOW - 4);
     state
         .apply_publish(&verified(&rotated, DnsPublication::Record), NOW)
         .unwrap();
     assert!(!state.marks().is_conflicted());
+    assert_eq!(state.dns(), DnsPublication::Record);
     assert_eq!(
         registry::lookup(Some(&state), NOW).unwrap().record,
         Some(rotated.as_bytes().to_vec())

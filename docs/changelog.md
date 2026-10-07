@@ -1,3 +1,28 @@
+## 2026-10-07 [feat]
+
+Release `v0.6.0`: registry state persistence and member merge, requested by
+the nsgw next-architecture draft as L10 (quick-v2 §3.3, §7.2, §7.6 in the docs
+change after `05ea324`). Breaking:
+
+- `record::RecordMarks` is the deterministic summary of a generation's
+  records: `R` is the largest by `(issued_at, canonical bytes)` and the
+  conflict keeps the record that caused it (`conflict_evidence`); new
+  `merge`, `encode` / `decode` (`RecordState`) and `MarksDecodeError`.
+  `RecordDecision::Refreshed` now also covers an equal `issued_at` with larger
+  bytes.
+- `rendezvous::registry::RegistryEntry` tracks publication tiers per record
+  revision: a tier changes only with a larger revision, a smaller one never
+  changes it, and two tiers at one revision latch a publication conflict that
+  suppresses DNS (`dns`, `is_publish_conflicted`, `publish_revision`); new
+  `merge(other, now)`, `encode` / `decode` (`RegistryState`) and
+  `RegistryStateError`.
+- New `registry_state` vectors from the independent generator: summaries in
+  any order, merges both ways, restore refutations.
+
+Consumers: nsgw (`nsgw-relay`, `nsgw-relay-region`) persists and replicates
+registry entries with these; ns persists peer `RecordMarks` the same way.
+Nodes must re-sign a record with a larger `issued_at` to change their tier.
+
 ## 2026-10-04 [feat]
 
 Release `v0.5.0`: public DNS publication has three levels (quick-v2 §7.2,
