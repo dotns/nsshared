@@ -1,3 +1,12 @@
+## 2026-10-10 [docs]
+
+nsshared is in maintenance after `v0.6.0`: fixes, dependency updates and
+milestone contracts (L11, L8, L9) only; see
+`docs/plan/20261010-1200-nsshared-maintenance.md`. The README consumption
+example uses the public mirror `https://github.com/dotns/nsshared.git`. Spec
+coverage now cites the published docs commits (`2c5b8d3`, `91b2594`). nsplane
+0.11 needs no change here.
+
 ## 2026-10-07 [feat]
 
 Release `v0.6.0`: registry state persistence and member merge, requested by

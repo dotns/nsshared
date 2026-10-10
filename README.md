@@ -34,19 +34,42 @@ coverage: `docs/spec-coverage/nsshared-proto.md`,
 The v1 workspace (`control`, `common`, `acl`, `tunnel-ws`, `telemetry`) is
 archived at tag `archive/v1-20261002`; see `docs/design/v1-crate-analysis.md`.
 
+## Status: maintenance
+
+Since `v0.6.0` (2026-10-10) nsshared is a foundation library in maintenance.
+It takes only:
+
+- fixes: bugs, specification mismatches, security issues;
+- dependency and toolchain updates;
+- new contracts that a migration milestone needs, each as a new module or
+  crate in a minor release, specified in the docs first: L11 (control resource
+  and session protocol, when the gateway protocol is chosen), L8 (M6 payload
+  profiles, including the serialized policy contract), L9 (M8 short names and
+  the relay to authoritative DNS feed).
+
+It does not take features of a single component (relay mailbox storage, the
+node relay client, policy compilation for one consumer) or application
+protocols. `v1.0.0` follows once ns and the relay v2 server pass their interop
+tests on one implementation. See
+`docs/plan/20261010-1200-nsshared-maintenance.md`.
+
 ## Consuming
 
-Consumers use Cargo git dependencies pinned by tag:
+Consumers use Cargo git dependencies pinned by tag. The public mirror needs no
+credentials:
 
 ```toml
-nsshared-proto = { git = "https://git.pvv.cc/nsiod/nsshared.git", tag = "v0.6.0" }
+nsshared-proto = { git = "https://github.com/dotns/nsshared.git", tag = "v0.6.0" }
 ```
+
+`https://git.pvv.cc/nsiod/nsshared.git` is the primary remote with the same
+refs.
 
 For local development against a sibling checkout, add an uncommitted override
 in the consumer's `.cargo/config.toml`:
 
 ```toml
-[patch."https://git.pvv.cc/nsiod/nsshared.git"]
+[patch."https://github.com/dotns/nsshared.git"]
 nsshared-proto = { path = "../nsshared/crates/nsshared-proto" }
 ```
 
