@@ -59,17 +59,19 @@ Consumers use Cargo git dependencies pinned by tag. The public mirror needs no
 credentials:
 
 ```toml
-nsshared-proto = { git = "https://github.com/dotns/nsshared.git", tag = "v0.6.0" }
+nsshared-proto = { git = "https://github.com/dotns/nsshared", tag = "v0.6.0" }
 ```
 
-`https://git.pvv.cc/nsiod/nsshared.git` is the primary remote with the same
-refs.
+Use this exact URL (no `.git` suffix): Cargo treats URL spellings as
+different sources, so a `[patch]` only applies when it matches the consumer's
+dependency. `https://git.pvv.cc/nsiod/nsshared.git` is the primary remote with
+the same refs.
 
 For local development against a sibling checkout, add an uncommitted override
 in the consumer's `.cargo/config.toml`:
 
 ```toml
-[patch."https://github.com/dotns/nsshared.git"]
+[patch."https://github.com/dotns/nsshared"]
 nsshared-proto = { path = "../nsshared/crates/nsshared-proto" }
 ```
 

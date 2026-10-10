@@ -53,10 +53,10 @@ is part of `just qa`. The specification-to-code tables are
 
 ## Consumers
 
-| Consumer | Status (2026-10-03) |
+| Consumer | Status (2026-10-10) |
 | --- | --- |
-| ns | Uses `nsshared-wire` / `nsshared-rendezvous` at a pinned local commit; moves to `nsshared-proto` at tag `v0.2.0` and takes over the pairing, control-channel, alias and `lan6` code |
-| nsgw | Uses the archived v1 workspace; adopts `nsshared-proto` when it implements the relay v2 server (migration M2) |
+| ns | Uses `nsshared-proto`, `nsshared-telemetry` and the three mocks at tag `v0.5.0` from `https://github.com/dotns/nsshared`; owns the pairing, control-channel, alias and `lan6` code since `v0.2.0` |
+| nsgw | Uses the archived v1 workspace; its next line adopts `nsshared-proto` for the relay v2 server (R1), including the `v0.6.0` registry state |
 | nsd | Defines its own types |
 
 Consumers pin a tag through Cargo git dependencies; see
