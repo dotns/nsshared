@@ -1,3 +1,11 @@
+## 2026-10-11 [docs]
+
+Re-pin both spec coverage tables from docs `957de97a79f7` to `27a794d`: every
+row's section and line range now points at the current text (220 rows, each
+range checked to exist and to lie in the cited section). Rows whose text was
+rewritten (§3.3 summary rule, §7.2 tiers, §7.6, §10.2 pairing via the app
+channel, §11.2 tiers, rendezvous §9) were mapped by hand.
+
 ## 2026-10-10 [docs]
 
 nsshared is in maintenance after `v0.6.0`: fixes, dependency updates and
