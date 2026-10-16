@@ -378,6 +378,28 @@ pub enum PortMode {
 }
 
 impl Declaration {
+    /// Encodes one declaration as canonical CBOR for durable resource rows.
+    ///
+    /// # Errors
+    /// Returns an error for invalid declaration fields or CBOR bounds.
+    pub fn canonical(&self) -> Result<Vec<u8>, ContractError> {
+        self.validate()?;
+        encode_canonical(&self.value()).map_err(Into::into)
+    }
+
+    /// Decodes one exact declaration from canonical CBOR.
+    ///
+    /// # Errors
+    /// Returns an error for malformed, noncanonical or unsupported fields.
+    pub fn decode(input: &[u8]) -> Result<Self, ContractError> {
+        let value = decode_canonical(input)?;
+        let declaration = Self::from_value(&value)?;
+        if declaration.canonical()? != input {
+            return Err(ContractError::InvalidEncoding);
+        }
+        Ok(declaration)
+    }
+
     fn value(&self) -> Value {
         let (mode, requested) = match self.port_mode {
             PortMode::Fixed(port) => ("fixed", Value::UInt(u64::from(port))),

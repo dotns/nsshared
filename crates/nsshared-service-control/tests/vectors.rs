@@ -95,6 +95,16 @@ fn independent_report_and_listener_vectors() {
 }
 
 #[test]
+fn declaration_resource_bytes_round_trip_canonically() {
+    let (report, _) = sample();
+    let declaration = &report.declarations[0];
+    let encoded = declaration.canonical().unwrap();
+    assert_eq!(Declaration::decode(&encoded).unwrap(), *declaration);
+    assert!(Declaration::decode(&[0xa0]).is_err());
+    assert!(Declaration::decode(&[0xbf, 0xff]).is_err());
+}
+
+#[test]
 fn independent_snapshot_vector() {
     let vectors = vectors();
     let publisher: [u8; 32] = std::array::from_fn(|index| index as u8);
