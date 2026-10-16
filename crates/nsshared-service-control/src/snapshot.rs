@@ -341,7 +341,9 @@ fn valid_service_label(label: &str) -> bool {
     let bytes = label.as_bytes();
     !bytes.is_empty()
         && bytes.len() <= 63
-        && bytes.first().is_some_and(u8::is_ascii_lowercase)
+        && bytes
+            .first()
+            .is_some_and(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
         && bytes
             .last()
             .is_some_and(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())

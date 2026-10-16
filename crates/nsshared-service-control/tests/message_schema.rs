@@ -416,3 +416,20 @@ fn response_echoes_and_snapshot_permissions_fail_closed() {
     }));
     assert!(consumer.encode().is_err());
 }
+
+#[test]
+fn service_label_allows_digit_start_but_rejects_invalid_edges() {
+    let mut snapshot = snapshot();
+    for label in ["1echo", "0", "a-1"] {
+        snapshot.resources[0].service_label = label.into();
+        let bytes = snapshot.canonical().unwrap().0;
+        assert_eq!(Snapshot::decode(&bytes).unwrap(), snapshot);
+    }
+    for label in ["-echo", "Echo", "echo-", ""] {
+        snapshot.resources[0].service_label = label.into();
+        assert!(
+            snapshot.canonical().is_err(),
+            "unexpected valid label: {label}"
+        );
+    }
+}
