@@ -10,6 +10,15 @@ default:
 # Fast static checks for daily development (fmt + clippy)
 dev-check: fmt-check lint
 
+# Compare against a git ref (default main); global inputs select full QA.
+# Scoped checks retain every static check, including vectors and semver.
+self-check base="main":
+    python3 -B scripts/self_check.py {{quote(base)}}
+
+# Selection tests use temporary Git repositories and Cargo workspaces.
+self-check-tests:
+    python3 -B -m unittest discover -s scripts/tests -p test_self_check.py -v
+
 # Full quality gate
 qa: qa-checks qa-tests
 
@@ -17,7 +26,7 @@ qa: qa-checks qa-tests
 qa-checks: fmt-check lint deny shear typos vectors-check semver
 
 # Tests: nextest plus the doctests nextest does not run
-qa-tests: test doc
+qa-tests: self-check-tests test doc
 
 check:
     cargo check --workspace --all-targets --locked
