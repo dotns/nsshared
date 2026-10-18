@@ -1,3 +1,13 @@
+## 2026-10-18 [chore]
+
+Import the existing M6 service-control contract at
+`aba1c5d5350550f85631034cf613e780bc4dbbe0` so the L8 account payload profile
+extends its shared declarations and messages. Preserve the original commits,
+canonical bytes, service-label rules, vectors, and rustls update.
+
+Validation: `just qa` passed with 393 tests, 0 skipped, and 1 documentation
+test; both vector drift checks and API compatibility checks passed.
+
 ## 2026-10-11 [docs]
 
 Re-pin both spec coverage tables from docs `957de97a79f7` to `27a794d`: every

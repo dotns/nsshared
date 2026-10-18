@@ -111,3 +111,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20261002-1516-quick-rendezvous Define the quick-rendezvous message types**](20261002-1516-quick-rendezvous.md) `P1`
 - [ ] [**20261002-1516-quick-consumers Move nsgw and ns onto the shared Quick crates**](20261002-1516-quick-consumers.md) `P2`
 - [x] [**20261003-2200-shared-scope-trim Remove relay-internal region protocol and the transfer mapping**](20261003-2200-shared-scope-trim.md) `P1`
+- [x] [**Import the existing M6 service-control contract**](20261018-1204-m6-service-control-import.md) `P1`
