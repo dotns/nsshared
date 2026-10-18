@@ -1,3 +1,15 @@
+## 2026-10-18 [feat]
+
+Add `just self-check base`, defaulting to `main`. Crate-only changes retain
+all workspace static, vector and API checks, then restrict tests and
+documentation to the changed packages and their reverse dependencies.
+Global inputs and empty diffs select the complete `just qa` recipe.
+Selection tests run as part of complete QA.
+
+Validation: 10 selection tests, 393 Rust tests with 0 skipped, and
+1 documentation test passed. A temporary crate-only change verified scoped
+selection and was restored before the final complete check.
+
 ## 2026-10-18 [chore]
 
 Import the existing M6 service-control contract at

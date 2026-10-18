@@ -73,3 +73,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**20261004-0900-nsshared-api-stability Prepare the nsshared API for stability (v0.3.0)**](20261004-0900-nsshared-api-stability.md) `2026-10-04`
 - [x] [**20261010-1200-nsshared-maintenance Put nsshared in maintenance after v0.6.0**](20261010-1200-nsshared-maintenance.md) `2026-10-10`
 - [x] [**Import the existing M6 service-control contract**](20261018-1204-m6-service-control-import.md) `2026-10-18`
+- [x] [**Add scoped workspace self-checks**](20261018-2214-scoped-self-check.md) `2026-10-18`
