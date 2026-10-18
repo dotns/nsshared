@@ -1,6 +1,6 @@
 # Scoped workspace self-check
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-10-18 22:14
 - **approvedAt**: 2026-10-18 22:14
 
@@ -51,7 +51,15 @@ The selector and its 10 tests are implemented. `just qa` and
 A real Git/Cargo fixture verifies transitive reverse dependencies and executes
 restricted nextest plus the selected documentation commands successfully.
 
-Acceptance remains open for a crate-only invocation on the final source tree:
-the new infrastructure and records require complete QA for every available
-ancestor comparison, and crate source edits are outside the implementation
-scope. No scoped-versus-complete duration comparison is claimed.
+Crate-only acceptance also passed on source commit
+`35476e4dffd462e0780e5fee5b1cdea95c414f4d`. A temporary uncommitted comment
+in `crates/nsshared-service-control/src/lib.rs` made `just self-check HEAD`
+select only `nsshared-service-control`. Every static check passed, followed by
+10 selection tests, restricted nextest with 9 passed and 0 skipped, and the
+selected documentation checks. The observed duration was compared with
+complete QA.
+
+The contract file was restored byte for byte, the working tree was confirmed
+clean, and a final `just qa` passed all existing checks and test counts on the
+restored source commit. Only the completion records changed afterward.
+Acceptance is complete and the imported contract remains unchanged.
