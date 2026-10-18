@@ -42,3 +42,16 @@ argument arrays preserve filenames and ref arguments.
 
 A hard-coded crate list would become stale as workspace members change.
 Cargo metadata provides the package mapping and reverse dependency graph.
+
+## Verification
+
+The selector and its 10 tests are implemented. `just qa` and
+`just self-check main` both pass, including all existing static checks,
+393 Rust tests, 1 documentation test and documentation generation.
+A real Git/Cargo fixture verifies transitive reverse dependencies and executes
+restricted nextest plus the selected documentation commands successfully.
+
+Acceptance remains open for a crate-only invocation on the final source tree:
+the new infrastructure and records require complete QA for every available
+ancestor comparison, and crate source edits are outside the implementation
+scope. No scoped-versus-complete duration comparison is claimed.
