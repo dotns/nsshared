@@ -256,11 +256,11 @@ async fn external_connections_share_the_per_ip_limit() {
 
 #[tokio::test]
 async fn external_mode_announces_wss_without_a_tcp_listener() {
-    // The caller owns TCP throughout; external WSS must only bind the UDP side.
+    // External WSS must ignore the occupied TCP address; UDP allocates independently.
     let listener = StdTcpListener::bind("127.0.0.1:0").unwrap();
     let addr = listener.local_addr().unwrap();
     let relay = MockRelay::start(MockRelayConfig {
-        listen: addr,
+        wss_listen: Some(addr),
         external_wss: true,
         ..MockRelayConfig::default()
     });
@@ -268,7 +268,6 @@ async fn external_mode_announces_wss_without_a_tcp_listener() {
     assert!(relay.wss_addr().is_none());
     assert!(relay.generated_cert().is_none());
     let udp = relay.udp_addr().unwrap();
-    assert_eq!(udp, addr);
     assert_eq!(relay.relay_id().as_str(), udp.to_string());
 
     let node = TestNode::new([4; 32], relay.relay_id(), unix_now() - 60).unwrap();
