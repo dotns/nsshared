@@ -118,7 +118,7 @@ def vectors(a, b, sign):
         ("valid-dns-hyphens", "ab--cd.example", "accepted"),
         ("valid-umlaut", a_label("bücher") + ".example", "accepted"),
         ("valid-accent", a_label("café") + ".example", "accepted"),
-        ("valid-cjk", a_label("例子") + "." + a_label("测试"), "accepted"),
+        ("valid-cjk", a_label("\u4f8b\u5b50") + "." + a_label("\u6d4b\u8bd5"), "accepted"),
         ("valid-sharp-s", a_label("faß") + ".example", "accepted"),
         ("valid-rtl", a_label("שלום") + ".example", "accepted"),
         ("forbidden-control", "xn--a.example", "origin"),
