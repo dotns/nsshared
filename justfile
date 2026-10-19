@@ -51,10 +51,12 @@ typos:
 # Regenerate the spec-derived test vector fixtures
 vectors:
     python3 tools/vectors/generate.py
+    python3 crates/nsshared-service-control/vectors/generate.py
 
 # Check that the committed test vector fixtures match the generator
 vectors-check:
     python3 tools/vectors/generate.py --check
+    python3 crates/nsshared-service-control/vectors/generate.py --check
 
 # Check the public API of the library crates against the previous release tag.
 # In 0.x a minor version bump may break the API; any other bump must not.
