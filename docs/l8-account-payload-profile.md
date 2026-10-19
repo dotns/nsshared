@@ -5,7 +5,11 @@ is an additive module of `nsshared-proto` at the workspace minor-release version
 It defines no runtime, transport session, policy compiler or v1 adapter.
 The [account payload record](task/20261019-0029-l8-account-payload-profile.md)
 owns every candidate registry entry; detailed family payloads follow separately.
-The candidate revision is the reviewed integration commit, to be recorded there.
+The published candidate revision is
+`41149fe1febf2ecee07f077d68a500e18822442c`. The
+[NSD and node review request](l8-candidate-review-request.md) packages that
+revision, family states, producer questions and requested M6 changes for the
+owner to forward. Preparation does not imply delivery or approval.
 
 ## Placement and M6 reuse
 
