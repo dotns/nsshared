@@ -45,6 +45,8 @@ fn candidate_contract_vectors() {
                 | "bootstrap-envelope"
                 | "bootstrap-boundary"
                 | "subnet-selection"
+                | "publication-event"
+                | "publication-snapshot"
         ) {
             continue;
         }
@@ -266,6 +268,8 @@ fn candidate_cbor_refuses_trailing_and_nonminimal_forms() {
                 | "bootstrap-envelope"
                 | "bootstrap-boundary"
                 | "subnet-selection"
+                | "publication-event"
+                | "publication-snapshot"
         ) {
             continue;
         }

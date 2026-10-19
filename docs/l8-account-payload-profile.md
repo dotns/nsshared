@@ -403,3 +403,108 @@ a nonce observation has aged beyond replay retention. There is no older-JSON pat
 Independent Python discovery/carrier vectors give bytes, signatures, expected
 pins/order/payload/authority and explicit decisions. NSD producer confirmation
 and independent producer vectors remain requested in Q11 and Q21.
+
+## Signed publication events
+
+This is the snapshot/events vocabulary of family 11, version 1. The family
+registry and every family's payload bytes remain unchanged. A publication is
+`[content_bytes, signature_64]`, reusing the bootstrap carrier's outer shape.
+Its content is `[1, issuer_I, recipient_I, served_realm, scope, family, kind,
+channel, complete, publication_version, issued_seconds, expires_seconds,
+outcome, payload_bytes]`. Ed25519 signs
+`ns.account.publication.v1\0 || content_bytes`, with one final zero byte in
+the domain. The call carrier's content/domain cannot be reused: its timestamp
+and nonce do not express complete per-kind versions or actual validity.
+
+| Field | Producer and meaning |
+| --- | --- |
+| schema | NSD fixes version 1; labelled Python fixture fixes the candidate version |
+| issuer / recipient | NSD signs its full validated identity and exact target Node identity; fixture signs its labelled identities |
+| served realm / scope | NSD supplies the authorized served realm and opaque scope within it; fixture supplies `realm-a` / `scope-a` and explicit alternate scopes |
+| family / kind | NSD supplies the owning family number and exact kind below; fixture supplies the same candidate identifiers |
+| channel | NSD supplies 0 stream or 1 independently polled snapshot, according to the table; fixture supplies signed ownership and mismatch cases |
+| complete | NSD explicitly marks complete replacement; fixture supplies complete and refused partial cases |
+| publication version | NSD persists a positive monotonic u64 for each full key; fixture supplies explicit versions, never derived from time or arrival order |
+| issue / expiry | NSD supplies Unix seconds with `issued < expires`; fixture supplies both and an independent consumer clock |
+| outcome / payload | NSD supplies 0 complete data or 1 authenticated ACL fetch failure and exact opaque owning-family bytes; fixture supplies labelled data/failure bytes |
+| signature | NSD signs all content fields; the independent Python fixture signer signs candidate bytes only |
+
+Realm, scope and kind are nonempty UTF-8 strings of at most 256 bytes each.
+Recipient is mandatory. The consumer supplies the trusted expected issuer,
+recipient, authorized `(served_realm, scope)` pairs, actual receiving channel,
+clock and last accepted version for each key. No signed field substitutes for
+those independent authority inputs. A full key is `(issuer, recipient,
+served_realm, scope, family, kind)`; a version never orders different keys.
+
+| Family | Kind | Owning channel |
+| --- | --- | --- |
+| 1 enrollment | `own-node` | stream |
+| 2 realms-peers | `realm-peers` | snapshot |
+| 3 egress | `egress-grants` | snapshot |
+| 4 exit-subnet | `exit-grants` | snapshot |
+| 5 payer | `payer-bindings` | snapshot |
+| 6 withdrawal | `resource-authority` | stream |
+| 7 public-edge | `public-edge` | stream |
+| 8 relay | `directory` | snapshot |
+| 8 relay | `identity-classes` | stream |
+| 9 usage | `usage-profile` | stream |
+| 10 node-control | `node-control-profile` | stream |
+| 11 v1-replacement | `node-l3` | snapshot |
+| 11 v1-replacement | `policy-version` | stream |
+
+These are candidate publication identifiers, not copies of v1 transport tags.
+Each named kind replaces its complete owning-family publication within the exact
+key only. In particular directory and participant roster remain separate.
+`node-l3` carries the existing normalized Node L3 policy candidate. Outcome 1
+is legal only for that ACL kind, with a nonempty opaque failure payload; it is
+an authenticated typed failure that denies immediately and advances the accepted
+version. It is distinct from an outer poll/fetch failure, which retains the last
+complete state. No parallel M6 Snapshot, SnapshotPush or SnapshotAck is defined:
+when carried, their existing canonical bytes remain opaque and unchanged, and
+the owning-family validator checks their contents before installation.
+
+A valid, complete event with a newer version returns `Replace`. An empty payload
+with outcome 0 returns `Withdraw`; it also advances the accepted version. Missing
+input returns `Absent`, changing nothing, including an already absent kind.
+An unknown `(family, kind)` returns `UnknownKind` and changes nothing. A known
+kind whose signed channel or actual receiving channel differs from its owner
+returns `ChannelMismatch` and changes nothing. Authentication, authorized scope
+and validity are checked even for ignored kinds. A known owning-channel event
+must be complete and strictly newer than the retained version; lower/equal
+versions refuse. Validity is `issued <= supplied_now < expires`, with no skew
+or local renewal. Wrong issuer/recipient, scope, signature, schema, malformed
+content, future issue or expiry refuse. Arrival time is never a version.
+Consumers atomically persist versions for replacement, withdrawal and typed
+failure, including tombstones, and retain other keys. This pure module stores
+nothing, reads no clock and makes no transport calls.
+
+The **1,048,576-byte inclusive ceiling** is measured on the complete encoded
+signed event **as received**, including both CBOR byte-string heads, content
+and signature, before decoding or allocation. It is not a payload length or an
+SSE/base64/hex length. Over-ceiling stream input returns `TerminateStream`, with
+no replacement; the consumer must terminate and reconnect, never drop and
+continue. Over-ceiling polled events reject the whole snapshot. SSE framing and
+encoded carrier assembly remain consumer responsibilities with their own bounds.
+The event decoder borrows all variable data, checks each canonical length and
+available input slice before use, and allocates no variable data on either success
+or rejection. Thus truncated length heads and declared lengths beyond input fail
+without allocating for their claimed size.
+
+A polled publication snapshot is canonical `[1, [signed_event_bytes, ...]]`,
+not the M6 Snapshot type. Its total encoded bound is the existing 8,388,608-byte
+call-body ceiling. Each event has its own measured signed-event ceiling and
+signature. Keys must be strictly increasing in the tuple order above (numeric
+family order, then UTF-8 byte order for strings), refusing duplicates. Empty lists
+are valid and imply no withdrawals. The consumer validates every event, scope,
+signature, freshness and ordering before exposing any decisions. One invalid
+known event rejects the whole snapshot, including any preceding replacement or
+typed failure. Authenticated unknown kinds and wrong-channel kinds remain ignored.
+The validated result borrows the container and exposes decisions without allocating
+an event collection. The authenticated call envelope supplies outer completeness
+and poll authentication; absence never synthesizes a signed empty event.
+
+The independent Python producer supplies canonical event/snapshot bytes, signed
+fields, prior scoped versions, supplied clocks and explicit expected decisions.
+Vectors include exact/over 1 MiB encoded events and malformed outer and nested
+lengths. Existing fixtures retain their names and bytes. These are candidate
+fixtures; NSD production and independent producer confirmation remain requested.

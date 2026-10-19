@@ -231,6 +231,15 @@ payload. Confirm complete empty withdrawal, shared-peer contribution retention,
 separate directory/roster scope and preservation of usage history/watermarks.
 Provide scoped-empty, partial and malformed-publication producer cases.
 
+The [signed publication event candidate](l8-account-payload-profile.md#signed-publication-events)
+adds signed per-key complete/version/validity and typed ACL failure decisions.
+Confirm the exact family/kind ownership table, separate stream versus snapshot
+authority, complete empty withdrawal, absent retention and immediate denial for
+authenticated `node-l3` fetch failure. Confirm durable versions including empty
+and failure tombstones, actual exclusive expiry and whole-snapshot rejection
+for one invalid event. Please supply independent NSD producer vectors for each
+decision, including unrelated scopes and absent/empty/failure distinctions.
+
 ### Q09: Normalized Node L3 schema — NSD and node owners
 
 Does `[1, issuer, recipient, revision, scopes, rules]` cover the shared input:
@@ -390,6 +399,20 @@ Please provide independent NSD carrier producer vectors for both domains,
 issuer/recipient, kind, signature, local intersection, time/replay and byte-limit
 boundaries, nonminimal/trailing encodings and every downgrade refusal. Candidate
 Python vectors remain preparation; these questions retain `prepared` disposition.
+
+The publication candidate reuses `[content_bytes, signature_64]` with distinct
+`ns.account.publication.v1\0` signing domain and content
+`[1, issuer, recipient, served_realm, scope, family, kind, channel, complete,
+publication_version, issued_seconds, expires_seconds, outcome, payload_bytes]`.
+Confirm the profile's owning-channel table and canonical ordered snapshot list.
+Confirm the inclusive 1,048,576-byte limit on the measured complete signed event
+as received before decoding/allocation: oversized stream input terminates and
+reconnects without replacement; oversized snapshot events reject the whole poll.
+Please supply independent NSD canonical signed producer vectors at exactly that
+size and one byte over, malformed/truncated declared lengths, unknown kinds,
+wrong channels, issuer/recipient/scope/signature/freshness refusals and atomic
+snapshot rejection. Existing M6 payload bytes remain unchanged. These additions
+retain `prepared` disposition; candidate fixture signatures are not NSD output.
 
 ### Q22: Independent family producer vectors — NSD owner
 

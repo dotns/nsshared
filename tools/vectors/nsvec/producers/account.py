@@ -6,7 +6,7 @@ import hashlib
 import json
 
 from .. import cbor
-from . import bootstrap_envelope, enrollment, participant_roster, subnet
+from . import bootstrap_envelope, enrollment, participant_roster, publication, subnet
 
 CRATE = "nsshared-proto"
 GROUP = "account"
@@ -199,4 +199,5 @@ def vectors():
     out.extend(enrollment.vectors(a, b))
     out.extend(participant_roster.vectors(a, b, sign))
     out.extend(subnet.vectors(a, b))
+    out.extend(publication.vectors(a, b, sign))
     return out
