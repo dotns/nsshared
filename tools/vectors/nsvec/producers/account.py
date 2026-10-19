@@ -6,7 +6,7 @@ import hashlib
 import json
 
 from .. import cbor
-from . import enrollment, participant_roster, subnet
+from . import bootstrap_envelope, enrollment, participant_roster, subnet
 
 CRATE = "nsshared-proto"
 GROUP = "account"
@@ -195,6 +195,7 @@ def vectors():
         changed[index] = value
         refuse(name, "usage", changed)
     refuse("usage-missing-window", "usage", unit[:-1])
+    out.extend(bootstrap_envelope.vectors(a, b, sign))
     out.extend(enrollment.vectors(a, b))
     out.extend(participant_roster.vectors(a, b, sign))
     out.extend(subnet.vectors(a, b))

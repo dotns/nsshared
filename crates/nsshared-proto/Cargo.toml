@@ -14,6 +14,7 @@ blake2.workspace = true
 ed25519-dalek.workspace = true
 getrandom.workspace = true
 hmac.workspace = true
+idna = "1.1.0"
 nsshared-service-control = { path = "../nsshared-service-control", version = "0.6.0" }
 serde.workspace = true
 serde_json = { workspace = true, features = ["raw_value"] }

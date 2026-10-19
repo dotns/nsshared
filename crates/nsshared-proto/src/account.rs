@@ -3,6 +3,8 @@
 //! M6 objects and their bytes remain in `nsshared-service-control`. This module
 //! adds no runtime or transport and reads no clock or filesystem.
 
+mod bootstrap;
+mod bootstrap_envelope;
 mod enrollment;
 mod l3;
 mod lifecycle;
@@ -12,6 +14,16 @@ mod roster;
 mod subnet;
 mod usage;
 
+pub use bootstrap::{
+    BootstrapDiscovery, BootstrapEndpoint, BootstrapError, ConfidentialCarrier, ControlBoundary,
+    EnvelopePins, MAX_BOOTSTRAP_BYTES, MAX_CONTROL_BODY, MAX_CONTROL_HEADERS,
+    MAX_CONTROL_NOISE_FRAME, MAX_CONTROL_NOISE_PAYLOAD, MAX_ENCODED_SUBSCRIPTION,
+    validate_control_input,
+};
+pub use bootstrap_envelope::{
+    ACCOUNT_REQUEST_DOMAIN, ACCOUNT_RESPONSE_DOMAIN, BootstrapEnvelope, CONTROL_CLOCK_SKEW_SECONDS,
+    CONTROL_REPLAY_WINDOW_SECONDS, EnvelopeDirection, EnvelopeExpectation,
+};
 pub use enrollment::{
     Enrollment, EnrollmentDecision, EnrollmentError, MAX_CAPABILITIES, MAX_CAPABILITY_BYTES,
     RebindAuthorization, decide_enrollment,

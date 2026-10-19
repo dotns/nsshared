@@ -266,8 +266,16 @@ and duplicate-free. Which exact capability identifier values and profile meaning
 should ordinary Nodes declare? Confirm these bounds and provide independent
 vectors for empty, supported, unknown, duplicate and out-of-bounds sets. Confirm
 Q07's restart refusal, separate account/signed K generation, missing refresh tag
-and u64/u32 derivation width before live producer use. Endpoint and authenticated
-envelope forms remain unspecified.
+and u64/u32 derivation width before live producer use. The endpoint and
+authenticated envelope candidates below still need independent producer confirmation.
+
+The [bootstrap and envelope trust candidate](l8-account-payload-profile.md#bootstrap-and-envelope-trust)
+now details family 11 discovery as `[1, 1, https_origin, [1], endpoints,
+noise_key_or_null, quic_spki_pins, envelope_pins]`. Endpoints retain preference
+order and permit HTTPS/Noise/QUIC only. Confirm canonical origins, WebPKI source,
+raw Noise key, full-SPKI pins and RFC 7638 signer pins, including local intersection.
+Please provide independent NSD discovery producer vectors for accepted order,
+missing trust, empty intersections, noncanonical/duplicate pins and downgrades.
 
 ### Q12: Realm and peer payload — NSD owner
 
@@ -368,6 +376,20 @@ Which detailed family or explicit retirement covers every inventoried discovery,
 envelope verification, admin claim, policy, signed URL, material declaration,
 report, snapshot and event item? Supply the mapping and NSD vectors for retained
 semantics and refusals; inventory ownership alone does not prove wire equivalence.
+
+The family 11 [bootstrap and envelope trust candidate](l8-account-payload-profile.md#bootstrap-and-envelope-trust)
+adds `[content_bytes, signature]`, with content `[1, direction, signer_I,
+recipient_I_or_null, kind, unix_seconds, nonce_16, opaque_payload_bytes]`.
+Confirm exact domains `ns.account.call.request.v1\0` and
+`ns.account.call.response.v1\0` (each ending in one zero byte), required pinned
+signature verification, optional-recipient matching and unchanged M6 message bytes.
+Confirm bounds: discovery 256 KiB, call body 8 MiB, headers and encoded subscription
+16 KiB each, Noise plaintext 65,519 and ciphertext 65,535 bytes excluding its
+two-byte length prefix, inclusive 60-second skew and 120-second replay retention.
+Please provide independent NSD carrier producer vectors for both domains,
+issuer/recipient, kind, signature, local intersection, time/replay and byte-limit
+boundaries, nonminimal/trailing encodings and every downgrade refusal. Candidate
+Python vectors remain preparation; these questions retain `prepared` disposition.
 
 ### Q22: Independent family producer vectors — NSD owner
 

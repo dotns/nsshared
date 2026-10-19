@@ -37,7 +37,14 @@ fn candidate_contract_vectors() {
         let kind = vector["kind"];
         if matches!(
             kind,
-            "snapshot" | "signed-roster" | "enrollment" | "participant-roster" | "subnet-selection"
+            "snapshot"
+                | "signed-roster"
+                | "enrollment"
+                | "participant-roster"
+                | "bootstrap-discovery"
+                | "bootstrap-envelope"
+                | "bootstrap-boundary"
+                | "subnet-selection"
         ) {
             continue;
         }
@@ -252,7 +259,13 @@ fn candidate_cbor_refuses_trailing_and_nonminimal_forms() {
         let kind = vector["kind"];
         if matches!(
             kind,
-            "snapshot" | "enrollment" | "participant-roster" | "subnet-selection"
+            "snapshot"
+                | "enrollment"
+                | "participant-roster"
+                | "bootstrap-discovery"
+                | "bootstrap-envelope"
+                | "bootstrap-boundary"
+                | "subnet-selection"
         ) {
             continue;
         }

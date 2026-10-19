@@ -319,3 +319,87 @@ the fixture, checks every presented/accepted identity against those independent
 values, and exercises named typed refusals. Existing candidate vectors retain
 their names and bytes.
 M6's own generator and tests remain unchanged and continue to own their bytes.
+
+## Bootstrap and envelope trust
+
+This details only discovery/envelope verification in family 11 `v1-replacement`.
+It changes neither the registry nor its bytes and does not complete the other
+surface mappings. Enrollment remains a distinct membership binding publication.
+The caller obtains discovery through HTTPS WebPKI, supplies the authenticated
+HTTPS origin, clock and replay observations, and performs transport execution.
+No legacy key field, JSON fallback, discovery age denial or plaintext is defined.
+
+Discovery CBOR is `[1, 1, https_origin, [1], endpoints, noise_key_or_null,
+quic_spki_pins, envelope_pins]`: schema, trust version, authenticated discovery
+origin, supported envelope versions, ordered endpoints and trust material.
+An endpoint is `[kind, origin]`, with kinds 0 HTTPS, 1 Noise, 2 QUIC only.
+Origins are exact ASCII `scheme://host[:port]/`, without userinfo, path beyond
+`/`, query or fragment. Hosts are lowercase DNS labels (1..63 alphanumeric or
+interior hyphen, total at most 253 bytes, no terminal dot), canonical dotted
+IPv4, or bracketed canonical compressed hexadecimal IPv6. DNS hosts whose final
+label is an IPv4 number are refused unless already canonical dotted IPv4. HTTPS omits default port 443;
+Noise/QUIC require an explicit nonzero decimal u16 port without leading zeroes.
+Unicode hosts must already be canonical ASCII IDNA labels. DNS hosts must pass
+UTS #46 ToASCII with URL forbidden-domain-code-point checking, and its ASCII result
+must equal the supplied hostname exactly. Malformed Punycode, forbidden decoded
+characters and noncanonical A-labels fail; validation never rewrites a hostname.
+The same predicate applies to the HTTPS source and every endpoint kind.
+Discovery itself requires HTTPS.
+Endpoints are nonempty and duplicate-free, retaining advertised preference order;
+validation never sorts, normalizes or attempts a fallback. A caller selects the
+first supported endpoint in this validated order (`first_supported`); all three kinds are confidential.
+Noise needs the optional raw 32-byte static X25519 key; QUIC needs nonempty SPKI
+pins. Pins are canonical unpadded base64url SHA-256 values (43 ASCII bytes),
+duplicate-free in advertised order. QUIC pins hash full DER SubjectPublicKeyInfo;
+envelope pins are RFC 7638 Ed25519 JWK thumbprints: SHA-256 of exact UTF-8
+`{"crv":"Ed25519","kty":"OKP","x":"<base64url public key>"}`.
+Envelope pins are nonempty. Local pins are validated identically; when configured,
+the effective set is their intersection with discovered pins, in discovery order.
+An empty intersection is refused. Legacy fields cannot supply missing trust.
+
+The authenticated carrier is `[content_bytes, signature_64_bytes]`. Content CBOR
+is `[1, direction, signer_I, recipient_I_or_null, kind, unix_seconds, nonce_16,
+payload_bytes]`; direction 0 is request and 1 response. The signature is Ed25519
+over `ns.account.call.request.v1\0 || content_bytes` or
+`ns.account.call.response.v1\0 || content_bytes`, where `\0` is one zero byte.
+These are new candidate domains, not historical wire strings. The signer is the
+issuer, validated as an identity key and against caller-established effective pins
+in both directions (request verification uses pins for its authorized request
+issuers). Every signature is verified; absence of a pin never bypasses verification.
+Verification requires the expected direction and exact nonempty kind; an optional
+recipient must equal the caller's expected identity. A response without a recipient
+is permitted for bootstrap, but is still pinned and signed. Payload is opaque:
+M6 Message::encode bytes remain unchanged inside it; no M6 message or raw M6
+envelope is duplicated. Limits count encoded bytes, including CBOR overhead.
+
+| Boundary | Maximum | Meaning |
+| --- | ---: | --- |
+| Discovery | 262,144 bytes | Complete discovery document |
+| Call body | 8,388,608 bytes | Complete unary response body / signed carrier |
+| Headers | 16,384 bytes | Complete HTTP response headers |
+| Encoded subscription | 16,384 bytes | Subscription envelope before hex/base64 decoding |
+| Noise payload | 65,519 bytes | Plaintext excluding authentication tag |
+| Noise frame | 65,535 bytes | Ciphertext including 16-byte authentication tag, excluding two-byte length prefix |
+| Clock skew | 60 seconds | Absolute difference between signed timestamp and supplied time, inclusive |
+| Replay retention | 120 seconds | Previously accepted issuer/direction/nonce retained for this inclusive window |
+
+`validate_control_input` checks the exact supplied boundary bytes before decoding
+or handing them to a transport. Discovery and carrier decoders also enforce their
+own total limits and nested declared lengths before allocation. Kind length is
+1..256 UTF-8 bytes. Endpoint and pin counts are limited by the discovery byte
+bound, not an invented small rotation limit. Typed errors distinguish version,
+origin, endpoint kind, duplicate endpoints, missing Noise/QUIC trust, invalid pins,
+empty pins/intersection, signer, recipient, kind, direction, skew, replay, signature,
+bounds and canonical encoding errors. Unknown fields, nonminimal CBOR and trailing
+data fail. Constructed values obey the same checks as decoded values.
+
+Replay state remains external: the caller supplies the previous acceptance time
+for this exact `(signer_I, direction, nonce)` after authentication. A previous
+observation at most 120 seconds old (or in the future) refuses replay. The caller
+must retain observations through that window and atomically record success;
+`None` asserts no retained observation. This contract neither stores nonces nor
+claims state-free replay prevention. Timestamp skew remains 60 seconds even when
+a nonce observation has aged beyond replay retention. There is no older-JSON path.
+Independent Python discovery/carrier vectors give bytes, signatures, expected
+pins/order/payload/authority and explicit decisions. NSD producer confirmation
+and independent producer vectors remain requested in Q11 and Q21.
