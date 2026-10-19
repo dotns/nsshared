@@ -81,6 +81,48 @@ typed registry fixes these publication identifiers and cleared-kind strings.
 Detailed schemas will define authority, deadlines and payload-specific validation;
 this registry is not an alternate declaration or generic M6 message envelope.
 
+## Enrollment
+
+Family 1 enrolls one ordinary Node membership's external NSD key binding and
+its declared capability set. Enrollment CBOR is `[1, binding, capabilities]`;
+`binding` is the existing `[membership_version, I, K, record_generation]`
+NodeBinding defined below. NodeId, N6 and N4 are not carried: they derive from I
+using the existing identity derivation. The authenticated caller supplies the
+membership scope and its previously accepted binding; these bytes do not prove
+authority or acceptance and never authorize a different membership.
+
+Capabilities are opaque identifiers, sorted in strictly increasing ASCII byte
+order with no duplicates. There are 0..64 identifiers, each 1..64 bytes, matching
+`[a-z0-9._-]+`. No normalization or sorting occurs during validation. Empty means
+no declared optional capabilities. Values and their meanings require NSD's Q11
+answer; fixture identifiers are examples only. Noncanonical sets, excessive
+counts or lengths, non-minimal CBOR and trailing bytes are refused. Endpoints
+and authenticated envelope forms remain Q11 questions; this binding/capability
+payload does not complete the registry's endpoint contract or change its bytes.
+
+`decide_enrollment` validates the presented publication and any accepted binding.
+With no accepted binding, it accepts initial enrollment without a lifecycle.
+With an accepted binding, an equal binding is accepted, including a new valid
+capability declaration. A lower membership version is refused. Any differing
+binding needs a valid Lifecycle whose before is exactly the accepted binding
+and whose after is exactly the presented binding. Identity replacement then
+returns its own acceptance decision; stable-I K-only rotation returns a distinct
+decision and additionally requires explicit producer-profile rebind authorization.
+An absent lifecycle refuses a differing binding, including a **rejected
+staged-version restart**: restarting after staging an unaccepted replacement
+cannot promote that version. A mismatched or invalid lifecycle is refused.
+The accepted binding changes only after authenticated registration acceptance;
+this pure decision performs no persistence or old-resource fencing.
+
+Ordinary membership derivation produces one K per membership identity version.
+Its stable-I K-only rotation is an explicitly authorized rebind using a K supplied
+by the producer profile, never another ordinary per-version derivation. Quick's
+stable quick identity with a K per generation is a different profile, outside
+these vectors. Candidate membership versions remain u64; the ordinary derivation
+uses positive u32 and checked increment. Consumers must reject out-of-range
+versions before ordinary derivation, without truncation. Q07 requests agreement
+on this width, the missing same-I/K refresh tag and the separate signed K generation.
+
 ## Lifecycle
 
 `MembershipIdentityVersion` is a monotonically increasing derivation version
@@ -188,4 +230,9 @@ an invalid/missing file as an empty roster.
 only Python's standard library. `just vectors` and `just vectors-check` include
 its candidate fixture. Rust tests decode each candidate byte string and compare
 canonical re-encoding, validated semantics and expected rejection outcomes.
+Enrollment cases additionally use `nsvec/derive.py` for expected NodeId text,
+N6 and N4 bytes. The consumer reads each decision and canonical publication from
+the fixture, checks every presented/accepted identity against those independent
+values, and exercises named typed refusals. Existing candidate vectors retain
+their names and bytes.
 M6's own generator and tests remain unchanged and continue to own their bytes.

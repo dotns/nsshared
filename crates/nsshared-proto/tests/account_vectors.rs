@@ -35,7 +35,7 @@ fn candidate_contract_vectors() {
     let mut counts = BTreeMap::new();
     for vector in fixtures() {
         let kind = vector["kind"];
-        if kind == "snapshot" || kind == "signed-roster" {
+        if kind == "snapshot" || kind == "signed-roster" || kind == "enrollment" {
             continue;
         }
         let input = bytes(vector["bytes"]);
@@ -247,7 +247,7 @@ fn candidate_cbor_refuses_trailing_and_nonminimal_forms() {
         .filter(|v| v.get("expect") != Some(&"reject"))
     {
         let kind = vector["kind"];
-        if kind == "snapshot" {
+        if kind == "snapshot" || kind == "enrollment" {
             continue;
         }
         let decode = |input: &[u8]| match kind {
