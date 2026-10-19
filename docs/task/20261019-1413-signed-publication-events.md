@@ -1,6 +1,6 @@
 # Signed publication events
 
-- **status**: in_progress
+- **status**: completed
 - **priority**: P1
 - **owner**: (assigned)
 - **createdAt**: 2026-10-19 14:13
@@ -11,7 +11,7 @@ Define and implement pure signed per-scope/kind publication validation, owning-c
 
 ## ActiveForm
 
-Awaiting complete repository verification after implementing signed publication decisions.
+Completed signed publication implementation and repository verification.
 
 ## Dependencies
 
@@ -33,6 +33,9 @@ Acceptance: publication_decoder_vectors consumes fixture decisions, canonical si
 - `just fmt-check` and `just lint` passed. `python3 tools/vectors/generate.py --check` reported nine fixture files up to date. Service-control vectors, dependency policy, spelling and API compatibility checks passed within the repository self-check.
 - Final focused command: `cargo test -p nsshared-proto --test publication_decoder_vectors --test account_vectors --locked`; seven tests passed, zero failed or ignored. The publication test consumes all 95 fixtures and checks exact received encoded lengths, bounded borrowed payloads, noncanonical encodings, scope/version isolation and atomic rejection.
 - The first repository self-check exposed generic account dispatch rejecting the newly added fixture kinds. Its two dispatch lists now defer those kinds to the dedicated publication consumer; that consumer checks trailing and nonminimal encodings for every decodable event and accepted snapshot, preserving the original assertions.
-- Final `just self-check feat/l8-account-profile` exited 100 in the unrelated `external_mode_announces_wss_without_a_tcp_listener` test: `examples/mock-relay/tests/external.rs:269` returned `AddrInUse` (OS error 98). The test run reported 33 passed, one failed and zero skipped before cancellation. No mock-relay source was changed and no retry was used to obtain a passing result.
+- An earlier `just self-check feat/l8-account-profile` exited 100 in the unrelated `external_mode_announces_wss_without_a_tcp_listener` test: `examples/mock-relay/tests/external.rs:269` returned `AddrInUse` (OS error 98). The test run reported 33 passed, one failed and zero skipped before cancellation. No mock-relay source was changed.
 
-Implementation and focused acceptance are complete. Status remains in progress because complete repository verification is blocked by the mock-relay listener test.
+- A subsequent `just self-check feat/l8-account-profile` at `53cbc4c11abd9963d9d8165b034dd7668fa1f000` exited 0. All 416 workspace tests passed with zero skipped tests; the publication vectors and the previously failing listener test passed. Formatting, lint, dependency policy, vector checks, API compatibility, self-check selection tests, doctests and documentation generation passed.
+- The passing invocation began and ended at the same commit with a clean worktree. Source, fixtures, documentation, dependencies, test/runtime settings and host services were unchanged during it. Only these verification records changed afterward. The earlier failure is retained; the passing invocation does not establish who held the listener address or why the earlier bind failed.
+
+Implementation and verification are complete. Independent NSD producer output and confirmation remain requested in Q08 and Q21; candidate fixtures do not replace them.

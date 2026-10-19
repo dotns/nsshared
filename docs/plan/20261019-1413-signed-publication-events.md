@@ -1,6 +1,6 @@
 # Signed publication events
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-10-19 14:13
 - **approvedAt**: 2026-10-19 14:13
 - **relatedTask**: 20261019-1413-signed-publication-events
@@ -33,4 +33,7 @@ Candidate fixture qualification does not imply NSD producer confirmation.
 
 The publication consumer passed all 95 independent fixtures; the focused account and publication suites passed seven tests with no ignored tests. Formatting, lint, both vector checks, dependency policy, spelling and API compatibility passed. Existing vectors and registry bytes are unchanged.
 
-Complete repository verification remains pending: `just self-check feat/l8-account-profile` exited 100 because `external_mode_announces_wss_without_a_tcp_listener` failed with `AddrInUse` at `examples/mock-relay/tests/external.rs:269`. The unrelated listener test is outside this implementation. The initial generic fixture-dispatch failure was fixed by recognizing dedicated publication consumers and preserving their canonical mutation checks.
+An earlier `just self-check feat/l8-account-profile` exited 100 because `external_mode_announces_wss_without_a_tcp_listener` failed with `AddrInUse` at `examples/mock-relay/tests/external.rs:269`. The unrelated listener test is outside this implementation. The initial generic fixture-dispatch failure was fixed by recognizing dedicated publication consumers and preserving their canonical mutation checks.
+
+
+Subsequent complete verification at `53cbc4c11abd9963d9d8165b034dd7668fa1f000` passed: `just self-check feat/l8-account-profile` exited 0 with 416 workspace tests passed, zero skipped tests, passing doctests and documentation generation. The invocation began and ended at that commit with a clean worktree and unchanged source, fixtures, documentation, settings and host services. Only the associated verification records changed afterward. The prior failed invocation remains recorded; this pass does not diagnose the earlier bind's owner or cause. Independent NSD producer questions remain prepared.
