@@ -32,8 +32,10 @@ def vectors(a, b, sign):
         fields.extend(extra)
         out.append(fields)
 
-    def discover(name, value=discovery, decision="accepted", raw=None, local=(), supported=(0, 2, 1)):
+    def discover(name, value=discovery, decision="accepted", raw=None, local=(), supported=(0, 2, 1), origin_site=None):
         extra = [("local_pins", cbor.encode(list(local)))]
+        if origin_site is not None:
+            extra.append(("origin_site", origin_site))
         if decision == "accepted":
             effective = [p for p in value[7] if not local or p in local]
             extra += [("canonical", cbor.encode(value)), ("origin", value[2]),
@@ -106,6 +108,43 @@ def vectors(a, b, sign):
         value_doc = copy.deepcopy(discovery)
         value_doc[4] = [[0, url]]
         discover(name, value_doc)
+    # Raw Punycode is independent of the Rust UTS #46 validator. These Unicode
+    # controls distinguish canonical labels from forbidden or non-NFC A-labels.
+    def a_label(text):
+        return "xn--" + text.encode("punycode").decode("ascii")
+
+    origin_cases = [
+        ("valid-dns", "control.example", "accepted"),
+        ("valid-dns-hyphens", "ab--cd.example", "accepted"),
+        ("valid-umlaut", a_label("bücher") + ".example", "accepted"),
+        ("valid-accent", a_label("café") + ".example", "accepted"),
+        ("valid-cjk", a_label("例子") + "." + a_label("测试"), "accepted"),
+        ("valid-sharp-s", a_label("faß") + ".example", "accepted"),
+        ("valid-rtl", a_label("שלום") + ".example", "accepted"),
+        ("forbidden-control", "xn--a.example", "origin"),
+        ("incomplete-punycode", "xn--0.example", "origin"),
+        ("forbidden-controls", "xn--abc.example", "origin"),
+        ("noncanonical-case", "XN--BCHER-KVA.example", "origin"),
+        ("noncanonical-nfc", a_label("bu\u0308cher") + ".example", "origin"),
+        ("leading-combining-mark", a_label("\u0301a") + ".example", "origin"),
+        ("forbidden-joiner", a_label("a\u200db") + ".example", "origin"),
+        ("invalid-bidi", a_label("אa") + ".example", "origin"),
+        ("unassigned-codepoint", a_label("\u0378") + ".example", "origin"),
+        ("mapped-codepoint", a_label("Ａ") + ".example", "origin"),
+        ("unicode-not-ascii", "bücher.example", "origin"),
+    ]
+    for name, host, decision in origin_cases:
+        for site, kind, index in [("source", "https", None), ("https", "https", 2),
+                                  ("noise", "noise", 0), ("quic", "quic", 1)]:
+            value_doc = copy.deepcopy(discovery)
+            port = {"https": "", "noise": ":8443", "quic": ":8444"}[kind]
+            url = f"{kind}://{host}{port}/"
+            if index is None:
+                value_doc[2] = url
+            else:
+                value_doc[4][index][1] = url
+            discover(f"idna-{name}-{site}", value_doc, decision, origin_site=site)
+
     discover("legacy-field", raw=cbor.encode(discovery + [bytes([4]) * 32]), decision="bounds")
     raw = cbor.encode(discovery)
     discover("discovery-trailing", raw=raw + b"\0", decision="trailing")

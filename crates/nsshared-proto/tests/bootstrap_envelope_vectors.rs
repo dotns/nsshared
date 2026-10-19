@@ -334,3 +334,119 @@ fn constructed_contracts_enforce_trust_before_selection_and_verification() {
         Err(BootstrapError::Bounds)
     ));
 }
+
+fn discovery_fields(raw: &[u8]) -> BootstrapDiscovery {
+    // Read fixture fields independently so construction paths also receive the
+    // invalid origins that the public decoder must refuse.
+    let mut input = CborReader::new(raw, raw.len()).unwrap();
+    input.array(8).unwrap();
+    assert_eq!(input.uint().unwrap(), 1);
+    assert_eq!(input.uint().unwrap(), 1);
+    let https_origin = input.text_up_to(raw.len()).unwrap().to_owned();
+    input.array(1).unwrap();
+    assert_eq!(input.uint().unwrap(), 1);
+    let count = input.array_up_to(raw.len()).unwrap();
+    let endpoints = (0..count)
+        .map(|_| {
+            input.array(2).unwrap();
+            let kind = match input.uint().unwrap() {
+                0 => ConfidentialCarrier::Https,
+                1 => ConfidentialCarrier::Noise,
+                2 => ConfidentialCarrier::Quic,
+                other => panic!("unknown endpoint kind {other}"),
+            };
+            let origin = input.text_up_to(raw.len()).unwrap().to_owned();
+            nsshared_proto::account::BootstrapEndpoint { kind, origin }
+        })
+        .collect();
+    let noise_key = if input.take_null() {
+        None
+    } else {
+        Some(input.fixed_bytes().unwrap())
+    };
+    let mut string_array = || {
+        let count = input.array_up_to(raw.len()).unwrap();
+        (0..count)
+            .map(|_| input.text_up_to(raw.len()).unwrap().to_owned())
+            .collect()
+    };
+    let quic_spki_pins = string_array();
+    let envelope_pins = string_array();
+    input.finish().unwrap();
+    BootstrapDiscovery {
+        https_origin,
+        endpoints,
+        noise_key,
+        quic_spki_pins,
+        envelope_pins,
+    }
+}
+
+#[test]
+fn canonical_idna_origin_vectors() {
+    let vectors = fixtures();
+    let origins: Vec<_> = vectors
+        .iter()
+        .filter(|v| v.contains_key("origin_site"))
+        .collect();
+    for site in ["source", "https", "noise", "quic"] {
+        for case in [
+            "valid-dns",
+            "valid-dns-hyphens",
+            "valid-umlaut",
+            "valid-accent",
+            "valid-cjk",
+            "valid-sharp-s",
+            "valid-rtl",
+            "forbidden-control",
+            "incomplete-punycode",
+            "forbidden-controls",
+            "noncanonical-case",
+            "noncanonical-nfc",
+            "leading-combining-mark",
+            "forbidden-joiner",
+            "invalid-bidi",
+            "unassigned-codepoint",
+            "mapped-codepoint",
+            "unicode-not-ascii",
+        ] {
+            let name = format!("bootstrap-idna-{case}-{site}");
+            assert!(
+                origins
+                    .iter()
+                    .any(|v| v["name"] == name && v["origin_site"] == site),
+                "missing {name}"
+            );
+        }
+    }
+    for v in origins {
+        let raw = bytes(v["bytes"]);
+        let value = discovery_fields(&raw);
+        let results = [
+            BootstrapDiscovery::decode(&raw).map(|_| ()),
+            value.canonical().map(|_| ()),
+            value
+                .first_supported(&[
+                    ConfidentialCarrier::Https,
+                    ConfidentialCarrier::Noise,
+                    ConfidentialCarrier::Quic,
+                ])
+                .map(|_| ()),
+            value.effective_envelope_pins(&[]).map(|_| ()),
+        ];
+        for (path, result) in [
+            "decode",
+            "canonical",
+            "first_supported",
+            "effective_envelope_pins",
+        ]
+        .into_iter()
+        .zip(results)
+        {
+            assert_eq!(decision(result), v["decision"], "{}: {path}", v["name"]);
+        }
+        if v["decision"] == "accepted" {
+            assert_eq!(value.canonical().unwrap(), raw, "{}", v["name"]);
+        }
+    }
+}

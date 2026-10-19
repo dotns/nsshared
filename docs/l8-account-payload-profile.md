@@ -339,7 +339,12 @@ interior hyphen, total at most 253 bytes, no terminal dot), canonical dotted
 IPv4, or bracketed canonical compressed hexadecimal IPv6. DNS hosts whose final
 label is an IPv4 number are refused unless already canonical dotted IPv4. HTTPS omits default port 443;
 Noise/QUIC require an explicit nonzero decimal u16 port without leading zeroes.
-Unicode hosts must already be ASCII IDNA labels. Discovery itself requires HTTPS.
+Unicode hosts must already be canonical ASCII IDNA labels. DNS hosts must pass
+UTS #46 ToASCII with URL forbidden-domain-code-point checking, and its ASCII result
+must equal the supplied hostname exactly. Malformed Punycode, forbidden decoded
+characters and noncanonical A-labels fail; validation never rewrites a hostname.
+The same predicate applies to the HTTPS source and every endpoint kind.
+Discovery itself requires HTTPS.
 Endpoints are nonempty and duplicate-free, retaining advertised preference order;
 validation never sorts, normalizes or attempts a fallback. A caller selects the
 first supported endpoint in this validated order (`first_supported`); all three kinds are confidential.

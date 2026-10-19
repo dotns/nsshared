@@ -245,6 +245,9 @@ fn canonical_host(host: &str) -> bool {
                     .bytes()
                     .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
         })
+        // Validate decoded A-labels and reject normalization of signed origins.
+        && idna::domain_to_ascii_cow(host.as_bytes(), idna::AsciiDenyList::URL)
+            .is_ok_and(|ascii| ascii == host)
 }
 
 fn validate_origin(origin: &str, kind: ConfidentialCarrier) -> Result<(), BootstrapError> {

@@ -90,3 +90,15 @@ the baseline telemetry dependency refresh cannot download serde because its
 registry connection terminates unexpectedly. It does not reach the test phase.
 The dependency declaration, corrected origin validator, expanded independent
 vectors and final passing checks remain outstanding.
+
+## IDNA correction implementation
+
+Use `idna` 1.1.0, verified against the registry, for UTS #46 ToASCII with the URL
+ASCII deny list. Require its result to equal the supplied hostname after existing
+ASCII DNS label constraints pass. Keep canonical IP validation and the existing
+origin scheme/port rules. This preserves valid DNS labels, including interior
+hyphens, and validates decoded A-label Unicode properties without normalizing the
+signed publication. Add independent Punycode fixtures across source/HTTPS/Noise/
+QUIC, with valid multilingual controls and malformed/noncanonical refusals.
+The existing behavioural regression remains unchanged and retains its recorded
+pre-correction assertion failure. Dependency policy checks remain unchanged.
