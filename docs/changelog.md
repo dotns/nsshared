@@ -1,5 +1,17 @@
 ## 2026-10-19 [feat]
 
+Add typed verification of complete signed participant roster generations within
+the existing issuer/recipient scope. Return membership, classes, epoch and signed
+times together. Supplied-clock lifecycle status degrades diagnostically after
+24 hours since authenticated renewal and expires at the exclusive signed deadline.
+Complete empty, omission and class-only replacement update the whole generation.
+
+Validation: 27 independent signed lifecycle vectors and complete QA passed with
+406 Rust tests, 0 skipped, 10 selection tests and 1 documentation test. Existing
+signed bytes and all 79 earlier account vectors are preserved.
+
+## 2026-10-19 [feat]
+
 Add the pure enrollment contract with bounded canonical capabilities and explicit
 membership binding acceptance. Reuse the existing lifecycle for identity
 replacement and authorized stable-identity key rotation; refuse rollback and
