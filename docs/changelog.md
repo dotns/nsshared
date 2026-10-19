@@ -1,3 +1,15 @@
+## 2026-10-19 [feat]
+
+Add the pure enrollment contract with bounded canonical capabilities and explicit
+membership binding acceptance. Reuse the existing lifecycle for identity
+replacement and authorized stable-identity key rotation; refuse rollback and
+unlinked staged-version restarts. Preserve registry bytes and existing vectors.
+Keep producer-profile questions explicit in the review request.
+
+Validation: 29 independent enrollment vectors verify canonical bytes, binding
+decisions and derived NodeId, N6 and N4 values. Complete QA passed with 405 Rust
+tests, 0 skipped, 10 selection tests and 1 documentation test.
+
 ## 2026-10-19 [docs]
 
 Prepare the L8 candidate review request for the NSD and node owners, pinned
