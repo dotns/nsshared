@@ -1,6 +1,6 @@
 # Bootstrap discovery and envelope trust
 
-- **status**: in_progress
+- **status**: completed
 - **priority**: P1
 - **createdAt**: 2026-10-19 12:41
 
@@ -39,15 +39,20 @@ vector regeneration and the scoped self-check.
   typed refusals, construction, canonical-byte preservation and altered encodings.
 - Format/lint, vector regeneration, static checks, API compatibility and the first
   complete scoped self-check passed; that run reported 410 passed, zero skipped.
-- Final scoped self-check: failed, exit 100, in the unchanged
+- Earlier scoped self-check: failed, exit 100, in the unchanged
   external_mode_announces_wss_without_a_tcp_listener at
   examples/mock-relay/tests/external.rs:269 (AddrInUse). It reported 35 passed,
   one failed, zero skipped, cancelling the remaining tests.
 
-## Remaining acceptance
+- A subsequent `just self-check` invocation with the integration base passed on
+  the unchanged implementation at `6fbb1eccd34516ced170c043b538db815fbe003a`:
+  410 tests passed, zero skipped, all doctests and static checks passed, exit 0.
+  Vector verification reported all nine fixture files up to date.
 
-Implementation is ready for review; final acceptance is blocked by the unrelated
-relay test bind failure. Diagnose its socket ownership and underlying cause, then
-complete the scoped check without weakening the test or adding retries. The exact
-failure and preceding pass are retained outside the repository. Independent NSD
-producer confirmation remains requested in the prepared review questions.
+## Completion and remaining producer review
+
+The candidate contracts, independent consumer vectors and implementation
+verification are complete. The previous failed bind's socket ownership and cause
+remain undetermined; its failure evidence is retained, and listener code and
+runtime/test settings are unchanged. Independent NSD producer confirmation
+remains requested in Q11 and Q21, whose dispositions remain prepared.

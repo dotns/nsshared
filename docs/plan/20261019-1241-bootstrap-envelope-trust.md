@@ -1,6 +1,6 @@
 # Bootstrap discovery and envelope trust
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-10-19 12:41
 - **approvedAt**: 2026-10-19 12:41
 - **relatedTask**: 20261019-1241-bootstrap-envelope-trust
@@ -49,10 +49,15 @@ absent. After implementation, format and lint checks passed, and the generator
 reported all nine fixture files current. The first complete scoped self-check
 passed 410 tests with zero skipped, plus documentation and static checks.
 
-A final scoped self-check after clarifying the review request failed in the
+One scoped self-check after clarifying the review request failed in the
 unchanged external relay test: external_mode_announces_wss_without_a_tcp_listener,
 examples/mock-relay/tests/external.rs:269, returned AddrInUse during a bind.
 It reported 35 passed, one failed and cancelled the remaining tests. This proves
-a failed bind, not its ownership or underlying cause. Acceptance remains blocked
-until that unrelated test is diagnosed and the final scoped self-check passes.
-No retry or test weakening was introduced.
+a failed bind, not its ownership or underlying cause.
+
+A subsequent invocation of `just self-check` with the integration base, on the
+unchanged implementation at `6fbb1eccd34516ced170c043b538db815fbe003a`, passed
+410 tests with zero skipped, all doctests, vector verification and static checks;
+it exited successfully. The previous failed bind remains undiagnosed. Listener
+code and test/runtime settings are unchanged. Implementation verification is
+complete; independent producer confirmation remains requested in Q11 and Q21.
