@@ -6,6 +6,7 @@
 mod enrollment;
 mod l3;
 mod lifecycle;
+mod participant_roster;
 mod registry;
 mod roster;
 mod usage;
@@ -18,6 +19,10 @@ pub use l3::{L3Rule, L3Scope, NodeL3, TransportProtocol};
 pub use lifecycle::{
     GrantIncarnation, Lifecycle, MembershipIdentityVersion, NodeBinding, RecordGeneration,
     ReporterIncarnation, Transition,
+};
+pub use participant_roster::{
+    ParticipantRosterError, ParticipantRosterGeneration, ParticipantRosterScope,
+    ParticipantRosterStatus, participant_roster_status, verify_participant_roster,
 };
 pub use registry::{
     FAMILIES, FamilyId, FamilyRegistration, FamilyRegistry, M6Reuse, ReplacementRule,

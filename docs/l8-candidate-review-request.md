@@ -159,6 +159,15 @@ issuer/recipient binding, at least 24-hour validity, reachable renewal and
 consumer persistence of the accepted version. Identify stale-version, wrong
 scope, future-time, expiry and signature producer vectors.
 
+Confirm that participant scope is exactly the signed issuer/recipient pair (the
+participant's own credential scope), with no new scope field. Confirm diagnostic
+degradation at 24 hours since the last authenticated renewal, retaining admission
+until the exclusive signed deadline, which renewal never extends locally. Supply
+independent NSD canonical signed vectors and expected decisions for accepted,
+empty, revocation and class-only replacement; wrong issuer/recipient; lower/equal
+version; future issue; one millisecond before and at expiry/degradation; short
+lifetime; bad signature; and missing, duplicate or unknown class.
+
 ### Q04: Local schema 2 attribution epoch — NSD and node owners
 
 Can local `roster_version` identify the same admission/class epoch rather than
@@ -311,6 +320,14 @@ credentials/authorized scope, keeping the relay client, participant and gateway
 Node distinct? Name NSD vectors for separate complete directory/roster scopes,
 the union of served-realm admission identities and removal. The concrete
 roster carriers are reviewed separately in Q01–Q06.
+
+The participant roster candidate uses only its existing signed issuer/recipient
+pair as its own credential scope. What additional authorized scopes, if any,
+require a separate agreed contract? This question remains open for those scopes;
+none is inferred from directory or gateway Node authority. Confirm Q03's retained
+complete authority and diagnostic degradation rule and supply NSD producer
+vectors for renewal, empty replacement, revocation, class changes and the exact
+validity/degradation boundaries. Candidate Python vectors are preparation only.
 
 ### Q19: Service and relay report schemas — NSD owner
 
