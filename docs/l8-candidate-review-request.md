@@ -197,6 +197,22 @@ changing K and increasing generation. Existing same-generation record conflict
 rules remain. Please specify when each transition is chosen and provide
 independent vectors for both, stale generation and every fresh-incarnation regrant.
 
+Please resolve the gateway consumer's three candidate mismatches: there is no
+same-I/K record-refresh transition tag; NodeBinding has account record generation
+but no separate K generation beside the existing signed NodeRecord generation;
+and the candidate membership version is u64 while ordinary membership derivation
+accepts u32 and advances by checked addition. How is the account binding joined
+to the exact signed NodeRecord, and which counter advances for refresh versus
+K rotation? No new tag or signed field is assumed here.
+
+Confirm that a differing binding without a valid lifecycle from the accepted
+binding is refused, including a rejected staged-version restart after an
+unaccepted replacement; lower versions are refused too. Accepted registration
+is the durable version boundary. Ordinary derivation yields one K per membership
+version; stable-I rotation requires an explicit producer-profile authorization
+and supplied K. Quick's K-per-generation derivation is a different profile.
+Please provide independent vectors for these restart and authorization decisions.
+
 ### Q08: Complete replacement semantics — NSD and node owners
 
 For all eleven families, can the registry's publication/`clears` strings and
@@ -226,10 +242,23 @@ vectors for these units; relay DATA remains a separate unit.
 
 ### Q11: Enrollment payload — NSD owner
 
+The [Enrollment section](l8-account-payload-profile.md#enrollment) adds the
+binding/capability publication and acceptance decisions beyond the published
+candidate revision; the family table above retains that revision's state.
+
 What exact schema, field widths, capability/profile identifiers and endpoint
 forms will complete `enrollment`, including authenticated authority/recipient,
 ordinary per-membership I/K registration and own-node binding? Name independent
 NSD producer vectors for registration, replacement and invalid binding.
+
+The enrollment candidate now defines `[1, binding, capabilities]`, with 0..64
+opaque identifiers of 1..64 ASCII bytes matching `[a-z0-9._-]+`, strictly sorted
+and duplicate-free. Which exact capability identifier values and profile meanings
+should ordinary Nodes declare? Confirm these bounds and provide independent
+vectors for empty, supported, unknown, duplicate and out-of-bounds sets. Confirm
+Q07's restart refusal, separate account/signed K generation, missing refresh tag
+and u64/u32 derivation width before live producer use. Endpoint and authenticated
+envelope forms remain unspecified.
 
 ### Q12: Realm and peer payload — NSD owner
 

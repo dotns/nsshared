@@ -35,11 +35,11 @@ pub struct NodeBinding {
 }
 
 impl NodeBinding {
-    fn validate(&self) -> Result<(), AccountError> {
+    pub(super) fn validate(&self) -> Result<(), AccountError> {
         require(self.identity_version.0 > 0 && self.generation.0 > 0 && self.wg_key != [0; 32])
     }
 
-    fn write(&self, out: &mut CborWriter) {
+    pub(super) fn write(&self, out: &mut CborWriter) {
         out.array(4)
             .uint(self.identity_version.0)
             .bytes(self.identity.as_bytes())
@@ -47,7 +47,7 @@ impl NodeBinding {
             .uint(self.generation.0);
     }
 
-    fn read(input: &mut CborReader<'_>) -> Result<Self, AccountError> {
+    pub(super) fn read(input: &mut CborReader<'_>) -> Result<Self, AccountError> {
         input.array(4)?;
         let binding = Self {
             identity_version: MembershipIdentityVersion(input.uint()?),
@@ -85,7 +85,7 @@ pub struct Lifecycle {
 }
 
 impl Lifecycle {
-    fn validate(&self) -> Result<(), AccountError> {
+    pub(super) fn validate(&self) -> Result<(), AccountError> {
         self.before.validate()?;
         self.after.validate()?;
         require(self.before.wg_key != self.after.wg_key)?;

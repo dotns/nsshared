@@ -3,12 +3,17 @@
 //! M6 objects and their bytes remain in `nsshared-service-control`. This module
 //! adds no runtime or transport and reads no clock or filesystem.
 
+mod enrollment;
 mod l3;
 mod lifecycle;
 mod registry;
 mod roster;
 mod usage;
 
+pub use enrollment::{
+    Enrollment, EnrollmentDecision, EnrollmentError, MAX_CAPABILITIES, MAX_CAPABILITY_BYTES,
+    RebindAuthorization, decide_enrollment,
+};
 pub use l3::{L3Rule, L3Scope, NodeL3, TransportProtocol};
 pub use lifecycle::{
     GrantIncarnation, Lifecycle, MembershipIdentityVersion, NodeBinding, RecordGeneration,
