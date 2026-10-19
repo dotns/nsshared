@@ -1,3 +1,16 @@
+## 2026-10-19 [feat]
+
+Add the pure `nsshared-proto::account` candidate and its specification: eleven
+versioned families, distinct lifecycle counters and incarnations, normalized
+Node L3 rules, explicit service byte units, and atomic identity/class rosters.
+Local admission JSON requires named object fields; signed participant rosters
+bind issuer, recipient, version and validity. Existing M6 types and bytes remain
+in `nsshared-service-control`.
+
+Validation: 50 independent candidate vectors, named-field regression tests,
+and complete QA passed with 402 Rust tests, 0 skipped, 10 selection tests and
+1 documentation test. Both vector drift checks and API compatibility passed.
+
 ## 2026-10-18 [feat]
 
 Add `just self-check base`, defaulting to `main`. Crate-only changes retain

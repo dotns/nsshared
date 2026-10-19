@@ -123,4 +123,3 @@ The correction is complete in source commit
 
 - Publish the specification to the documentation site.
 - Record the reviewed integration commit as the candidate revision when available.
-- Add shared index and changelog entries when integrating this change.
