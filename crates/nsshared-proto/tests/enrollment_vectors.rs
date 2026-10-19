@@ -80,7 +80,11 @@ fn evaluate(vector: &Vector) -> Result<EnrollmentDecision, EnrollmentError> {
     let lifecycle = vector
         .get("lifecycle")
         .map(|input| {
+            let before_identity = check_identity(vector, "lifecycle_before_");
+            let after_identity = check_identity(vector, "lifecycle_after_");
             let value = Lifecycle::decode(&bytes(input))?;
+            assert_eq!(value.before.identity, before_identity);
+            assert_eq!(value.after.identity, after_identity);
             assert_eq!(value.canonical().unwrap(), bytes(input));
             Ok::<_, AccountError>(value)
         })

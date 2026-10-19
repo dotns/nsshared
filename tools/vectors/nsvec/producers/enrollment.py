@@ -35,6 +35,8 @@ def vectors(a, b):
             fields.extend(derived("accepted_", accepted))
         if transition is not None:
             fields.append(("lifecycle", cbor.encode(transition)))
+            fields.extend(derived("lifecycle_before_", transition[2]))
+            fields.extend(derived("lifecycle_after_", transition[3]))
         out.append(fields)
 
     def lifecycle(tag, old, new):
