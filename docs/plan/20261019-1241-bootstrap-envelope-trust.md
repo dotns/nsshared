@@ -1,6 +1,6 @@
 # Bootstrap discovery and envelope trust
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-10-19 12:41
 - **approvedAt**: 2026-10-19 12:41
 - **relatedTask**: 20261019-1241-bootstrap-envelope-trust
@@ -60,13 +60,13 @@ unchanged implementation at `6fbb1eccd34516ced170c043b538db815fbe003a`, passed
 410 tests with zero skipped, all doctests, vector verification and static checks;
 it exited successfully. The previous failed bind remains undiagnosed. Listener
 code and test/runtime settings are unchanged. Those checks cover the initial
-implementation; the IDNA correction below remains outstanding. Independent
+implementation; the IDNA correction below is now verified separately. Independent
 producer confirmation remains requested in Q11 and Q21.
 
 ## Canonical IDNA origin correction
 
-The shared hostname predicate checks ASCII DNS label syntax but does not validate
-Punycode or the Unicode properties of decoded A-labels. Invalid labels are accepted
+The initial shared hostname predicate checked ASCII DNS label syntax without
+validating Punycode or the Unicode properties of decoded A-labels. Invalid labels were accepted
 in the HTTPS discovery source and HTTPS, Noise and QUIC endpoints. The behavioural
 test `ascii_idna_origins_reject_invalid_a_labels` establishes this failure across
 `decode`, `canonical`, `first_supported` and `effective_envelope_pins`, after valid
@@ -75,8 +75,8 @@ not a build or input-reading failure.
 
 Use a standards-conformant IDNA implementation and require its ASCII output to
 equal the supplied hostname exactly, retaining the existing DNS/IP constraints.
-The crate currently has no IDNA validator dependency; declaring one and updating
-the lockfile remain necessary before this correction can be implemented. A sample
+At the time of that failure, the crate had no IDNA validator dependency. The
+implementation below adds that dependency and the shared predicate correction. A sample
 denylist, blanket A-label rejection or handwritten partial Unicode checks would
 violate the general canonical-origin contract.
 
@@ -85,15 +85,16 @@ vectors and all 158 integrated vectors, including 52 Subnet vectors. Registry an
 service-control files are unchanged. Formatting and lint pass; the existing
 account/bootstrap focused suites pass ten tests. The IDNA behavioural test fails
 with all twelve malformed origin placements accepted by all four entry points.
-The latest prescribed self-check exits 101 during API compatibility checking:
+An earlier prescribed self-check exited 101 during API compatibility checking:
 the baseline telemetry dependency refresh cannot download serde because its
 registry connection terminates unexpectedly. It does not reach the test phase.
-The dependency declaration, corrected origin validator, expanded independent
-vectors and final passing checks remain outstanding.
+The implementation and acceptance results below complete the correction; the
+previous registry-fetch failure remains recorded.
 
 ## IDNA correction implementation
 
-Use `idna` 1.1.0, verified against the registry, for UTS #46 ToASCII with the URL
+The implementation uses `idna` 1.1.0, verified against the registry, for UTS #46
+ToASCII with the URL
 ASCII deny list. Require its result to equal the supplied hostname after existing
 ASCII DNS label constraints pass. Keep canonical IP validation and the existing
 origin scheme/port rules. This preserves valid DNS labels, including interior
@@ -102,3 +103,33 @@ signed publication. Add independent Punycode fixtures across source/HTTPS/Noise/
 QUIC, with valid multilingual controls and malformed/noncanonical refusals.
 The existing behavioural regression remains unchanged and retains its recorded
 pre-correction assertion failure. Dependency policy checks remain unchanged.
+
+## IDNA correction acceptance
+
+The shared predicate now rejects malformed, forbidden and noncanonical A-labels
+through decoding, encoding, selection and effective pin establishment for the
+HTTPS source and HTTPS/Noise/QUIC endpoints. Existing canonical DNS/IP constraints
+remain intact. The original behavioural regression and its valid DNS/IDNA controls
+are unchanged and now pass. Seventy-two independent origin vectors add valid DNS,
+multilingual and nontransitional controls plus malformed Punycode, NFC, combining
+mark, joiner, bidi, unassigned and mapped-character refusals in all four positions.
+The consumer checks all four public paths against each vector's decision and bytes.
+
+All 258 previous vector records are preserved field for field in the 330-record
+fixture, including all 52 Subnet records. Registry, M6, Subnet and RelayId source
+files remain unchanged. The dependency delta is idna 1.1.0 plus 23 resolved
+transitive packages; no existing package version, checksum or resolved dependency
+edge changed except the direct idna edge. Existing synstructure references gain
+version qualification because both resolved versions are present.
+
+Format/lint, license/advisory/bans/source policy, unused-dependency checks, API
+compatibility, deterministic vector verification, doctests and documentation pass
+without policy changes. The focused origin/bootstrap/account suites pass twelve
+tests. The first scoped invocation on the corrected implementation encountered
+AddrInUse in the unchanged external relay test: 32 passed, one failed, zero skipped,
+with 382 tests cancelled. A separate invocation on the identical implementation
+commit `b496fd6fe9ed3e690afb128d587e3b94a7738ce3` passed all 415 tests with zero
+skipped and completed all remaining checks, exit 0. The prior failed bind remains
+undiagnosed; no listener code, test/runtime setting or host service was changed.
+The separate RelayId A-label question remains for its existing contract's review.
+Independent producer confirmation remains requested in prepared Q11 and Q21.

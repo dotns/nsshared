@@ -1,6 +1,6 @@
 # Bootstrap discovery and envelope trust
 
-- **status**: in_progress
+- **status**: completed
 - **priority**: P1
 - **createdAt**: 2026-10-19 12:41
 
@@ -52,38 +52,66 @@ vector regeneration and the scoped self-check.
 ## Completion and remaining producer review
 
 The initial candidate contracts, independent consumer vectors and verification
-were completed; the canonical IDNA origin correction below remains outstanding. The previous failed bind's socket ownership and cause
+were completed; the canonical IDNA origin correction below is now complete. The previous failed bind's socket ownership and cause
 remain undetermined; its failure evidence is retained, and listener code and
 runtime/test settings are unchanged. Independent NSD producer confirmation
 remains requested in Q11 and Q21, whose dispositions remain prepared.
 
 ## Canonical IDNA origin validation
 
-The preserved behavioural test `ascii_idna_origins_reject_invalid_a_labels` passes
-its valid DNS/IDNA controls, then fails because malformed A-labels are accepted
+Before correction, the preserved behavioural test
+`ascii_idna_origins_reject_invalid_a_labels` passed its valid DNS/IDNA controls,
+then failed because malformed A-labels were accepted
 through decoding, canonical encoding, endpoint selection and effective pin
 establishment. This affects the HTTPS discovery source and all three confidential
 endpoint kinds through their shared `canonical_host` predicate. The failure was
 recorded before any validator correction.
 
-A standards-conformant IDNA dependency and exact ASCII roundtrip validation are
-required; the dependency declaration is not yet present. The product validator is
-unchanged, and no denylist or blanket A-label refusal has been introduced.
+The correction adds idna 1.1.0 and requires exact equality between its UTS #46
+ToASCII output and the supplied ASCII hostname, using standard URL character
+checks. Existing canonical DNS/IP constraints remain intact. No sample denylist
+or blanket A-label refusal has been introduced.
 
 Upstream Subnet registrations and test kinds were retained, and the shared fixture
 was regenerated from the merged producers. All 206 earlier account vector records
 and 158 integrated records are preserved field for field in the 258-record result.
 The registry and M6 files are unchanged. Formatting/lint and ten existing focused
-account/bootstrap tests pass. The IDNA behavioural assertion remains failing.
+account/bootstrap tests pass. The recorded IDNA assertion established the pre-correction failure.
 
-The latest scoped self-check exits 101 in the telemetry API compatibility baseline
+An earlier scoped self-check exited 101 in the telemetry API compatibility baseline
 because fetching serde from the registry fails with an unexpected connection EOF.
 It does not run the test phase. Earlier listener-bind failure evidence remains
 retained and its cause is still undiagnosed. Independent NSD producer questions
 and their prepared dispositions remain unchanged.
 
-Remaining work: declare the IDNA dependency, fix the shared hostname predicate,
-extend independent origin vectors, retain valid DNS/IDNA controls and require typed
-Origin refusals through all four public paths, then complete the focused and scoped
-checks. A separate ASCII-only RelayId DNS predicate also requires contract review;
+The shared hostname correction and independent origin vectors are now complete.
+The separate ASCII-only RelayId DNS predicate still requires contract review;
 that implementation is unchanged.
+
+## Canonical IDNA verification results
+
+- Added 72 independent origin vectors and checks of all four public paths for
+  every fixture decision: 28 accepted and 44 refused origin publications.
+- Preserved all 258 previous vector records, including 52 Subnet records, in the
+  resulting 330-record fixture. Registry and M6 bytes remain unchanged.
+- Retained the original behavioural regression and valid DNS/IDNA controls without
+  editing them; the regression now passes. The focused suites pass twelve tests.
+- Added only idna 1.1.0 and 23 resolved transitive packages. No unrelated existing
+  package version, checksum or dependency edge changed; existing synstructure
+  references are qualified to distinguish the two resolved versions.
+- Format/lint, existing license/advisory/bans/source policy, unused-dependency
+  checks and API compatibility pass. No dependency-policy file changed.
+- The first scoped invocation on the corrected source encountered the unchanged
+  external relay test's AddrInUse failure: 32 passed, one failed, zero skipped,
+  with 382 tests cancelled. Its cause remains undetermined.
+- A separate scoped invocation on identical implementation commit
+  `b496fd6fe9ed3e690afb128d587e3b94a7738ce3` passed 415 tests with zero skipped,
+  vector verification, all doctests and documentation, exit 0. The commit and all
+  source/fixture/test/runtime settings remained unchanged between the invocations.
+
+Implementation verification is complete. RelayId A-label validity remains an
+independent contract question at `crates/nsshared-proto/src/identifier.rs:168`,
+reached through `RelayId::parse` at line 84; that source was not modified or treated
+as resolved. Earlier registry-fetch and listener-bind failures remain recorded.
+Independent producer review questions Q11/Q21 and prepared dispositions remain
+unchanged.
