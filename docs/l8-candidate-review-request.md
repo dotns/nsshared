@@ -25,7 +25,8 @@ The published candidate revision is
   [normalized L3](../crates/nsshared-proto/src/account/l3.rs) and
   [roster carriers](../crates/nsshared-proto/src/account/roster.rs): typed
   validation boundaries accompanying the specification.
-- Gateway repository `nsgw`, immutable commit `51c278cdc63c`,
+- [Gateway consumer inventory summary](#gateway-consumer-inventory-summary):
+  repository `nsgw`, immutable commit `51c278cdc63c`,
   `docs/design/v1-consumers.md`, sections “Counting and ownership” and
   “M6 lineage reused by L8”: the inventory summary reproduced below. Its exact
   rows are `deps/v1-consumers.toml` at the same revision. Read with
