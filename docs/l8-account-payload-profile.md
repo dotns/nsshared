@@ -207,6 +207,38 @@ future issue time, expiration, a short lifetime, duplicates and bad signatures.
 Persistence of the accepted version is the consumer's rollback boundary.
 NSD renews while reachable; consumers never extend a signed deadline locally.
 
+### Participant roster lifecycle
+
+For participant rosters in registry family 8 `relay`, scope is exactly the signed
+content's `(issuer, recipient)` pair: the relay participant's own credential
+scope. No additional scope field is carried. Any authorized scope beyond this
+pair remains unresolved in Q18; directory authority is separate.
+
+`verify_participant_roster(bytes, issuer, recipient, last_version, now_ms)` returns
+an accepted generation containing scope, roster version as the attribution epoch,
+the complete identity/class mapping, issue time and exclusive validity deadline.
+Typed refusals distinguish wrong issuer, wrong recipient, stale/replayed version,
+future issue, expiry, short lifetime, bad signature, missing class, duplicate class,
+unknown class and duplicate identity. Other malformed/noncanonical content retains
+its contract error. The existing `SignedRoster::verify` keeps its error behavior.
+
+`participant_roster_status(generation, last_authenticated_renewal_ms, now_ms)` is
+pure and reads no clock. The consumer supplies the instant of its last successful
+authenticated renewal. At the signed deadline and thereafter it returns `expired`.
+Before that deadline it returns `degraded` at and after 86,400,000 ms since that
+renewal, otherwise `valid`. Degraded is diagnostic and still admits the complete
+mapping; outage alone never withdraws it and renewal never extends its signed
+deadline. The supplied renewal instant is authenticated consumer state, not a
+timestamp inferred from a failed fetch. A new accepted complete version replaces
+the entire mapping: empty denies all membership, omission revokes an identity,
+and a class-only change advances the same epoch with a new complete generation.
+
+The independent `participant_roster` producer emits canonical signed carriers,
+explicit decisions, expected complete mappings and supplied-clock lifecycle cases.
+Its sequences carry each previous signed publication and verify new versions
+against the previously accepted scope/epoch. They include retained authority after
+a refused publication and reclassification without any separate class message.
+
 The local candidate is strict JSON schema 2:
 
 ```json

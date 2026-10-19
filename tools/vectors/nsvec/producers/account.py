@@ -6,7 +6,7 @@ import hashlib
 import json
 
 from .. import cbor
-from . import enrollment
+from . import enrollment, participant_roster
 
 CRATE = "nsshared-proto"
 GROUP = "account"
@@ -196,4 +196,5 @@ def vectors():
         refuse(name, "usage", changed)
     refuse("usage-missing-window", "usage", unit[:-1])
     out.extend(enrollment.vectors(a, b))
+    out.extend(participant_roster.vectors(a, b, sign))
     return out
