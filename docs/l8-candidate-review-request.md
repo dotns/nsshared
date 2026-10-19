@@ -282,6 +282,21 @@ bypasses, selection, client, payer, incarnation, local enablement and limits?
 Name NSD vectors for nested default/specific routes, range ownership and empty
 selection; preserve the existing M6 route/listener boundaries.
 
+The prepared [Subnet selection candidate](l8-account-payload-profile.md#subnet-selection)
+uses complete `[1, 4, nsd_id, network_id, recipient, revision, routes]`
+publications and canonical M6 ServiceRef bytes. Each route names real/mapped
+family/address/length, full provider/client identities, exact distinct exclusions
+and bypasses and tagged default/explicit selection. IPv4 mapping is `/96+p`
+with exact embedded real network bits. Selected destinations subtract exclusions;
+bypasses stay distinct. Only a nonempty selected real IPv4 set advertises TCP,
+UDP and echo; real IPv6 advertises none. No local host binding is carried.
+Can NSD independently produce canonical accepted and typed-refused vectors for
+nested default/specific routes, IPv6 without coverage, exact exclusions/bypasses,
+empty selection and complete empty withdrawal, mismatched mapping, outside and
+overlapping prefixes, noncanonical/misaligned prefixes, mixed selection, unknown
+discriminants and malformed/nonminimal/trailing bytes? Grants, payer and
+incarnation remain separate; this candidate does not change M6 listener semantics.
+
 ### Q15: Payer binding payload — NSD owner
 
 What schema and resource scope complete `payer`, so each grant has an explicit
