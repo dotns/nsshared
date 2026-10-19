@@ -1,3 +1,12 @@
+## 2026-10-19 [docs]
+
+Prepare the L8 candidate review request for the NSD and node owners, pinned
+to `41149fe1febf2ecee07f077d68a500e18822442c`. Include eleven family states,
+the gateway inventory summary, 23 questions and two M6 API/vector requests.
+All 25 dispositions are prepared; delivery and answers remain to be recorded.
+Link the request and published candidate revision from the specification.
+Complete QA passed, including spelling and documentation checks.
+
 ## 2026-10-19 [feat]
 
 Add the pure `nsshared-proto::account` candidate and its specification: eleven

@@ -114,3 +114,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**Import the existing M6 service-control contract**](20261018-1204-m6-service-control-import.md) `P1`
 - [x] [**Add scoped workspace self-checks**](20261018-2214-scoped-self-check.md) `P1`
 - [x] [**Define the L8 account payload profile**](20261019-0029-l8-account-payload-profile.md) `P1`
+- [x] [**Prepare the L8 candidate review request**](20261019-0203-l8-candidate-review-request.md) `P1`
