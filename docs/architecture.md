@@ -40,6 +40,15 @@ and take time and randomness from the caller. The combined server adds only the
 shared listener, the per-upgrade router and the lifecycle; each mock keeps its
 own state.
 
+## Account payload candidate
+
+The pure `nsshared-proto::account` module specifies the [L8 account payload
+profile](l8-account-payload-profile.md), lifecycle distinctions, normalized Node
+L3 input, service usage units and atomic identity/class rosters. M6 objects and
+bytes remain owned by `nsshared-service-control`; neither crate depends on the
+other at this candidate layer. The Node-control codec and runtime remain in
+consumers until their detailed shared contract is added.
+
 ## Conformance
 
 `crates/nsshared-proto/tests/fixtures/vectors` holds the conformance vectors. They
