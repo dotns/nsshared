@@ -1,3 +1,14 @@
+## 2026-10-19 [fix]
+
+Remove the external WSS test's assumption that an allocated UDP port is free on
+TCP. Hold an occupied configured WSS address through relay shutdown while UDP
+allocates independently, preserving listener, certificate, registration and
+capability assertions. Runtime behavior is unchanged.
+
+Validation: the original TCP conflict was reproduced deliberately. All four
+external integration tests passed twice; complete QA passed with 416 Rust tests,
+0 skipped, 10 selection tests and 1 documentation test.
+
 ## 2026-10-19 [feat]
 
 Add signed publication events with explicit scope, kind, owning channel, version
