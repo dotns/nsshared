@@ -1,6 +1,6 @@
 # L8 candidate review request
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-10-19 02:03
 - **approvedAt**: 2026-10-19 02:03
 - **relatedTask**: [L8 candidate review request](../task/20261019-0203-l8-candidate-review-request.md)
@@ -46,3 +46,13 @@ Changing M6 now would preempt agreement on the required public API and vectors.
 Check request completeness before and after writing it, then run formatting,
 lint and the scoped self-check. Completion means a prepared request, not
 approval, delivery, NSD producer vectors or implementation.
+
+The prepared [request](../l8-candidate-review-request.md) meets this scope:
+23 questions, two M6 changes, eleven family states and twenty inventory owner
+counts, with every disposition prepared. The content check first failed because
+the request was absent, then passed and was confirmed on source commit
+`5b3e66e115b37cc5beb6016e55f8a22573755fb4`. Formatting and lint passed before
+content checks. The scoped self-check selected complete QA and passed on that
+commit, including spelling, vector checks, API compatibility, 402 Rust tests
+with zero skips, ten check-selection tests, one documentation test and
+documentation generation. Only acceptance detail records changed afterward.
