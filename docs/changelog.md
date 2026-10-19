@@ -1,5 +1,17 @@
 ## 2026-10-19 [feat]
 
+Add complete Subnet route publications with M6 resource references, exact real
+and mapped prefixes, full provider/client identities and tagged route selection.
+Return minimal destination CIDR covers after exclusions, retain distinct bypasses
+and advertise TCP, UDP and echo coverage only for selected real IPv4 destinations.
+The contract uses the existing service-control crate through a one-way dependency.
+
+Validation: 52 independent vectors cover 15 accepted and 37 refused publications,
+including default/host prefixes, both address families and input bounds. Complete
+QA passed with 408 Rust tests, 0 skipped, 10 selection tests and 1 documentation test.
+
+## 2026-10-19 [feat]
+
 Add typed verification of complete signed participant roster generations within
 the existing issuer/recipient scope. Return membership, classes, epoch and signed
 times together. Supplied-clock lifecycle status degrades diagnostically after

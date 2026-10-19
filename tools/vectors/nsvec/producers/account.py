@@ -6,7 +6,7 @@ import hashlib
 import json
 
 from .. import cbor
-from . import enrollment, participant_roster
+from . import enrollment, participant_roster, subnet
 
 CRATE = "nsshared-proto"
 GROUP = "account"
@@ -197,4 +197,5 @@ def vectors():
     refuse("usage-missing-window", "usage", unit[:-1])
     out.extend(enrollment.vectors(a, b))
     out.extend(participant_roster.vectors(a, b, sign))
+    out.extend(subnet.vectors(a, b))
     return out

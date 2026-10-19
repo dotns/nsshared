@@ -37,7 +37,7 @@ fn candidate_contract_vectors() {
         let kind = vector["kind"];
         if matches!(
             kind,
-            "snapshot" | "signed-roster" | "enrollment" | "participant-roster"
+            "snapshot" | "signed-roster" | "enrollment" | "participant-roster" | "subnet-selection"
         ) {
             continue;
         }
@@ -250,7 +250,10 @@ fn candidate_cbor_refuses_trailing_and_nonminimal_forms() {
         .filter(|v| v.get("expect") != Some(&"reject"))
     {
         let kind = vector["kind"];
-        if matches!(kind, "snapshot" | "enrollment" | "participant-roster") {
+        if matches!(
+            kind,
+            "snapshot" | "enrollment" | "participant-roster" | "subnet-selection"
+        ) {
             continue;
         }
         let decode = |input: &[u8]| match kind {

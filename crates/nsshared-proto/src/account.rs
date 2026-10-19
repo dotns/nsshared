@@ -9,6 +9,7 @@ mod lifecycle;
 mod participant_roster;
 mod registry;
 mod roster;
+mod subnet;
 mod usage;
 
 pub use enrollment::{
@@ -30,6 +31,11 @@ pub use registry::{
 pub use roster::{
     AdmissionSnapshot, IdentityClass, MIN_ROSTER_VALIDITY_MS, ROSTER_SIGNATURE_DOMAIN, Roster,
     RosterEntry, RosterVersion, SignedRoster, validate_snapshot,
+};
+pub use subnet::{
+    MAX_SELECTED_PREFIXES, MAX_SUBNET_PREFIXES, MAX_SUBNET_ROUTES, SelectedSubnetRoute,
+    SubnetError, SubnetPrefix, SubnetProxyCoverage, SubnetPublication, SubnetRoute,
+    SubnetSelection,
 };
 pub use usage::{BatchLossWindow, Direction, ServiceBoundary, ServiceUsage};
 
