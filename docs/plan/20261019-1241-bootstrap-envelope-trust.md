@@ -1,6 +1,6 @@
 # Bootstrap discovery and envelope trust
 
-- **status**: completed
+- **status**: implementing
 - **createdAt**: 2026-10-19 12:41
 - **approvedAt**: 2026-10-19 12:41
 - **relatedTask**: 20261019-1241-bootstrap-envelope-trust
@@ -59,5 +59,34 @@ A subsequent invocation of `just self-check` with the integration base, on the
 unchanged implementation at `6fbb1eccd34516ced170c043b538db815fbe003a`, passed
 410 tests with zero skipped, all doctests, vector verification and static checks;
 it exited successfully. The previous failed bind remains undiagnosed. Listener
-code and test/runtime settings are unchanged. Implementation verification is
-complete; independent producer confirmation remains requested in Q11 and Q21.
+code and test/runtime settings are unchanged. Those checks cover the initial
+implementation; the IDNA correction below remains outstanding. Independent
+producer confirmation remains requested in Q11 and Q21.
+
+## Canonical IDNA origin correction
+
+The shared hostname predicate checks ASCII DNS label syntax but does not validate
+Punycode or the Unicode properties of decoded A-labels. Invalid labels are accepted
+in the HTTPS discovery source and HTTPS, Noise and QUIC endpoints. The behavioural
+test `ascii_idna_origins_reject_invalid_a_labels` establishes this failure across
+`decode`, `canonical`, `first_supported` and `effective_envelope_pins`, after valid
+DNS and IDNA controls have passed. Its pre-correction result is a failed assertion,
+not a build or input-reading failure.
+
+Use a standards-conformant IDNA implementation and require its ASCII output to
+equal the supplied hostname exactly, retaining the existing DNS/IP constraints.
+The crate currently has no IDNA validator dependency; declaring one and updating
+the lockfile remain necessary before this correction can be implemented. A sample
+denylist, blanket A-label rejection or handwritten partial Unicode checks would
+violate the general canonical-origin contract.
+
+The merged producers regenerate 258 vectors, preserving all 206 earlier account
+vectors and all 158 integrated vectors, including 52 Subnet vectors. Registry and
+service-control files are unchanged. Formatting and lint pass; the existing
+account/bootstrap focused suites pass ten tests. The IDNA behavioural test fails
+with all twelve malformed origin placements accepted by all four entry points.
+The latest prescribed self-check exits 101 during API compatibility checking:
+the baseline telemetry dependency refresh cannot download serde because its
+registry connection terminates unexpectedly. It does not reach the test phase.
+The dependency declaration, corrected origin validator, expanded independent
+vectors and final passing checks remain outstanding.

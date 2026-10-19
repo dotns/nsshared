@@ -1,6 +1,6 @@
 # Bootstrap discovery and envelope trust
 
-- **status**: completed
+- **status**: in_progress
 - **priority**: P1
 - **createdAt**: 2026-10-19 12:41
 
@@ -51,8 +51,39 @@ vector regeneration and the scoped self-check.
 
 ## Completion and remaining producer review
 
-The candidate contracts, independent consumer vectors and implementation
-verification are complete. The previous failed bind's socket ownership and cause
+The initial candidate contracts, independent consumer vectors and verification
+were completed; the canonical IDNA origin correction below remains outstanding. The previous failed bind's socket ownership and cause
 remain undetermined; its failure evidence is retained, and listener code and
 runtime/test settings are unchanged. Independent NSD producer confirmation
 remains requested in Q11 and Q21, whose dispositions remain prepared.
+
+## Canonical IDNA origin validation
+
+The preserved behavioural test `ascii_idna_origins_reject_invalid_a_labels` passes
+its valid DNS/IDNA controls, then fails because malformed A-labels are accepted
+through decoding, canonical encoding, endpoint selection and effective pin
+establishment. This affects the HTTPS discovery source and all three confidential
+endpoint kinds through their shared `canonical_host` predicate. The failure was
+recorded before any validator correction.
+
+A standards-conformant IDNA dependency and exact ASCII roundtrip validation are
+required; the dependency declaration is not yet present. The product validator is
+unchanged, and no denylist or blanket A-label refusal has been introduced.
+
+Upstream Subnet registrations and test kinds were retained, and the shared fixture
+was regenerated from the merged producers. All 206 earlier account vector records
+and 158 integrated records are preserved field for field in the 258-record result.
+The registry and M6 files are unchanged. Formatting/lint and ten existing focused
+account/bootstrap tests pass. The IDNA behavioural assertion remains failing.
+
+The latest scoped self-check exits 101 in the telemetry API compatibility baseline
+because fetching serde from the registry fails with an unexpected connection EOF.
+It does not run the test phase. Earlier listener-bind failure evidence remains
+retained and its cause is still undiagnosed. Independent NSD producer questions
+and their prepared dispositions remain unchanged.
+
+Remaining work: declare the IDNA dependency, fix the shared hostname predicate,
+extend independent origin vectors, retain valid DNS/IDNA controls and require typed
+Origin refusals through all four public paths, then complete the focused and scoped
+checks. A separate ASCII-only RelayId DNS predicate also requires contract review;
+that implementation is unchanged.
