@@ -79,3 +79,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**Define enrollment and membership identity**](20261019-1120-enrollment-identity.md) `2026-10-19`
 - [x] [**Define the signed participant roster lifecycle**](20261019-1200-participant-roster-lifecycle.md) `2026-10-19`
 - [x] [**Define Subnet route selection**](20261019-1214-subnet-selection.md) `2026-10-19`
+- [x] [**Define bootstrap discovery and envelope trust**](20261019-1241-bootstrap-envelope-trust.md) `2026-10-19`

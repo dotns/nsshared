@@ -1,5 +1,17 @@
 ## 2026-10-19 [feat]
 
+Add confidential bootstrap discovery and signed opaque call carriers with ordered
+endpoint selection, explicit pin intersection and supplied clock/replay checks.
+Validate canonical origins with IDNA ToASCII and exact ASCII equality. Preserve
+existing service-control bytes and leave transport authentication and replay
+persistence with callers. Producer confirmation remains requested in the review.
+
+Validation: 172 independent bootstrap vectors and the original invalid-IDNA
+regression pass. Complete QA passed with 415 Rust tests, 0 skipped, 10 selection
+tests and 1 documentation test; all existing fixture records remain unchanged.
+
+## 2026-10-19 [feat]
+
 Add complete Subnet route publications with M6 resource references, exact real
 and mapped prefixes, full provider/client identities and tagged route selection.
 Return minimal destination CIDR covers after exclusions, retain distinct bypasses
