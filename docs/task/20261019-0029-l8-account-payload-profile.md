@@ -65,7 +65,7 @@ semantics, empty complete sets, malformed inputs and snapshot bounds.
   decode and re-encode candidate bytes, reject invalid forms and verify the
   independently generated signature. Count tests accept 8,192 identities and
   reject 8,193; byte vectors accept exactly 1 MiB and reject one byte more.
-- `just fmt-check lint` passed before positive tests. The final
+- `just fmt-check lint` passed before positive tests. The initial candidate
   `just self-check feat/l8-account-profile` selected `just qa` because vectors
   and their generator changed, and exited 0: 399 tests passed, 0 skipped;
   10 check-selection tests passed; 1 documentation test passed. Formatting,
@@ -76,6 +76,48 @@ semantics, empty complete sets, malformed inputs and snapshot bounds.
   existing definitions and bytes; no dependency or parallel M6 type was added.
 - Source and fixtures match the passing check; only this acceptance record
   and the linked plan were updated afterward.
+
+## Named-object validation correction
+
+The derived JSON structs accepted positional arrays as well as objects. A root
+array could therefore decode to an empty withdrawal, and an entry array could
+supply a class without named fields. Require object-only deserialization at both
+boundaries while forwarding the original map entries to the existing derives,
+preserving duplicate/unknown-field rejection and all semantic validation.
+Keep the named-field regression controls and array refusals, audit equivalent
+JSON entry points, then run static checks, regression tests and the self-check.
+
+The correction is complete in source commit
+`e46d8481e8b32cbca07febb989734b60fd3dbeb4`:
+
+- `JsonObject<T>` uses `deserialize_map` and forwards the original `MapAccess`
+  through `MapAccessDeserializer` to the existing named-field derives. Both the
+  root `JsonSnapshot` and every nested `JsonEntry` require actual objects.
+  There is no intermediate map/value representation that can collapse keys.
+- `snapshot_requires_named_roster_fields.rs` retains both valid-object controls,
+  missing-field checks and positional-array refusals. Before the fix, both
+  array assertions failed with successful admission results (exit 101).
+  Additional raw-JSON cases preserve duplicate identity/class/version and
+  unknown-field rejection at root and entry levels.
+- `just fmt-check lint` passed before each test invocation. After the fix,
+  `cargo test -p nsshared-proto --test snapshot_requires_named_roster_fields
+  --test account_vectors --locked` exited 0: all 3 named-field tests and all
+  6 candidate vector tests passed, with no ignored or filtered tests.
+- `just self-check feat/l8-account-profile` on the source commit exited 0 and
+  selected complete QA: 402 tests passed, 0 skipped; 10 check-selection tests
+  and 1 documentation test passed. Static checks, both vector checks, API
+  compatibility and documentation generation passed.
+- The same-shape audit found only these two unprotected candidate boundaries.
+  Rendezvous request/response envelopes and object payloads already require
+  objects; directory/relay fields and nested waiting/message entries use their
+  existing `Object<T>` wrapper. The mock executable directory readers consume
+  the protected `Directory` type. No additional affected parsing site was found.
+- Identity/class validation, byte/count bounds and freshness retain their
+  existing checks. Canonical CBOR arrays remain intentional and unchanged;
+  all nine M6 tests pass, and its sources, generator and fixtures are unchanged.
+- Only this acceptance record and the linked plan changed after the passing
+  source check. Documentation publication and reviewed candidate revision
+  recording remain open below.
 
 ## Open work
 
