@@ -115,3 +115,25 @@ reached through `RelayId::parse` at line 84; that source was not modified or tre
 as resolved. Earlier registry-fetch and listener-bind failures remain recorded.
 Independent producer review questions Q11/Q21 and prepared dispositions remain
 unchanged.
+
+## Producer literal verification
+
+The valid-cjk producer inputs now use equivalent Python Unicode escapes. The
+complete Python AST is unchanged, preserving both Unicode values and independent
+Punycode generation. Regeneration leaves every fixture byte unchanged, including
+all 330 account records. Product validators, dependencies, registry/M6/Subnet bytes
+and the original behavioural regression and assertions are unchanged.
+
+Source text hygiene passes. Format/lint and the prescribed scoped self-check pass
+on `ae6d454491b27c978e8bc249e39c834c1e08ece2`: 415 tests passed, zero skipped,
+all dependency/API checks, vectors, doctests and documentation completed, exit 0.
+An earlier invocation on that same commit stopped before tests when registry
+connections terminated while fetching serde and regex-automata; that failed
+invocation remains recorded. No network, dependency, policy or test setting was
+changed between invocations.
+
+Both earlier listener-test invocation results on
+`b496fd6fe9ed3e690afb128d587e3b94a7738ce3` remain recorded above. The failed
+bind's cause remains undiagnosed. The complete origin audit remains applicable;
+RelayId A-label validity at `crates/nsshared-proto/src/identifier.rs:168`, called at
+line 84, remains with its existing contract's owner and is not treated as fixed.
