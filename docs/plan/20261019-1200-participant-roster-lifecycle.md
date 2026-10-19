@@ -1,6 +1,6 @@
 # Signed participant roster lifecycle
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-10-19 12:00
 - **approvedAt**: 2026-10-19 12:00
 - **relatedTask**: 20261019-1200-participant-roster-lifecycle
@@ -34,3 +34,16 @@ atomic roster specification and the related review questions. No runtime state.
 
 Adding a scope field would change signed bytes and assume broader authorization.
 Keep the existing participant credential scope instead.
+
+## Validation
+
+`participant_roster_vectors` consumes 27 independent signed cases, including full
+replacement, typed refusals and supplied-clock boundaries. The initial consumer
+failed with `missing independently signed participant lifecycle vectors` before
+the fixture and implementation were added. The existing fixture is an unchanged
+prefix of the regenerated fixture, retaining every prior name and byte.
+
+Formatting and lint passed before tests. `just self-check` passed with the
+integration comparison: 406 tests passed, zero skipped, vector generation matched,
+API compatibility passed and doctests/documentation passed. No runtime or
+transport code was introduced.
