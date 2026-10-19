@@ -123,6 +123,57 @@ uses positive u32 and checked increment. Consumers must reject out-of-range
 versions before ordinary derivation, without truncation. Q07 requests agreement
 on this width, the missing same-I/K refresh tag and the separate signed K generation.
 
+## Subnet selection
+
+Family 4's route selection candidate is a complete publication encoded as
+`[1, 4, nsd_id, network_id, recipient, revision, routes]`. IDs use M6 `Id`,
+recipient/provider/client use M6 `Identity` with validated full Ed25519 keys,
+and revision is positive. Authority and authenticated recipient scope are
+supplied by the caller; validation itself grants no authority. A complete empty
+routes array withdraws all routes within this scope. Missing, partial or malformed
+publications fail. Grants, payer and incarnation are separate contracts.
+
+A route is `[resource_bytes, real, mapped, provider, client, exclusions,
+bypasses, selection]`. `resource_bytes` embeds exactly the canonical M6
+`ServiceRef::value` bytes, encoded/decoded by service-control's own codec;
+no M6 serializer or reference type is duplicated. Its NSD/network must match
+the publication; client must equal recipient. Routes are strictly ordered by
+full `ServiceRef`, with no duplicates. This embedding adds the one-way proto
+to service-control dependency described above; no reverse dependency exists.
+
+A prefix is `[family, address_bytes, length]`, family 4 with exactly four
+network-order octets and length 0..32, or family 6 with sixteen octets and
+length 0..128. Host bits must be zero. Lists use strict lexicographic order
+by family, address bytes, then length; duplicates and overlaps within a list
+fail. Exclusions and bypasses must be contained in real and mutually disjoint,
+including across the two lists. Explicit selections must be contained in real.
+For real IPv4, mapped must be IPv6 with length `96 + real.length` and its
+low 32 bits must equal the real network exactly. The high 96 bits name the
+mapping namespace. For real IPv6, mapped equals real; this carries no native
+IPv6 Internet Exit promise.
+
+Selection is `[0, []]` for a logical default (real must have length zero), or
+`[1, prefixes]` for explicit named prefixes, including an empty selection.
+A default with named prefixes is refused as mixed selection. Different routes
+may carry nested default and specific real prefixes: results remain associated
+with their stable resources, without runtime priority or winner selection.
+The selected destination set is the default real prefix or explicit set minus
+exclusions, emitted as a sorted minimal disjoint CIDR cover. Bypasses remain
+separate in the returned route; they are not silently converted to exclusions.
+Coverage is explicit TCP, UDP and echo for a nonempty selected real IPv4 set;
+all three are false for real IPv6 or empty selection. Payload and output contain
+no interface, local source address, host port, host binding or runtime state.
+
+Bounds are 256 routes and 256 prefixes per input list, 32,768 selected prefixes
+per route and 1 MiB per publication. Validation never sorts or repairs inputs.
+Typed refusals distinguish mapping mismatch, outside exclusion/bypass/selection,
+overlap, ordering/duplicates, misalignment/length, mixed/default selection,
+unknown family/selection/schema, scope/identity, bounds and strict CBOR errors
+(including trailing and nonminimal encodings). The independent Python Subnet
+producer computes CIDR subtraction and coverage using `ipaddress`; Rust consumers
+read decisions, canonical bytes, every route field and expected outputs directly
+from the shared fixture. These are candidate fixtures, not NSD producer output.
+
 ## Lifecycle
 
 `MembershipIdentityVersion` is a monotonically increasing derivation version

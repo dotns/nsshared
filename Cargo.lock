@@ -724,6 +724,7 @@ dependencies = [
  "getrandom 0.4.3",
  "hkdf",
  "hmac",
+ "nsshared-service-control",
  "proptest",
  "serde",
  "serde_json",
