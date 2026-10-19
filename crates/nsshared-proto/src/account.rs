@@ -9,6 +9,7 @@ mod enrollment;
 mod l3;
 mod lifecycle;
 mod participant_roster;
+mod publication;
 mod registry;
 mod roster;
 mod subnet;
@@ -36,6 +37,12 @@ pub use lifecycle::{
 pub use participant_roster::{
     ParticipantRosterError, ParticipantRosterGeneration, ParticipantRosterScope,
     ParticipantRosterStatus, participant_roster_status, verify_participant_roster,
+};
+pub use publication::{
+    AcceptedPublication, MAX_PUBLICATION_BYTES, PUBLICATION_SIGNATURE_DOMAIN, PublicationChannel,
+    PublicationContent, PublicationDecision, PublicationError, PublicationEvent,
+    PublicationExpectation, PublicationKey, PublicationOutcome, PublicationScope,
+    PublicationSnapshot, decide_publication, decide_publication_snapshot, publication_channel,
 };
 pub use registry::{
     FAMILIES, FamilyId, FamilyRegistration, FamilyRegistry, M6Reuse, ReplacementRule,
