@@ -1,6 +1,6 @@
 # Enrollment and membership identity
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-10-19 11:20
 - **approvedAt**: 2026-10-19 11:20
 - **relatedTask**: 20261019-1120-enrollment-identity
@@ -42,3 +42,25 @@ reuse the existing lifecycle and leave unresolved producer semantics explicit.
 
 Focused failing test, format and lint checks, independent fixture comparison,
 and the repository self-check.
+
+## Results
+
+Enrollment uses the existing NodeBinding and Lifecycle without changing registry
+bytes. Capabilities are bounded opaque canonical sets. Binding acceptance is pure,
+and stable-identity rebind requires explicit producer-profile authorization.
+Q07 and Q11 retain prepared questions about producer semantics and identifiers.
+
+The independent producer adds 29 enrollment vectors. Every presented, accepted,
+and lifecycle before/after identity has independently derived NodeId, N6 and N4
+expectations. The existing account fixture is an unchanged prefix of the result.
+
+The first consumer test failed with `missing independent consumer vector:
+enrollment-accepted`. A later focused run exposed a malformed mismatch vector
+whose before and after K were equal; using a different accepted generation made
+it a valid lifecycle with a mismatched origin, as intended.
+
+The focused account and enrollment suites passed all nine tests. Format, workspace
+lint, independent fixture comparison, semantic compatibility, all 405 workspace
+tests (zero skipped), doctests and documentation checks passed. The final code
+and fixture tree was checked at `a330e1327772cc9b6a68a71df1ca1b5f6df97fbd`.
+The code review found no remaining correctness findings.
