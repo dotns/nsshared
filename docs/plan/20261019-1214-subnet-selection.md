@@ -1,6 +1,6 @@
 # Subnet route selection contract
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-10-19 12:14
 - **approvedAt**: 2026-10-19 12:14
 - **relatedTask**: 20261019-1214-subnet-selection
@@ -28,3 +28,9 @@ Duplicating M6 references or importing runtime route structures would create div
 ## Verification
 
 Establish a failing consumer before implementation; run format and lint checks, the fixture consumers, vector regeneration checks and the prescribed self-check. Compare existing fixture blocks against the base and verify the lockfile adds only the service-control dependency edge.
+
+## Results
+
+Implemented the specified pure Subnet publication, M6 reference embedding, canonical prefix validation, exact mapping and selection output. Independent fixtures cover 15 accepted and 37 refused cases; both named consumer acceptance tests and constructed-contract validation passed. All 79 earlier account vectors and the registry retain their bytes. The generated lockfile change contains one dependency edge only.
+
+The initial consumer could not compile before the new public API existed. The focused suite then passed 12 tests after correcting the invalid-point fixture assumption. The self-check passed 408 workspace tests with zero skips, 10 check-selection tests, static/vector/API checks, doctests and documentation generation. These are fixture-fed contract observations; NSD producer vectors remain requested in Q14.
