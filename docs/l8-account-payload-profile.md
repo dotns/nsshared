@@ -1,0 +1,187 @@
+# L8 account payload profile candidate
+
+Status: candidate, schema 1; local admission JSON schema 2. This pure contract
+is an additive module of `nsshared-proto` at the workspace minor-release version.
+It defines no runtime, transport session, policy compiler or v1 adapter.
+The [account payload record](task/20261019-0029-l8-account-payload-profile.md)
+owns every candidate registry entry; detailed family payloads follow separately.
+The candidate revision is the reviewed integration commit, to be recorded there.
+
+## Placement and M6 reuse
+
+The module uses `nsshared_proto::encoding::{CborReader, CborWriter}`: definite
+arrays, shortest unsigned integers, bytes, UTF-8 text, booleans and null only.
+All arrays below have exact arity; trailing bytes and unknown discriminants fail.
+All counters are u64; identity keys are validated 32-byte Ed25519 keys; opaque
+incarnations and namespaces are 16-byte strings. No conversion to M6 CBOR occurs.
+
+This frame contains no M6 object, so neither crate depends on the other. A
+consumer composes the two pure crates. Service declarations and references,
+listener intents, leases, snapshots, service labels and messages always use
+`nsshared-service-control` itself. A later frame embedding those types must add
+an explicit one-way dependency from proto to service-control, never the reverse.
+
+M6 reuse groups in the registry are:
+
+- `identities`: `Id`, `Identity`, `Digest`, `ServiceRef`.
+- `declarations`: `Declaration`, `BackendHost`, `Protocols`, `PortMode`,
+  `Declaration::canonical/decode`, `ReportContent::canonical/decode`.
+- `listeners`: `ListenerIntent::canonical/decode`, `domain_digest`.
+- `snapshots`: `Resource`, `Route`, `Grant`, `PublisherListener`, `Withdrawal`,
+  `Snapshot::canonical/decode`, `snapshot_digest`, `Resource::service_label` and
+  its existing validation. The publisher-only backend boundary stays intact.
+- `messages`: `Message`, `MessageBody`, `MessageKind`, `Message::encode/decode`,
+  `CAPABILITY`, `SCHEMA`, `LOCAL_SCHEMA`, `MAX_LEASE_MS`, `REFRESH_MS`,
+  `ContractError`, `next_revision`, including every existing body variant.
+- `vectors`: `crates/nsshared-service-control/vectors/service-control-v1.json`
+  and its `tests/vectors.rs`. Reference these bytes and domains directly;
+  never copy, rename or re-encode them as account vectors.
+
+All families reuse `identities`, `messages` and `vectors` when carrying service
+work. Additional groups are listed below. The registry's `m6` list contains
+these exact group names in this order: identities, declarations, listeners,
+snapshots, messages, vectors (omitting groups not applicable).
+
+## Family registry and replacement
+
+Registry CBOR is `[1, entries]`; each entry is
+`[id, version, name, publication, clears, owner, m6]`, ordered by id.
+`version` is 1; `owner` is `account-payload-profile` for the candidate record
+linked above. `clears` names the kinds exclusively replaced within that
+publication's authenticated issuer/recipient and explicitly named scope.
+Only a validated **complete** publication replaces its listed kinds. A complete
+empty set withdraws all of those kinds in that scope. Missing, partial, malformed
+or unauthenticated content is an error, never an empty set. A family publication
+never implicitly clears another family or an unnamed scope. Reports and control
+vocabularies describe replacement of catalogue/configuration sets, not erasure
+of usage history, durable watermarks or received control messages.
+
+| ID / family | Complete publication / exact `clears` string / scope | Additional M6 reuse |
+| --- | --- | --- |
+| 1 `enrollment` — enrollment and own Node binding | `own-node` / `binding,capabilities,endpoints` / one membership | declarations |
+| 2 `realms-peers` — served realms and peers | `realm-peers` / `realms,peer-contributions` / one account; shared peers retain provenance from remaining contributions | snapshots |
+| 3 `egress` — Egress grants | `egress-grants` / `resources,grants,payers` / one realm and recipient | declarations, listeners, snapshots |
+| 4 `exit-subnet` — Exit Subnet grants | `exit-grants` / `routes,grants,exclusions,bypasses,selection` / one realm and recipient | listeners, snapshots |
+| 5 `payer` — payer rule | `payer-bindings` / `payers` / one resource scope; ambiguity withholds the resource | snapshots |
+| 6 `withdrawal` — withdrawal and regrant | `resource-authority` / `authority,incarnations` / current authority in one recipient/resource scope | snapshots |
+| 7 `public-edge` — public edge | `public-edge` / `backends,names,aliases,ports,domains,subjects,auth,materials` / one account; NodeId/node6 backends and existing auth/certificate/client-CA references and material generations retain their meanings | declarations, snapshots |
+| 8 `relay` — relay directory and participant | `relay-directory-roster` / `directory\|identity-classes` / a named directory or participant roster, separately scoped; neither clears the other | snapshots |
+| 9 `usage` — usage reports and units | `usage-profile` / `units,reporters,parameters` / one reporter; never clears metering history | none |
+| 10 `node-control` — Node-control channel | `node-control-profile` / `vocabulary,capabilities` / one membership; ACK means at least accepted, persistence may precede ACK | none |
+| 11 `v1-replacement` — replacement of the v1 surface | `surface-map` / `mappings,retirements` / discovery/envelope verification, admin claims, policy, signed URL, material, reports and snapshot/events vocabulary in one account profile | declarations, listeners, snapshots |
+
+The backslash before the table cell's pipe is Markdown escaping; the wire
+string contains only the pipe. Every row has version 1 and candidate owner
+`account-payload-profile`, linked to the account payload record above. The
+typed registry fixes these publication identifiers and cleared-kind strings.
+Detailed schemas will define authority, deadlines and payload-specific validation;
+this registry is not an alternate declaration or generic M6 message envelope.
+
+## Lifecycle
+
+`MembershipIdentityVersion` is a monotonically increasing derivation version
+within one NSD membership. `RecordGeneration` increases only within one full
+identity, shared by every served realm; existing NodeRecord same-generation
+ordering/conflict rules still apply. Comparing either counter across its scope
+has no meaning. `GrantIncarnation` and `ReporterIncarnation` are opaque tokens:
+only equality is meaningful. Every regrant, even with identical content, uses a
+fresh grant incarnation; every new reporter lifecycle uses a fresh reporter
+incarnation. Never use record generation or membership version as either token.
+
+Binding CBOR is `[membership_version, I, K, record_generation]`, with positive
+versions/generations and a nonzero 32-byte K. Lifecycle CBOR is
+`[1, transition, before, after, grant_incarnation, reporter_incarnation]`.
+Transition 0 replaces identity: membership version increases, both I and K
+change, and NodeId/N6/N4 are rederived from the new I. Record generation belongs
+to the new identity and may restart. Transition 1 rotates only K: membership
+version and I stay fixed, K changes, record generation increases, NodeId/N6/N4
+stay fixed. Validation distinguishes these transitions; the choice of transition
+for a deployment remains a consumer policy.
+
+## Normalized Node L3 form
+
+L3 CBOR is `[1, issuer, recipient, revision, scopes, rules]`. The revision is
+positive and complete replacement applies only to this issuer/recipient.
+A scope is `[namespace, identities]`; namespaces are opaque identifiers assigned
+by the authority, never host interface names or inferred from a packet. Scopes
+are sorted by namespace; identity sets are sorted by full identity bytes.
+A rule is `[namespace, source_identity, destination_identity, protocol,
+first_port, last_port]`. Both identities must belong to that namespace's scope.
+Protocol 6 is TCP and 17 is UDP; ports are inclusive, 1..65535 with first <= last.
+Rules are sorted lexicographically by all six fields and duplicates fail.
+An empty rule set permits no L4 traffic; a missing set fails. Rules are an
+explicit allow set; overlapping ranges mean union. There are no implicit
+wildcards, payer guesses or interface-dependent identities. Compilation and
+address/range ownership enforcement stay in consumers. Native N6, N4 and
+provider-route address views must be resolved to these identities before use.
+The candidate bounds scopes/rules/identities per scope to 8,192 and bytes to 1 MiB.
+
+## Service usage unit
+
+Usage CBOR is `[1, boundary, direction, payer_realm, payer_subject,
+grant_incarnation, reporter_incarnation, completed_bytes, batch_loss_window]`.
+`payer_realm` is a 16-byte realm identifier; `payer_subject` is a full validated
+IdentityKey. `completed_bytes` is u64. Boundary 0 counts Egress/Exit layer-4 payload bytes successfully completed by
+host writes and sends: partial writes count only their completed bytes; failed
+writes contribute zero. Boundary 1 preserves the existing public-ingress byte
+boundary and does not reinterpret it as WireGuard or host-write usage.
+Direction 0 is client-to-provider, 1 provider-to-client. Payer is always explicit;
+an ambiguous payer withholds a resource. WireGuard handshakes, keepalives,
+encapsulation and overhead are excluded. Reports attach resource and reporter
+identity, sequence/window, acknowledgement/watermark and errors in the detailed
+usage family; existing service references use M6, not a new service ID here.
+
+`batch_loss_window` is `null` (`Unset`) until measured, or `[duration_ms]`
+(`Measured`) after measurement. Unset is not zero, unlimited, or permission to
+bill guessed bytes. No duration is invented by this candidate. The measurement
+is the maximum time span of completed bytes vulnerable to loss before durable
+batch custody; measured zero is distinct from unset.
+Relay usage is a separate unit: whole accepted encoded DATA including its header,
+counted once at accepting ingress, source NodeId and captured roster epoch/class.
+Delayed reports use historical attribution; unknown mapping requires repair.
+It is not converted to this service host-write unit.
+
+## Atomic roster attribution
+
+Every entry is `(full IdentityKey, class)`, where class is `ordinary_node` (CBOR
+0) or `gateway_node` (CBOR 1). No class-only publication exists. Complete empty
+entries withdraw the recipient's entire admission roster. Versions are positive
+u64, strictly increasing per issuer/participant, and are the attribution epoch.
+Membership and classes are captured together for relay accounting.
+
+Signed roster content CBOR is `[1, issuer, recipient, roster_version,
+issued_at_unix_ms, valid_until_unix_ms, entries]`; an entry is `[I, class]`, sorted
+by identity. The lifetime must be at least 86,400,000 ms. The signature is
+Ed25519 over `ns.account.roster.v1` plus one zero byte plus the canonical content.
+The signed carrier is `[content_bytes, signature_64_bytes]`. Both content and
+carrier obey the 1 MiB bound and there are at most 8,192 identities.
+Verification takes the trusted issuer, expected participant, last accepted
+version and current time. It rejects wrong issuer/recipient, stale version,
+future issue time, expiration, a short lifetime, duplicates and bad signatures.
+Persistence of the accepted version is the consumer's rollback boundary.
+NSD renews while reachable; consumers never extend a signed deadline locally.
+
+The local candidate is strict JSON schema 2:
+
+```json
+{"schema_version":2,"issued_at_unix_ms":1000,"roster_version":7,"identities":[{"identity":"<canonical IdentityKey text>","class":"ordinary_node"}]}
+```
+
+All four root fields and both entry fields are required. Unknown or duplicate
+JSON fields, non-string or unknown classes, invalid/noncanonical key text, duplicate identity,
+wrong schema, zero version, more than 8,192 entries and input over 1,048,576 bytes
+fail. `validate_snapshot(bytes, now_ms, max_age_ms)` also rejects future timestamps
+and ages greater than max_age_ms; equality at the freshness boundary is valid.
+The returned version is the epoch, not the issue timestamp. Local snapshots
+have no issuer, recipient or signature: controlled regular-file ownership,
+atomic replacement, bounded reading and rollback persistence remain consumer
+responsibilities. Validation does no I/O or clock access. A reader never installs
+an invalid/missing file as an empty roster.
+
+## Independent conformance
+
+`tools/vectors/nsvec/producers/account.py` implements this specification using
+only Python's standard library. `just vectors` and `just vectors-check` include
+its candidate fixture. Rust tests decode each candidate byte string and compare
+canonical re-encoding, validated semantics and expected rejection outcomes.
+M6's own generator and tests remain unchanged and continue to own their bytes.
