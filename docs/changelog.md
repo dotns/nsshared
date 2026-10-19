@@ -1,5 +1,18 @@
 ## 2026-10-19 [feat]
 
+Add signed publication events with explicit scope, kind, owning channel, version
+and validity. Distinguish complete replacement, empty withdrawal, absence and
+authenticated ACL failure while retaining versions for withdrawn or denied state.
+Borrow bounded encoded input, terminate streams on events over 1 MiB and reject
+invalid snapshots before exposing any action. Existing M6 payloads stay opaque.
+
+Validation: 95 independent signed fixtures and additional allocation, mutation,
+version and snapshot-boundary checks passed. Complete QA passed with 416 Rust
+tests, 0 skipped, 10 selection tests and 1 documentation test. All 330 previous
+account fixtures retain their bytes; NSD producer confirmation remains requested.
+
+## 2026-10-19 [feat]
+
 Add confidential bootstrap discovery and signed opaque call carriers with ordered
 endpoint selection, explicit pin intersection and supplied clock/replay checks.
 Validate canonical origins with IDNA ToASCII and exact ASCII equality. Preserve
