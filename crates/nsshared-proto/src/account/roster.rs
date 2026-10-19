@@ -4,8 +4,11 @@ use crate::{
     encoding::{CborReader, CborWriter},
 };
 use ed25519_dalek::{Signature, VerifyingKey};
-use serde::Deserialize;
-use std::{collections::BTreeSet, str::FromStr};
+use serde::{
+    Deserialize, Deserializer,
+    de::{MapAccess, Visitor, value::MapAccessDeserializer},
+};
+use std::{collections::BTreeSet, fmt, marker::PhantomData, str::FromStr};
 
 /// Minimum signed roster lifetime: 24 hours, in milliseconds.
 pub const MIN_ROSTER_VALIDITY_MS: u64 = 86_400_000;
@@ -48,13 +51,37 @@ pub struct AdmissionSnapshot {
     pub identities: Vec<RosterEntry>,
 }
 
+// Derived structs also accept positional sequences. Forward map access directly
+// so named-field validation sees every key, including duplicates.
+struct JsonObject<T>(T);
+
+struct JsonObjectVisitor<T>(PhantomData<T>);
+
+impl<'de, T: Deserialize<'de>> Visitor<'de> for JsonObjectVisitor<T> {
+    type Value = JsonObject<T>;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("a JSON object")
+    }
+
+    fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Self::Value, A::Error> {
+        T::deserialize(MapAccessDeserializer::new(map)).map(JsonObject)
+    }
+}
+
+impl<'de, T: Deserialize<'de>> Deserialize<'de> for JsonObject<T> {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        deserializer.deserialize_map(JsonObjectVisitor(PhantomData))
+    }
+}
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct JsonSnapshot {
     schema_version: u8,
     issued_at_unix_ms: u64,
     roster_version: u64,
-    identities: Vec<JsonEntry>,
+    identities: Vec<JsonObject<JsonEntry>>,
 }
 
 #[derive(Deserialize)]
@@ -78,7 +105,7 @@ pub fn validate_snapshot(
     if bytes.len() > MAX_BYTES {
         return Err(AccountError::Bounds);
     }
-    let snapshot: JsonSnapshot = serde_json::from_slice(bytes)?;
+    let JsonObject(snapshot): JsonObject<JsonSnapshot> = serde_json::from_slice(bytes)?;
     require(snapshot.schema_version == 2 && snapshot.roster_version > 0)?;
     if snapshot.identities.len() > MAX_IDENTITIES {
         return Err(AccountError::Bounds);
@@ -91,7 +118,7 @@ pub fn validate_snapshot(
     }
     let mut seen = BTreeSet::new();
     let mut identities = Vec::with_capacity(snapshot.identities.len());
-    for entry in snapshot.identities {
+    for JsonObject(entry) in snapshot.identities {
         let identity =
             IdentityKey::from_str(&entry.identity).map_err(|_| AccountError::InvalidField)?;
         require(seen.insert(identity))?;

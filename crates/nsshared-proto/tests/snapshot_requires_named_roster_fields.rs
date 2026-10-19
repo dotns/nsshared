@@ -44,3 +44,34 @@ fn named_identity_class_fields_are_required_for_roster_snapshots() {
         "an entry array has no named identity or class field and must not grant admission: {result:?}"
     );
 }
+
+#[test]
+fn named_roster_fields_reject_duplicates_and_unknown_names() {
+    let identity = IdentitySecret::from_seed([42; 32]).public().to_string();
+    let entry = format!(r#"{{"identity":"{identity}","class":"gateway_node"}}"#);
+    let snapshot = |entry: &str| {
+        format!(
+            r#"{{"schema_version":2,"issued_at_unix_ms":1000,"roster_version":7,"identities":[{entry}]}}"#
+        )
+    };
+    assert!(validate_snapshot(snapshot(&entry).as_bytes(), 1000, 0).is_ok());
+    for invalid in [
+        format!(r#"{{"identity":"{identity}","identity":"{identity}","class":"gateway_node"}}"#),
+        format!(r#"{{"identity":"{identity}","class":"gateway_node","class":"ordinary_node"}}"#),
+        format!(r#"{{"identity":"{identity}","class":"gateway_node","unknown":0}}"#),
+    ] {
+        assert!(
+            validate_snapshot(snapshot(&invalid).as_bytes(), 1000, 0).is_err(),
+            "{invalid}"
+        );
+    }
+    for invalid in [
+        r#"{"schema_version":2,"issued_at_unix_ms":1000,"roster_version":7,"roster_version":8,"identities":[]}"#,
+        r#"{"schema_version":2,"issued_at_unix_ms":1000,"roster_version":7,"identities":[],"unknown":0}"#,
+    ] {
+        assert!(
+            validate_snapshot(invalid.as_bytes(), 1000, 0).is_err(),
+            "{invalid}"
+        );
+    }
+}
