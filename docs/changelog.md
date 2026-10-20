@@ -1,3 +1,15 @@
+## 2026-10-20 [feat]
+
+Add pure qualified policy subjects, bindings, ordered admin claims and signed
+request inputs using existing account signature domains. Preserve exact JWT
+claim names and values, including whitespace and empty strings, within UTF-8
+byte bounds. Retain reference and token syntax checks and existing carrier owners.
+
+Validation: 122 independent cases cover canonical bytes, claim data, scope and
+request-domain refusals. Candidate self-check passed with 449 Rust tests, zero
+skips, 41 selection tests and static/API/docs checks. Open aggregate carriers
+and independent producer confirmation remain documented.
+
 ## 2026-10-20 [fix]
 
 Scope member manifest and lockfile changes by resolved dependency closures at

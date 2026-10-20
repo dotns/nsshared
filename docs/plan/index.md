@@ -88,3 +88,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**Define service and relay usage contracts**](20261020-1607-usage-contracts.md) `2026-10-20`
 - [x] [**Define complete realm publication payloads**](20261020-1620-realm-publication-payloads.md) `2026-10-20`
 - [x] [**Scope self-check by resolved dependency changes**](20261020-1640-resolved-dependency-self-check.md) `2026-10-20`
+- [x] [**Define policy and claim canonical values**](20261020-1625-policy-claims.md) `2026-10-20`
