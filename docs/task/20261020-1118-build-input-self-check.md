@@ -1,6 +1,6 @@
 # Build input scoped self-check
 
-- **status**: completed
+- **status**: in_progress
 - **priority**: P1
 - **createdAt**: 2026-10-20 11:18
 
@@ -52,3 +52,12 @@ selection assertions by making their global fixture document an actual input.
   documentation when the scan cannot rule out a dependency. The selection
   output identifies each unresolved reader's source.
 - Only these completion records changed after the final self-check.
+
+## Executable reader coverage
+
+The scanner omitted command-style shell readers and the Rust `include!`
+macro, allowing unresolved executable inputs to appear unreferenced. Extend
+conservative detection to shell file commands, input redirection and directory
+commands, and recognize every Rust inclusion macro delimiter. Preserve
+selection for a shell command that reads a known unrelated literal path.
+Temporary repositories must commit each reader before changing only a fixture.

@@ -218,6 +218,67 @@ class SelectionTests(unittest.TestCase):
         self.assertFalse(selection["full"])
         self.assertIn("non-input: docs/task/new-record.md", selection["reason"])
 
+    def test_unresolved_shell_file_read_selects_complete_check(self):
+        self.write("scripts/check.sh", 'cat "$INPUT_FILE"\n')
+        self.write("fixtures/data.txt", "old\n")
+        self.commit()
+        self.write("fixtures/data.txt", "new\n")
+        self.assertEqual(self_check.changed_paths(self.root, "main"), ["fixtures/data.txt"])
+        selection = self.selection()
+        self.assertTrue(selection["full"])
+        self.assertIn("input: fixtures/data.txt", selection["reason"])
+        self.assertIn("scripts/check.sh", selection["reason"])
+        self.assertIn("uncertain", selection["reason"])
+        self.assertEqual(self_check.commands(selection), [["just", "qa"]])
+
+    def test_unresolved_rust_include_selects_complete_check(self):
+        self.write("crates/core/src/lib.rs", 'include!(concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/", env!("INPUT_NAME")));\n')
+        self.write("fixtures/data.txt", "old\n")
+        self.commit()
+        self.write("fixtures/data.txt", "new\n")
+        self.assertEqual(self_check.changed_paths(self.root, "main"), ["fixtures/data.txt"])
+        selection = self.selection()
+        self.assertTrue(selection["full"])
+        self.assertIn("input: fixtures/data.txt", selection["reason"])
+        self.assertIn("crates/core/src/lib.rs", selection["reason"])
+        self.assertIn("uncertain", selection["reason"])
+        self.assertEqual(self_check.commands(selection), [["just", "qa"]])
+
+    def test_shell_reader_forms_are_conservative(self):
+        commands = ['head "$INPUT_FILE"', 'tail "$INPUT_FILE"', 'sed -n 1p "$INPUT_FILE"',
+                    'awk 1 "$INPUT_FILE"', 'grep pattern "$INPUT_FILE"', 'sort "$INPUT_FILE"',
+                    'wc "$INPUT_FILE"', 'source "$INPUT_FILE"', '. "$INPUT_FILE"',
+                    'while read line; do :; done < "$INPUT_FILE"', 'find "$INPUT_DIRECTORY" -type f',
+                    'cat fixtures/*.txt', 'cat "$(fixture_path)"']
+        for command in commands:
+            with self.subTest(command=command):
+                self.write("scripts/check.sh", command + "\n")
+                self.commit()
+                selection = self_check.select(self.root, ["fixtures/data.txt"], self.metadata)
+                self.assertTrue(selection["full"])
+                self.assertIn("scripts/check.sh", selection["reason"])
+
+    def test_known_shell_paths_and_directories(self):
+        for command, full in [('cat fixtures/other.txt', False), ('cat fixtures/data.txt', True),
+                              ('find fixtures -type f', True)]:
+            with self.subTest(command=command):
+                self.write("scripts/check.sh", command + "\n")
+                self.commit()
+                selection = self_check.select(self.root, ["fixtures/data.txt"], self.metadata)
+                self.assertEqual(selection["full"], full)
+                if full:
+                    self.assertIn("scripts/check.sh", selection["reason"])
+
+    def test_rust_inclusion_macro_delimiters(self):
+        for macro in ("include", "include_str", "include_bytes", "include ", "include_str ", "include_bytes "):
+            for opening, closing in (("(", ")"), ("{", "}"), ("[", "]")):
+                with self.subTest(macro=macro, opening=opening):
+                    self.write("crates/core/src/lib.rs", f'{macro}!{opening}env!("INPUT_FILE"){closing};\n')
+                    self.commit()
+                    selection = self_check.select(self.root, ["fixtures/data.txt"], self.metadata)
+                    self.assertTrue(selection["full"])
+                    self.assertIn("crates/core/src/lib.rs", selection["reason"])
+
     def test_empty_diff_selects_complete_check(self):
         selection = self.selection()
         self.assertTrue(selection["full"])

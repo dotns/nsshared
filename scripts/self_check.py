@@ -54,8 +54,8 @@ SOURCE_SUFFIXES = {".rs", ".py", ".sh", ".bash", ".js", ".ts", ".mjs", ".c", ".h
 DOUBLE_STRINGS = re.compile(r'"(?:\\.|[^"\\])*"')
 STRINGS = re.compile(r'"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'')
 READERS = re.compile(
-    r"\b(include_str!|include_bytes!|read_to_string|read_to_end|read|read_text|"
-    r"read_bytes|read_dir|open|glob|rglob|walk|walkdir|scandir|listdir|WalkDir::new)\s*\("
+    r"\b(include(?:_str|_bytes)?\s*!|read_to_string|read_to_end|read|read_text|"
+    r"read_bytes|read_dir|open|glob|rglob|walk|walkdir|scandir|listdir|WalkDir::new)\s*([([{])"
 )
 DIRECTORY_READERS = {"read_dir", "glob", "rglob", "walk", "walkdir", "scandir", "listdir", "WalkDir::new"}
 
@@ -102,18 +102,21 @@ def path_candidates(value: str, source: str) -> set[str]:
 
 
 def reader_expression(text: str, start: int) -> str | None:
-    depth = 1
+    closing = {"(": ")", "[": "]", "{": "}"}
+    stack = [closing[text[start - 1]]]
     cursor = start
     while cursor < len(text):
         literal = STRINGS.match(text, cursor)
         if literal:
             cursor = literal.end()
             continue
-        if text[cursor] == "(":
-            depth += 1
-        elif text[cursor] == ")":
-            depth -= 1
-            if depth == 0:
+        char = text[cursor]
+        if char in closing:
+            stack.append(closing[char])
+        elif char in closing.values():
+            if char != stack.pop():
+                return None
+            if not stack:
                 return text[start:cursor]
         cursor += 1
     return None
@@ -156,9 +159,55 @@ def literal_path(expression: str, source: str) -> str | None:
     return "".join(values)
 
 
+SHELL_FILE_READERS = {
+    "cat", "head", "tail", "sed", "awk", "gawk", "grep", "egrep", "fgrep", "rg",
+    "sort", "uniq", "cut", "paste", "join", "wc", "cmp", "diff", "comm", "od",
+    "xxd", "strings", "sha256sum", "sha512sum", "md5sum", "cksum", "source", ".",
+}
+SHELL_DIRECTORY_READERS = {"find", "ls", "tree", "du"}
+
+
+def shell_references(path: str, source: str, text: str) -> list[str]:
+    for line in text.replace("\\\n", " ").splitlines():
+        try:
+            lexer = shlex.shlex(line, posix=True, punctuation_chars=";&|()<>")
+            lexer.whitespace_split = True
+            tokens = list(lexer)
+        except ValueError:
+            return [f"uncertain shell expression in {source}"]
+        for index, token in enumerate(tokens):
+            command = posixpath.basename(token) if token != "." else token
+            redirect = token in {"<", "<>"}
+            if not redirect and command not in SHELL_FILE_READERS | SHELL_DIRECTORY_READERS:
+                continue
+            args = []
+            for argument in tokens[index + 1:]:
+                if argument and all(char in ";&|()<>" for char in argument):
+                    break
+                args.append(argument)
+                if redirect:
+                    break
+            for argument in args:
+                if any(char in argument for char in "$`*?{}"):
+                    return [f"uncertain shell input read by {source}: {token}"]
+                if argument.startswith("-"):
+                    continue
+                candidates = path_candidates(argument, source)
+                if path in candidates:
+                    return [f"shell input read by {source}: {token}"]
+                if command in SHELL_DIRECTORY_READERS and any(
+                    directory in {".", ".."} or directory.startswith("../") or
+                    path.startswith(directory.rstrip("/") + "/") for directory in candidates
+                ):
+                    return [f"shell directory read by {source}: {token}"]
+    return []
+
+
 def input_references(path: str, sources: list[tuple[str, str]]) -> list[str]:
     references = []
     for source, text in sources:
+        if PurePosixPath(source).suffix in {".sh", ".bash"} or PurePosixPath(source).name == "justfile":
+            references.extend(shell_references(path, source, text))
         strings = DOUBLE_STRINGS if source.endswith(".rs") else STRINGS
         values = [match.group()[1:-1] for match in strings.finditer(text)]
         candidates = set().union(*(path_candidates(value, source) for value in values))

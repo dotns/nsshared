@@ -1,6 +1,6 @@
 # Build input scoped self-check
 
-- **status**: completed
+- **status**: implementing
 - **createdAt**: 2026-10-20 11:18
 - **approvedAt**: 2026-10-20 11:18
 - **relatedTask**: 20261020-1118-build-input-self-check
@@ -45,3 +45,12 @@ checked-head dependencies, unincluded documents and lock reads.
 `9f097123d0ea71592dcbea1c0497de48a3106567`: 23 selection tests, 416 Rust tests with zero skips,
 one documentation test and warning-free documentation builds. All static
 checks and API compatibility checks passed.
+
+## Executable reader coverage
+
+The scanner omitted command-style shell readers and the Rust `include!`
+macro, allowing unresolved executable inputs to appear unreferenced. Extend
+conservative detection to shell file commands, input redirection and directory
+commands, and recognize every Rust inclusion macro delimiter. Preserve
+selection for a shell command that reads a known unrelated literal path.
+Temporary repositories must commit each reader before changing only a fixture.
