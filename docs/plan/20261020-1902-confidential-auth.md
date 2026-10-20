@@ -1,6 +1,6 @@
 # Confidential authentication configuration
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-10-20 19:02
 - **approvedAt**: 2026-10-20 19:02
 - **relatedTask**: 20261020-1902-confidential-auth
@@ -37,3 +37,17 @@ profile and review request. No runtime, publication kind or registry bytes chang
 
 Embedding private values in PublicEdge would disclose confidential configuration.
 Duplicating predecessor JSON would preserve an obsolete wire shape and is excluded.
+
+## Acceptance results
+
+The specification and independent Python candidate vectors preceded the codecs.
+The confidential_auth_generation consumer exercises 57 independent vectors,
+including authenticated envelopes, exact successful generation delivery, mismatched
+realm/reference/generation/scope/correlation refusals, complete empty configuration,
+all key-source variants, malformed shapes and value/collection bounds.
+
+The repository self-check passed on source commit `5fdeff3`, selecting full QA.
+All 469 Rust tests passed with zero skips, 41 check-selection tests passed, and
+one documentation test passed. Formatting, lint, dependency checks, spelling,
+vector reproducibility, API compatibility and documentation generation passed.
+NSD producer confirmation and producer-owned vectors remain outstanding.
