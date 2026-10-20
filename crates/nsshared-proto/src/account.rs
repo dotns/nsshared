@@ -6,6 +6,8 @@
 mod bootstrap;
 mod bootstrap_envelope;
 pub mod control_exchange;
+mod edge_declaration;
+mod edge_material;
 mod enrollment;
 mod grants;
 mod l3;
@@ -15,6 +17,7 @@ pub mod machine_token;
 mod participant_roster;
 mod policy_auth;
 mod policy_subject;
+mod public_edge;
 mod publication;
 mod realm_peers;
 mod registry;
@@ -37,6 +40,10 @@ pub use bootstrap_envelope::{
     ACCOUNT_REQUEST_DOMAIN, ACCOUNT_RESPONSE_DOMAIN, BootstrapEnvelope, CONTROL_CLOCK_SKEW_SECONDS,
     CONTROL_REPLAY_WINDOW_SECONDS, EnvelopeDirection, EnvelopeExpectation,
 };
+pub use edge_declaration::{EdgeServiceBody, EdgeServiceRequest, EdgeServiceResponse};
+pub use edge_material::{
+    EdgeAuth, EdgeJwtAuthority, EdgeMaterialAck, EdgeMaterialKind, EdgeMaterialRef, MAX_EDGE_ITEMS,
+};
 pub use enrollment::{
     Enrollment, EnrollmentDecision, EnrollmentError, MAX_CAPABILITIES, MAX_CAPABILITY_BYTES,
     RebindAuthorization, decide_enrollment,
@@ -57,6 +64,10 @@ pub use participant_roster::{
 };
 pub use policy_auth::{AdminScope, AdminTokenClaims, JwtSubjectBinding, SignedSubjectHeaderPolicy};
 pub use policy_subject::{PolicySubject, SubjectAnchor, SubjectBinding};
+pub use public_edge::{
+    EdgeProtocol, EdgeRealm, EdgeRoute, EdgeRouteOptions, EdgeSourceIp, EdgeTransport,
+    EdgeUpstreamTls, PublicEdge,
+};
 pub use publication::{
     AcceptedPublication, MAX_PUBLICATION_BYTES, PUBLICATION_SIGNATURE_DOMAIN, PublicationChannel,
     PublicationContent, PublicationDecision, PublicationError, PublicationEvent,

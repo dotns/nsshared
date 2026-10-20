@@ -54,7 +54,7 @@ explicitly frame only. NSD supplies producer vectors for every row.
 | 4 `exit-subnet` | Grant publication plus existing Subnet selection and independent consumers delivered | Grants B39 and selection B40; Q14 |
 | 5 `payer` | Binary realm/UserId assignment publication and cardinality refusals delivered | Grants B39; Q15 |
 | 6 `withdrawal` | Resource authority snapshots and pure successor validation delivered | Grants B39; Q16 |
-| 7 `public-edge` | Registry frame only | Declaration integration B46; Q17 |
+| 7 `public-edge` | Pure scoped public-edge, material and exact M6 declaration/report/listener integration with independent consumer vectors delivered | NSD confirmation/producer vectors and explicitly open carrier rows; Q17 |
 | 8 `relay` | Signed roster and local schema 2 specified; directory and participant credential frame only | Q01–Q06, Q18 |
 | 9 `usage` | Realm-local payer, completed service/relay units and correlated report/answer vectors delivered | Usage contract B42; Q10, Q19 |
 | 10 `node-control` | Pure v2 codec and independent vectors delivered | `node_control` messages, constants, ACK hash and endpoint selection; Q20 |
@@ -425,11 +425,23 @@ outstanding; candidate fixtures do not assert deployed interoperability.
 
 ### Q17: Public-edge payload — NSD owner
 
-What schema completes `public-edge`, preserving NodeId/node6 backends, names,
-aliases, ports, domains, visitor subjects, authentication dependencies,
-certificate/client-CA references and material generations? Name NSD vectors
-for each preserved boundary and M6 declaration composition without changing
-the existing public-ingress usage boundary.
+The delivered [candidate specification](l8-public-edge-candidate.md) defines
+PublicEdge complete realm contributions under the existing signed family 7
+stream scope, exact material generations and correlated installation ACKs,
+embedded shared subject/JWT/header values and EdgeServiceRequest/Response using
+unchanged M6 Declaration, ReportContent and ListenerIntent bytes and digests.
+Please confirm names/aliases/domains/virtual ports, full Node identity backends,
+explicit no-connector behavior, complete replacement/empty withdrawal, refusal
+without renewal and dependency-before-route ordering. Review both independent
+consumer acceptance tests public_edge_vectors and material_declaration_vectors
+and supply NSD producer-owned vectors; Python fixture authority is not NSD output.
+
+Service DNS labels resolve from the authenticated M6 Resource via ServiceRef.
+Standalone labels remain excluded pending M01/M02 with the M6 contract owner.
+OIDC provider/cookie/organization/redirect carriers remain open with the auth
+consumer and NSD owners, as listed in the inventory disposition. No confirmation
+of those carriers, live interoperability or public-ingress usage changes is
+claimed; Q17 remains prepared pending delivery and response.
 
 ### Q18: Relay directory and participant payload — NSD owner
 

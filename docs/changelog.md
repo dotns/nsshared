@@ -1,5 +1,16 @@
 ## 2026-10-20 [feat]
 
+Add pure public-edge routing, generation-qualified material acknowledgements and
+correlated declarations using existing service-control objects. Validate listener
+and backend endpoint ownership across complete realm replacements while keeping
+discovery names and material references realm-qualified.
+
+Validation: 151 independent fixture cases and 12 focused tests passed; self-check
+passed with 461 workspace tests, zero skips and static/API/docs checks. Standalone
+service labels, open OIDC carriers and producer confirmation remain outstanding.
+
+## 2026-10-20 [feat]
+
 Add pure registration, authentication and information exchange contracts with
 exact signed acceptance comparisons. Preserve machine claim, key qualification,
 pin ownership and rotation predicates, including separate gateway and server

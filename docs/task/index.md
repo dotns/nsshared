@@ -129,3 +129,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**Scope self-check by resolved dependency changes**](20261020-1640-resolved-dependency-self-check.md) `P1`
 - [x] [**Define policy and claim canonical values**](20261020-1625-policy-claims.md) `P1`
 - [x] [**Define control exchange contracts**](20261020-1744-control-exchange.md) `P1`
+- [x] [**Define public-edge material and declaration contracts**](20261020-1727-public-edge-contract.md) `P1`
