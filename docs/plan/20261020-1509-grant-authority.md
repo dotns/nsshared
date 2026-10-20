@@ -48,3 +48,19 @@ tests, 434 workspace tests with zero skips, doctests and warning-free docs.
 Only completion records change after that check. Local review covered the full
 Rust/Python and documentation change, with no remaining correctness findings.
 Candidate fixtures do not certify deployed producer interoperability.
+
+## Node authority review question
+
+Q09 in `docs/l8-candidate-review-request.md` now directly describes the complete
+`[1, bindings, policy_bytes]` wrapper, explicit full-I/authorized-K bindings,
+validation and denial boundaries, and links to the normalized Node L3
+specification. It requests the outstanding NSD/ns string-identifier and
+NodeL3Config graph projection, byte-string keys and independent producer vectors.
+Q12 retains realm/peer contribution provenance and selective withdrawal context,
+with a reference to Q09 instead of presenting the complete contract elsewhere.
+No executable source or fixture changed.
+
+The self-check on `977d98a547051a836665b871b5284f263fbcff01` passed static and
+API compatibility checks, all 11 generated fixture files, 28 check-selection
+tests, 434 workspace tests with zero skips, doctests and warning-free docs.
+Only these completion records changed after that verification.

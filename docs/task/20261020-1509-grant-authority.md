@@ -31,3 +31,19 @@ Investigation, proposal and verification approach are in the matching plan.
 - `constructed_authority_refusals` checks cardinality, ordering, missing bindings and payload/collection bounds on constructed and encoded inputs.
 - RED: the initial consumer failed with `E0432` because the new exports were absent. GREEN: 14 focused tests passed after format/lint. The self-check at `09dcebb0ad598287eb5477729853c33a4a0ff8ac` passed static checks, vector regeneration, API compatibility, 28 selection tests, 434 workspace tests with zero skips, doctests and warning-free documentation. Only these completion records changed afterward.
 - The five new tests and all 72 cases are fixture-fed contract observations. Original account vectors, registry bytes, Cargo manifests and lockfile remain unchanged. Q09 and Q13–Q16 record outstanding NSD producer formats/vectors and owner confirmation; service usage retains its separately revised predecessor subject.
+
+## Node authority review question
+
+Q09 in `docs/l8-candidate-review-request.md` now directly describes the complete
+`[1, bindings, policy_bytes]` wrapper, explicit full-I/authorized-K bindings,
+validation and denial boundaries, and links to the normalized Node L3
+specification. It requests the outstanding NSD/ns string-identifier and
+NodeL3Config graph projection, byte-string keys and independent producer vectors.
+Q12 retains realm/peer contribution provenance and selective withdrawal context,
+with a reference to Q09 instead of presenting the complete contract elsewhere.
+No executable source or fixture changed.
+
+The self-check on `977d98a547051a836665b871b5284f263fbcff01` passed static and
+API compatibility checks, all 11 generated fixture files, 28 check-selection
+tests, 434 workspace tests with zero skips, doctests and warning-free docs.
+Only these completion records changed after that verification.
