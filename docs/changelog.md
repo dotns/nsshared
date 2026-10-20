@@ -1,5 +1,17 @@
 ## 2026-10-20 [feat]
 
+Replace the service usage subject with exact 16-byte realm-local UserId bytes.
+Add separate completed-I/O and accepted relay DATA profiles, immutable report
+parts and correlated acknowledgement, conflict, rejection and mapping-repair
+contracts. Preserve historical payer and roster attribution without runtime I/O.
+
+Validation: 77 independent fixture cases cover canonical bytes, historical
+ownership, duplicate delivery and exact answer correlation. Candidate self-check
+passed with 439 Rust tests, zero skips, 28 selection tests and static/API/docs
+checks. Producer confirmation and live consumer instrumentation remain outstanding.
+
+## 2026-10-20 [feat]
+
 Add pure Egress/Exit grant publications, explicit binary realm/UserId payer
 bindings, resource retirement snapshots and complete Node identity-to-key
 authority. Validate payer ambiguity, exact resource context, retained retirement

@@ -85,3 +85,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**20261020-1118-build-input-self-check Scope self-check by build and test inputs**](20261020-1118-build-input-self-check.md)
 - [x] [**Share the Node-control codec**](20261020-1230-node-control-codec.md) `2026-10-20`
 - [x] [**Define service grants and Node authority**](20261020-1509-grant-authority.md) `2026-10-20`
+- [x] [**Define service and relay usage contracts**](20261020-1607-usage-contracts.md) `2026-10-20`
