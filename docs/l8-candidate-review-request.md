@@ -752,3 +752,17 @@ relay-only and never acknowledges a service report.
 
 NSD confirmation, producer-owned canonical/refusal vectors and real producer
 interoperability remain outstanding. Fixture acceptance records no agreement.
+
+## Exact floor text acceptance
+
+Source and independent fixture revision: `71461c0a20737ec1beb1438cebcc940153e3abe2`.
+The floor wrapper preserves valid unchanged M6 declaration keys, and nonempty
+control-free Exit references and policy-label keys, including internal, leading
+and trailing spaces and Unicode whitespace. Accepted and rejected references
+use the same exact data-text contract. Capability token syntax, limits, strict
+ordering/uniqueness and control-character refusals remain unchanged. Empty
+policy-label values retain their separate existing meaning. No trimming, folding
+or normalization is applied before serialization, digesting or correlation.
+Independent floor-text.vec cases cover these accepted/refused boundaries and
+exact matching acknowledgements. Tuple shapes and existing valid fixture bytes
+are unchanged; NSD confirmation and producer-owned vectors remain outstanding.
