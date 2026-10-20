@@ -1,5 +1,16 @@
 ## 2026-10-20 [feat]
 
+Add pure registration, authentication and information exchange contracts with
+exact signed acceptance comparisons. Preserve machine claim, key qualification,
+pin ownership and rotation predicates, including separate gateway and server
+audience boundaries. Reuse existing bootstrap signing bytes and enrollment types.
+
+Validation: 66 independent vectors and six consumer tests passed; self-check
+passed with 455 workspace tests, zero skips, 41 selection tests and static/API/docs
+checks. Producer confirmation and independently owned vectors remain outstanding.
+
+## 2026-10-20 [feat]
+
 Add pure qualified policy subjects, bindings, ordered admin claims and signed
 request inputs using existing account signature domains. Preserve exact JWT
 claim names and values, including whitespace and empty strings, within UTF-8
