@@ -1,6 +1,6 @@
 # Complete control report exchanges
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-10-20 18:48
 - **approvedAt**: 2026-10-20 18:48
 - **relatedTask**: 20261020-1848-control-report-exchanges
@@ -35,3 +35,14 @@ Pure account contracts, independent producers/consumers and candidate specificat
 ## Alternatives
 
 A duplicate service-floor contract would split ownership and is excluded.
+
+## Results
+
+All five pure report exchanges and the existing service report extension are
+implemented. `control_report_contract_vectors` and the affected public-edge tests
+pass. The complete self-check passed with 469 tests and no skips, 41 check-selection
+tests, API compatibility, static/vector checks, doctests and documentation.
+The review request pins the exact source/fixture candidate revision and keeps NSD
+confirmation outstanding. Material correlation uses the entire reference, realm,
+generation and exact pending request id; private auth request/response acquisition
+is separate.
