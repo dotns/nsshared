@@ -1,6 +1,6 @@
 # Service grant and Node authority contracts
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-10-20 15:09
 - **approvedAt**: 2026-10-20 15:09
 - **relatedTask**: 20261020-1509-grant-authority
@@ -24,3 +24,27 @@ Account contracts, independent producer and consumer fixtures, profile and revie
 ## Verification
 
 Run the consumer first to establish failure, then format/lint and focused contract tests. Run the prescribed self-check before marking completed. Independent fixtures describe candidate authority, not live producer interoperability.
+
+## Results
+
+Delivered pure Egress/Exit grants, binary realm-local payer assignments, resource
+claim/retirement snapshots and complete I/K Node authority. M6 resource bytes,
+existing Subnet selection and legacy Node policy bytes are reused unchanged.
+No dependency, runtime or usage-wire change is included. The specification and
+independent producer precede the implementation; review questions retain the
+outstanding NSD producer and owner-confirmation boundaries.
+
+The first consumer failed to compile with unresolved new contract exports.
+After implementation and correction of a test borrow, format and lint passed.
+The independent fixture contains 72 cases: 16 accepted and 56 typed refusals.
+Five new consumer tests compare exact context, floor/selection and I/K fields,
+policy denial, selective withdrawal, fresh identical-content regrant, retained
+history and invalid constructed contracts. The focused account/Subnet/new
+consumer run passed 14 tests. Existing account fixture bytes are unchanged.
+
+The prescribed self-check passed at `09dcebb0ad598287eb5477729853c33a4a0ff8ac`, including static checks, 11
+independently generated fixture files, API compatibility, 28 check-selection
+tests, 434 workspace tests with zero skips, doctests and warning-free docs.
+Only completion records change after that check. Local review covered the full
+Rust/Python and documentation change, with no remaining correctness findings.
+Candidate fixtures do not certify deployed producer interoperability.
