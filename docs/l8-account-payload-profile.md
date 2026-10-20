@@ -795,3 +795,7 @@ The independent confidential-auth.vec fixture and confidential_auth_generation
 consumer validate pending/current dependency correlation and private configuration
 refusals. The candidate fixture is not NSD producer confirmation. Family 7 registry
 metadata and public publication bytes are unchanged.
+
+## Publication subscription request
+
+The [control exchange subscription specification](control-exchange-candidate.md#authenticated-publication-subscription) defines PublicationSubscriptionRequest, config.stream and its endpoint. It carries exact issuer/recipient/realm/scope entries, understanding-only capabilities, family 7 public ingress indices and required boot nonce/checked attempt counter. Existing publication key versions and channel ownership remain authoritative. Independent consumer vectors precede the pure codec; matching NSD production and confirmation remain outstanding.

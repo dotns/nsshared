@@ -18,6 +18,10 @@ pub const MACHINE_REGISTER: &str = "machine.register";
 pub const MACHINE_AUTH: &str = "machine.auth";
 /// Signed information operation.
 pub const INFO_GET: &str = "info.get";
+/// Authenticated publication subscription operation.
+pub const CONFIG_STREAM: &str = "config.stream";
+/// Confidential authenticated publication stream endpoint.
+pub const CONFIG_STREAM_PATH: &str = "/api/v1/config/stream";
 /// Machine-control token purpose.
 pub const MACHINE_AUTH_PURPOSE: &str = "control";
 /// Confidential signed operation endpoint.

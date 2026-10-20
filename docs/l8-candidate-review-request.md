@@ -279,6 +279,8 @@ vectors for these units; relay DATA remains a separate unit.
 
 ### Q11: Enrollment payload — NSD owner
 
+Confirm the exact [publication subscription candidate](control-exchange-candidate.md#authenticated-publication-subscription): PublicationSubscriptionRequest, config.stream, /api/v1/config/stream, full issuer/recipient/realm/scope entries, enrollment capability syntax, family 7 public ingress indices and required nonzero boot nonce/positive u32 attempt counter. Confirm producer bytes and external scope authorization, confidential signed carrier use and unchanged publication versions/channel ownership. NSD confirmation remains outstanding; independent fixture vectors do not constitute producer agreement.
+
 The [complete control exchange candidate](control-exchange-candidate.md) specifies
 RegistrationRequest/RegistrationAcceptance, AuthenticationRequest/Response and
 InformationRequest/Response and their exact tuple fields and constants. Confirm
@@ -510,6 +512,8 @@ review results. This candidate does not claim live interoperability; transport,
 persistence, retransmission and state machines remain in consumers.
 
 ### Q21: Complete v1 replacement map — NSD and node owners
+
+Confirm the exact [publication subscription candidate](control-exchange-candidate.md#authenticated-publication-subscription): PublicationSubscriptionRequest, config.stream, /api/v1/config/stream, full issuer/recipient/realm/scope entries, enrollment capability syntax, family 7 public ingress indices and required nonzero boot nonce/positive u32 attempt counter. Confirm producer bytes and external scope authorization, confidential signed carrier use and unchanged publication versions/channel ownership. NSD confirmation remains outstanding; independent fixture vectors do not constitute producer agreement.
 
 The [control exchange delta](control-exchange-candidate.md#complete-pinned-consumer-disposition)
 maps all 264 pinned control-trust/enrollment inventory rows. Four internal
