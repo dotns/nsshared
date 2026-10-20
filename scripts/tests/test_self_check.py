@@ -1,6 +1,7 @@
 """Exercise selection with real Git history and Cargo workspace metadata."""
 
 import importlib.util
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -57,6 +58,152 @@ class SelectionTests(unittest.TestCase):
     def selection(self):
         paths = self_check.changed_paths(self.root, "main")
         return self_check.select(self.root, paths, self.metadata)
+
+    def test_added_leaf_dependency_scopes_consumers(self):
+        manifest = self.root / "crates/core/Cargo.toml"
+        manifest.write_text(manifest.read_text() +
+                            '\n[dependencies]\ncontract-other = { path = "../other" }\n')
+        subprocess.run(["cargo", "generate-lockfile", "--offline"], cwd=self.root, check=True)
+        selection = self_check.select_changes(self.root, "main")
+        self.assertFalse(selection["full"])
+        self.assertEqual(selection["changed"], ["contract-api", "contract-client", "contract-core"])
+        self.assertEqual(selection["affected"], ["contract-api", "contract-client", "contract-core"])
+        for name in selection["changed"]:
+            self.assertIn(name + ":", selection["reason"])
+        self.assertIn("added contract-other", selection["reason"])
+
+    def test_shared_dependency_version_scopes_all_users(self):
+        manifest = self.root / "crates/core/Cargo.toml"
+        manifest.write_text(manifest.read_text().replace('version = "0.1.0"', 'version = "0.2.0"'))
+        subprocess.run(["cargo", "generate-lockfile", "--offline"], cwd=self.root, check=True)
+        selection = self_check.select_changes(self.root, "main")
+        self.assertFalse(selection["full"])
+        self.assertEqual(selection["affected"], ["contract-api", "contract-client", "contract-core"])
+        self.assertIn("removed contract-core 0.1.0", selection["reason"])
+        self.assertIn("added contract-core 0.2.0", selection["reason"])
+
+    def test_root_dependency_and_patch_edits_are_global(self):
+        for section in ('[workspace.dependencies]\nunused = "1"\n',
+                        '[patch.crates-io]\ncontract-core = { path = "crates/core" }\n'):
+            with self.subTest(section=section):
+                self.write("Cargo.toml", '[workspace]\nmembers = ["crates/*", "examples/*"]\n'
+                           'resolver = "3"\n' + section)
+                selection = self_check.select_changes(self.root, "main")
+                self.assertTrue(selection["full"])
+                self.assertIn("Cargo.toml", selection["reason"])
+
+    def test_failed_current_metadata_selects_full(self):
+        self.write("crates/core/Cargo.toml", "invalid manifest")
+        selection = self_check.select_changes(self.root, "main")
+        self.assertTrue(selection["full"])
+        self.assertIn("metadata comparison failed", selection["reason"])
+        self.assertEqual(self_check.commands(selection), [["just", "qa"]])
+
+    def test_failed_base_metadata_selects_full(self):
+        self.write("Cargo.lock", "invalid lockfile")
+        self.commit()
+        subprocess.run(["cargo", "generate-lockfile", "--offline"], cwd=self.root, check=True)
+        selection = self_check.select_changes(self.root, "main")
+        self.assertTrue(selection["full"])
+        self.assertIn("metadata comparison failed", selection["reason"])
+
+    def test_dependency_policies_are_global(self):
+        for path in ("deps/allow.toml", "deps/layers.toml", "deps/custom-policy.txt"):
+            selection = self_check.select(self.root, [path], self.metadata)
+            self.assertTrue(selection["full"])
+            self.assertIn("dependency policy", selection["reason"])
+
+    def test_lockfile_only_checksum_change_selects_users(self):
+        # Real directory-source metadata supplies two independently valid snapshots.
+        checksum = "1" * 64
+        self.write("vendor/resolved-fixture/Cargo.toml",
+                   '[package]\nname = "resolved-fixture"\nversion = "0.1.0"\nedition = "2024"\n')
+        self.write("vendor/resolved-fixture/src/lib.rs", "pub fn fixture() {}\n")
+        self.write("vendor/resolved-fixture/.cargo-checksum.json",
+                   json.dumps({"files": {}, "package": checksum}))
+        self.write(".cargo/config.toml",
+                   '[source.crates-io]\nreplace-with = "vendored"\n'
+                   '[source.vendored]\ndirectory = "vendor"\n')
+        manifest = self.root / "crates/core/Cargo.toml"
+        manifest.write_text(manifest.read_text() +
+                            '\n[dependencies]\nresolved-fixture = "=0.1.0"\n')
+        subprocess.run(["cargo", "generate-lockfile", "--offline"], cwd=self.root, check=True)
+        self.commit()
+        before = self_check.dependency_snapshot(self.root)
+        lock = self.root / "Cargo.lock"
+        lock.write_text(lock.read_text().replace(checksum, "2" * 64))
+        self.write("vendor/resolved-fixture/.cargo-checksum.json",
+                   json.dumps({"files": {}, "package": "2" * 64}))
+        after = self_check.dependency_snapshot(self.root)
+        paths = ["Cargo.lock"]
+        selection = self_check.select(self.root, paths, after,
+                                      self_check.dependency_changes(before, after, paths))
+        self.assertFalse(selection["full"], selection["reason"])
+        self.assertEqual(selection["changed"], ["contract-api", "contract-client", "contract-core"])
+        self.assertEqual(selection["affected"], selection["changed"])
+        self.assertIn("checksum=" + checksum, selection["reason"])
+        self.assertIn("checksum=" + "2" * 64, selection["reason"])
+
+    def test_manifest_only_change_selects_its_owner(self):
+        manifest = self.root / "crates/other/Cargo.toml"
+        manifest.write_text(manifest.read_text() + '\ndescription = "Independent contract"\n')
+        before = self.git("status", "--porcelain")
+        selection = self_check.select_changes(self.root, "main")
+        self.assertFalse(selection["full"])
+        self.assertEqual(selection["changed"], ["contract-other"])
+        self.assertEqual(selection["affected"], ["contract-other"])
+        self.assertIn("own manifest changed", selection["reason"])
+        self.assertEqual(self.git("status", "--porcelain"), before)
+        self.assertEqual(self.git("worktree", "list", "--porcelain").count("worktree "), 1)
+
+    def test_lockfile_format_only_change_selects_static_checks(self):
+        lock = self.root / "Cargo.lock"
+        lock.write_text(lock.read_text() + "\n")
+        selection = self_check.select_changes(self.root, "main")
+        self.assertFalse(selection["full"])
+        self.assertEqual(selection["changed"], [])
+        self.assertEqual(self_check.commands(selection), [["just", *self_check.STATIC_CHECKS]])
+
+    def test_enabled_feature_change_selects_consumers(self):
+        manifest = self.root / "crates/core/Cargo.toml"
+        manifest.write_text(manifest.read_text() + "\n[features]\nextra = []\n")
+        selection = self_check.select_changes(self.root, "main")
+        self.assertFalse(selection["full"])
+        self.assertEqual(selection["affected"], ["contract-api", "contract-client", "contract-core"])
+        self.assertIn("features=extra", selection["reason"])
+
+    def test_dependency_comparison_uses_merge_base(self):
+        self.git("switch", "--quiet", "-c", "feature")
+        manifest = self.root / "crates/other/Cargo.toml"
+        manifest.write_text(manifest.read_text() + '\ndescription = "Independent contract"\n')
+        self.commit()
+        self.git("switch", "--quiet", "main")
+        core = self.root / "crates/core/Cargo.toml"
+        core.write_text(core.read_text().replace('version = "0.1.0"', 'version = "0.2.0"'))
+        subprocess.run(["cargo", "generate-lockfile", "--offline"], cwd=self.root, check=True)
+        self.commit()
+        self.git("switch", "--quiet", "feature")
+        selection = self_check.select_changes(self.root, "main")
+        self.assertFalse(selection["full"])
+        self.assertEqual(selection["changed"], ["contract-other"])
+        self.assertEqual(selection["affected"], ["contract-other"])
+
+    def test_removed_dependency_selects_former_consumers(self):
+        manifest = self.root / "crates/api/Cargo.toml"
+        manifest.write_text(manifest.read_text().split("[dependencies]")[0])
+        subprocess.run(["cargo", "generate-lockfile", "--offline"], cwd=self.root, check=True)
+        selection = self_check.select_changes(self.root, "main")
+        self.assertFalse(selection["full"])
+        self.assertEqual(selection["changed"], ["contract-api", "contract-client"])
+        self.assertEqual(selection["affected"], ["contract-api", "contract-client"])
+        self.assertIn("removed contract-core", selection["reason"])
+
+    def test_incomparable_membership_selects_full(self):
+        self.crate("crates/new", "contract-new")
+        subprocess.run(["cargo", "generate-lockfile", "--offline"], cwd=self.root, check=True)
+        selection = self_check.select_changes(self.root, "main")
+        self.assertTrue(selection["full"])
+        self.assertIn("workspace membership changed", selection["reason"])
 
     def test_one_crate_selects_transitive_reverse_dependencies(self):
         self.write("crates/core/src/lib.rs", "pub fn value() -> u8 { 2 }\n")

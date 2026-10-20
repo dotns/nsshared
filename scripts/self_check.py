@@ -2,6 +2,7 @@
 """Select conservative workspace checks from Git paths and Cargo metadata."""
 
 import ast
+import io
 import json
 from pathlib import Path, PurePosixPath
 import posixpath
@@ -9,6 +10,9 @@ import re
 import shlex
 import subprocess
 import sys
+import tarfile
+import tempfile
+import tomllib
 from typing import TypedDict
 
 
@@ -48,6 +52,99 @@ def changed_paths(root: Path, base: str) -> list[str]:
 
 def workspace_metadata(root: Path) -> dict:
     return json.loads(output(root, "cargo", "metadata", "--format-version", "1", "--locked", "--all-features"))
+
+
+def dependency_snapshot(root: Path) -> dict:
+    metadata = workspace_metadata(root)
+    lock = tomllib.loads((root / "Cargo.lock").read_text())
+    metadata["checksums"] = {
+        (p["name"], p["version"], p.get("source")): p.get("checksum")
+        for p in lock["package"]
+    }
+    return metadata
+
+
+def resolved_closures(metadata: dict) -> dict:
+    root = Path(metadata["workspace_root"])
+    packages = {p["id"]: p for p in metadata["packages"]}
+    nodes = {n["id"]: n for n in metadata["resolve"]["nodes"]}
+    checksums = metadata["checksums"]
+
+    def signature(package_id):
+        package = packages[package_id]
+        node = nodes[package_id]
+        source = package["source"]
+        if source is None:
+            source = Path(package["manifest_path"]).relative_to(root).as_posix()
+        checksum = checksums[(package["name"], package["version"], package["source"])]
+        return (package["name"], package["version"], source, checksum,
+                tuple(sorted(node["features"])))
+
+    result = {}
+    for member in metadata["workspace_members"]:
+        package = packages[member]
+        manifest = Path(package["manifest_path"]).relative_to(root).as_posix()
+        visited = set()
+        pending = [member]
+        while pending:
+            current = pending.pop()
+            if current in visited:
+                continue
+            visited.add(current)
+            pending.extend(dep["pkg"] for dep in nodes[current]["deps"])
+        result[manifest] = (member, {signature(item) for item in visited})
+    return result
+
+
+def dependency_changes(before: dict, after: dict, paths: list[str]) -> tuple[set[str], list[str]]:
+    old = resolved_closures(before)
+    new = resolved_closures(after)
+    if old.keys() != new.keys():
+        raise ValueError("workspace membership changed")
+    changed = set()
+    diagnostics = []
+
+    def describe(item):
+        name, version, source, checksum, features = item
+        return (f"{name} {version} source={source} checksum={checksum or '(none)'} "
+                f"features={','.join(features) or '(none)'}")
+
+    packages = {p["id"]: p for p in after["packages"]}
+    for manifest, (member, closure) in sorted(new.items()):
+        previous = old[manifest][1]
+        differences = []
+        if manifest in paths:
+            differences.append("own manifest changed: " + manifest)
+        differences.extend("removed " + describe(item) for item in sorted(previous - closure, key=str))
+        differences.extend("added " + describe(item) for item in sorted(closure - previous, key=str))
+        if differences:
+            changed.add(member)
+            diagnostics.append(packages[member]["name"] + ": " + "; ".join(differences))
+    return changed, diagnostics
+
+
+def select_changes(root: Path, base: str) -> Selection:
+    paths = changed_paths(root, base)
+    try:
+        metadata = dependency_snapshot(root)
+        dependency_paths = {"Cargo.lock"} | {
+            Path(p["manifest_path"]).relative_to(root).as_posix()
+            for p in metadata["packages"] if p["id"] in metadata["workspace_members"]
+        } - {"Cargo.toml"}
+        if any(path in dependency_paths for path in paths):
+            ancestor = output(root, "git", "merge-base", "--", base, "HEAD").decode().strip()
+            archive = output(root, "git", "archive", "--format=tar", ancestor)
+            with tempfile.TemporaryDirectory(prefix="self-check-") as directory:
+                baseline = Path(directory)
+                with tarfile.open(fileobj=io.BytesIO(archive)) as tree:
+                    tree.extractall(baseline, filter="data")
+                before = dependency_snapshot(baseline)
+                changed, diagnostics = dependency_changes(before, metadata, paths)
+            return select(root, paths, metadata, (changed, diagnostics))
+        return select(root, paths, metadata)
+    except (subprocess.CalledProcessError, OSError, ValueError, KeyError, TypeError, tarfile.TarError) as error:
+        return {"full": True, "reason": f"dependency metadata comparison failed: {error}",
+                "changed": [], "affected": []}
 
 
 SOURCE_SUFFIXES = {".rs", ".py", ".sh", ".bash", ".js", ".ts", ".mjs", ".c", ".h"}
@@ -241,7 +338,8 @@ def input_references(path: str, sources: list[tuple[str, str]]) -> list[str]:
     return sorted(set(references))
 
 
-def select(root: Path, paths: list[str], metadata: dict) -> Selection:
+def select(root: Path, paths: list[str], metadata: dict,
+           dependencies: tuple[set[str], list[str]] | None = None) -> Selection:
     root = Path(root).resolve()
     members = set(metadata["workspace_members"])
     packages = {package["id"]: package for package in metadata["packages"] if package["id"] in members}
@@ -251,9 +349,10 @@ def select(root: Path, paths: list[str], metadata: dict) -> Selection:
         if directory.startswith("crates/") and len(directory.split("/")) == 2:
             directories[directory] = package["id"]
 
-    changed = set()
+    changed = set(dependencies[0]) if dependencies is not None else set()
     reasons = []
-    diagnostics = []
+    diagnostics = list(dependencies[1]) if dependencies is not None else []
+    manifests = {Path(p["manifest_path"]).relative_to(root).as_posix() for p in packages.values()}
     sources = tracked_sources(root) if any(not path.endswith(".rs") for path in paths) else []
     for path in paths:
         parts = path.split("/")
@@ -265,6 +364,11 @@ def select(root: Path, paths: list[str], metadata: dict) -> Selection:
         cause = ""
         if "vectors" in parts or path.startswith("tools/vectors/"):
             cause = f"vector or generator changed: {path}"
+        elif dependencies is not None and (path == "Cargo.lock" or path in manifests - {"Cargo.toml"}):
+            diagnostics.append(f"input: {path} (resolved dependency comparison)")
+            continue
+        elif path.startswith("deps/"):
+            cause = f"dependency policy changed: {path}"
         elif configuration(path):
             cause = f"manifest or tool configuration changed: {path}"
         elif rust and not package_id:
@@ -330,8 +434,7 @@ def run_commands(selected_commands: list[list[str]], root: Path) -> None:
 def main() -> None:
     base = sys.argv[1] if len(sys.argv) > 1 else "main"
     root = Path(output(Path.cwd(), "git", "rev-parse", "--show-toplevel").decode().strip())
-    paths = changed_paths(root, base)
-    selection = select(root, paths, workspace_metadata(root))
+    selection = select_changes(root, base)
     print(f"self-check: {'full QA' if selection['full'] else 'scoped'}; {selection['reason']}", flush=True)
     print("self-check: changed packages: " + (", ".join(selection["changed"]) or "(none)"), flush=True)
     print("self-check: affected packages: " + (", ".join(selection["affected"]) or "(none)"), flush=True)

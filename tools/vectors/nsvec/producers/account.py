@@ -108,7 +108,7 @@ def vectors():
     vector("l3-scoped-rules", "l3", [1, a, b, 1, [[namespace, sorted([a, b])]], [[namespace, a, b, 6, 443, 443]]])
     vector("l3-empty-withdrawal", "l3", [1, a, b, 2, [], []])
     for name, window, boundary, direction in [("usage-unset", None, 0, 0), ("usage-measured-zero", [0], 1, 1)]:
-        vector(name, "usage", [1, boundary, direction, bytes([8]) * 16, a, bytes([5]) * 16, bytes([6]) * 16, 1234, window])
+        vector(name, "usage", [1, boundary, direction, bytes([8]) * 16, bytes([9]) * 16, bytes([5]) * 16, bytes([6]) * 16, 1234, window])
     roster_entries = sorted([[a, 0], [b, 1]])
     content = [1, a, b, 7, 1000, 86_401_000, roster_entries]
 
@@ -188,7 +188,7 @@ def vectors():
         changed = copy.deepcopy(l3)
         changed[5][0][index] = value
         refuse(name, "l3", changed)
-    unit = [1, 0, 0, bytes([8]) * 16, a, bytes([5]) * 16, bytes([6]) * 16, 1234, None]
+    unit = [1, 0, 0, bytes([8]) * 16, bytes([9]) * 16, bytes([5]) * 16, bytes([6]) * 16, 1234, None]
     for name, index, value in [("usage-unknown-boundary", 1, 2), ("usage-unknown-direction", 2, 2),
                                ("usage-untyped-window", 8, 0)]:
         changed = copy.deepcopy(unit)

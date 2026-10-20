@@ -1,3 +1,38 @@
+## 2026-10-20 [fix]
+
+Scope member manifest and lockfile changes by resolved dependency closures at
+the merge base and working tree. Include versions, sources, checksums and enabled
+features, select changed members and reverse consumers, and explain differences.
+Global configuration and failed or incomparable metadata retain complete QA.
+
+Validation: 41 selection tests cover added/removed dependencies, shared versions,
+checksums, features, global inputs, failures and temporary export cleanup.
+Self-check passed with 434 Rust tests, zero skips and all static/API/docs checks.
+
+## 2026-10-20 [feat]
+
+Add complete realm membership payloads with existing Node bindings and signed
+records, plus observation-only policy counters. Keep authentication and scope in
+the existing signed publication carrier. Validate exact bindings, ordering,
+uniqueness and bounds before complete replacement without granting L3 permission.
+
+Validation: 47 independent fixtures cover replacement, malformed non-renewal,
+omission, empty withdrawal and replay refusal. Candidate self-check passed with
+438 Rust tests, zero skips, 28 selection tests and static/API/docs checks.
+Producer confirmation and independently owned producer vectors remain outstanding.
+
+## 2026-10-20 [feat]
+
+Replace the service usage subject with exact 16-byte realm-local UserId bytes.
+Add separate completed-I/O and accepted relay DATA profiles, immutable report
+parts and correlated acknowledgement, conflict, rejection and mapping-repair
+contracts. Preserve historical payer and roster attribution without runtime I/O.
+
+Validation: 77 independent fixture cases cover canonical bytes, historical
+ownership, duplicate delivery and exact answer correlation. Candidate self-check
+passed with 439 Rust tests, zero skips, 28 selection tests and static/API/docs
+checks. Producer confirmation and live consumer instrumentation remain outstanding.
+
 ## 2026-10-20 [feat]
 
 Add pure Egress/Exit grant publications, explicit binary realm/UserId payer

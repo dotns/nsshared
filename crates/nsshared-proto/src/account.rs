@@ -14,12 +14,16 @@ mod participant_roster;
 mod policy_auth;
 mod policy_subject;
 mod publication;
+mod realm_peers;
 mod registry;
 mod roster;
 mod signed_request;
 mod subject_policy;
 mod subnet;
 mod usage;
+mod usage_answer;
+mod usage_relay;
+mod usage_report;
 
 pub use bootstrap::{
     BootstrapDiscovery, BootstrapEndpoint, BootstrapError, ConfidentialCarrier, ControlBoundary,
@@ -57,6 +61,10 @@ pub use publication::{
     PublicationExpectation, PublicationKey, PublicationOutcome, PublicationScope,
     PublicationSnapshot, decide_publication, decide_publication_snapshot, publication_channel,
 };
+pub use realm_peers::{
+    MAX_PEER_REALMS, MAX_POLICY_VERSION_BYTES, PolicyVersion, RealmContribution, RealmMember,
+    RealmPeers,
+};
 pub use registry::{
     FAMILIES, FamilyId, FamilyRegistration, FamilyRegistry, M6Reuse, ReplacementRule,
 };
@@ -72,6 +80,12 @@ pub use subnet::{
     SubnetSelection,
 };
 pub use usage::{BatchLossWindow, Direction, ServiceBoundary, ServiceUsage};
+pub use usage_answer::{UsageAnswer, UsageOutcome, UsageRejection, UsageWatermark};
+pub use usage_relay::{RelayBilling, RelayDirection, RelayUsage};
+pub use usage_report::{
+    ServiceOperation, ServiceUsageRow, USAGE_PART_DOMAIN, UsageError, UsageProfile, UsageReport,
+    UsageRows,
+};
 
 use crate::{
     IdentityKey,

@@ -49,16 +49,16 @@ explicitly frame only. NSD supplies producer vectors for every row.
 | ID / family | State at the candidate revision | Detailed contract work / review question |
 | --- | --- | --- |
 | 1 `enrollment` | Binding/lifecycle specified; enrollment publication frame only | Identity contract B38; Q11 |
-| 2 `realms-peers` | Registry frame only | Served-realm and peer payload; Q12 |
+| 2 `realms-peers` | Complete canonical realm contributions, NodeBinding/NodeRecord checks and independent replacement/refusal vectors delivered | NSD producer confirmation and vectors; Q12 |
 | 3 `egress` | Pure grant publication and independent consumer vectors delivered | Grants contract B39; Q13 |
 | 4 `exit-subnet` | Grant publication plus existing Subnet selection and independent consumers delivered | Grants B39 and selection B40; Q14 |
 | 5 `payer` | Binary realm/UserId assignment publication and cardinality refusals delivered | Grants B39; Q15 |
 | 6 `withdrawal` | Resource authority snapshots and pure successor validation delivered | Grants B39; Q16 |
 | 7 `public-edge` | Registry frame only | Declaration integration B46; Q17 |
 | 8 `relay` | Signed roster and local schema 2 specified; directory and participant credential frame only | Q01–Q06, Q18 |
-| 9 `usage` | Service unit specified; service and relay report envelopes frame only | Usage contract B42; Q10, Q19 |
+| 9 `usage` | Realm-local payer, completed service/relay units and correlated report/answer vectors delivered | Usage contract B42; Q10, Q19 |
 | 10 `node-control` | Pure v2 codec and independent vectors delivered | `node_control` messages, constants, ACK hash and endpoint selection; Q20 |
-| 11 `v1-replacement` | Registry frame only | Complete surface mapping/retirement; Q21 |
+| 11 `v1-replacement` | Diagnostic policy-version content and signed stream vectors delivered; other candidate contracts retain their individual status | NSD policy observation confirmation; Q12; complete surface mapping/retirement; Q21 |
 
 Only an authenticated, valid, complete publication replaces its listed kinds
 in the explicitly named issuer/recipient scope. A complete empty publication
@@ -307,19 +307,27 @@ missing trust, empty intersections, noncanonical/duplicate pins and downgrades.
 
 ### Q12: Realm and peer payload — NSD owner
 
-What schema completes `realms-peers` with served realms, I, NodeId, authorized K,
-exact N4/N6 ownership, provider ranges and shared-peer contribution provenance?
-Name NSD vectors for contribution withdrawal, retained shared peers and invalid
-or missing complete sets.
+The [realm publication candidate](realm-publication-candidate.md) now specifies
+`[1, 2, contributions]`: complete served-realm collections with full NodeBinding
+and signed NodeRecord I/K/generation checks, strict realm/member ordering, global
+identity/key uniqueness and bounded sizes. Existing Node contracts derive NodeId
+and N4/N6; membership grants no L3 permission. The signed snapshot publication's
+exact issuer/recipient/served_realm/scope key establishes collection authority.
+Independent candidate vectors cover two-realm installation, malformed refusal
+without renewal, omitted-realm removal, empty withdrawal and older replay refusal
+against a restored version tombstone. The field mapping explicitly retires gateway
+device addresses, listen ports, arbitrary cryptokey routes and carrier tuning.
 
-The [complete Node authority candidate](l8-account-payload-profile.md#normalized-node-l3-form)
-and Q09 define the delivered I/K binding wrapper separately from this realm/peer
-payload. Realm contributions must preserve the provenance of those full
-identities and their authorized keys when a shared peer survives withdrawal.
-Outstanding NSD/ns producer work includes resolving current string machine/owner
-identifiers and the NodeL3Config resource graph into that authority. Please
-supply independently owned realm/peer contribution vectors; fixture agreement
-does not establish producer confirmation.
+Family 11 policy-version is `[1, 11, counter]` on its existing signed stream kind:
+an observation only, never applied-policy evidence or an authorization revision.
+Its exact key and enclosing publication version control acceptance, including
+counter decreases under a newer publication.
+
+Please confirm these realm contribution, binding, withdrawal and diagnostic counter
+schemas and supply independently owned NSD producer vectors. Outstanding NSD/ns
+work includes mapping string machine/owner identifiers and the NodeL3Config
+resource graph to full identities. Candidate fixture success does not establish
+producer confirmation; no producer reply has been received.
 
 ### Q13: Egress grant payload — NSD owner
 
@@ -386,7 +394,8 @@ and multiple bindings (even equal values) are distinct typed refusals. NSD must
 authenticate the resource proposal and the paying administrator's accepted exact
 assignment before producing this pair. Producer vectors, accepted-assignment
 integration and binary conversion from current string ULIDs remain outstanding.
-The service usage subject changes separately with its own codec and vectors.
+The service usage candidate now carries the same realm/UserId pair; see Q19
+for the incompatible predecessor and the exact candidate bytes.
 
 ### Q16: Withdrawal and regrant payload — NSD owner
 
@@ -438,6 +447,27 @@ NodeId, captured scope/epoch/class and whole accepted encoded DATA including
 its header, counted once at accepting ingress. Name NSD vectors for delayed
 history, duplicate delivery, repair and gateway-associated billing once against
 gateway service usage, without converting relay bytes to the service unit.
+
+The [usage candidate](usage-contract-candidate.md) now defines service and relay
+report parts and exact correlated ACK/conflict/permanent/unknown-mapping answers.
+Independent fixture consumers are `service_usage_vectors`, `relay_usage_vectors`,
+`usage_report_vectors` and `usage_answer_vectors`. The same UserId in two realms
+retains distinct payer ownership and fails a mismatched historical grant join.
+Historical relay comparison uses the captured issuer/participant/roster version
+and both endpoint classes; either gateway endpoint is excluded in both directions.
+
+This is an explicit incompatible candidate wire delta: the predecessor subject
+was the CBOR byte string `5820` followed by 32 validated Ed25519 identity bytes
+(for example `8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c`).
+The revised subject is `50` followed by exactly 16 unsigned big-endian UserId
+ULID bytes (the migrated account fixture uses `09090909090909090909090909090909`).
+The version 1 nine-element tuple and every other field are unchanged. The exact
+implementation revision is `05ee100f4eba547cd1e7025c92860a20f79fefc2`; predecessor integration
+revision `c71148388636da72f3808623529e1946d1cee1ba` still uses the incompatible identity subject.
+The immutable candidate handoff must include the implementation revision. There is no old-subject fallback or tagged union. NSD confirmation,
+producer-owned vectors, historical ledgers and live exclusion remain outstanding;
+fixture answers establish none of them. Current gateway echo message quantities
+require completed-byte instrumentation before this profile can be adopted.
 
 ### Q20: Node-control vocabulary — node owner and NSD owner
 

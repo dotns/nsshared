@@ -1,5 +1,5 @@
-use super::{AccountError, GrantIncarnation, ReporterIncarnation, SCHEMA, identity, reader};
-use crate::{IdentityKey, encoding::CborWriter};
+use super::{AccountError, GrantIncarnation, ReporterIncarnation, SCHEMA, reader};
+use crate::encoding::CborWriter;
 
 /// Versioned service byte boundary. WireGuard overhead is never included.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -44,8 +44,8 @@ pub struct ServiceUsage {
     pub direction: Direction,
     /// Explicit paying realm.
     pub payer_realm: [u8; 16],
-    /// Explicit paying subject.
-    pub payer_subject: IdentityKey,
+    /// Paying realm-local UserId, unsigned big-endian ULID bytes.
+    pub payer_subject: [u8; 16],
     /// Grant lifecycle captured when counting.
     pub grant: GrantIncarnation,
     /// Independent reporter lifecycle captured when counting.
@@ -66,7 +66,7 @@ impl ServiceUsage {
             .uint(self.boundary as u64)
             .uint(self.direction as u64)
             .bytes(&self.payer_realm)
-            .bytes(self.payer_subject.as_bytes())
+            .bytes(&self.payer_subject)
             .bytes(&self.grant.0)
             .bytes(&self.reporter.0)
             .uint(self.completed_bytes);
@@ -84,7 +84,7 @@ impl ServiceUsage {
     /// Decodes one exact canonical unit without rounding or interpreting unset values.
     ///
     /// # Errors
-    /// Rejects malformed CBOR, unsupported units, directions and invalid identities.
+    /// Rejects malformed CBOR, unsupported units, directions and incorrect payer widths.
     pub fn decode(bytes: &[u8]) -> Result<Self, AccountError> {
         let mut input = reader(bytes, 9)?;
         let boundary = match input.uint()? {
@@ -101,7 +101,7 @@ impl ServiceUsage {
             boundary,
             direction,
             payer_realm: input.fixed_bytes()?,
-            payer_subject: identity(&mut input)?,
+            payer_subject: input.fixed_bytes()?,
             grant: GrantIncarnation(input.fixed_bytes()?),
             reporter: ReporterIncarnation(input.fixed_bytes()?),
             completed_bytes: input.uint()?,
