@@ -16,6 +16,9 @@ mod registry;
 mod roster;
 mod subnet;
 mod usage;
+mod usage_answer;
+mod usage_relay;
+mod usage_report;
 
 pub use bootstrap::{
     BootstrapDiscovery, BootstrapEndpoint, BootstrapError, ConfidentialCarrier, ControlBoundary,
@@ -64,6 +67,12 @@ pub use subnet::{
     SubnetSelection,
 };
 pub use usage::{BatchLossWindow, Direction, ServiceBoundary, ServiceUsage};
+pub use usage_answer::{UsageAnswer, UsageOutcome, UsageRejection, UsageWatermark};
+pub use usage_relay::{RelayBilling, RelayDirection, RelayUsage};
+pub use usage_report::{
+    ServiceOperation, ServiceUsageRow, USAGE_PART_DOMAIN, UsageError, UsageProfile, UsageReport,
+    UsageRows,
+};
 
 use crate::{
     IdentityKey,
