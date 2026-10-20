@@ -242,12 +242,31 @@ decision, including unrelated scopes and absent/empty/failure distinctions.
 
 ### Q09: Normalized Node L3 schema — NSD and node owners
 
-Does `[1, issuer, recipient, revision, scopes, rules]` cover the shared input:
-authority-assigned opaque namespaces, sorted full identity sets, sorted unique
-TCP/UDP allow rules with inclusive nonzero ports, overlap as union and no
-implicit wildcard? Confirm resolution of N6/N4/provider ranges before policy
-compilation, 8,192 bounds and 1 MiB byte limit. Provide empty, cross-scope,
-duplicate, range and limit vectors; compilation stays in consumers.
+The delivered [complete Node L3 authority](l8-account-payload-profile.md#normalized-node-l3-form)
+is `[1, bindings, policy_bytes]`. Each binding is `[full_identity_I, authorized_WireGuard_K]`:
+I is a validated full Ed25519 identity, K is a nonzero 32-byte string, bindings
+are strictly ordered by I and distinct identities cannot share K. Every identity
+in a policy scope requires a binding. Consumers join installed I/K only through
+this explicit authority; a peer record or roster entry alone grants no access.
+
+`policy_bytes` retains the existing canonical
+`[1, issuer, recipient, revision, scopes, rules]` encoding. Authority-assigned
+opaque namespaces, sorted full identity sets and sorted unique TCP/UDP allow
+rules use inclusive nonzero ports, overlap as union and no implicit wildcard.
+Missing membership or policy denies; selective namespace withdrawal preserves
+independently authorized namespaces. Independent consumers cover these cases,
+exact I/K bindings and namespace/protocol/port boundaries. Compilation and
+N6/N4/provider-range resolution remain in consumers. Confirm the 8,192-entry
+bounds and 1 MiB wrapper limit.
+
+Outstanding NSD/ns producer deltas: resolve current string machine/owner
+identifiers and the NodeL3Config resource graph into full I/K authority,
+opaque namespaces and explicit rules; encode peer keys as byte strings rather
+than integer arrays. Please confirm this delivered wrapper and provide
+independently owned accepted/refused producer vectors for empty authority,
+missing/ambiguous bindings, missing membership/policy, cross-scope rules,
+selective withdrawal, port ranges and bounds. Candidate fixture agreement is
+not producer confirmation or live interoperability.
 
 ### Q10: Service byte unit — NSD owner
 
@@ -294,16 +313,13 @@ Name NSD vectors for contribution withdrawal, retained shared peers and invalid
 or missing complete sets.
 
 The [complete Node authority candidate](l8-account-payload-profile.md#normalized-node-l3-form)
-now wraps the existing policy bytes as `[1, bindings, policy_bytes]`. Each binding
-is `[full_I, authorized_K]`; identities are strictly sorted, K is nonzero and
-cannot belong to two identities, and every scoped member needs a binding.
-Independent consumers cover exact TCP/UDP ports, missing policy/membership/key,
-key ambiguity and selective namespace withdrawal. The existing policy bytes
-are unchanged. Outstanding NSD/ns producer work: resolve the current string
-machine/owner identifiers and NodeL3Config resource graph to full I/K authority,
-opaque namespaces and explicit rules; replace integer-array peer keys with the
-specified byte strings. Please supply independently owned producer vectors;
-fixture agreement is not producer confirmation.
+and Q09 define the delivered I/K binding wrapper separately from this realm/peer
+payload. Realm contributions must preserve the provenance of those full
+identities and their authorized keys when a shared peer survives withdrawal.
+Outstanding NSD/ns producer work includes resolving current string machine/owner
+identifiers and the NodeL3Config resource graph into that authority. Please
+supply independently owned realm/peer contribution vectors; fixture agreement
+does not establish producer confirmation.
 
 ### Q13: Egress grant payload — NSD owner
 
