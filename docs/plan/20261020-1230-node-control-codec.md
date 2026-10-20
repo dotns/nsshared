@@ -1,6 +1,6 @@
 # Shared Node-control codec
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-10-20 12:30
 - **approvedAt**: 2026-10-20 12:30
 - **relatedTask**: 20261020-1230-node-control-codec
@@ -29,3 +29,12 @@ Proto module, consumer tests, vector producer, specification and coverage docs.
 ## Alternatives
 
 Keeping duplicate consumer codecs risks drift. Runtime remains consumer-owned.
+
+## Acceptance
+
+The shared implementation preserves the predecessor production logic, with
+import relocation and contract documentation only. All ten predecessor tests,
+independent vector conformance, pinned gateway byte equivalence and byte-budget
+selection passed. Repository self-check passed at
+`52ac36af5e2565c41f33054a91d90820535b1735`: 429 tests passed, zero skipped,
+with static, compatibility and documentation checks. No dependencies changed.
