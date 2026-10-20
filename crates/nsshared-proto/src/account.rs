@@ -19,6 +19,7 @@ mod policy_auth;
 mod policy_subject;
 mod public_edge;
 mod publication;
+pub mod publication_subscription;
 mod realm_peers;
 mod registry;
 mod roster;

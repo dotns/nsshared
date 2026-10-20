@@ -786,3 +786,7 @@ refusal without renewal, names/aliases/ports/domains, full backend identity join
 material generation mismatch and unchanged M6 object bytes/digests. These are
 fixture-produced candidate observations; NSD confirmation and producer-owned
 vectors remain outstanding under Q17.
+
+## Publication subscription request
+
+The [control exchange subscription specification](control-exchange-candidate.md#authenticated-publication-subscription) defines PublicationSubscriptionRequest, config.stream and its endpoint. It carries exact issuer/recipient/realm/scope entries, understanding-only capabilities, family 7 public ingress indices and required boot nonce/checked attempt counter. Existing publication key versions and channel ownership remain authoritative. Independent consumer vectors precede the pure codec; matching NSD production and confirmation remain outstanding.
