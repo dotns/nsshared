@@ -4,6 +4,7 @@ register a new producer by adding its module to PRODUCERS."""
 from . import (
     account,
     grant_authority,
+    usage,
     dns_txt,
     identities,
     node_records,
@@ -18,6 +19,7 @@ from . import (
 PRODUCERS = [
     account,
     grant_authority,
+    usage,
     identities,
     node_records,
     node_control,

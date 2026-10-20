@@ -56,7 +56,7 @@ explicitly frame only. NSD supplies producer vectors for every row.
 | 6 `withdrawal` | Resource authority snapshots and pure successor validation delivered | Grants B39; Q16 |
 | 7 `public-edge` | Registry frame only | Declaration integration B46; Q17 |
 | 8 `relay` | Signed roster and local schema 2 specified; directory and participant credential frame only | Q01–Q06, Q18 |
-| 9 `usage` | Service unit specified; service and relay report envelopes frame only | Usage contract B42; Q10, Q19 |
+| 9 `usage` | Realm-local payer, completed service/relay units and correlated report/answer vectors delivered | Usage contract B42; Q10, Q19 |
 | 10 `node-control` | Pure v2 codec and independent vectors delivered | `node_control` messages, constants, ACK hash and endpoint selection; Q20 |
 | 11 `v1-replacement` | Registry frame only | Complete surface mapping/retirement; Q21 |
 
@@ -386,7 +386,8 @@ and multiple bindings (even equal values) are distinct typed refusals. NSD must
 authenticate the resource proposal and the paying administrator's accepted exact
 assignment before producing this pair. Producer vectors, accepted-assignment
 integration and binary conversion from current string ULIDs remain outstanding.
-The service usage subject changes separately with its own codec and vectors.
+The service usage candidate now carries the same realm/UserId pair; see Q19
+for the incompatible predecessor and the exact candidate bytes.
 
 ### Q16: Withdrawal and regrant payload — NSD owner
 
@@ -438,6 +439,27 @@ NodeId, captured scope/epoch/class and whole accepted encoded DATA including
 its header, counted once at accepting ingress. Name NSD vectors for delayed
 history, duplicate delivery, repair and gateway-associated billing once against
 gateway service usage, without converting relay bytes to the service unit.
+
+The [usage candidate](usage-contract-candidate.md) now defines service and relay
+report parts and exact correlated ACK/conflict/permanent/unknown-mapping answers.
+Independent fixture consumers are `service_usage_vectors`, `relay_usage_vectors`,
+`usage_report_vectors` and `usage_answer_vectors`. The same UserId in two realms
+retains distinct payer ownership and fails a mismatched historical grant join.
+Historical relay comparison uses the captured issuer/participant/roster version
+and both endpoint classes; either gateway endpoint is excluded in both directions.
+
+This is an explicit incompatible candidate wire delta: the predecessor subject
+was the CBOR byte string `5820` followed by 32 validated Ed25519 identity bytes
+(for example `8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c`).
+The revised subject is `50` followed by exactly 16 unsigned big-endian UserId
+ULID bytes (the migrated account fixture uses `09090909090909090909090909090909`).
+The version 1 nine-element tuple and every other field are unchanged. The exact
+implementation revision is `05ee100f4eba547cd1e7025c92860a20f79fefc2`; predecessor integration
+revision `c71148388636da72f3808623529e1946d1cee1ba` still uses the incompatible identity subject.
+The immutable candidate handoff must include the implementation revision. There is no old-subject fallback or tagged union. NSD confirmation,
+producer-owned vectors, historical ledgers and live exclusion remain outstanding;
+fixture answers establish none of them. Current gateway echo message quantities
+require completed-byte instrumentation before this profile can be adopted.
 
 ### Q20: Node-control vocabulary — node owner and NSD owner
 

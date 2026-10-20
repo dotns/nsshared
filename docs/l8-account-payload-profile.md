@@ -136,10 +136,10 @@ refused contracts, selective withdrawal and fresh regrant. These are fixture
 producer observations; NSD producer vectors and owner confirmation remain
 outstanding. Family registry bytes are unchanged.
 
-The grant payer subject is exactly 16 ULID bytes. The service usage unit below
-still describes its predecessor IdentityKey subject; a separate usage revision
-must change that codec and its independent vectors together before combined
-usage admission. No conversion or fallback between these subject types exists.
+Grant and service usage payer subjects are exactly 16 unsigned big-endian ULID
+bytes, paired with the paying realm. The usage revision replaces its predecessor
+IdentityKey bytes without a conversion, fallback or tagged union. See the
+[usage contract](usage-contract-candidate.md) for the incompatible candidate delta.
 
 ## Subnet selection
 
@@ -245,16 +245,20 @@ The candidate bounds scopes/rules/identities per scope to 8,192 and bytes to 1 M
 
 Usage CBOR is `[1, boundary, direction, payer_realm, payer_subject,
 grant_incarnation, reporter_incarnation, completed_bytes, batch_loss_window]`.
-`payer_realm` is a 16-byte realm identifier; `payer_subject` is a full validated
-IdentityKey. `completed_bytes` is u64. Boundary 0 counts Egress/Exit layer-4 payload bytes successfully completed by
-host writes and sends: partial writes count only their completed bytes; failed
-writes contribute zero. Boundary 1 preserves the existing public-ingress byte
+`payer_realm` is a 16-byte realm identifier; `payer_subject` is the paying
+realm-local UserId encoded as exactly 16 unsigned big-endian ULID bytes, never
+an IdentityKey. `completed_bytes` is u64. Boundary 0 counts Egress/Exit layer-4
+payload bytes successfully completed by host writes and sends: partial writes count only their completed bytes; failed
+writes contribute zero. Echo probe and synthetic reply sends count completed
+message bytes separately, excluding IP headers; a failed reply does not erase a
+completed probe. Boundary 1 preserves the existing public-ingress byte
 boundary and does not reinterpret it as WireGuard or host-write usage.
 Direction 0 is client-to-provider, 1 provider-to-client. Payer is always explicit;
 an ambiguous payer withholds a resource. WireGuard handshakes, keepalives,
-encapsulation and overhead are excluded. Reports attach resource and reporter
-identity, sequence/window, acknowledgement/watermark and errors in the detailed
-usage family; existing service references use M6, not a new service ID here.
+encapsulation and overhead are excluded. The
+[detailed usage family](usage-contract-candidate.md) defines M6 resource references, full client/provider identities, operation metadata, independent
+reporter/profile/sequence/window/part/digest and correlated answers. It adds no
+transport or retry logic.
 
 `batch_loss_window` is `null` (`Unset`) until measured, or `[duration_ms]`
 (`Measured`) after measurement. Unset is not zero, unlimited, or permission to
@@ -262,7 +266,8 @@ bill guessed bytes. No duration is invented by this candidate. The measurement
 is the maximum time span of completed bytes vulnerable to loss before durable
 batch custody; measured zero is distinct from unset.
 Relay usage is a separate unit: whole accepted encoded DATA including its header,
-counted once at accepting ingress, source NodeId and captured roster epoch/class.
+counted once at accepting ingress, both endpoint NodeIds/classes and the captured
+roster scope/version, direction and reporter incarnation.
 Delayed reports use historical attribution; unknown mapping requires repair.
 It is not converted to this service host-write unit.
 
