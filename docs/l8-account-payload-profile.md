@@ -802,3 +802,6 @@ that separate private payload and authenticated acquisition exchange stay outsid
 the report contract. Installed means actual installation of the exact reference,
 realm and generation, never mere receipt. Independent producer bytes are in
 control-reports.vec and public-edge.vec; NSD confirmation remains outstanding.
+## Publication subscription request
+
+The [control exchange subscription specification](control-exchange-candidate.md#authenticated-publication-subscription) defines PublicationSubscriptionRequest, config.stream and its endpoint. It carries exact issuer/recipient/realm/scope entries, understanding-only capabilities, family 7 public ingress indices and required boot nonce/checked attempt counter. Existing publication key versions and channel ownership remain authoritative. Independent consumer vectors precede the pure codec; matching NSD production and confirmation remain outstanding.

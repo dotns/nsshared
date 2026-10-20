@@ -25,6 +25,10 @@ pub const GATEWAY_SERVICES_REPORT: &str = "gateway.services_report";
 pub const GATEWAY_USAGE_REPORT: &str = "gateway.usage_report";
 /// Signed exact material installation status operation.
 pub const GATEWAY_MATERIAL_STATUS: &str = "gateway.material_status";
+/// Authenticated publication subscription operation.
+pub const CONFIG_STREAM: &str = "config.stream";
+/// Confidential authenticated publication stream endpoint.
+pub const CONFIG_STREAM_PATH: &str = "/api/v1/config/stream";
 /// Machine-control token purpose.
 pub const MACHINE_AUTH_PURPOSE: &str = "control";
 /// Confidential signed operation endpoint.

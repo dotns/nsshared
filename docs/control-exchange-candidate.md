@@ -220,7 +220,7 @@ no implicit OAuth/auth-key fallback survives.
 | `crates/nsgw-control/src/transport/framing.rs` | `vocabulary::transport::MAX_CALL_BODY` | Existing ControlBoundary and MAX_CONTROL_* / MAX_BOOTSTRAP_BYTES bounds. |
 | `crates/nsgw-control/src/transport/framing.rs` | `vocabulary::transport::MAX_HTTP_HEADERS` | Existing ControlBoundary and MAX_CONTROL_* / MAX_BOOTSTRAP_BYTES bounds. |
 | `crates/nsgw-control/src/transport/https.rs` | `api::support` | Split into InformationRequest/Response, AuthenticationResponse and per-type codecs; system telemetry retired from enrollment authority. |
-| `crates/nsgw-control/src/transport/https.rs` | `api::support::ConfigStreamRequest` | PublicationScope and authenticated publication subscription in the existing publication contract; no second session model. |
+| `crates/nsgw-control/src/transport/https.rs` | `api::support::ConfigStreamRequest` | publication_subscription::PublicationSubscriptionRequest; exact issuer/recipient/PublicationScope entries, capabilities, public ingress indices and boot nonce/attempt counter; no additional acceptance state. |
 | `crates/nsgw-control/src/transport/https.rs` | `api::support::from_cbor` | Per-type canonical/decode methods; retire permissive generic serializer as an authority boundary. |
 | `crates/nsgw-control/src/transport/https.rs` | `envelope::wrapper::ControlEnvelope` | BootstrapEnvelope / BootstrapError / ACCOUNT_REQUEST_DOMAIN / ACCOUNT_RESPONSE_DOMAIN and existing skew/replay constants; version 1. |
 | `crates/nsgw-control/src/transport/https.rs` | `rules::bootstrap::validate_https_origin` | BootstrapDiscovery strict canonical origin and pin validation. |
@@ -337,7 +337,7 @@ no implicit OAuth/auth-key fallback survives.
 | `crates/nsgw-control/tests/signed.rs` | `envelope::wrapper::ControlEnvelope` | BootstrapEnvelope / BootstrapError / ACCOUNT_REQUEST_DOMAIN / ACCOUNT_RESPONSE_DOMAIN and existing skew/replay constants; version 1. |
 | `crates/nsgw-control/tests/signed.rs` | `vocabulary::core::INFO_GET` | control_exchange constants retain exact operation and endpoint values. |
 | `crates/nsgw-control/tests/signed.rs` | `vocabulary::core::MACHINE_REGISTER` | control_exchange constants retain exact operation and endpoint values. |
-| `crates/nsgw-control/tests/silent_endpoint_deadline.rs` | `api::support::ConfigStreamRequest` | PublicationScope and authenticated publication subscription in the existing publication contract; no second session model. |
+| `crates/nsgw-control/tests/silent_endpoint_deadline.rs` | `api::support::ConfigStreamRequest` | publication_subscription::PublicationSubscriptionRequest; exact issuer/recipient/PublicationScope entries, capabilities, public ingress indices and boot nonce/attempt counter; no additional acceptance state. |
 | `crates/nsgw-control/tests/silent_endpoint_deadline.rs` | `api::support::InfoGetRequest` | InformationRequest empty canonical tuple. |
 | `crates/nsgw-control/tests/silent_endpoint_deadline.rs` | `api::support::InfoGetResponse` | InformationResponse discovery/realm/provider/version/auth_methods/capabilities; deployment type retired as non-authorizing display metadata. |
 | `crates/nsgw-control/tests/silent_endpoint_deadline.rs` | `api::support::to_cbor` | Per-type canonical/decode methods; retire permissive generic serializer as an authority boundary. |
@@ -372,7 +372,7 @@ no implicit OAuth/auth-key fallback survives.
 | `crates/nsgw-control/tests/support.rs` | `vocabulary::transport::DISCOVERY_PATH` | control_exchange constants retain exact operation and endpoint values. |
 | `crates/nsgw-control/tests/support.rs` | `vocabulary::transport::JWKS_PATH` | control_exchange constants retain exact operation and endpoint values. |
 | `crates/nsgw-control/tests/transport.rs` | `api::support` | Split into InformationRequest/Response, AuthenticationResponse and per-type codecs; system telemetry retired from enrollment authority. |
-| `crates/nsgw-control/tests/transport.rs` | `api::support::ConfigStreamRequest` | PublicationScope and authenticated publication subscription in the existing publication contract; no second session model. |
+| `crates/nsgw-control/tests/transport.rs` | `api::support::ConfigStreamRequest` | publication_subscription::PublicationSubscriptionRequest; exact issuer/recipient/PublicationScope entries, capabilities, public ingress indices and boot nonce/attempt counter; no additional acceptance state. |
 | `crates/nsgw-control/tests/transport.rs` | `api::support::to_cbor` | Per-type canonical/decode methods; retire permissive generic serializer as an authority boundary. |
 | `crates/nsgw-control/tests/transport.rs` | `envelope::wrapper::ControlEnvelope` | BootstrapEnvelope / BootstrapError / ACCOUNT_REQUEST_DOMAIN / ACCOUNT_RESPONSE_DOMAIN and existing skew/replay constants; version 1. |
 | `crates/nsgw-control/tests/transport.rs` | `envelope::wrapper::DOMAIN_REQUEST` | BootstrapEnvelope / BootstrapError / ACCOUNT_REQUEST_DOMAIN / ACCOUNT_RESPONSE_DOMAIN and existing skew/replay constants; version 1. |
@@ -446,3 +446,57 @@ handlers are a producer checklist, not confirmation of this candidate encoding.
 observations, services, usage and material status on the same confidential endpoint.
 The constants stay in control_exchange. No auth configuration acquisition is defined
 by the report contract. NSD producer confirmation remains outstanding.
+## Authenticated publication subscription
+
+`control_exchange::CONFIG_STREAM` is `config.stream` and
+`control_exchange::CONFIG_STREAM_PATH` is `/api/v1/config/stream`.
+`account::publication_subscription::PublicationSubscriptionRequest` is the
+candidate request. Its canonical CBOR tuple is:
+
+`[1, subscriber_I, scopes, capabilities, public_ingress, boot_nonce, attempt_counter]`.
+
+Each scope is `[issuer_I, recipient_I, served_realm, scope]`: full 32-byte
+identities and nonempty realm/scope strings of at most 256 UTF-8 bytes without
+control characters. Entries are strictly sorted by those four values and unique;
+every recipient equals subscriber_I. There are at most 32 entries. These are
+exact requested PublicationScope pairs bound to their issuer/recipient, never
+wildcards or grants. The producer must compare them against externally
+provisioned/accepted authority before sending publications.
+
+Capabilities retain the predecessor's understanding-only meaning and the existing
+enrollment rule: at most 64 sorted unique tokens, 1..64 ASCII bytes matching
+`[a-z0-9._-]+`. Public ingress is a strictly increasing array of at most 32
+zero-based indices into scopes. Each index requests family 7 `public-edge` for
+that exact issuer/recipient/realm/scope. It grants no exposure or material
+readiness. Unlike predecessor bare strings, indices cannot lose realm/issuer
+qualification. Empty arrays request no corresponding scopes or capabilities.
+
+The predecessor stream_session becomes two required correlation fields: a
+nonzero 16-byte boot_nonce and a positive u32 attempt_counter. The caller supplies
+a fresh nonce each restart, begins at one, reuses the pair across endpoint
+fallbacks and increments without wrapping for each outer reconnect. Exhaustion
+fails closed. The codec validates parts but cannot prove restart uniqueness.
+No optional/unbound subscription is retained. The pair does not establish a
+session runtime, acceptance state, replay exemption, version reset or replacement
+for per-PublicationKey versions and withdrawal/failure tombstones.
+
+The request payload is bounded to 8192 bytes before decoding. Fixed tuple arity,
+minimal CBOR, no trailing bytes and bounded arrays reject unknown fields,
+noncanonical encodings and oversized declarations before allocation.
+The existing BootstrapEnvelope carries the exact payload and operation in request
+direction; BootstrapEnvelope::signing_input supplies the unchanged domain plus
+canonical content bytes. The signer equals subscriber_I and the mandatory carrier
+recipient equals every requested issuer. The authenticated ingress also checks
+the configured subscriber/authority and authorized exact scope set; decoding
+alone confers no authority. Existing confidential HTTPS/Noise/QUIC carriers and
+encoded-subscription bounds apply; no plaintext, empty unsigned request or JSON
+fallback is introduced. HTTP may carry the signed envelope in the existing
+base64url request parameter; URL encoding and stream I/O remain consumer work.
+Stream and independently polled snapshot authority keep their existing kind
+ownership; a subscription never moves a snapshot kind to the stream.
+
+Independent publication-subscription vectors cover accepted empty and populated
+sets, exact bytes, capability and attempt boundaries, wrong recipient, duplicate
+and unsorted sets, oversized declarations, unknown fields and nonminimal bytes.
+NSD confirmation of this exact candidate and producer vectors is outstanding;
+the current predecessor handler is a checklist, not interoperability evidence.
