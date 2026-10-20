@@ -279,6 +279,8 @@ vectors for these units; relay DATA remains a separate unit.
 
 ### Q11: Enrollment payload — NSD owner
 
+Confirm the [independent snapshot poll candidate](control-exchange-candidate.md#independent-publication-snapshot-poll): PublicationSnapshotRequest, config.snapshot on the existing confidential control endpoint, exact sorted scopes, retained active subscription boot nonce/attempt and signed response nonce correlation. The response payload remains PublicationSnapshot with existing per-key versions. No predecessor kind selector exists; only snapshot-owned kinds are requested, and explicit stream selectors are refused as unknown fields. Confirm exact scope authorization, active subscription binding and response correlation echo. Independent publication-snapshot-request.vec fixtures are not real producer output; NSD confirmation remains outstanding.
+
 Confirm the exact [publication subscription candidate](control-exchange-candidate.md#authenticated-publication-subscription): PublicationSubscriptionRequest, config.stream, /api/v1/config/stream, full issuer/recipient/realm/scope entries, enrollment capability syntax, family 7 public ingress indices and required nonzero boot nonce/positive u32 attempt counter. Confirm producer bytes and external scope authorization, confidential signed carrier use and unchanged publication versions/channel ownership. NSD confirmation remains outstanding; independent fixture vectors do not constitute producer agreement.
 
 The [complete control exchange candidate](control-exchange-candidate.md) specifies

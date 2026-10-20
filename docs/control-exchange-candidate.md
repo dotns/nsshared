@@ -500,3 +500,54 @@ sets, exact bytes, capability and attempt boundaries, wrong recipient, duplicate
 and unsorted sets, oversized declarations, unknown fields and nonminimal bytes.
 NSD confirmation of this exact candidate and producer vectors is outstanding;
 the current predecessor handler is a checklist, not interoperability evidence.
+
+## Independent publication snapshot poll
+
+| Predecessor | Candidate | Meaning |
+|---|---|---|
+| GatewayRealmConfigSnapshotRequest.stream_session | boot_nonce, attempt_counter | Required nonzero restart nonce and positive checked u32 logical stream attempt; same caller-supplied identity as the active subscription. No session runtime or scope grant. |
+| GatewayRealmConfigSnapshotRequest | PublicationSnapshotRequest | Subscriber plus exact sorted issuer/recipient/served-realm/scope entries, at most 32; every recipient is the subscriber. No predecessor kind selector existed. All snapshot-owned kinds within each entry are requested; stream kinds are never requested. |
+| GatewayRealmConfigSnapshotResponse.realms[].realm_id/events | PublicationSnapshot | Existing canonical signed-event container, with each event retaining its full authenticated publication key. Empty snapshots retain state; signed empty event payloads withdraw only their exact key. |
+
+The predecessor operation `gateway.realm_config_snapshot` is replaced by
+`config.snapshot`; gateway-only machine lookup and gateway-wide wildcard
+selection are retired by ordinary membership and externally authorized exact
+scope selection. The predecessor stream_session also qualified a causal
+`gateway_wg_relay` forwarding lease. That gateway-carrier lease is retired with
+the gateway-only relay carrier; candidate relay participant authority is the
+separate signed roster. The retained boot/attempt pair identifies the active
+subscription only and cannot establish relay or publication authority.
+The predecessor's whole realm-list omission removal is replaced by complete
+`realm-peers` content within its authenticated scope and per-key publications.
+Snapshot container omission itself retains state under the existing publication
+rules; it cannot clear another authority scope.
+
+The operation is `config.snapshot`, defined with the other control exchange
+constants. Its endpoint aliases the existing confidential `/api/v1/control`
+endpoint. HTTPS, Noise and QUIC keep their current confidentiality and trust
+requirements. The request tuple is
+`[1, subscriber_I, scopes, boot_nonce, attempt_counter, correlation]`.
+Each scope has the subscription's existing four-field shape and ordering,
+nonempty realm/scope strings bounded to 256 UTF-8 bytes without control characters.
+The canonical request ceiling is 8192 bytes. Both nonce and correlation are
+nonzero 16-byte strings; attempt is a positive u32 with no wrapping. Callers
+retain the active subscription pair and supply a distinct correlation per poll.
+No scope wildcard, capability grant, optional unbound session or kind selector
+is added. Unknown fields (including a stream-kind selector), unsorted/duplicate
+scopes, nonminimal CBOR and trailing input are refused.
+
+The existing BootstrapEnvelope signs the request through signing_input. Its
+signer is the subscriber, mandatory recipient is every requested issuer and
+nonce equals correlation. The authority checks the requested exact scopes and
+active subscription facts against its own state. The response uses the same
+operation, response direction, mandatory subscriber recipient and nonce equal
+to the pending correlation. Its payload is exactly the existing PublicationSnapshot,
+with no second snapshot encoding. The verifier checks carrier trust, every event's
+recipient, exact requested scope and snapshot kind ownership, then delegates
+signature, complete replacement, validity and per-key version decisions to the
+existing snapshot validator. Pending requests never reset versions or tombstones.
+
+Independent fixture producers and consumers establish candidate bytes only.
+NSD confirmation of the active subscription binding, operation, exact scope
+selection and response nonce echo, plus independent real producer vectors,
+remains outstanding.

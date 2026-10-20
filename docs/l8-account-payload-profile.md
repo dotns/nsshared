@@ -815,3 +815,16 @@ metadata and public publication bytes are unchanged.
 ## Publication subscription request
 
 The [control exchange subscription specification](control-exchange-candidate.md#authenticated-publication-subscription) defines PublicationSubscriptionRequest, config.stream and its endpoint. It carries exact issuer/recipient/realm/scope entries, understanding-only capabilities, family 7 public ingress indices and required boot nonce/checked attempt counter. Existing publication key versions and channel ownership remain authoritative. Independent consumer vectors precede the pure codec; matching NSD production and confirmation remain outstanding.
+
+## Publication snapshot poll request
+
+The [snapshot poll specification](control-exchange-candidate.md#independent-publication-snapshot-poll)
+defines PublicationSnapshotRequest and config.snapshot on the existing confidential
+control endpoint. Exact sorted issuer/recipient/realm/scope entries request only
+snapshot-owned kinds. The predecessor has no kind selector; stream selectors are
+unknown fields and refused. Required boot nonce/checked attempt retain the active
+subscription association, while a separate nonzero poll correlation is echoed in
+the signed response nonce. The payload remains the existing PublicationSnapshot;
+pending-scope checks add no version domain or acceptance runtime. Independent
+publication-snapshot-request.vec fixture bytes are candidate evidence. NSD
+confirmation and real producer vectors remain outstanding.

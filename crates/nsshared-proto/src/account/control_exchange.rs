@@ -32,6 +32,10 @@ pub const GATEWAY_MATERIAL_STATUS: &str = "gateway.material_status";
 pub const CONFIG_STREAM: &str = "config.stream";
 /// Confidential authenticated publication stream endpoint.
 pub const CONFIG_STREAM_PATH: &str = "/api/v1/config/stream";
+/// Independently polled publication snapshot operation.
+pub const CONFIG_SNAPSHOT: &str = "config.snapshot";
+/// Existing confidential signed operation endpoint for snapshot polls.
+pub const CONFIG_SNAPSHOT_PATH: &str = CONTROL_ENVELOPE_PATH;
 /// Machine-control token purpose.
 pub const MACHINE_AUTH_PURPOSE: &str = "control";
 /// Confidential signed operation endpoint.
