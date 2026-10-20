@@ -41,6 +41,28 @@ fn https(value: &str) -> Result<(), AccountError> {
     require(value.len() <= 8192 && !value.chars().any(|c| c.is_whitespace() || c.is_control()))?;
     super::edge_material::issuer_url(value)
 }
+fn fixed_jwks_uri(value: &str) -> Result<(), AccountError> {
+    require(value.len() <= 8192 && !value.chars().any(|c| c.is_whitespace() || c.is_control()))?;
+    require(!value.contains(['#', '\\']))?;
+    let authority = value
+        .strip_prefix("https://")
+        .ok_or(AccountError::InvalidField)?
+        .split(['/', '?'])
+        .next()
+        .ok_or(AccountError::InvalidField)?;
+    super::edge_material::issuer_url(&format!("https://{authority}"))?;
+    for (index, byte) in value.bytes().enumerate() {
+        if byte == b'%' {
+            require(
+                value
+                    .as_bytes()
+                    .get(index + 1..index + 3)
+                    .is_some_and(|pair| pair.iter().all(u8::is_ascii_hexdigit)),
+            )?;
+        }
+    }
+    Ok(())
+}
 fn ordered<T>(values: &[T], key: impl Fn(&T) -> &str) -> Result<(), AccountError> {
     require(values.len() <= MAX_EDGE_ITEMS && values.windows(2).all(|p| key(&p[0]) < key(&p[1])))
 }
@@ -76,9 +98,11 @@ impl AuthConfiguration {
             consumer.subject.in_realm(self.realm)?;
             require(!consumer.subject.is_group())?;
         }
+        let mut credential_anchors = std::collections::BTreeSet::new();
         let mut previous: Option<&str> = None;
         for credential in &self.credentials {
             let key = anchor(&credential.binding)?;
+            require(credential_anchors.insert(key))?;
             require(previous.is_none_or(|old| old < key))?;
             previous = Some(key);
             require(credential.binding.realm == self.realm)?;
@@ -99,10 +123,13 @@ impl AuthConfiguration {
             match source.kind {
                 AuthKeySourceKind::Discovery => require(source.value.is_none())?,
                 AuthKeySourceKind::Uri => {
-                    https(source.value.as_deref().ok_or(AccountError::InvalidField)?)?
+                    fixed_jwks_uri(source.value.as_deref().ok_or(AccountError::InvalidField)?)?
                 }
                 AuthKeySourceKind::Inline => require(source.value.is_some())?,
             }
+        }
+        for binding in &self.public_auth.jwt_bindings {
+            require(credential_anchors.insert(anchor(&binding.binding)?))?;
         }
         require(self.jwt_consumers.len() == self.public_auth.jwt_bindings.len())?;
         for join in &self.jwt_consumers {

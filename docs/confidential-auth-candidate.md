@@ -62,7 +62,9 @@ An old pending request cannot satisfy a changed current dependency.
   Binding is unchanged SubjectBinding with a credential anchor, matching the
   consumer's explicit subject and realm and present in public_auth.bindings.
   Credential enabled/expiry live in that binding; consumer enabled remains
-  independent. Credentials are ordered by anchor reference, unique across methods.
+  independent. Credentials are ordered by anchor reference. Anchors are unique across all
+  private verifier credentials and JWT bindings, including distinct JWT claims;
+  the same anchor cannot identify more than one credential method.
   Verifier is `[0, key_id, verifier_hash]` API key, `[1, username, phc_hash]` Basic,
   `[2, kid, hmac_keys]` signed URL, or `[3, spiffe_id, trust_material]` mTLS.
   Trust material reuses EdgeMaterialRef, kind client CA, present in public_auth.
@@ -70,7 +72,12 @@ An old pending request cannot satisfy a changed current dependency.
   SPIFFE validation and actual deadlines stay with their existing consumers.
 - `AuthKeySource = [authority_ref, enabled, kind, value_or_null]`, ordered by
   authority_ref. Kind 0 OIDC discovery requires null; 1 fixed HTTPS JWKS URI and
-  2 inline public JWKS require data. Each public_auth.authority has exactly one
+  2 inline public JWKS require data. Fixed acquisition URIs preserve exact query
+  bytes, including order, repeated parameters, literal plus and percent-escape
+  spelling. They require a canonical HTTPS host/optional port and valid percent
+  escapes; whitespace, controls, userinfo, backslashes, fragments and values over
+  8192 UTF-8 bytes refuse. Queries are not subject to the issuer query prohibition.
+  Provider issuer and provider/route redirect restrictions remain unchanged. Each public_auth.authority has exactly one
   source and vice versa. Authority issuer/audiences/material and JwtSubjectBinding
   are reused unchanged. Public key trust qualification and JWKS parsing stay
   external. JWT consumer joins are explicit: `AuthJwtConsumer = [credential_ref, consumer_ref]`,

@@ -19,12 +19,8 @@ fn credential_anchor_is_unique_across_jwt_and_private_verifiers() {
     configuration.public_auth.jwt_bindings[0].binding =
         configuration.credentials[0].binding.clone();
     configuration.jwt_consumers[0].credential_ref = "api".into();
-    let raw = response.canonical().unwrap();
-    let decoded = AuthConfigResponse::decode(&raw).unwrap();
     assert!(
-        decoded
-            .validate_for(&pending, pending.realm, &pending.material)
-            .is_err(),
+        response.canonical().is_err(),
         "one credential anchor identifies both an API-key verifier and a JWT binding"
     );
 }

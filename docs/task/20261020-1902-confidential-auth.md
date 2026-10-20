@@ -1,6 +1,6 @@
 # Confidential authentication configuration
 
-- **status**: completed
+- **status**: in-progress
 - **priority**: P1
 - **owner**: account-contract
 - **createdAt**: 2026-10-20 19:02
@@ -56,3 +56,10 @@ Completed confidential authentication configuration
 - Public-edge inventory, profile and review family rows now link the confidential
   contract. NSD producer confirmation and producer-owned vectors remain
   outstanding; fixture acceptance does not record agreement or interoperability.
+
+## Credential identity and acquisition follow-up
+
+Reopened to enforce cross-method anchor uniqueness and preserve exact fixed
+HTTPS JWKS query data. Check private/public binding equality, consumer references,
+JWT binding cardinality and ownership, all four confidential HTTPS call sites,
+and their shared URL predicate before completing acceptance again.

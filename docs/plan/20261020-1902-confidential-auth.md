@@ -1,6 +1,6 @@
 # Confidential authentication configuration
 
-- **status**: completed
+- **status**: implementing
 - **createdAt**: 2026-10-20 19:02
 - **approvedAt**: 2026-10-20 19:02
 - **relatedTask**: 20261020-1902-confidential-auth
@@ -51,3 +51,15 @@ All 469 Rust tests passed with zero skips, 41 check-selection tests passed, and
 one documentation test passed. Formatting, lint, dependency checks, spelling,
 vector reproducibility, API compatibility and documentation generation passed.
 NSD producer confirmation and producer-owned vectors remain outstanding.
+
+## Credential identity and fixed key acquisition
+
+Inspection found that private credential ordering did not exclude reuse of an
+anchor by a JWT binding. Enforce one credential anchor across both lists, checking
+each JWT binding before resolving the consumer join. Independent fixtures cover
+every private method against JWT, private method pairs and distinct identities.
+
+Fixed JWKS acquisition may require an exact query to select a tenant. Validate the
+complete bound, HTTPS authority and URL safety while preserving query bytes;
+issuer and provider/route redirects keep their existing query prohibition. Add
+independent accepted controls and malformed/insecure refusals for every URL site.

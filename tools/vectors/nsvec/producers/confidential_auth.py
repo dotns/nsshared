@@ -79,6 +79,85 @@ def vectors():
     maximum_secret[5][0][3] = "x" * 8192
     emit("maximum-secret", "configuration", maximum_secret)
 
+    private_names = ("api", "basic", "mtls", "signed")
+    for index, name in enumerate(private_names):
+        for collision in (True, False):
+            changed = copy.deepcopy(config)
+            claim_anchor = name if collision else "jwt-" + name
+            claim_binding = cbor.encode([1, realm, 1, claim_anchor, subject, True, 200])
+            metadata = copy.deepcopy(public)
+            metadata[4] = [cbor.encode([1, claim_binding, "issuer", "sub", "visitor", ["read"]])]
+            changed[8] = cbor.encode(metadata)
+            changed[10] = [[claim_anchor, "visitor"]]
+            emit(("anchor-collision-" if collision else "distinct-anchor-") + name + "-jwt",
+                 "configuration", changed, not collision)
+    for left in range(len(private_names)):
+        for right in range(left + 1, len(private_names)):
+            changed = copy.deepcopy(config)
+            changed[7][right][1] = bindings[left]
+            identities = list(private_names)
+            identities[right] = identities[left]
+            changed[7] = [value for _, value in sorted(zip(identities, changed[7]), key=lambda pair: pair[0])]
+            metadata = copy.deepcopy(public)
+            metadata[3] = sorted(set([value[1] for value in changed[7]]))
+            changed[8] = cbor.encode(metadata)
+            label = private_names[left] + "-" + private_names[right]
+            emit("anchor-collision-" + label, "configuration", changed, False)
+            emit("distinct-anchor-" + label, "configuration", config)
+    for collision in (True, False):
+        changed = copy.deepcopy(config)
+        second_anchor = "jwt" if collision else "jwt-second"
+        second_binding = cbor.encode([1, realm, 1, second_anchor, subject, True, 200])
+        metadata = copy.deepcopy(public)
+        metadata[4] = sorted([jwt_binding, cbor.encode([1, second_binding, "issuer", "sub", "other", ["read"]])])
+        changed[8] = cbor.encode(metadata)
+        changed[10] = [["jwt", "visitor"], [second_anchor, "visitor"]]
+        emit("jwt-anchor-collision" if collision else "distinct-jwt-anchors", "configuration", changed, not collision)
+
+    for index, uri in enumerate([
+        "https://keys.example/jwks?tenant=realm",
+        "https://keys.example?tenant=realm&tenant=other&key=a+b&escaped=%2f%2F",
+        "https://[2001:db8::1]:8443/jwks?email=a@b&opaque=x?y",
+        "https://keys.example/path@tenant?",
+    ]):
+        changed = copy.deepcopy(config)
+        changed[9] = [["issuer", True, 1, uri]]
+        emit("query-jwks-" + str(index), "configuration", changed)
+    for index, uri in enumerate([
+        "http://keys.example/jwks?tenant=realm", "https:///jwks?tenant=realm",
+        "https://user:pass@keys.example/jwks?tenant=realm", "https://keys.example/jwks#fragment",
+        "https://keys.example/jwks?tenant=a b", "https://keys.example/jwks?tenant=a\n",
+        "https://keys.example/jwks?tenant=\\other", "https://keys.example:0/jwks?tenant=a",
+        "https://keys.example:0443/jwks?tenant=a", "https://[2001:db8:::1]/jwks?tenant=a",
+        "https://keys.example/jwks?tenant=%", "https://keys.example/jwks?tenant=%XZ",
+        "https://keys.example/jwks?tenant=" + "x" * 8192,
+    ]):
+        changed = copy.deepcopy(config)
+        changed[9] = [["issuer", True, 1, uri]]
+        emit("malformed-fixed-jwks-" + str(index), "configuration", changed, False)
+    for name, index in [("issuer", 2), ("provider-redirect", 12)]:
+        changed = copy.deepcopy(config)
+        changed[4][0][index] += "?tenant=realm"
+        emit("query-" + name, "configuration", changed, False)
+    changed = copy.deepcopy(config)
+    changed[11][0][1][0][2] += "?tenant=realm"
+    emit("query-route-redirect", "configuration", changed, False)
+
+    for site in ("issuer", "provider-redirect", "route-redirect"):
+        for index, uri in enumerate([
+            "https://[2001:db8::1]:8443/callback",
+            "http://web.example/callback", "https:///callback",
+            "https://user@web.example/callback", "https://web.example:65536/callback",
+            "https://web.example/callback#fragment", "https://web.example/a b",
+            "https://web.example/a\\b", "https://web.example/a\n",
+        ]):
+            changed = copy.deepcopy(config)
+            if site == "route-redirect":
+                changed[11][0][1][0][2] = uri
+            else:
+                changed[4][0][2 if site == "issuer" else 12] = uri
+            emit(site + "-url-" + str(index), "configuration", changed, index == 0)
+
     for name, index, replacement in [
         ("correlation", 1, bytes([9]) * 16), ("recipient", 2, authority),
         ("served-realm", 3, "other"), ("scope", 4, "other"),
