@@ -50,10 +50,10 @@ explicitly frame only. NSD supplies producer vectors for every row.
 | --- | --- | --- |
 | 1 `enrollment` | Binding/lifecycle specified; enrollment publication frame only | Identity contract B38; Q11 |
 | 2 `realms-peers` | Registry frame only | Served-realm and peer payload; Q12 |
-| 3 `egress` | Registry frame only | Grants contract B39; Q13 |
-| 4 `exit-subnet` | Registry frame only | Grants B39 and selection B40; Q14 |
-| 5 `payer` | Explicit-payer invariant specified; binding publication frame only | Grants B39; Q15 |
-| 6 `withdrawal` | Incarnation invariant specified; authority publication frame only | Grants B39; Q16 |
+| 3 `egress` | Pure grant publication and independent consumer vectors delivered | Grants contract B39; Q13 |
+| 4 `exit-subnet` | Grant publication plus existing Subnet selection and independent consumers delivered | Grants B39 and selection B40; Q14 |
+| 5 `payer` | Binary realm/UserId assignment publication and cardinality refusals delivered | Grants B39; Q15 |
+| 6 `withdrawal` | Resource authority snapshots and pure successor validation delivered | Grants B39; Q16 |
 | 7 `public-edge` | Registry frame only | Declaration integration B46; Q17 |
 | 8 `relay` | Signed roster and local schema 2 specified; directory and participant credential frame only | Q01–Q06, Q18 |
 | 9 `usage` | Service unit specified; service and relay report envelopes frame only | Usage contract B42; Q10, Q19 |
@@ -242,12 +242,31 @@ decision, including unrelated scopes and absent/empty/failure distinctions.
 
 ### Q09: Normalized Node L3 schema — NSD and node owners
 
-Does `[1, issuer, recipient, revision, scopes, rules]` cover the shared input:
-authority-assigned opaque namespaces, sorted full identity sets, sorted unique
-TCP/UDP allow rules with inclusive nonzero ports, overlap as union and no
-implicit wildcard? Confirm resolution of N6/N4/provider ranges before policy
-compilation, 8,192 bounds and 1 MiB byte limit. Provide empty, cross-scope,
-duplicate, range and limit vectors; compilation stays in consumers.
+The delivered [complete Node L3 authority](l8-account-payload-profile.md#normalized-node-l3-form)
+is `[1, bindings, policy_bytes]`. Each binding is `[full_identity_I, authorized_WireGuard_K]`:
+I is a validated full Ed25519 identity, K is a nonzero 32-byte string, bindings
+are strictly ordered by I and distinct identities cannot share K. Every identity
+in a policy scope requires a binding. Consumers join installed I/K only through
+this explicit authority; a peer record or roster entry alone grants no access.
+
+`policy_bytes` retains the existing canonical
+`[1, issuer, recipient, revision, scopes, rules]` encoding. Authority-assigned
+opaque namespaces, sorted full identity sets and sorted unique TCP/UDP allow
+rules use inclusive nonzero ports, overlap as union and no implicit wildcard.
+Missing membership or policy denies; selective namespace withdrawal preserves
+independently authorized namespaces. Independent consumers cover these cases,
+exact I/K bindings and namespace/protocol/port boundaries. Compilation and
+N6/N4/provider-range resolution remain in consumers. Confirm the 8,192-entry
+bounds and 1 MiB wrapper limit.
+
+Outstanding NSD/ns producer deltas: resolve current string machine/owner
+identifiers and the NodeL3Config resource graph into full I/K authority,
+opaque namespaces and explicit rules; encode peer keys as byte strings rather
+than integer arrays. Please confirm this delivered wrapper and provide
+independently owned accepted/refused producer vectors for empty authority,
+missing/ambiguous bindings, missing membership/policy, cross-scope rules,
+selective withdrawal, port ranges and bounds. Candidate fixture agreement is
+not producer confirmation or live interoperability.
 
 ### Q10: Service byte unit — NSD owner
 
@@ -293,12 +312,31 @@ exact N4/N6 ownership, provider ranges and shared-peer contribution provenance?
 Name NSD vectors for contribution withdrawal, retained shared peers and invalid
 or missing complete sets.
 
+The [complete Node authority candidate](l8-account-payload-profile.md#normalized-node-l3-form)
+and Q09 define the delivered I/K binding wrapper separately from this realm/peer
+payload. Realm contributions must preserve the provenance of those full
+identities and their authorized keys when a shared peer survives withdrawal.
+Outstanding NSD/ns producer work includes resolving current string machine/owner
+identifiers and the NodeL3Config resource graph into that authority. Please
+supply independently owned realm/peer contribution vectors; fixture agreement
+does not establish producer confirmation.
+
 ### Q13: Egress grant payload — NSD owner
 
 What schema completes `egress` using M6 provider/resource and declaration
 references, address view, protocol/virtual port, authorized client, paying realm
 and subject, fresh grant incarnation and realm limits? Name NSD vectors for
 valid grants, scope mismatch and withdrawn authority.
+
+The [delivered pure candidate](grant-authority-candidate.md) specifies
+`[1, 3, issuer, provider_recipient, revision, grants]`, with canonical M6 resource,
+full client/provider, exact local floor reference and projected name, concrete
+protocol/virtual port, optional positive alias generation, one binary payer
+realm/UserId pair, fresh incarnation and absolute expiry. Independent consumers
+compare every context field and refuse absent/ambiguous payer and invalid fields.
+NSD confirmation and producer vectors remain outstanding, including conversion
+from current string ULIDs to exact 16-byte unsigned big-endian UserId bytes.
+No acceptance proof or local host binding is added to the payload.
 
 ### Q14: Exit grant and selection payload — NSD owner
 
@@ -323,6 +361,16 @@ overlapping prefixes, noncanonical/misaligned prefixes, mixed selection, unknown
 discriminants and malformed/nonminimal/trailing bytes? Grants, payer and
 incarnation remain separate; this candidate does not change M6 listener semantics.
 
+The delivered [Exit grant candidate](grant-authority-candidate.md) wraps exactly
+one validated Subnet route per grant, preserving all existing real/mapped,
+exclusion/bypass and selection semantics. Resource/client/provider must agree
+with the enclosing grant; the provider receives the grant publication, while
+the embedded route publication retains its client recipient. Independent
+consumer vectors compare every field and the independently computed selected
+CIDR output. Payer is a binary realm/UserId pair and incarnation and expiry
+are explicit. Local floor and Linux binding remain consumer facts. Outstanding:
+NSD grant/route composition, payer assignment and independently owned vectors.
+
 ### Q15: Payer binding payload — NSD owner
 
 What schema and resource scope complete `payer`, so each grant has an explicit
@@ -330,12 +378,32 @@ paying realm/subject and ambiguous cross-realm grants are withheld? Name NSD
 vectors for explicit payer, ambiguity and payer change without packet-derived
 realm inference.
 
+The [delivered payer candidate](grant-authority-candidate.md) defines complete
+family-5 assignments keyed by full M6 resource, client and grant incarnation.
+Each has exactly one `[payer_realm, payer_subject]` pair of 16-byte strings;
+subject is the paying realm's local UserId ULID, never an IdentityKey. Zero
+and multiple bindings (even equal values) are distinct typed refusals. NSD must
+authenticate the resource proposal and the paying administrator's accepted exact
+assignment before producing this pair. Producer vectors, accepted-assignment
+integration and binary conversion from current string ULIDs remain outstanding.
+The service usage subject changes separately with its own codec and vectors.
+
 ### Q16: Withdrawal and regrant payload — NSD owner
 
 What schema completes `withdrawal` with resource removal or empty authority,
 current incarnation, real deadlines and payer/binding changes? Name NSD vectors
 for immediate removal, expiry and identical-content regrant with a fresh token;
 withdrawal must not wait behind relay snapshots.
+
+The [delivered resource authority candidate](grant-authority-candidate.md)
+contains active claims and retained resource-scoped retired tokens. Pure
+successor validation requires unchanged scope, increasing revision, preserved
+history and retirement of removed/replaced claims. Independent consumers prove
+selective removal preserves another resource, fresh identical-content regrant
+succeeds and retired tokens fail. Changed grant content requires a fresh token.
+Runtime fencing, durable history and actual expiry comparisons remain consumer
+responsibilities. NSD producer vectors and publication/history delivery remain
+outstanding; candidate fixtures do not assert deployed interoperability.
 
 ### Q17: Public-edge payload — NSD owner
 
