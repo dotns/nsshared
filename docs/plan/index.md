@@ -94,3 +94,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**Define publication subscription requests**](20261020-1839-publication-subscription.md) `2026-10-20`
 - [x] [**Complete control report exchanges**](20261020-1848-control-report-exchanges.md) `2026-10-20`
 - [x] [**Define confidential authentication configuration**](20261020-1902-confidential-auth.md) `2026-10-20`
+- [x] [**Update certificate dependencies**](20261020-2033-update-certificate-dependencies.md) `2026-10-20`

@@ -1,3 +1,14 @@
+## 2026-10-20 [fix]
+
+Update rustls-webpki to 0.103.16 and remove unused bundled root packages from
+the mock-rendezvous development dependency. Retain the existing explicit
+aws-lc-rs Rustls connector and generated certificate trust configuration.
+This clears RUSTSEC-2026-0382 and RUSTSEC-2026-0381 without audit exemptions.
+
+Validation: dependency audit and API compatibility passed, no active ring
+dependency was found across targets, and all 479 tests passed with zero skips.
+The TLS smoke test also passed independently with unchanged assertions.
+
 ## 2026-10-20 [feat]
 
 Add confidential authentication configuration values and exact pending/current
