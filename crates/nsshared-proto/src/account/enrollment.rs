@@ -77,26 +77,7 @@ fn capability_error(error: CborError) -> EnrollmentError {
 impl Enrollment {
     fn validate(&self) -> Result<(), EnrollmentError> {
         self.binding.validate()?;
-        if self.capabilities.len() > MAX_CAPABILITIES
-            || self
-                .capabilities
-                .iter()
-                .any(|id| id.len() > MAX_CAPABILITY_BYTES)
-        {
-            return Err(EnrollmentError::CapabilityBounds);
-        }
-        if !self.capabilities.windows(2).all(|pair| pair[0] < pair[1])
-            || self.capabilities.iter().any(|id| {
-                id.is_empty()
-                    || !id.bytes().all(|byte| {
-                        byte.is_ascii_lowercase()
-                            || byte.is_ascii_digit()
-                            || matches!(byte, b'.' | b'_' | b'-')
-                    })
-            })
-        {
-            return Err(EnrollmentError::InvalidCapabilities);
-        }
+        validate_capabilities(&self.capabilities)?;
         Ok(())
     }
 
@@ -187,4 +168,27 @@ pub fn decide_enrollment(
         }
         Transition::RecordRotation => Err(EnrollmentError::RebindUnauthorized),
     }
+}
+
+pub(super) fn validate_capabilities(capabilities: &[String]) -> Result<(), EnrollmentError> {
+    if capabilities.len() > MAX_CAPABILITIES
+        || capabilities
+            .iter()
+            .any(|id| id.len() > MAX_CAPABILITY_BYTES)
+    {
+        return Err(EnrollmentError::CapabilityBounds);
+    }
+    if !capabilities.windows(2).all(|pair| pair[0] < pair[1])
+        || capabilities.iter().any(|id| {
+            id.is_empty()
+                || !id.bytes().all(|byte| {
+                    byte.is_ascii_lowercase()
+                        || byte.is_ascii_digit()
+                        || matches!(byte, b'.' | b'_' | b'-')
+                })
+        })
+    {
+        return Err(EnrollmentError::InvalidCapabilities);
+    }
+    Ok(())
 }

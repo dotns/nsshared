@@ -743,3 +743,21 @@ no new kind or implicit policy publication is defined here.
 validation, and family 11 `policy-version` as an observation-only u64 counter.
 The registry metadata remains unchanged; these are content schemas for the existing
 snapshot and stream publication kinds. Producer confirmation remains outstanding.
+
+## Complete candidate control exchange
+
+[Control exchange](control-exchange-candidate.md) completes the existing enrollment,
+bootstrap and machine-claim families with exact operation/path constants,
+authenticated registration acceptance comparison, authentication/information
+forms, RS256 public claims and pin-qualified JWK sets. Independent fixtures are
+`control-exchange.vec`; the consumer is `control_exchange_vectors`.
+Enrollment binding, lifecycle, capabilities, bootstrap carriers and signing input
+are reused. No publication kind or family registry bytes change.
+
+Gateway bearer verification deliberately ignores audience, preserving absent,
+unrelated and array outcomes. Wrong-audience refusal belongs solely to the
+labelled NSD machine-audience predicate. Possible later gateway enforcement is
+an open owner-review item. Wrong key use, exact subject/self-binding, 30-second
+gateway expiry leeway, 300-second refresh window, qualified key selection and
+realm/address pin ownership are explicit. NSD producer confirmation remains
+outstanding; candidate fixtures do not establish agreement or interoperability.

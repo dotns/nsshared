@@ -48,7 +48,7 @@ explicitly frame only. NSD supplies producer vectors for every row.
 
 | ID / family | State at the candidate revision | Detailed contract work / review question |
 | --- | --- | --- |
-| 1 `enrollment` | Binding/lifecycle specified; enrollment publication frame only | Identity contract B38; Q11 |
+| 1 `enrollment` | Binding/lifecycle and complete control exchange specified in the control-exchange delta | Q11; producer confirmation outstanding |
 | 2 `realms-peers` | Complete canonical realm contributions, NodeBinding/NodeRecord checks and independent replacement/refusal vectors delivered | NSD producer confirmation and vectors; Q12 |
 | 3 `egress` | Pure grant publication and independent consumer vectors delivered | Grants contract B39; Q13 |
 | 4 `exit-subnet` | Grant publication plus existing Subnet selection and independent consumers delivered | Grants B39 and selection B40; Q14 |
@@ -279,6 +279,15 @@ vectors for these units; relay DATA remains a separate unit.
 
 ### Q11: Enrollment payload — NSD owner
 
+The [complete control exchange candidate](control-exchange-candidate.md) specifies
+RegistrationRequest/RegistrationAcceptance, AuthenticationRequest/Response and
+InformationRequest/Response and their exact tuple fields and constants. Confirm
+the provisioned membership/credential join, accepted profile/capabilities and
+I/K/version/generation comparison, including lifecycle refusal. Consumer vectors
+are independently generated in `control-exchange.vec`, not NSD producer output.
+Confirmation and producer-owned vectors remain outstanding; no agreement is recorded.
+
+
 The [Enrollment section](l8-account-payload-profile.md#enrollment) adds the
 binding/capability publication and acceptance decisions beyond the published
 candidate revision; the family table above retains that revision's state.
@@ -486,6 +495,23 @@ persistence, retransmission and state machines remain in consumers.
 
 ### Q21: Complete v1 replacement map — NSD and node owners
 
+The [control exchange delta](control-exchange-candidate.md#complete-pinned-consumer-disposition)
+maps all 264 pinned control-trust/enrollment inventory rows. Four internal
+fixture records remain historical records, not migrated consumers. Confirm the
+RS256 claims/JWK forms, key-use refusal, realm/address pin ownership, qualified
+rotation, kid selection, 30-second gateway expiry leeway and 300-second refresh
+window. `BootstrapEnvelope::signing_input` retains exact existing domain/content
+bytes and is reused by senders and independently signed fixture responses.
+
+Gateway machine bearer validation preserves its audience-agnostic predicate:
+absent, unrelated single and array audiences keep their current outcome.
+Wrong-audience refusal vectors are explicitly labelled as the distinct NSD
+machine verifier boundary. Open owner-review item: should a later gateway
+candidate require the expected machine audience? No such change is decided or
+implemented here. NSD confirmation, independent producer vectors and any later
+policy agreement remain outstanding.
+
+
 Which detailed family or explicit retirement covers every inventoried discovery,
 envelope verification, admin claim, policy, signed URL, material declaration,
 report, snapshot and event item? Supply the mapping and NSD vectors for retained
@@ -663,3 +689,18 @@ remain distinct from missing/non-text fields; the latter still refuse, as do
 invalid UTF-8, oversized fields and noncanonical encodings. No claim lookup or
 token verifier is moved into the shared contract. Please include exact name/value
 producer cases in family 7 review, independently of its reference/token syntax.
+
+## Control exchange family state delta
+
+Implementation revision: `1c9602c5e626e186ea6c8c0d85b42536c43c508e`.
+Review the exact source, tuple specification and independent fixture bytes at
+that revision; the earlier package revision does not include this delta.
+
+| Family | Current candidate state | Review status |
+| --- | --- | --- |
+| Enrollment | Registration, explicit acceptance and lifecycle comparison implemented | NSD confirmation outstanding |
+| Bootstrap / v1 replacement | Information and authentication values reuse confidential signed envelopes and public signing input | NSD confirmation outstanding |
+| Machine claims / v1 replacement | RS256 public claims, JWK forms, pin qualification and distinct audience predicates implemented | Producer vectors and possible later gateway audience requirement open |
+
+This delta accompanies the changed source and independent fixtures; the earlier
+published revision above is historical and does not contain this delta.
