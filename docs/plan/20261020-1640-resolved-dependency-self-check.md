@@ -1,6 +1,6 @@
 # Resolved dependency scoped self-check
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-10-20 16:40
 - **approvedAt**: 2026-10-20 16:40
 - **relatedTask**: 20261020-1640-resolved-dependency-self-check
@@ -31,3 +31,11 @@ Only the selector, its existing tests and these records change.
 
 Running complete QA for every lockfile is safe but needlessly broad.
 Comparing manifest text alone misses resolved transitive changes.
+
+## Acceptance
+
+All 41 selection tests pass, including the existing assertions and resolved
+dependency regressions. The complete self-check also passed with 434 Rust
+tests, zero skips, one documentation test and all static checks.
+Checksum observations use two valid, fixture-fed directory-source snapshots.
+The working tree and its registered worktrees remain unchanged by baseline export.
