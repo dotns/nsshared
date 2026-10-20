@@ -1,6 +1,6 @@
 # Public edge, material and service operation contracts
 
-- **status**: completed
+- **status**: implementing
 - **createdAt**: 2026-10-20 17:27
 - **approvedAt**: 2026-10-20 17:27
 - **relatedTask**: 20261020-1727-public-edge-contract
@@ -46,3 +46,24 @@ commit `673f5fc6ca8d793b9dbaf777669ff5e90918124a` passed, including 455 tests wi
 zero skipped and 41 check-selection tests. Existing M6 bytes remain unchanged;
 standalone labels and OIDC carrier questions retain their explicit external
 owners in the specification and review request.
+
+## Gateway-wide ownership validation
+
+Investigation: listener, HTTP/TCP overlap and backend-port registries are currently
+created inside the realm loop. Individually valid contributions can therefore
+claim the same physical gateway listener or Node transport endpoint. HTTP alias
+and domain ownership also needs comparison at the public listener's port.
+
+Proposal: retain realm-local route ids, discovery names/aliases/domains and material
+references. Compare raw TCP/UDP listeners, HTTP hostname/port ownership, HTTP/TCP
+overlap and full Node identity/transport/virtual-port tuples across the complete
+publication. Apply the same constraints to canonical construction and decoding.
+Independent Python vectors supply isolated accepted contributions and composed
+accepted/refused combinations, including both HTTP/TCP contribution orders.
+The existing uniqueness rule for a backend endpoint remains unchanged; only its
+comparison scope expands to the complete publication.
+
+Risks: a global discovery-name or material registry would conflate independent
+realm namespaces. Positive controls must retain those namespaces, same-number
+TCP/UDP listeners, HTTP hosts on separate ports, distinct HTTP hosts sharing a
+port and virtual ports separated by full Node identity or transport.

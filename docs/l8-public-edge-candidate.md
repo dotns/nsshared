@@ -19,11 +19,19 @@ Names, aliases and domains are canonical lowercase ASCII DNS names, at most 253
 bytes, dot-separated labels of 1..63 letters/digits/hyphens with alphanumeric
 ends. These public hostnames are not M6 service labels. Aliases/domains are each
 strictly ordered. Names and aliases cannot collide within a realm, including
-within one route. Public listener conflicts are checked by protocol/port/name
-for HTTP and protocol/port for TCP/UDP; virtual ports cannot conflict for one
-Node identity and underlying transport. HTTP and TCP share the TCP transport.
-A domain may equal its own route name or alias; cross-route hostname collisions refuse.
-Raw TCP cannot share an HTTP listener port.
+within one route. Discovery name/alias/domain ownership stays realm-local.
+Physical listener ownership is gateway-wide across every served realm in the
+complete publication: raw TCP and UDP use protocol/port, while HTTP uses every
+name, alias and domain paired with its listener port. Different HTTP hosts may
+share a port, and the same HTTP host may appear in different realms on distinct
+ports. Raw TCP cannot share an HTTP port, in either contribution order. TCP and
+UDP may use the same port number because their transports are distinct.
+Backend virtual ports are unique across the complete publication by full Node
+identity, underlying transport and virtual port; HTTP and TCP share the TCP
+transport. A null backend owns no Node endpoint. These checks do not globalize
+realm-qualified material references, and never infer identity from an address.
+A domain may equal its own route name or alias; cross-route hostname collisions
+inside a realm refuse.
 
 `options` = `[transport, upstream_authority_or_null, upstream_tls_or_null,
 policy_references, request_body_limit_or_null, response_body_limit_or_null,

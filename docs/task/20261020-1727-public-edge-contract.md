@@ -1,6 +1,6 @@
 # Public edge, material and service operation contracts
 
-- **status**: completed
+- **status**: in_progress
 - **priority**: P1
 - **owner**: public-edge-contract
 - **createdAt**: 2026-10-20 17:27
@@ -66,3 +66,12 @@ raw TCP/HTTP listener conflicts, issuer URL shape, exact material generations an
 multi-Network snapshot scope joins are explicitly validated. No unresolved code
 finding remains in that reviewed scope; open external carriers and producer
 confirmation remain stated above without claiming wire equivalence.
+
+## Gateway-wide conflict validation
+
+Reopened to correct physical listener and backend endpoint ownership across
+realm contributions. The retained regression checks that isolated contributions
+are valid before rejecting their conflicting combined TCP listener. The approved
+change expands only physical conflict registries; discovery names and material
+references stay realm-qualified. Investigation and verification results are
+tracked in the related plan and recorded below when complete.

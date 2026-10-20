@@ -66,6 +66,72 @@ def vectors():
     second[11] = []
     two_networks[4][1][2] = [second]
     emit("two-networks", "edge", two_networks)
+    def realm_pair(protocols=(6, 6), ports=(9443, 9444),
+                   backends=(None, None), virtual_ports=(8080, 8081),
+                   names=("local.example", "local.example"),
+                   aliases=((), ()), domains=((), ())):
+        contributions = []
+        for index, realm_id in enumerate((realm, bytes([9]) * 16)):
+            material = [0, "auth", 2 + index]
+            public_route = copy.deepcopy(route)
+            public_route[:4] = ["realm-route", names[index],
+                                list(aliases[index]), list(domains[index])]
+            public_route[5:9] = [backends[index], protocols[index], ports[index],
+                                 virtual_ports[index]]
+            public_route[9] = cbor.encode([1, realm_id, [], []])
+            public_route[11] = [material]
+            public_auth = cbor.encode([1, realm_id, [material], [], [], []])
+            contributions.append([realm_id, public_auth, [public_route]])
+        return [1, 7, "served", "edge", contributions]
+
+    cases = [
+        ("listener-tcp-duplicate", False, {"ports": (9443, 9443)}),
+        ("listener-udp-duplicate", False, {"protocols": (17, 17), "ports": (9443, 9443)}),
+        ("listener-tcp-distinct-ports", True, {}),
+        ("listener-udp-distinct-ports", True, {"protocols": (17, 17)}),
+        ("listener-tcp-udp-same-number", True, {"protocols": (6, 17), "ports": (9443, 9443)}),
+        ("http-primary-collision", False, {"protocols": (0, 0), "ports": (9443, 9443)}),
+        ("http-alias-primary-collision", False, {"protocols": (0, 0), "ports": (9443, 9443),
+            "names": ("first.example", "shared.example"), "aliases": (("shared.example",), ())}),
+        ("http-domain-primary-collision", False, {"protocols": (0, 0), "ports": (9443, 9443),
+            "names": ("first.example", "shared.example"), "domains": (("shared.example",), ())}),
+        ("http-alias-domain-collision", False, {"protocols": (0, 0), "ports": (9443, 9443),
+            "names": ("first.example", "second.example"), "aliases": (("shared.example",), ()),
+            "domains": ((), ("shared.example",))}),
+        ("http-distinct-hosts-shared-port", True, {"protocols": (0, 0), "ports": (9443, 9443),
+            "names": ("first.example", "second.example")}),
+        ("http-same-host-distinct-ports", True, {"protocols": (0, 0)}),
+        ("http-same-alias-distinct-ports", True, {"protocols": (0, 0),
+            "names": ("first.example", "second.example"),
+            "aliases": (("shared.example",), ("shared.example",))}),
+        ("http-same-domain-distinct-ports", True, {"protocols": (0, 0),
+            "names": ("first.example", "second.example"),
+            "domains": (("shared.example",), ("shared.example",))}),
+        ("overlap-http-before-tcp", False, {"protocols": (0, 6), "ports": (9443, 9443)}),
+        ("overlap-tcp-before-http", False, {"protocols": (6, 0), "ports": (9443, 9443)}),
+        ("overlap-http-tcp-distinct-ports", True, {"protocols": (0, 6)}),
+        ("overlap-http-udp-same-number", True, {"protocols": (0, 17), "ports": (9443, 9443)}),
+        ("backend-tcp-duplicate", False, {"backends": (publisher, publisher), "virtual_ports": (8080, 8080)}),
+        ("backend-udp-duplicate", False, {"protocols": (17, 17), "backends": (publisher, publisher),
+            "virtual_ports": (8080, 8080)}),
+        ("backend-http-tcp-duplicate", False, {"protocols": (0, 6), "backends": (publisher, publisher),
+            "virtual_ports": (8080, 8080)}),
+        ("backend-distinct-identities", True, {"backends": (publisher, recipient), "virtual_ports": (8080, 8080)}),
+        ("backend-distinct-virtual-ports", True, {"backends": (publisher, publisher)}),
+        ("backend-distinct-transports", True, {"protocols": (6, 17), "backends": (publisher, publisher),
+            "virtual_ports": (8080, 8080)}),
+        ("backend-no-connector", True, {"virtual_ports": (8080, 8080)}),
+        ("realm-names-materials", True, {"aliases": (("alias.example",), ("alias.example",)),
+            "domains": (("domain.example",), ("domain.example",))}),
+    ]
+    for label, accepted, inputs in cases:
+        value = realm_pair(**inputs)
+        for index in range(2):
+            isolated = copy.deepcopy(value)
+            isolated[4] = isolated[4][index:index + 1]
+            emit(f"scope-{label}-isolated-{index}", "edge-isolated", isolated)
+        emit("scope-" + label, "edge-cross-realm", value, accepted)
+
     emit("empty", "edge", [1, 7, "served", "edge", []])
     reduced = copy.deepcopy(complete)
     reduced[4][0][2] = [route]

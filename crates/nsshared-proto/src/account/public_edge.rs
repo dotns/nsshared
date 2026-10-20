@@ -133,6 +133,10 @@ impl PublicEdge {
             .text(&self.served_realm)
             .text(&self.scope)
             .array(self.realms.len());
+        let mut http_ports = BTreeSet::new();
+        let mut tcp_ports = BTreeSet::new();
+        let mut listeners = BTreeSet::new();
+        let mut backend_ports = BTreeSet::new();
         for realm in &self.realms {
             require(realm.realm == realm.auth.realm && realm.routes.len() <= MAX_EDGE_ITEMS)?;
             require(realm.routes.windows(2).all(|p| p[0].id < p[1].id))?;
@@ -142,10 +146,6 @@ impl PublicEdge {
                 .array(realm.routes.len());
             let mut public_names = BTreeSet::new();
             let mut hostname_owners = BTreeMap::new();
-            let mut http_ports = BTreeSet::new();
-            let mut tcp_ports = BTreeSet::new();
-            let mut listeners = BTreeSet::new();
-            let mut backend_ports = BTreeSet::new();
             for route in &realm.routes {
                 text(&route.id)?;
                 hostname(&route.name)?;
@@ -179,12 +179,21 @@ impl PublicEdge {
                         && route.virtual_port > 0
                         && route.policy.realm == realm.realm,
                 )?;
-                let host = if route.protocol == EdgeProtocol::Http {
-                    route.name.as_str()
+                if route.protocol == EdgeProtocol::Http {
+                    let hosts: BTreeSet<_> = std::iter::once(&route.name)
+                        .chain(&route.aliases)
+                        .chain(&route.domains)
+                        .collect();
+                    for host in hosts {
+                        require(listeners.insert((
+                            route.protocol,
+                            route.public_port,
+                            host.as_str(),
+                        )))?;
+                    }
                 } else {
-                    ""
-                };
-                require(listeners.insert((route.protocol, route.public_port, host)))?;
+                    require(listeners.insert((route.protocol, route.public_port, "")))?;
+                }
                 if let Some(backend) = route.backend {
                     let protocol = if route.protocol == EdgeProtocol::Udp {
                         17
