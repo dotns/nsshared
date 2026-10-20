@@ -601,7 +601,7 @@ rejections. No dependency or protocol version changes accompany this contract.
 These pure schema-1 values own no publication kind. All arrays use strict shortest
 CBOR, definite lengths and no trailing bytes, with the existing 1 MiB account
 limit. Text is nonempty UTF-8 of at most 256 bytes without whitespace/control
-characters unless a field explicitly permits spaces. Collections have at most
+characters unless a field explicitly carries unrestricted string data. Collections have at most
 256 entries. Consumers authenticate the enclosing carrier before interpreting
 any value; decoding never authenticates a caller or evaluates a rule.
 
@@ -660,8 +660,17 @@ outside these values.
 
 `JwtSubjectBinding` is `[1, binding_bytes, authority_ref, claim_name, claim_value,
 scopes]`. It joins a previously verified exact authority/claim to a credential
-binding; the anchor must be a credential reference. Scopes are opaque ordered
-unique text and never become AdminScope. Family 7 supplies issuer/audience/public
+binding; the anchor must be a credential reference. `claim_name` and `claim_value`
+are exact UTF-8 string data, each zero to 256 bytes inclusive. Empty strings are
+present data, distinct from a missing field. Preserve all original bytes,
+including leading/trailing/internal whitespace, controls, case, and Unicode
+normalization form. Never trim, percent-encode, case-fold or normalize these
+fields: consumers look up the exact claim name and compare the exact string
+value. Missing fields, null/non-text fields, invalid UTF-8, values over the byte
+bound, non-shortest CBOR and trailing bytes refuse. References, subjects, HTTP
+header names, destination matcher tokens, URL realm/route labels and scope tokens
+retain their existing syntax restrictions. Scopes are opaque ordered unique
+whitespace-free text and never become AdminScope. Family 7 supplies issuer/audience/public
 key source metadata and material separately; this value neither fetches nor
 verifies keys. `SignedSubjectHeaderPolicy` is `[1, enabled, header_name_or_null,
 signature_header_name_or_null, keyset_ref_or_null, validity_seconds_or_null,

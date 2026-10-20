@@ -124,9 +124,9 @@ pub struct JwtSubjectBinding {
     pub binding: SubjectBinding,
     /// Realm-local reference to externally supplied authority metadata.
     pub authority_ref: String,
-    /// Exact verified claim name.
+    /// Exact verified UTF-8 claim name, including whitespace or empty data; at most 256 bytes.
     pub claim_name: String,
-    /// Exact verified claim value.
+    /// Exact verified UTF-8 claim value, including whitespace or empty data; at most 256 bytes.
     pub claim_value: String,
     /// Opaque ordered unique credential scopes; these are not admin scopes.
     pub scopes: Vec<String>,
@@ -136,12 +136,13 @@ impl JwtSubjectBinding {
     /// Encodes public binding metadata without keys, secrets or token verification.
     ///
     /// # Errors
-    /// Rejects malformed labels, non-credential anchors and scope/order violations.
+    /// Rejects malformed references, oversized claim data, non-credential anchors and scope/order violations.
     pub fn canonical(&self) -> Result<Vec<u8>, AccountError> {
         require(matches!(self.binding.anchor, SubjectAnchor::Credential(_)))?;
         text(&self.authority_ref)?;
-        text(&self.claim_name)?;
-        text(&self.claim_value)?;
+        require(
+            self.claim_name.len() <= MAX_POLICY_TEXT && self.claim_value.len() <= MAX_POLICY_TEXT,
+        )?;
         ordered_text(&self.scopes)?;
         let mut out = CborWriter::default();
         out.array(6)

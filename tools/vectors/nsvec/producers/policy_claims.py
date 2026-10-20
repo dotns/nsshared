@@ -1,6 +1,7 @@
 """Spec-derived policy and claim inputs, without calling the Rust consumer."""
 
 import hashlib
+import json
 import urllib.parse
 
 from .. import cbor
@@ -23,6 +24,9 @@ def vectors():
     out = []
 
     def emit(name, kind, value, accepted=True, raw=None, extra=()):
+        if kind == "jwt" and accepted:
+            extra = [*extra, ("claim_name_json", json.dumps(value[3])),
+                     ("claim_value_json", json.dumps(value[4]))]
         out.append([("name", name), ("kind", kind),
                     ("bytes", cbor.encode(value) if raw is None else raw),
                     ("expect", "accept" if accepted else "reject"), *extra])
@@ -74,15 +78,50 @@ def vectors():
         emit("admin-" + name, "admin", value, False)
     jwt = [1, cbor.encode(binding), "issuer-a", "sub", "client-a", ["read", "write"]]
     emit("jwt-binding", "jwt", jwt)
+    emit("jwt-department-spaces", "jwt", jwt[:3] + ["department", "Platform Engineering"] + jwt[5:])
     emit("jwt-unsorted-scopes", "jwt", jwt[:-1] + [["write", "read"]], False)
-    emit("jwt-empty-claim", "jwt", jwt[:4] + [""] + jwt[5:], False)
+    emit("jwt-empty-claim", "jwt", jwt[:4] + [""] + jwt[5:])
     emit("jwt-node-anchor", "jwt", [1, cbor.encode([1, realm, 0, node, user, True, None]), *jwt[2:]], False)
+    for field, index in [("name", 3), ("value", 4)]:
+        for case, exact in [
+            ("internal-space", "Platform Engineering"),
+            ("padded", "  Platform Engineering\t"),
+            ("unicode", "\u00e9"), ("decomposed", "e\u0301"),
+            ("control", "\0\r\n\t"), ("empty", ""),
+            ("whitespace-only", " \u00a0 "),
+            ("ascii-boundary", "a" * 256),
+            ("utf8-boundary", "\u00e9" * 128),
+        ]:
+            exact_binding = jwt.copy()
+            exact_binding[index] = exact
+            emit(f"jwt-{field}-{case}", "jwt", exact_binding)
+        for case, invalid in [
+            ("too-long", "a" * 257), ("utf8-too-long", "\u00e9" * 129),
+            ("null", None), ("bytes", b"department"), ("integer", 1),
+        ]:
+            invalid_binding = jwt.copy()
+            invalid_binding[index] = invalid
+            emit(f"jwt-{field}-{case}", "jwt", invalid_binding, False)
+        emit(f"jwt-{field}-missing", "jwt", jwt[:index] + jwt[index + 1:], False)
+        prefix = cbor.head(cbor.ARRAY, len(jwt)) + b"".join(cbor.encode(v) for v in jwt[:index])
+        suffix = b"".join(cbor.encode(v) for v in jwt[index + 1:])
+        for case, invalid_text in [("invalid-utf8", b"\x61\xff"),
+                                   ("nonminimal-text", b"\x78\x00")]:
+            emit(f"jwt-{field}-{case}", "jwt", None, False, prefix + invalid_text + suffix)
+    emit("jwt-authority-whitespace", "jwt", jwt[:2] + ["issuer a"] + jwt[3:], False)
+    emit("jwt-scope-whitespace", "jwt", jwt[:-1] + [["read write"]], False)
+    credential_space = binding.copy()
+    credential_space[3] = "credential a"
+    emit("binding-reference-whitespace", "binding", credential_space, False)
+    emit("policy-destination-whitespace", "policy", [1, realm, [[[user], ["db: 5432"], 6]], []], False)
     header = [1, True, "x-subject", "x-signature", "header-key", 60, True]
     emit("signed-header", "header", header)
     emit("disabled-header", "header", [1, False, None, None, None, None, False])
     for name, index, value in [("missing-key", 4, None), ("zero-validity", 5, 0),
                                ("inbound", 6, False), ("uppercase", 2, "X-Subject"),
-                               ("same-header", 3, "x-subject"), ("bad-header", 2, "x:subject")]:
+                               ("same-header", 3, "x-subject"), ("bad-header", 2, "x:subject"),
+                               ("whitespace-header", 2, "x subject"),
+                               ("whitespace-key", 4, "header key")]:
         bad = header.copy()
         bad[index] = value
         emit("header-" + name, "header", bad, False)

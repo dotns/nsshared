@@ -651,3 +651,15 @@ pair, insufficient/unknown scope, expired and wrong-subject/realm contexts,
 missing/malformed subjects, exact binary UserId widths, duplicate/unsorted sets,
 wrong signing domain and non-shortest/trailing CBOR. Consumer acceptance of the
 candidate fixture cannot replace these outstanding producer review inputs.
+
+### Exact JWT claim string data
+
+The candidate distinguishes JWT `claim_name` and `claim_value` from subject
+labels and authority/credential references. Both fields preserve the exact
+original UTF-8 string within 256 bytes, including spaces, controls, empty strings
+and Unicode normalization form. In particular `department` matching
+`Platform Engineering` round-trips without trimming or encoding. Empty fields
+remain distinct from missing/non-text fields; the latter still refuse, as do
+invalid UTF-8, oversized fields and noncanonical encodings. No claim lookup or
+token verifier is moved into the shared contract. Please include exact name/value
+producer cases in family 7 review, independently of its reference/token syntax.

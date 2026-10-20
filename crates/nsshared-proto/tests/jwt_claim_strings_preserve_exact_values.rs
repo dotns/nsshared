@@ -34,3 +34,29 @@ fn verified_department_claim_with_internal_space_round_trips_exactly() {
         .expect("an exact JWT claim value may contain an internal space");
     assert_eq!(JwtSubjectBinding::decode(&bytes).unwrap(), value);
 }
+
+#[test]
+fn claim_names_and_values_preserve_exact_data_with_utf8_byte_bounds() {
+    for (name, value) in [
+        (" department ".into(), "  Platform Engineering\t".into()),
+        ("".into(), "".into()),
+        ("claim\0\n\t".into(), "é/e\u{301}\0\r\n\t".into()),
+        ("é".repeat(128), "é".repeat(128)),
+    ] {
+        let mut expected = binding(&value);
+        expected.claim_name = name;
+        let bytes = expected.canonical().unwrap();
+        let decoded = JwtSubjectBinding::decode(&bytes).unwrap();
+        assert_eq!(decoded, expected);
+        assert_eq!(decoded.canonical().unwrap(), bytes);
+    }
+    for oversized in ["a".repeat(257), "é".repeat(129)] {
+        let mut value = binding("Engineering");
+        value.claim_name = oversized.clone();
+        assert!(value.canonical().is_err());
+        let mut value = binding(&oversized);
+        assert!(value.canonical().is_err());
+        value.claim_value = "Engineering".into();
+        assert!(value.canonical().is_ok());
+    }
+}

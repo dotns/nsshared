@@ -81,7 +81,23 @@ fn policy_claim_vectors() {
             "binding" => SubjectBinding::decode(&bytes).and_then(|v| v.canonical()),
             "policy" => SubjectPolicy::decode(&bytes).and_then(|v| v.canonical()),
             "admin" => AdminTokenClaims::decode(&bytes).and_then(|v| v.canonical()),
-            "jwt" => JwtSubjectBinding::decode(&bytes).and_then(|v| v.canonical()),
+            "jwt" => JwtSubjectBinding::decode(&bytes).and_then(|v| {
+                if vector.get("expect") == "accept" {
+                    assert_eq!(
+                        v.claim_name,
+                        serde_json::from_str::<String>(vector.get("claim_name_json")).unwrap(),
+                        "{}",
+                        vector.name()
+                    );
+                    assert_eq!(
+                        v.claim_value,
+                        serde_json::from_str::<String>(vector.get("claim_value_json")).unwrap(),
+                        "{}",
+                        vector.name()
+                    );
+                }
+                v.canonical()
+            }),
             "header" => SignedSubjectHeaderPolicy::decode(&bytes).and_then(|v| v.canonical()),
             other => panic!("unknown vector kind: {other}"),
         };
@@ -279,6 +295,14 @@ fn signed_url_refusals_and_scope_binding() {
         },
         SignedUrlScope {
             path: "/a\nb",
+            ..base
+        },
+        SignedUrlScope {
+            realm: "realm other",
+            ..base
+        },
+        SignedUrlScope {
+            route: "route other",
             ..base
         },
         SignedUrlScope {
