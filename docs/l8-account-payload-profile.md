@@ -63,7 +63,7 @@ of usage history, durable watermarks or received control messages.
 | ID / family | Complete publication / exact `clears` string / scope | Additional M6 reuse |
 | --- | --- | --- |
 | 1 `enrollment` — enrollment and own Node binding | `own-node` / `binding,capabilities,endpoints` / one membership | declarations |
-| 2 `realms-peers` — served realms and peers | `realm-peers` / `realms,peer-contributions` / one account; shared peers retain provenance from remaining contributions | snapshots |
+| 2 `realms-peers` — [complete served realms and peers](realm-publication-candidate.md) | `realm-peers` / `realms,peer-contributions` / exact signed issuer/recipient/served_realm/scope collection; omitted contributions removed | snapshots |
 | 3 `egress` — [Egress grants](grant-authority-candidate.md) | `egress-grants` / `resources,grants,payers` / one realm and recipient | declarations, listeners, snapshots |
 | 4 `exit-subnet` — [Exit Subnet grants](grant-authority-candidate.md) | `exit-grants` / `routes,grants,exclusions,bypasses,selection` / one realm and recipient | listeners, snapshots |
 | 5 `payer` — [binary realm/UserId bindings](grant-authority-candidate.md) | `payer-bindings` / `payers` / one resource scope; ambiguity withholds the resource | snapshots |
@@ -72,7 +72,7 @@ of usage history, durable watermarks or received control messages.
 | 8 `relay` — relay directory and participant | `relay-directory-roster` / `directory\|identity-classes` / a named directory or participant roster, separately scoped; neither clears the other | snapshots |
 | 9 `usage` — usage reports and units | `usage-profile` / `units,reporters,parameters` / one reporter; never clears metering history | none |
 | 10 `node-control` — Node-control channel | `node-control-profile` / `vocabulary,capabilities` / one membership; ACK means at least accepted, persistence may precede ACK | none |
-| 11 `v1-replacement` — replacement of the v1 surface | `surface-map` / `mappings,retirements` / discovery/envelope verification, admin claims, policy, signed URL, material, reports and snapshot/events vocabulary in one account profile | declarations, listeners, snapshots |
+| 11 `v1-replacement` — replacement of the v1 surface and [policy observation](realm-publication-candidate.md) | `surface-map` / `mappings,retirements` / discovery/envelope verification, admin claims, policy, signed URL, material, reports and snapshot/events vocabulary in one account profile | declarations, listeners, snapshots |
 
 The backslash before the table cell's pipe is Markdown escaping; the wire
 string contains only the pipe. Every row has version 1 and candidate owner
@@ -590,3 +590,11 @@ revision `019bb7250549f1040a813c599a2ac1b09bd620f3`), both known-byte examples
 and the empty-input ACK hash. `tests/node_control.rs` ports all ten predecessor
 test functions; `tests/vectors_node_control.rs` checks independent bytes and
 rejections. No dependency or protocol version changes accompany this contract.
+
+## Complete realm publication content
+
+[Realm publication candidate](realm-publication-candidate.md) defines family 2
+`realm-peers` complete contributions with existing NodeBinding and signed NodeRecord
+validation, and family 11 `policy-version` as an observation-only u64 counter.
+The registry metadata remains unchanged; these are content schemas for the existing
+snapshot and stream publication kinds. Producer confirmation remains outstanding.
