@@ -171,6 +171,10 @@ def input_references(path: str, sources: list[tuple[str, str]]) -> list[str]:
             if re.search(r"\b(?:fn|def)\s+$", masked[:reader.start()]):
                 continue
             expression = reader_expression(text, reader.end())
+            # Rust file reads take a buffer or a path; lock reads take neither.
+            if (source.endswith(".rs") and reader.group(1) == "read" and expression == "" and
+                    masked[:reader.start()].rstrip().endswith(".")):
+                continue
             value = literal_path(expression, source) if expression is not None else None
             if value is None or value.startswith("/") or any(char in value for char in "*?{}$"):
                 references.append(f"uncertain computed path or glob in {source}")
@@ -225,9 +229,12 @@ def select(root: Path, paths: list[str], metadata: dict) -> Selection:
             reasons.append(cause)
         if not rust:
             diagnostics.append(f"input: {path} ({cause})" if cause else f"non-input: {path} (no tracked build or test reference)")
+        elif cause:
+            diagnostics.append(cause)
 
     if not paths:
         reasons.append("empty diff")
+        diagnostics.append("empty diff")
 
     affected = set(changed)
     # Include workspace consumers outside crates/, and all dependency kinds.
@@ -241,7 +248,7 @@ def select(root: Path, paths: list[str], metadata: dict) -> Selection:
 
     return {
         "full": bool(reasons),
-        "reason": "; ".join(reasons + diagnostics) or "all changed paths map to workspace crates",
+        "reason": "; ".join(diagnostics) or "all changed paths map to workspace crates",
         "changed": sorted(packages[package_id]["name"] for package_id in changed),
         "affected": sorted(packages[package_id]["name"] for package_id in affected & members),
     }

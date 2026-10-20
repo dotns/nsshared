@@ -210,6 +210,13 @@ class SelectionTests(unittest.TestCase):
         self.assertTrue(selection["full"])
         self.assertIn("directory read by crates/core/tests/walk.rs", selection["reason"])
 
+    def test_lock_read_is_not_a_file_input(self):
+        self.write("crates/core/src/lib.rs", 'fn value() { let lock = std::sync::RwLock::new(1); let guard = lock.read().unwrap(); }\n')
+        self.commit()
+        selection = self_check.select(self.root, ["docs/task/new-record.md"], self.metadata)
+        self.assertFalse(selection["full"])
+        self.assertIn("non-input: docs/task/new-record.md", selection["reason"])
+
     def test_empty_diff_selects_complete_check(self):
         selection = self.selection()
         self.assertTrue(selection["full"])
