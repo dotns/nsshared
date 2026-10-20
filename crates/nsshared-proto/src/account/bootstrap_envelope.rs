@@ -98,6 +98,16 @@ impl BootstrapEnvelope {
         Ok(out.into_bytes())
     }
 
+    /// Returns the existing direction domain followed by canonical content bytes.
+    ///
+    /// # Errors
+    /// Rejects invalid kind or oversized opaque payload.
+    pub fn signing_input(&self) -> Result<Vec<u8>, BootstrapError> {
+        let mut message = self.direction.domain().to_vec();
+        message.extend_from_slice(&self.content()?);
+        Ok(message)
+    }
+
     /// Encodes the canonical signed carrier without changing opaque payload bytes.
     ///
     /// # Errors
@@ -187,8 +197,7 @@ impl BootstrapEnvelope {
         if self.unix_seconds.abs_diff(expected.now_seconds) > CONTROL_CLOCK_SKEW_SECONDS {
             return Err(BootstrapError::Clock);
         }
-        let mut message = self.direction.domain().to_vec();
-        message.extend_from_slice(&self.content()?);
+        let message = self.signing_input()?;
         let key =
             VerifyingKey::from_bytes(self.signer.as_bytes()).map_err(|_| BootstrapError::Signer)?;
         key.verify_strict(&message, &Signature::from_bytes(&self.signature))
