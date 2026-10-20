@@ -68,7 +68,7 @@ of usage history, durable watermarks or received control messages.
 | 4 `exit-subnet` — [Exit Subnet grants](grant-authority-candidate.md) | `exit-grants` / `routes,grants,exclusions,bypasses,selection` / one realm and recipient | listeners, snapshots |
 | 5 `payer` — [binary realm/UserId bindings](grant-authority-candidate.md) | `payer-bindings` / `payers` / one resource scope; ambiguity withholds the resource | snapshots |
 | 6 `withdrawal` — [resource authority and retired tokens](grant-authority-candidate.md) | `resource-authority` / `authority,incarnations` / current authority in one recipient/resource scope | snapshots |
-| 7 `public-edge` — public edge | `public-edge` / `backends,names,aliases,ports,domains,subjects,auth,materials` / one account; NodeId/node6 backends and existing auth/certificate/client-CA references and material generations retain their meanings | declarations, snapshots |
+| 7 `public-edge` — [public edge, material and service operations](l8-public-edge-candidate.md) | `public-edge` / `backends,names,aliases,ports,domains,subjects,auth,materials` / exact signed issuer/recipient/served_realm/scope, per-realm contributions; full Node identity backends, explicit no-connector and generation-qualified dependencies | declarations, listeners, snapshots |
 | 8 `relay` — relay directory and participant | `relay-directory-roster` / `directory\|identity-classes` / a named directory or participant roster, separately scoped; neither clears the other | snapshots |
 | 9 `usage` — usage reports and units | `usage-profile` / `units,reporters,parameters` / one reporter; never clears metering history | none |
 | 10 `node-control` — Node-control channel | `node-control-profile` / `vocabulary,capabilities` / one membership; ACK means at least accepted, persistence may precede ACK | none |
@@ -710,21 +710,21 @@ refuse rather than silently changing the signed request.
 
 | Inventoried values | Canonical value or disposition | Carrier |
 | --- | --- | --- |
-| AclPolicy.rules, AclRule.action/subject/dst/proto | SubjectPolicy rules; accept is implicit, deny actions retired | Open aggregate carrier; public-edge fragments may embed in family 7 |
-| AclPolicy.groups | Explicit qualified groups and members | Same open aggregate carrier |
+| AclPolicy.rules, AclRule.action/subject/dst/proto | SubjectPolicy rules; accept is implicit, deny actions retired | Public-edge fragments embed in EdgeRoute.policy; other aggregate carriers open |
+| AclPolicy.groups | Explicit qualified groups and members | EdgeRoute.policy for public-edge groups; other aggregates open |
 | AclBindings.wg_peer | NodeL3Authority bindings retain I/K authority; address/key-derived subjects retired | Existing family 11 node-l3 |
-| AclBindings.machine | SubjectBinding with explicit Node or credential anchor | Family 7 for public-edge credentials; other aggregates open |
+| AclBindings.machine | SubjectBinding with explicit Node or credential anchor | Family 7 EdgeAuth.bindings for public-edge credentials; other aggregates open |
 | AclPolicy.hosts, tests | Gateway destination alias resolution and self-test inputs remain evaluator-owned; no contract equivalence claimed | Open carrier item |
 | AclPolicy.gateway_roster, service_floor | Not subject authority; roster classification and service-floor metadata stay in their existing contracts/local configuration | No policy carrier added |
 | AdminClaims, AdminScope, require_admin_scope | AdminTokenClaims, AdminScope, require_scope | Authenticated admin token |
 | MachineClaims, TokenAudience, verify_machine_claims | Machine token/key-set contract remains separately owned; no duplicate claims | Existing token owner |
-| GatewayAuthConsumer.subject and credential-to-consumer joins | PolicySubject, SubjectBinding; enabled/expiry retained | Embedded family 7 |
-| GatewayAuthJwtConsumerBinding | JwtSubjectBinding plus existing subject binding; credential id is the anchor, consumer resolution belongs to the enclosing family | Embedded family 7 |
-| GatewayAuthJwtAuthority and legacy issuer metadata | Authority reference retained by JwtSubjectBinding; issuer/audience/key source remain family 7 values; no trust inferred | Family 7 owner |
-| SignedSubjectHeaderPolicy | Explicit typed header configuration | Embedded family 7 |
-| SignedUrlScope and canonical request/query/string-to-sign | SignedUrlScope deterministic public signing input | Request plus embedded family 7 scope/key metadata |
+| GatewayAuthConsumer.subject and credential-to-consumer joins | PolicySubject, SubjectBinding; enabled/expiry retained | Embedded family 7 EdgeAuth |
+| GatewayAuthJwtConsumerBinding | JwtSubjectBinding plus existing subject binding; credential id is the anchor, consumer resolution belongs to the enclosing family | Embedded family 7 EdgeAuth |
+| GatewayAuthJwtAuthority and legacy issuer metadata | Authority reference retained by JwtSubjectBinding; issuer/audience/key source remain family 7 values; no trust inferred | Family 7 EdgeJwtAuthority; NSD producer confirmation pending |
+| SignedSubjectHeaderPolicy | Explicit typed header configuration | Embedded family 7 EdgeRoute.headers |
+| SignedUrlScope and canonical request/query/string-to-sign | SignedUrlScope deterministic public signing input | Existing SignedUrlScope request input plus realm-qualified auth material reference |
 | EnvelopeDirection, signed account requests | SignedAccountRequest reuses BootstrapEnvelope and its domains | Existing authenticated call carrier |
-| OIDC claims, organization/role subject projection, provider/cookie configuration | OIDC token verification and label construction remain consumer-owned, referencing qualified PolicySubject | Family 7 owner; no OIDC runtime here |
+| OIDC claims, organization/role subject projection, provider/cookie configuration | OIDC token verification and label construction remain consumer-owned, referencing qualified PolicySubject | Open: auth consumer and NSD owners; no OIDC runtime or guessed configuration here |
 | Policy compilation, VerifiedSubjectSet, verifier readiness and admission results | Consumer state/evaluation, not new wire claims | No carrier added |
 
 No evaluator moves into shared contracts. Existing NodeL3Authority is neither
@@ -743,3 +743,29 @@ no new kind or implicit policy publication is defined here.
 validation, and family 11 `policy-version` as an observation-only u64 counter.
 The registry metadata remains unchanged; these are content schemas for the existing
 snapshot and stream publication kinds. Producer confirmation remains outstanding.
+
+## Public-edge, material and declaration candidate
+
+The [family 7 specification](l8-public-edge-candidate.md) defines PublicEdge,
+EdgeAuth, EdgeMaterialAck and EdgeServiceRequest/Response in exactly three pure
+modules. Public hostname/alias/domain validation is independent of M6 service
+labels. Service entries carry M6 ServiceRef; authenticated snapshot Resources
+supply the validated DNS label. No standalone service-label codec or copied
+validator is added. Standalone label inventory rows remain open pending M01/M02
+with the M6 contract owner through owner-mediated review.
+
+SubjectPolicy, SubjectBinding, JwtSubjectBinding and SignedSubjectHeaderPolicy
+are embedded unchanged; SignedUrlScope remains the shared request signing input.
+JWT issuer/audience/key-reference carriers are EdgeJwtAuthority. OIDC provider,
+cookie, organization and redirect configuration remain explicitly open with the
+auth consumer and NSD owners; no defaults or predecessor wire equivalence are
+claimed. Certificate/client-CA/auth payload bytes stay on confidential material
+transport; the candidate carries reference/generation and correlated installation
+ACKs. Routes require dependency installation before exposure.
+
+The independent Python public_edge producer and Rust public_edge_vectors tests
+exercise complete replacement, valid empty withdrawal, malformed/noncanonical
+refusal without renewal, names/aliases/ports/domains, full backend identity joins,
+material generation mismatch and unchanged M6 object bytes/digests. These are
+fixture-produced candidate observations; NSD confirmation and producer-owned
+vectors remain outstanding under Q17.

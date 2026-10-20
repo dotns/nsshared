@@ -78,7 +78,7 @@ FAMILIES = [
     ("exit-subnet", "exit-grants", "routes,grants,exclusions,bypasses,selection", "listeners,snapshots"),
     ("payer", "payer-bindings", "payers", "snapshots"),
     ("withdrawal", "resource-authority", "authority,incarnations", "snapshots"),
-    ("public-edge", "public-edge", "backends,names,aliases,ports,domains,subjects,auth,materials", "declarations,snapshots"),
+    ("public-edge", "public-edge", "backends,names,aliases,ports,domains,subjects,auth,materials", "declarations,listeners,snapshots"),
     ("relay", "relay-directory-roster", "directory|identity-classes", "snapshots"),
     ("usage", "usage-profile", "units,reporters,parameters", ""),
     ("node-control", "node-control-profile", "vocabulary,capabilities", ""),

@@ -144,7 +144,7 @@ pub const FAMILIES: [FamilyRegistration; 11] = [
         "public-edge",
         "public-edge",
         "backends,names,aliases,ports,domains,subjects,auth,materials",
-        [Declarations, Snapshots]
+        [Declarations, Listeners, Snapshots]
     ),
     family!(
         Relay,

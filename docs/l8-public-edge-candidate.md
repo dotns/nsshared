@@ -1,0 +1,145 @@
+# Public-edge content, material and service operations
+
+Candidate version 1. All new arrays use shortest-form definite CBOR, strict UTF-8,
+no trailing bytes, and at most 1,048,576 encoded bytes. Collections have at most
+256 items per encoded collection. Caller-supplied snapshot and material-ACK
+collections may contain up to 65,536 entries to cover all realm/route references.
+References and general tokens have 1..256 UTF-8 bytes without controls
+or whitespace. Sets are strictly ordered by their documented key, never sorted
+or deduplicated by the decoder. Unknown discriminants refuse.
+
+## Content and authority
+
+`PublicEdge` = `[1, 7, served_realm, scope, realms]`.
+Each `EdgeRealm` = `[realm_16, auth_bytes, routes]`, ordered by binary realm.
+`EdgeRoute` = `[id, name, aliases, domains, service_ref_bytes, backend_I_or_null,
+protocol, public_port, virtual_port, policy_bytes, headers_bytes, dependencies, options]`.
+Routes are ordered by id. Protocol is 0 HTTP, 6 TCP or 17 UDP. Ports are 1..65535.
+Names, aliases and domains are canonical lowercase ASCII DNS names, at most 253
+bytes, dot-separated labels of 1..63 letters/digits/hyphens with alphanumeric
+ends. These public hostnames are not M6 service labels. Aliases/domains are each
+strictly ordered. Names and aliases cannot collide within a realm, including
+within one route. Public listener conflicts are checked by protocol/port/name
+for HTTP and protocol/port for TCP/UDP; virtual ports cannot conflict for one
+Node identity and underlying transport. HTTP and TCP share the TCP transport.
+A domain may equal its own route name or alias; cross-route hostname collisions refuse.
+Raw TCP cannot share an HTTP listener port.
+
+`options` = `[transport, upstream_authority_or_null, upstream_tls_or_null,
+policy_references, request_body_limit_or_null, response_body_limit_or_null,
+source_ip_or_null, audit_metadata]`. Transport 0 WG, 1 WSS, 2 prefer WG,
+3 prefer WSS. Upstream TLS is `[sni, accept_untrusted]` and always means
+reencryption; false requires trusted validation. SNI and upstream authority
+are canonical hostnames. The eleven optional token references, in order, are
+middleware chain, WAF, external authorization, rate limit, connection limit,
+slow client, session limit, request rewrite, response headers, forwarded subject
+and audit. No arbitrary named extension is permitted. Source IP policy is
+`[allow_cidrs, deny_cidrs, fail_closed]`; CIDRs use canonical network addresses
+and decimal prefix lengths, ordered uniquely by their UTF-8 strings. Audit
+metadata is an ordered unique sequence of bounded token key/value pairs.
+Body limits are positive u64 when supplied. Consumers resolve policy references
+through existing configuration; the codec never applies them.
+
+The service reference is the unchanged canonical M6 ServiceRef value in a byte
+string. A backend is a full validated Node identity. Null explicitly means no
+connector: retain discovery metadata, withhold forwarding, and never fall back
+to a guessed address, display name or gateway-local backend. A consumer joins
+non-null backends against the authenticated M6 snapshot Resource by ServiceRef,
+publisher identity, published virtual port and supported transport. The snapshot
+must belong to the signed recipient. Contributions spanning several M6 networks
+join against one authenticated snapshot per exact NSD/Network scope; duplicate
+snapshot scopes refuse, and no scope is inferred from an unrelated resource.
+The validated Resource.service_label is the sole source of service DNS labels; the codec carries no standalone label.
+
+`policy_bytes` reuse SubjectPolicy exactly, with realm equal to the contribution.
+`headers_bytes` reuse SignedSubjectHeaderPolicy exactly. Each dependency is an
+unchanged material reference tuple below; it must exist in that realm's complete
+material set at the exact generation. Enabled signed headers require an auth
+material reference matching keyset_ref. No credential, token or ACL evaluation
+is performed here.
+
+Only family 7 kind `public-edge`, complete Data on the existing signed stream,
+may carry this content. Inner served_realm/scope equal the signed key exactly.
+Authenticate with the existing publication decision before interpreting payload.
+Commit version, expiry and content atomically only after validation and joins.
+All realm contributions replace the previous set in that exact key; omitted
+routes/realms/materials are removed. Empty realms withdraw all contributions;
+the existing complete empty carrier also withdraws. Malformed/noncanonical
+payloads never advance accepted versions or renew previous expiry. Missing
+publications retain state until original expiry. Different signed keys never
+merge into wildcard authority.
+
+## Material and embedded auth
+
+`EdgeMaterialRef` = `[kind, reference, generation]`: kind 0 auth, 1 certificate,
+2 client CA; generation is positive u64. References are ordered by kind/reference.
+`EdgeAuth` = `[1, realm_16, materials, bindings, jwt_bindings, authorities]`.
+Bindings are exact SubjectBinding byte strings in strict canonical-byte order;
+JWT bindings reuse JwtSubjectBinding in the same order. All subjects/bindings
+must belong to the realm. Each JWT authority reference resolves locally.
+`EdgeJwtAuthority` = `[reference, issuer, audiences, key_material]`, ordered by
+reference. Issuer is an explicit HTTPS URL with a canonical DNS host or bracketed IPv6,
+optional nonzero canonical decimal port, and no userinfo, backslash, fragment or query;
+audiences are nonempty ordered token strings. key_material is an auth reference
+present at the exact generation in materials. JWT verification stays external.
+SignedUrlScope remains the existing request-borrowed type; key selection uses
+auth material references, never serialized HMAC/private key bytes.
+
+`EdgeMaterialAck` = `[1, request_id_16, served_realm, scope, realm_16, material,
+status]`; status 0 installed, 1 rejected. The consumer compares request id and
+all scope fields against its pending request and installs only acknowledged exact
+generations. Routes must remain withheld until every referenced dependency is
+installed and acknowledged. A rejected ACK or a missing/different generation is
+never ready. Retaining only a numeric generation without its kind/reference and
+realm cannot establish readiness. Fetching certificates, CA bytes, verifier
+hashes, HMAC secrets and cookie secrets stays on the existing confidential
+material transport; this pure contract contains references only and no private
+key field.
+
+## Declaration, report, response and ACK
+
+`EdgeServiceRequest` = `[1, request_id_16, publisher_I, nsd_id_16, network_id_16,
+revision, body_kind, body_bytes, digest_32]`; revision positive. Body kind 0 is
+exact M6 Declaration::canonical/decode; 1 exact ReportContent::canonical/decode;
+2 exact ListenerIntent::canonical/decode. No nested serializer is introduced.
+Report and listener scope/publisher must equal the request, and listener revision
+must equal request revision. Report/listener digest is exactly M6's existing
+digest. Declaration digest is domain_digest("ns.account.declaration.v1", bytes),
+a correlation digest without changing the embedded Declaration bytes.
+`EdgeServiceResponse` = `[1, request_id_16, publisher_I, nsd_id_16, network_id_16,
+revision, body_kind, digest_32, status]`; status 0 accepted, 1 rejected.
+Response is also the service ACK; accepted means this exact content was accepted,
+not listener readiness or lease acquisition. Compare every correlated field,
+including body kind, to the retained request; a mismatch is refusal. These bodies
+travel inside the existing authenticated confidential request/response envelopes.
+Authentication, persistence, replay storage and M6 session/lease messages remain
+consumer responsibilities. Empty ReportContent declarations explicitly replaces
+the declaration set under its existing M6 meaning.
+
+## Inventory disposition
+
+| Existing surface | Candidate field, reused definition or disposition |
+|---|---|
+| routing RouteEntry/RoutingConfig, dns DnsRecord/DnsConfig | EdgeRealm.routes; id/name/aliases/domains, ServiceRef, backend, virtual_port, protocol; service DNS labels resolved from snapshot Resource |
+| ServiceBackendKind/PublicEdgeBackendKind::NsnBacked | Full Node backend identity; address-derived identity retired because addresses cannot establish publisher authority |
+| GatewayEgress/GatewayExit backend variants, capture routes | Existing grant/Subnet families, not public-edge backend authority; no public exposure inferred |
+| GatewayHttpConfig/GatewayHttpRoute, GatewayL4Map/GatewayL4Route | EdgeRealm/routes; HTTP/TCP/UDP/public_port; per-realm complete replacement |
+| PublicEdgeRouteIdentity/AclRef/PolicyRevision | Route id, ServiceRef, SubjectPolicy, signed publication version; gateway/internal listener ids stay consumer-local; rollback metadata cannot override monotonic signed version |
+| PublicEdgeTransportPolicy and upstream TLS policy | EdgeRouteOptions.transport/upstream_authority/upstream_tls, with explicit TLS trust choice; no implicit fallback |
+| HttpExternalIdentityImport/ExternalIdentityProviderRef/Kind, GatewayAuthProvider/Kind/OrganizationMode | Open: auth consumer and NSD owners retain OIDC provider/cookie/redirect/template configuration on confidential transport; no guessed defaults or wire equivalence |
+| HttpMiddlewarePolicy/SourceIpAdmissionPolicy, EdgeLimitPolicy/HttpTransformPolicy/EdgeAuditPolicy/L4Policy | EdgeRouteOptions explicit policy references, body bounds, source_ip and audit_metadata; referenced policy implementations remain consumer-owned |
+| SignedSubjectHeaderPolicy, AclPolicy rules/groups | Exact reused SignedSubjectHeaderPolicy and SubjectPolicy bytes |
+| GatewayAuthConsumer, credential-to-consumer joins | Exact SubjectBinding; display names are presentation only |
+| GatewayAuthJwtConsumerBinding/JwtAuthority/JwtKeySource/JwtIssuer | JwtSubjectBinding plus EdgeJwtAuthority issuer/audiences/auth key reference; actual key acquisition and trust qualification remain external |
+| GatewayAuthConfig/Generation and Credentials (API key, Basic, signed URL, mTLS, webhook), SecretSet/SecretVersion | Realm-qualified auth material reference/generation; bindings reuse existing subject/credential anchors; secret/verifier payloads stay on confidential transport, not copied here |
+| rules::signed_url and its constants/helpers | Existing SignedUrlScope canonical_request/signing_input, no second canonicalization |
+| CertificateRef/Source/Policy/ChallengePreference, CertificateBundle | Certificate material reference/generation; private key bytes are excluded; fetch/ACME/source configuration remains owned by the material consumer, not identity authority |
+| ClientCaBundle/ClientCaDependency, AuthDependency/CertificateDependency | Client-CA/auth/certificate references and exact generation joins plus correlated EdgeMaterialAck |
+| GatewayServiceDeclaration/ServicesReport/Request/Response/Ack | EdgeServiceRequest/Response; exact M6 Declaration, ReportContent, ListenerIntent, scope/revision/digest and accepted/rejected status |
+| GatewayExitProfileDeclaration | Existing Subnet family/local floor, not a parallel private-service Declaration |
+| service_fqdn and standalone service-label inputs | Resolve Resource.service_label via M6 ServiceRef; standalone inputs excluded and open pending M01/M02, owned by the M6 contract owner through owner-mediated review |
+
+Open configuration rows do not claim predecessor wire equivalence or authorize
+consumer migration of those fields. Producer confirmation and producer-owned
+vectors remain outstanding with NSD. Python fixtures are labelled candidate
+sources, independent of the Rust codecs.
