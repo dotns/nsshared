@@ -1,5 +1,16 @@
 ## 2026-10-20 [feat]
 
+Add signed heartbeat, gateway observation, services, usage and material status
+operations on the existing confidential carrier. Complete service and Exit floor
+metadata and per-reference outcomes, preserve exact data text, and correlate
+material installation status with its full pending context.
+
+Validation: independent report and floor-text vectors and unchanged regression
+assertions passed. Self-check passed with 475 tests, zero skips and all static,
+API and documentation checks. Producer confirmation remains outstanding.
+
+## 2026-10-20 [feat]
+
 Add canonical authenticated publication subscription requests with exact
 issuer/recipient/realm/scope entries, capability declarations, public ingress
 indices and bounded logical attempt identity. Reuse existing signed carriers
