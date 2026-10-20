@@ -454,9 +454,9 @@ was the CBOR byte string `5820` followed by 32 validated Ed25519 identity bytes
 The revised subject is `50` followed by exactly 16 unsigned big-endian UserId
 ULID bytes (the migrated account fixture uses `09090909090909090909090909090909`).
 The version 1 nine-element tuple and every other field are unchanged. The exact
-revision is the commit introducing `docs/usage-contract-candidate.md` and
-`tests/fixtures/vectors/usage.vec`; the immutable candidate handoff must include
-that commit. There is no old-subject fallback or tagged union. NSD confirmation,
+implementation revision is `05ee100f4eba547cd1e7025c92860a20f79fefc2`; predecessor integration
+revision `c71148388636da72f3808623529e1946d1cee1ba` still uses the incompatible identity subject.
+The immutable candidate handoff must include the implementation revision. There is no old-subject fallback or tagged union. NSD confirmation,
 producer-owned vectors, historical ledgers and live exclusion remain outstanding;
 fixture answers establish none of them. Current gateway echo message quantities
 require completed-byte instrumentation before this profile can be adopted.
