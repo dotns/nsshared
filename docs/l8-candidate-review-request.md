@@ -755,7 +755,7 @@ interoperability remain outstanding. Fixture acceptance records no agreement.
 
 ## Exact floor text acceptance
 
-Source and independent fixture revision: `71461c0a20737ec1beb1438cebcc940153e3abe2`.
+Source and independent fixture revision: `300e72c13c36c10cdb9374179913e0ea329aa9e3`.
 The floor wrapper preserves valid unchanged M6 declaration keys, and nonempty
 control-free Exit references and policy-label keys, including internal, leading
 and trailing spaces and Unicode whitespace. Accepted and rejected references
