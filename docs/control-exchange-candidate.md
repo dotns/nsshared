@@ -439,3 +439,10 @@ leeway is distinct from the gateway predicate. `crates/nsd-api/src/envelope.rs`
 dispatches information, enrollment and authentication; `handlers.rs` reuses
 strict discovery and emits the RS256 machine-control token. Their existing
 handlers are a producer checklist, not confirmation of this candidate encoding.
+
+## Control reports
+
+[Control report exchanges](control-report-candidate.md) defines heartbeat, gateway
+observations, services, usage and material status on the same confidential endpoint.
+The constants stay in control_exchange. No auth configuration acquisition is defined
+by the report contract. NSD producer confirmation remains outstanding.

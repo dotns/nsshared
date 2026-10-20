@@ -15,6 +15,16 @@ pub const MACHINE_REGISTER: &str = "machine.register";
 pub const MACHINE_AUTH: &str = "machine.auth";
 /// Signed information operation.
 pub const INFO_GET: &str = "info.get";
+/// Signed process heartbeat operation.
+pub const MACHINE_HEARTBEAT: &str = "machine.heartbeat";
+/// Signed gateway observation report operation.
+pub const GATEWAY_REPORT: &str = "gateway.report";
+/// Signed complete local service and Exit floor operation.
+pub const GATEWAY_SERVICES_REPORT: &str = "gateway.services_report";
+/// Signed immutable usage part operation.
+pub const GATEWAY_USAGE_REPORT: &str = "gateway.usage_report";
+/// Signed exact material installation status operation.
+pub const GATEWAY_MATERIAL_STATUS: &str = "gateway.material_status";
 /// Machine-control token purpose.
 pub const MACHINE_AUTH_PURPOSE: &str = "control";
 /// Confidential signed operation endpoint.

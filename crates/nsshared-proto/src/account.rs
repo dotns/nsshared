@@ -6,6 +6,7 @@
 mod bootstrap;
 mod bootstrap_envelope;
 pub mod control_exchange;
+pub mod control_reports;
 mod edge_declaration;
 mod edge_material;
 mod enrollment;
@@ -40,7 +41,10 @@ pub use bootstrap_envelope::{
     ACCOUNT_REQUEST_DOMAIN, ACCOUNT_RESPONSE_DOMAIN, BootstrapEnvelope, CONTROL_CLOCK_SKEW_SECONDS,
     CONTROL_REPLAY_WINDOW_SECONDS, EnvelopeDirection, EnvelopeExpectation,
 };
-pub use edge_declaration::{EdgeServiceBody, EdgeServiceRequest, EdgeServiceResponse};
+pub use edge_declaration::{
+    EdgeExitProfile, EdgeFloorOutcomes, EdgeFloorRejection, EdgeServiceAckError, EdgeServiceBody,
+    EdgeServiceMetadata, EdgeServiceRequest, EdgeServiceResponse,
+};
 pub use edge_material::{
     EdgeAuth, EdgeJwtAuthority, EdgeMaterialAck, EdgeMaterialKind, EdgeMaterialRef, MAX_EDGE_ITEMS,
 };

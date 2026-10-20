@@ -716,3 +716,32 @@ that revision; the earlier package revision does not include this delta.
 
 This delta accompanies the changed source and independent fixtures; the earlier
 published revision above is historical and does not contain this delta.
+
+## Control reports delta for Q11/Q21
+
+Review the exact report tuples in control-report-candidate.md and the independent
+control-reports.vec and updated public-edge.vec. Heartbeat retains uptime, local
+addresses and the observation-only policy counter. Gateway observations retain
+software/revision, connection/termination intent, drain, capabilities, ingress
+ports/scopes and every certificate observation; identity/endpoints belong to the
+ordinary Node record and node-control. Legacy removed carrier fields have explicit
+dispositions in the complete pinned consumer map.
+
+The existing EdgeServiceRequest/Response kind 1 candidate changes incompatibly:
+unchanged M6 service objects now carry complete capabilities/labels and local Exit
+floor declarations with exact per-kind accepted/rejected-reference outcomes and
+reasons. Missing, unknown or contradictory outcomes refuse; empty floor is explicit.
+Its digest commits the complete floor. All other public-edge, material,
+declaration and listener bytes remain unchanged.
+
+Confirm the five signed operation identifiers on the existing confidential control
+endpoint, heartbeat features/receipt correlation, observation-only metadata and
+complete service floor semantics. Material status must correlate the exact reference,
+contributing realm and generation; auth configuration also retains its separate
+confidential request correlation. The private configuration request/response is not
+defined by this report delta. Installed status follows actual installation only.
+Service UnknownMapping answers fail correlation; historical mapping repair remains
+relay-only and never acknowledges a service report.
+
+NSD confirmation, producer-owned canonical/refusal vectors and real producer
+interoperability remain outstanding. Fixture acceptance records no agreement.
