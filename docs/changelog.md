@@ -1,3 +1,14 @@
+## 2026-10-20 [feat]
+
+Add canonical signed snapshot poll requests with exact authority scopes and
+pending response correlation. Reuse existing publication snapshots and per-key
+versions, retaining authenticated unknown extensions beside known updates while
+refusing known stream-owned events and invalid authentication or scope.
+
+Validation: 44 independent cases and unchanged mixed-snapshot regressions passed.
+Self-check passed with 482 tests, zero skips and static/API/docs checks. Exact
+producer confirmation and independently owned vectors remain outstanding.
+
 ## 2026-10-20 [fix]
 
 Update rustls-webpki to 0.103.16 and remove unused bundled root packages from

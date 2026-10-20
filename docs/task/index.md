@@ -134,3 +134,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**Complete control report exchanges**](20261020-1848-control-report-exchanges.md) `P1`
 - [x] [**Define confidential authentication configuration**](20261020-1902-confidential-auth.md) `P1`
 - [x] [**Update certificate dependencies**](20261020-2033-update-certificate-dependencies.md) `P1`
+- [x] [**Define publication snapshot poll requests**](20261020-2213-publication-snapshot-request.md) `P1`
