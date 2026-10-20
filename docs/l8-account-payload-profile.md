@@ -724,7 +724,7 @@ refuse rather than silently changing the signed request.
 | SignedSubjectHeaderPolicy | Explicit typed header configuration | Embedded family 7 EdgeRoute.headers |
 | SignedUrlScope and canonical request/query/string-to-sign | SignedUrlScope deterministic public signing input | Existing SignedUrlScope request input plus realm-qualified auth material reference |
 | EnvelopeDirection, signed account requests | SignedAccountRequest reuses BootstrapEnvelope and its domains | Existing authenticated call carrier |
-| OIDC claims, organization/role subject projection, provider/cookie configuration | OIDC token verification and label construction remain consumer-owned, referencing qualified PolicySubject | Open: auth consumer and NSD owners; no OIDC runtime or guessed configuration here |
+| OIDC claims, organization/role subject projection, provider/cookie configuration | OIDC token verification and label construction remain consumer-owned, referencing qualified PolicySubject | Confidential AuthConfiguration values; OIDC runtime and label construction remain external; NSD confirmation outstanding |
 | Policy compilation, VerifiedSubjectSet, verifier readiness and admission results | Consumer state/evaluation, not new wire claims | No carrier added |
 
 No evaluator moves into shared contracts. Existing NodeL3Authority is neither
@@ -764,8 +764,10 @@ outstanding; candidate fixtures do not establish agreement or interoperability.
 ## Public-edge, material and declaration candidate
 
 The [family 7 specification](l8-public-edge-candidate.md) defines PublicEdge,
-EdgeAuth, EdgeMaterialAck and EdgeServiceRequest/Response in exactly three pure
-modules. Public hostname/alias/domain validation is independent of M6 service
+EdgeAuth, EdgeMaterialAck and EdgeServiceRequest/Response. The separate
+[confidential authentication contract](confidential-auth-candidate.md) supplies
+AuthConfiguration and correlated AuthConfigRequest/Response as pure values.
+Public hostname/alias/domain validation is independent of M6 service
 labels. Service entries carry M6 ServiceRef; authenticated snapshot Resources
 supply the validated DNS label. No standalone service-label codec or copied
 validator is added. Standalone label inventory rows remain open pending M01/M02
@@ -773,12 +775,14 @@ with the M6 contract owner through owner-mediated review.
 
 SubjectPolicy, SubjectBinding, JwtSubjectBinding and SignedSubjectHeaderPolicy
 are embedded unchanged; SignedUrlScope remains the shared request signing input.
-JWT issuer/audience/key-reference carriers are EdgeJwtAuthority. OIDC provider,
-cookie, organization and redirect configuration remain explicitly open with the
-auth consumer and NSD owners; no defaults or predecessor wire equivalence are
-claimed. Certificate/client-CA/auth payload bytes stay on confidential material
-transport; the candidate carries reference/generation and correlated installation
-ACKs. Routes require dependency installation before exposure.
+JWT issuer/audience/key-reference carriers are EdgeJwtAuthority. Confidential
+AuthConfiguration retains explicit provider/import, cookie, organization, template,
+redirect, verifier and key-source values. It travels only in authenticated control
+envelopes under edge.auth.config.get. PublicEdge retains references only.
+Certificate/client-CA bytes stay on their existing confidential material transport.
+No defaults or predecessor wire equivalence are claimed; installation ACKs remain
+correlated to the exact reference/generation. Routes require dependency
+installation before exposure.
 
 The independent Python public_edge producer and Rust public_edge_vectors tests
 exercise complete replacement, valid empty withdrawal, malformed/noncanonical
@@ -802,6 +806,12 @@ that separate private payload and authenticated acquisition exchange stay outsid
 the report contract. Installed means actual installation of the exact reference,
 realm and generation, never mere receipt. Independent producer bytes are in
 control-reports.vec and public-edge.vec; NSD confirmation remains outstanding.
+
+The independent confidential-auth.vec fixture and confidential_auth_generation
+consumer validate pending/current dependency correlation and private configuration
+refusals. The candidate fixture is not NSD producer confirmation. Family 7 registry
+metadata and public publication bytes are unchanged.
+
 ## Publication subscription request
 
 The [control exchange subscription specification](control-exchange-candidate.md#authenticated-publication-subscription) defines PublicationSubscriptionRequest, config.stream and its endpoint. It carries exact issuer/recipient/realm/scope entries, understanding-only capabilities, family 7 public ingress indices and required boot nonce/checked attempt counter. Existing publication key versions and channel ownership remain authoritative. Independent consumer vectors precede the pure codec; matching NSD production and confirmation remain outstanding.

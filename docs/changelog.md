@@ -1,5 +1,16 @@
 ## 2026-10-20 [feat]
 
+Add confidential authentication configuration values and exact pending/current
+material correlation using existing signed control envelopes. Carry actual private
+catalog values with redacted debug output, enforce credential identities across
+methods and preserve query parameters in fixed HTTPS key acquisition endpoints.
+
+Validation: 126 independent vectors and focused regressions passed. Self-check
+passed with 473 tests, zero skips and static/API/docs checks. Producer confirmation
+and independently owned vectors remain outstanding.
+
+## 2026-10-20 [feat]
+
 Add signed heartbeat, gateway observation, services, usage and material status
 operations on the existing confidential carrier. Complete service and Exit floor
 metadata and per-reference outcomes, preserve exact data text, and correlate

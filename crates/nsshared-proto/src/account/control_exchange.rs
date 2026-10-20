@@ -9,6 +9,9 @@ use crate::encoding::{CborReader, CborWriter};
 use nsshared_service_control::Id;
 use thiserror::Error;
 
+/// Confidential authentication configuration request/response operation.
+pub const EDGE_AUTH_CONFIG_GET: &str = "edge.auth.config.get";
+
 /// Registration operation inside the signed carrier.
 pub const MACHINE_REGISTER: &str = "machine.register";
 /// Authentication operation inside the signed carrier.

@@ -93,3 +93,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**Define public-edge material and declaration contracts**](20261020-1727-public-edge-contract.md) `2026-10-20`
 - [x] [**Define publication subscription requests**](20261020-1839-publication-subscription.md) `2026-10-20`
 - [x] [**Complete control report exchanges**](20261020-1848-control-report-exchanges.md) `2026-10-20`
+- [x] [**Define confidential authentication configuration**](20261020-1902-confidential-auth.md) `2026-10-20`
