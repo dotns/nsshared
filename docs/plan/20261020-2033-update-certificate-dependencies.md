@@ -1,32 +1,36 @@
 # Update certificate dependencies
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-10-20 20:33
 - **approvedAt**: 2026-10-20 20:33
 - **relatedTask**: 20261020-2033-update-certificate-dependencies
 
 ## Context
 
-The dependency audit reports RUSTSEC-2026-0382 for rustls-webpki 0.103.15 and RUSTSEC-2026-0381 for webpki-roots 1.0.9 and its 0.26.11 compatibility package. Neither dependency is pinned directly in the workspace manifest.
+The dependency audit initially reports RUSTSEC-2026-0382 for rustls-webpki 0.103.15 and RUSTSEC-2026-0381 for webpki-roots 1.0.9 and its 0.26.11 compatibility package. The sole patched root-bundle range is >=1.0.10. Although 0.26.11 delegates to the 1.x bundle, its package version remains affected according to the advisory.
+
+The mock-rendezvous development dependency enables tokio-tungstenite's `rustls-tls-webpki-roots` feature, which requires webpki-roots ^0.26.0. Refreshed registry metadata lists tokio-tungstenite 0.30.0 as the latest published release, with no compatible dependency update that removes that edge.
+
+Both clients in `examples/mock-rendezvous/tests/server_smoke.rs` and `examples/mock-rendezvous/tests/support/mod.rs` already construct an explicit aws-lc-rs Rustls configuration, trust only the generated server certificate, and pass `Connector::Rustls` to the WebSocket handshake. Public roots are unused.
 
 ## Proposal
 
-Update rustls-webpki to 0.103.16 and webpki-roots 1.0.9 to 1.0.10 with precise lockfile updates. Retain unrelated package versions and dependency edges. Run the dependency audit, verify the resolved graph excludes ring, and run formatting, linting and the self-check.
+Update rustls-webpki from 0.103.15 to the lowest patched release, 0.103.16. Replace the development dependency feature `rustls-tls-webpki-roots` with `__rustls-tls`, preserving `connect` and inherited `handshake`. Remove both unused root-bundle packages from the lockfile. Keep every connector implementation and verification assertion unchanged.
+
+The initial precise webpki-roots update from 1.0.9 to 1.0.10 cleared that package's advisory but did not clear the compatibility package. Removing the unused bundle feature resolves the remaining advisory without additional dependencies or changes to certificate verification.
 
 ## Risks
 
-The audit also flags the older webpki-roots compatibility package; its continued presence may prevent an audit pass even after its underlying root bundle is updated.
+Rustls connector support must remain enabled after removing the bundled-root feature. Existing TLS smoke and integration tests exercise the explicit connector and generated trust anchor.
 
 ## Scope
 
-Cargo.lock and these implementation records. No advisory exemptions or public API changes.
+Cargo.lock, examples/mock-rendezvous/Cargo.toml and these implementation records. No connector code change, direct public-root dependency, advisory exemption, source override or public API change is needed.
 
 ## Alternatives
 
-The refreshed registry index has no tokio-tungstenite successor after 0.30.0 and no compatible webpki-roots successor after 0.26.11. The current release requires webpki-roots ^0.26.0, which cannot resolve to the advisory minimum 1.0.10.
+A future upstream dependency release could migrate the optional bundle requirement to ^1, but no such release is currently available. Loading public roots would add unused trust anchors and dependencies. The existing explicit connector is sufficient.
 
-One alternative is to change the mock-rendezvous development dependency from `rustls-tls-webpki-roots` to the existing Rustls connector support and supply trusted roots explicitly. This requires inspecting and potentially changing its manifest and TLS tests, which are outside the current edit scope. TLS verification and the existing test assertions must be preserved. Another alternative is an upstream tokio-tungstenite release that requires webpki-roots ^1; no such release is currently available in the registry. Advisory correction for the delegating compatibility package is an upstream option, but cannot be assumed or replaced by a local exemption.
+## Verification
 
-## Verification result
-
-The two precise updates are complete; formatting and linting pass. The self-check fails on RUSTSEC-2026-0381 for the unchanged 0.26.11 compatibility package. Cargo metadata identifies the activating edge as the mock-rendezvous development dependency feature `rustls-tls-webpki-roots`. Published feature definitions map it to optional webpki-roots ^0.26.0. The 0.26.11 package re-exports the 1.x root bundle, but the exact advisory range still excludes every 0.26 release. Workspace features are additive, so the root manifest cannot disable this explicit child feature. A refreshed dry-run update selects zero new packages. No Cargo.toml/Cargo.lock-only fix is available from the published dependency graph. No advisory policy was relaxed.
+The initial dependency audit and subsequent compatibility-package failure establish the failing regression check. Formatting, linting, the dependency audit, the resolved graph across all targets and API compatibility all pass. The self-check selected full QA and passed: 41 selection tests, 479 workspace tests with zero skips, doctests and documentation. The TLS smoke test also passed independently after the full suite.
