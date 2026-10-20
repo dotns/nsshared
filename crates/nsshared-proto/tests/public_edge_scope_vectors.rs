@@ -87,6 +87,17 @@ fn backend_endpoint_ownership_is_gateway_wide() {
 #[test]
 fn discovery_names_and_material_refs_stay_realm_qualified() {
     let vectors = support::vectors::parse(include_str!("fixtures/vectors/public-edge.vec"));
+    for index in 0..2 {
+        let name = format!("scope-realm-names-materials-isolated-{index}");
+        let isolated = vectors
+            .iter()
+            .find(|v| v.name() == name)
+            .unwrap()
+            .hex("bytes");
+        let contribution = PublicEdge::decode(&isolated).unwrap();
+        assert_eq!(contribution.realms.len(), 1);
+        assert_eq!(contribution.canonical().unwrap(), isolated);
+    }
     let raw = vectors
         .iter()
         .find(|v| v.name() == "scope-realm-names-materials")
