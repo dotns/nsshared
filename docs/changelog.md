@@ -1,3 +1,14 @@
+## 2026-10-20 [feat]
+
+Share the pure Node-control v2 codec with unchanged message bytes, constants,
+ACK hashes, endpoint selection and validation. Document ACK as at least accepted;
+transport, persistence, retransmission and sessions remain consumer-owned.
+Independent Python vectors reproduce all nine pinned gateway fixtures.
+
+Validation: all ten predecessor tests, independent vectors and selection-budget
+checks passed. Repository self-check passed with 429 Rust tests, zero skips,
+28 selection tests, one documentation test and static checks.
+
 ## 2026-10-20 [fix]
 
 Scope self-check package tests by tracked build and test inputs. Unreferenced
