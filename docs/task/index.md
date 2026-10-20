@@ -121,3 +121,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**Define bootstrap discovery and envelope trust**](20261019-1241-bootstrap-envelope-trust.md) `P1`
 - [x] [**Define signed publication events**](20261019-1413-signed-publication-events.md) `P1`
 - [x] [**Fix external WSS listener ownership checks**](20261019-1447-external-wss-listener-ownership.md) `P1`
+- [x] [**20261020-1118-build-input-self-check Scope self-check by build and test inputs**](20261020-1118-build-input-self-check.md)

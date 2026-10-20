@@ -82,3 +82,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**Define bootstrap discovery and envelope trust**](20261019-1241-bootstrap-envelope-trust.md) `2026-10-19`
 - [x] [**Define signed publication events**](20261019-1413-signed-publication-events.md) `2026-10-19`
 - [x] [**Fix external WSS listener ownership checks**](20261019-1447-external-wss-listener-ownership.md) `2026-10-19`
+- [x] [**20261020-1118-build-input-self-check Scope self-check by build and test inputs**](20261020-1118-build-input-self-check.md)

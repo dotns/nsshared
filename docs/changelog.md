@@ -1,3 +1,14 @@
+## 2026-10-20 [fix]
+
+Scope self-check package tests by tracked build and test inputs. Unreferenced
+records and documents retain static checks without package tests; included files,
+directory reads, unresolved computed inputs, configuration and vectors retain
+complete QA. Input diagnostics identify referencing sources or uncertainty.
+
+Validation: failing-first regressions cover documentation-only selection and
+unresolved shell and Rust inclusion paths. All 28 selection tests, 416 Rust tests
+with zero skips, one documentation test and static checks passed.
+
 ## 2026-10-19 [fix]
 
 Remove the external WSS test's assumption that an allocated UDP port is free on
