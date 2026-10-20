@@ -1,6 +1,6 @@
 # Complete control report exchanges
 
-- **status**: completed
+- **status**: in_progress
 - **priority**: P1
 - **owner**: control-report-exchanges
 - **createdAt**: 2026-10-20 18:48
@@ -53,3 +53,17 @@ The local Rust/Python diff review found no remaining issue within this scope.
 
 NSD confirmation and producer-owned vectors remain outstanding. No runtime,
 I/O, confidential auth acquisition payload or new dependency was added.
+
+## Floor text preservation
+
+Investigation: the floor wrapper reused policy_subject's whitespace-free token
+predicate for declaration references, Exit references, policy-label keys and
+outcome reference sets. Valid unchanged M6 keys and control-free data text with
+internal spaces were therefore rejected before exact correlation.
+
+Approved correction: apply one local bounded nonempty control-free data-text
+predicate consistently to floor requests and outcomes, preserving exact UTF-8
+bytes. Retain existing capability-token validation, byte/list bounds and strict
+ordering/uniqueness. Add independent accepted/refused request/answer vectors,
+including exact matching and normalization-mismatch controls. Preserve the
+existing floor_preserves_private_declaration_keys regression assertions.

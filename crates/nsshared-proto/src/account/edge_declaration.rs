@@ -2,7 +2,6 @@
 
 use nsshared_service_control::{Declaration, Digest, ListenerIntent, ReportContent, domain_digest};
 
-use super::policy_subject::{ordered_text, text};
 use super::{
     AccountError, MAX_BYTES, MAX_EDGE_ITEMS, SubnetSelection, bounded, identity, reader, require,
 };
@@ -299,11 +298,15 @@ pub struct EdgeServiceMetadata {
     pub policy_labels: Vec<(String, String)>,
 }
 
+fn data_text(value: &str) -> Result<(), AccountError> {
+    require(!value.is_empty() && value.len() <= 256 && !value.chars().any(char::is_control))
+}
+
 fn labels_write(values: &[(String, String)], out: &mut CborWriter) -> Result<(), AccountError> {
     require(values.len() <= MAX_EDGE_ITEMS && values.windows(2).all(|p| p[0].0 < p[1].0))?;
     out.array(values.len());
     for (key, value) in values {
-        text(key)?;
+        data_text(key)?;
         require(value.len() <= 256 && !value.chars().any(char::is_control))?;
         out.array(2).text(key).text(value);
     }
@@ -318,10 +321,11 @@ fn labels_read(input: &mut CborReader<'_>) -> Result<Vec<(String, String)>, Acco
         })
         .collect()
 }
-fn strings_write(values: &[String], out: &mut CborWriter) -> Result<(), AccountError> {
-    ordered_text(values)?;
+fn ordered_data_write(values: &[String], out: &mut CborWriter) -> Result<(), AccountError> {
+    require(values.len() <= MAX_EDGE_ITEMS && values.windows(2).all(|p| p[0] < p[1]))?;
     out.array(values.len());
     for value in values {
+        data_text(value)?;
         out.text(value);
     }
     Ok(())
@@ -334,11 +338,11 @@ fn strings_read(input: &mut CborReader<'_>) -> Result<Vec<String>, AccountError>
 }
 impl EdgeServiceMetadata {
     fn write(&self, out: &mut CborWriter) -> Result<(), AccountError> {
-        text(&self.reference)?;
+        data_text(&self.reference)?;
         super::enrollment::validate_capabilities(&self.capabilities)
             .map_err(|_| AccountError::InvalidField)?;
         out.array(3).text(&self.reference);
-        strings_write(&self.capabilities, out)?;
+        ordered_data_write(&self.capabilities, out)?;
         labels_write(&self.policy_labels, out)
     }
     fn read(input: &mut CborReader<'_>) -> Result<Self, AccountError> {
@@ -367,7 +371,7 @@ pub struct EdgeExitProfile {
 }
 impl EdgeExitProfile {
     fn write(&self, out: &mut CborWriter) -> Result<(), AccountError> {
-        text(&self.reference)?;
+        data_text(&self.reference)?;
         super::enrollment::validate_capabilities(&self.capabilities)
             .map_err(|_| AccountError::InvalidField)?;
         out.array(5).text(&self.reference);
@@ -382,7 +386,7 @@ impl EdgeExitProfile {
             }
         }
         out.boolean(self.enabled);
-        strings_write(&self.capabilities, out)?;
+        ordered_data_write(&self.capabilities, out)?;
         labels_write(&self.policy_labels, out)
     }
     fn read(input: &mut CborReader<'_>) -> Result<Self, AccountError> {
@@ -498,8 +502,8 @@ pub enum EdgeServiceAckError {
 impl EdgeFloorOutcomes {
     fn write(&self, out: &mut CborWriter) -> Result<(), AccountError> {
         out.array(3);
-        strings_write(&self.accepted_services, out)?;
-        strings_write(&self.accepted_exit_profiles, out)?;
+        ordered_data_write(&self.accepted_services, out)?;
+        ordered_data_write(&self.accepted_exit_profiles, out)?;
         require(
             self.rejected.len() <= MAX_EDGE_ITEMS
                 && self
@@ -510,12 +514,8 @@ impl EdgeFloorOutcomes {
         out.array(self.rejected.len());
         for value in &self.rejected {
             require(value.kind <= 1)?;
-            text(&value.reference)?;
-            require(
-                !value.reason.is_empty()
-                    && value.reason.len() <= 256
-                    && !value.reason.chars().any(char::is_control),
-            )?;
+            data_text(&value.reference)?;
+            data_text(&value.reason)?;
             out.array(3)
                 .uint(value.kind)
                 .text(&value.reference)

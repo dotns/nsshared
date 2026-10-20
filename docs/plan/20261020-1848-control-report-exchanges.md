@@ -1,6 +1,6 @@
 # Complete control report exchanges
 
-- **status**: completed
+- **status**: implementing
 - **createdAt**: 2026-10-20 18:48
 - **approvedAt**: 2026-10-20 18:48
 - **relatedTask**: 20261020-1848-control-report-exchanges
@@ -46,3 +46,17 @@ The review request pins the exact source/fixture candidate revision and keeps NS
 confirmation outstanding. Material correlation uses the entire reference, realm,
 generation and exact pending request id; private auth request/response acquisition
 is separate.
+
+## Floor text preservation
+
+Investigation: the floor wrapper reused policy_subject's whitespace-free token
+predicate for declaration references, Exit references, policy-label keys and
+outcome reference sets. Valid unchanged M6 keys and control-free data text with
+internal spaces were therefore rejected before exact correlation.
+
+Approved correction: apply one local bounded nonempty control-free data-text
+predicate consistently to floor requests and outcomes, preserving exact UTF-8
+bytes. Retain existing capability-token validation, byte/list bounds and strict
+ordering/uniqueness. Add independent accepted/refused request/answer vectors,
+including exact matching and normalization-mismatch controls. Preserve the
+existing floor_preserves_private_declaration_keys regression assertions.

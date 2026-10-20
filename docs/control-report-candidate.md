@@ -12,7 +12,12 @@ no payload supplies registration authority. Signing uses BootstrapEnvelope.signi
 All tuples use schema 1, shortest definite CBOR, no trailing bytes and the existing
 1 MiB account ceiling. Every list below has at most 256 entries, checked before
 allocation. Text is nonempty control-free UTF-8 of at most 256 bytes, except that
-policy-label values may be empty and contain spaces. No normalization occurs.
+policy-label values may be empty. Floor references and policy-label keys are data
+text: internal, leading and trailing spaces and Unicode whitespace are preserved
+exactly. They are nonempty, at most 256 UTF-8 bytes and control-free; M6 declaration
+keys retain their existing 255-byte bound. No trimming, case folding or Unicode
+normalization is performed. Capability fields retain enrollment token syntax,
+including their existing stricter byte/count bounds, independently of data text.
 Sets are strictly ordered; decoding never sorts or deduplicates them.
 
 ## Heartbeat and gateway observations
@@ -82,7 +87,7 @@ The M6 report's own canonical bytes/digest API remains unchanged.
 
 Kind 1 response retains the existing first eight fields, including that exact digest;
 its last field becomes `[accepted_services, accepted_exit_profiles, rejected]`.
-Accepted sets are ordered unique reference strings. Rejections are ordered unique
+Accepted sets are ordered unique exact data-text reference strings. Rejections are ordered unique
 `[kind, reference, reason]`, kind 0 service or 1 Exit, with a nonempty bounded reason.
 Each submitted reference has exactly one outcome of its own kind. Unknown, duplicate,
 contradictory and missing outcomes are typed refusals; the response never acknowledges
