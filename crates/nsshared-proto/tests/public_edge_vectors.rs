@@ -226,6 +226,17 @@ fn material_and_service_acknowledgements_require_exact_pending_context() {
         }
         let mut rejected = response;
         rejected.accepted = false;
+        if kind == 1 {
+            let outcomes = rejected.outcomes.as_mut().unwrap();
+            outcomes.accepted_services.clear();
+            outcomes
+                .rejected
+                .push(nsshared_proto::account::EdgeFloorRejection {
+                    kind: 0,
+                    reference: "web".into(),
+                    reason: "declined".into(),
+                });
+        }
         rejected.validate_request(&request).unwrap();
         assert!(!rejected.accepted);
     }

@@ -233,7 +233,7 @@ impl SubnetPrefix {
     }
 }
 
-fn validate_set(values: &[SubnetPrefix]) -> Result<(), SubnetError> {
+pub(super) fn validate_set(values: &[SubnetPrefix]) -> Result<(), SubnetError> {
     if values.len() > MAX_SUBNET_PREFIXES {
         return Err(SubnetError::Bounds);
     }
@@ -249,7 +249,7 @@ fn validate_set(values: &[SubnetPrefix]) -> Result<(), SubnetError> {
     Ok(())
 }
 
-fn write_set(values: &[SubnetPrefix], out: &mut CborWriter) {
+pub(super) fn write_set(values: &[SubnetPrefix], out: &mut CborWriter) {
     out.array(values.len());
     for value in values {
         value.write(out);
@@ -263,7 +263,7 @@ fn read_count(input: &mut CborReader<'_>, maximum: usize) -> Result<usize, Subne
     })
 }
 
-fn read_set(input: &mut CborReader<'_>) -> Result<Vec<SubnetPrefix>, SubnetError> {
+pub(super) fn read_set(input: &mut CborReader<'_>) -> Result<Vec<SubnetPrefix>, SubnetError> {
     let count = read_count(input, MAX_SUBNET_PREFIXES)?;
     (0..count).map(|_| SubnetPrefix::read(input)).collect()
 }

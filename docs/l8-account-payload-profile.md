@@ -787,6 +787,21 @@ material generation mismatch and unchanged M6 object bytes/digests. These are
 fixture-produced candidate observations; NSD confirmation and producer-owned
 vectors remain outstanding under Q17.
 
+## Complete candidate control reports
+
+[Report exchanges](control-report-candidate.md) completes heartbeat, gateway
+observations, service/Exit floors, usage answers and exact material installation
+status operations on the existing confidential signed carrier. The constants stay
+in control_exchange; signing uses the existing envelope signing-input API.
+Kind 1 EdgeServiceRequest/Response is an explicit incompatible candidate delta:
+unchanged M6 service objects gain complete local metadata/Exit declarations and
+exact per-reference accepted/rejected outcomes. No other public-edge bytes change.
+UnknownMapping remains relay-only and fails service-answer correlation. Auth
+material status preserves the exact pending confidential configuration request id;
+that separate private payload and authenticated acquisition exchange stay outside
+the report contract. Installed means actual installation of the exact reference,
+realm and generation, never mere receipt. Independent producer bytes are in
+control-reports.vec and public-edge.vec; NSD confirmation remains outstanding.
 ## Publication subscription request
 
 The [control exchange subscription specification](control-exchange-candidate.md#authenticated-publication-subscription) defines PublicationSubscriptionRequest, config.stream and its endpoint. It carries exact issuer/recipient/realm/scope entries, understanding-only capabilities, family 7 public ingress indices and required boot nonce/checked attempt counter. Existing publication key versions and channel ownership remain authoritative. Independent consumer vectors precede the pure codec; matching NSD production and confirmation remain outstanding.

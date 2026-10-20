@@ -227,9 +227,16 @@ def vectors():
                                 (2, intent, "ns.service.listener.v1")]:
         raw = m6(body)
         digest = hashlib.sha256(domain.encode() + b"\0" + raw).digest()
-        request = [1, bytes([7]) * 16, publisher, nsd, network, 2, kind, raw, digest]
+        metadata = [["web", ["service.tcp"], [["team", "Platform Engineering"]]]]
+        exits = [["exit", [0], True, ["exit.tcp"], [["team", "Platform Engineering"]]]]
+        if kind == 1:
+            digest = hashlib.sha256(b"ns.account.service-floor.v1\0" + cbor.encode([raw, metadata, exits])).digest()
+        request = [1, bytes([7]) * 16, publisher, nsd, network, 2, kind, raw]
+        if kind == 1:
+            request += [metadata, exits]
+        request += [digest]
         emit(f"request-{kind}", "request", request)
-        response = request[:7] + [digest, 0]
+        response = request[:7] + [digest, [["web"], ["exit"], []] if kind == 1 else 0]
         emit(f"response-{kind}", "response", response)
         changed = copy.deepcopy(request)
         changed[-1] = bytes(32)
@@ -244,7 +251,7 @@ def vectors():
     report["declarations"] = []
     raw = m6(report)
     emit("empty-report", "request", [1, bytes([7]) * 16, publisher, nsd, network, 2, 1,
-                                      raw, hashlib.sha256(b"ns.service.report.v1\0" + raw).digest()])
+                                      raw, [], [], hashlib.sha256(b"ns.account.service-floor.v1\0" + cbor.encode([raw, [], []])).digest()])
     for kind, value in [("edge", complete), ("auth", auth), ("material-ack", ack),
                         ("request", request), ("response", response)]:
         raw = cbor.encode(value)

@@ -94,9 +94,12 @@ SignedUrlScope remains the existing request-borrowed type; key selection uses
 auth material references, never serialized HMAC/private key bytes.
 
 `EdgeMaterialAck` = `[1, request_id_16, served_realm, scope, realm_16, material,
-status]`; status 0 installed, 1 rejected. The consumer compares request id and
-all scope fields against its pending request and installs only acknowledged exact
-generations. Routes must remain withheld until every referenced dependency is
+status]`; status 0 installed, 1 rejected. The gateway reports installed only after actual installation of the exact
+material reference and generation. It copies the exact confidential auth request id
+for auth configuration, whose private request/response is specified separately;
+for certificate/client-CA reports it mints a unique report id. Receivers compare the
+request id, all realm/scope fields and full material kind/reference/generation
+against the exact retained context. A receipt cannot cause installation. Routes must remain withheld until every referenced dependency is
 installed and acknowledged. A rejected ACK or a missing/different generation is
 never ready. Retaining only a numeric generation without its kind/reference and
 realm cannot establish readiness. Fetching certificates, CA bytes, verifier
@@ -106,23 +109,16 @@ key field.
 
 ## Declaration, report, response and ACK
 
-`EdgeServiceRequest` = `[1, request_id_16, publisher_I, nsd_id_16, network_id_16,
-revision, body_kind, body_bytes, digest_32]`; revision positive. Body kind 0 is
-exact M6 Declaration::canonical/decode; 1 exact ReportContent::canonical/decode;
-2 exact ListenerIntent::canonical/decode. No nested serializer is introduced.
-Report and listener scope/publisher must equal the request, and listener revision
-must equal request revision. Report/listener digest is exactly M6's existing
-digest. Declaration digest is domain_digest("ns.account.declaration.v1", bytes),
-a correlation digest without changing the embedded Declaration bytes.
-`EdgeServiceResponse` = `[1, request_id_16, publisher_I, nsd_id_16, network_id_16,
-revision, body_kind, digest_32, status]`; status 0 accepted, 1 rejected.
-Response is also the service ACK; accepted means this exact content was accepted,
-not listener readiness or lease acquisition. Compare every correlated field,
-including body kind, to the retained request; a mismatch is refusal. These bodies
-travel inside the existing authenticated confidential request/response envelopes.
-Authentication, persistence, replay storage and M6 session/lease messages remain
-consumer responsibilities. Empty ReportContent declarations explicitly replaces
-the declaration set under its existing M6 meaning.
+Kinds 0 declaration and 2 listener retain the exact existing nine-field
+EdgeServiceRequest/Response tuples and unchanged M6 bytes. The complete kind 1
+report now includes local floor metadata, non-authoritative Exit profiles and
+per-reference outcomes as specified in [control report exchanges](control-report-candidate.md).
+That explicit candidate delta replaces the earlier whole-report boolean for kind 1;
+all other public-edge, material, declaration and listener bytes remain unchanged.
+The complete floor digest covers M6 report bytes, all declaration metadata and every
+Exit profile. Unknown or missing submitted-reference outcomes are typed refusals.
+Scope, publisher, request id, revision, body kind and the entire floor digest must
+match the exact pending request. Rejection carries a reason and creates no readiness.
 
 ## Inventory disposition
 
@@ -143,8 +139,8 @@ the declaration set under its existing M6 meaning.
 | rules::signed_url and its constants/helpers | Existing SignedUrlScope canonical_request/signing_input, no second canonicalization |
 | CertificateRef/Source/Policy/ChallengePreference, CertificateBundle | Certificate material reference/generation; private key bytes are excluded; fetch/ACME/source configuration remains owned by the material consumer, not identity authority |
 | ClientCaBundle/ClientCaDependency, AuthDependency/CertificateDependency | Client-CA/auth/certificate references and exact generation joins plus correlated EdgeMaterialAck |
-| GatewayServiceDeclaration/ServicesReport/Request/Response/Ack | EdgeServiceRequest/Response; exact M6 Declaration, ReportContent, ListenerIntent, scope/revision/digest and accepted/rejected status |
-| GatewayExitProfileDeclaration | Existing Subnet family/local floor, not a parallel private-service Declaration |
+| GatewayServiceDeclaration/ServicesReport/Request/Response/Ack | EdgeServiceRequest/Response; unchanged M6 objects, complete floor metadata and exact per-kind reference outcomes with explicit reasons |
+| GatewayExitProfileDeclaration | EdgeServiceRequest kind 1 exit_profiles reuse SubnetSelection/Prefix semantics as declarations, never Subnet route authority |
 | service_fqdn and standalone service-label inputs | Resolve Resource.service_label via M6 ServiceRef; standalone inputs excluded and open pending M01/M02, owned by the M6 contract owner through owner-mediated review |
 
 Open configuration rows do not claim predecessor wire equivalence or authorize

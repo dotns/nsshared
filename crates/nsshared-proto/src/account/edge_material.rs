@@ -267,7 +267,9 @@ impl EdgeAuth {
 /// Material installation acknowledgement, never route readiness by itself.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EdgeMaterialAck {
-    /// Exact pending confidential operation id.
+    /// Exact pending confidential auth request id for auth configuration;
+    /// gateway-minted unique status report id for certificate/client-CA material.
+    /// Always correlated with the full material reference, realm and generation.
     pub request_id: [u8; 16],
     /// Signed served realm.
     pub served_realm: String,
