@@ -1,6 +1,6 @@
 # Public edge, material and service operation contracts
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-10-20 17:27
 - **approvedAt**: 2026-10-20 17:27
 - **relatedTask**: 20261020-1727-public-edge-contract
@@ -36,3 +36,13 @@ No evaluator, transport, session, persistence or private-key serialization.
 
 A compatibility copy would duplicate identities and M6 serialization and is
 excluded. Standalone service labels await the existing public API request.
+
+## Acceptance
+
+The specification and 76 independent candidate vectors accompany three pure
+family modules. The two acceptance tests and four additional correlation,
+dependency and replacement tests pass. The complete self-check at implementation
+commit `673f5fc6ca8d793b9dbaf777669ff5e90918124a` passed, including 455 tests with
+zero skipped and 41 check-selection tests. Existing M6 bytes remain unchanged;
+standalone labels and OIDC carrier questions retain their explicit external
+owners in the specification and review request.
