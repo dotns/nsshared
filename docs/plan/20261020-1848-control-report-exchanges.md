@@ -1,6 +1,6 @@
 # Complete control report exchanges
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-10-20 18:48
 - **approvedAt**: 2026-10-20 18:48
 - **relatedTask**: 20261020-1848-control-report-exchanges
@@ -60,3 +60,36 @@ bytes. Retain existing capability-token validation, byte/list bounds and strict
 ordering/uniqueness. Add independent accepted/refused request/answer vectors,
 including exact matching and normalization-mismatch controls. Preserve the
 existing floor_preserves_private_declaration_keys regression assertions.
+
+## Floor text validation results
+
+The floor wrapper now uses one bounded nonempty control-free data-text predicate
+for metadata/Exit references, policy-label keys, accepted reference sets and
+rejected references. Rejection reasons use the same predicate without changing
+their existing meaning. Label values still allow empty strings within their
+existing bound and control-character refusal. Capabilities retain enrollment's
+64-item/64-byte token grammar. Raw UTF-8 ordering, uniqueness, request equality,
+complete floor digests and exact per-kind outcome correlation remain unchanged.
+
+The unchanged floor_preserves_private_declaration_keys tests first failed all
+three assertions with InvalidField. Independent floor_data_text_vectors also
+failed on spaces-request before the correction. The regression assertions were
+not edited. The new independent fixture has 168 cases covering spaces, padding,
+Unicode whitespace, NFC/NFD distinction, byte bounds, controls, capability syntax,
+ordered sets and exact accepted/rejected acknowledgement correlation. Existing
+public-edge.vec and control-reports.vec bytes are unchanged.
+
+The focused regression, independent floor, public-edge and control-report suites
+passed all 12 tests. The first complete self-check stopped at the spelling checker
+on an escaped Unicode sample prefix. Equivalent Unicode samples corrected that
+failure without changing regression assertions or check policy. The subsequent
+`just self-check feat/l8-account-profile` passed at
+`6356f815d7c8a7f0f3777a924b932025dd02b0b4`: 475 tests passed with zero skips,
+41 check-selection tests passed, and all static/API/vector, doctest and documentation
+checks passed. Only the completion records changed after that passing run.
+
+The same-class inspection covered every floor text writer, bounded reader,
+ordering check, digest and exact comparison. The shared policy token helper,
+other token consumers and the unchanged M6 declaration validator were inspected
+without changing their contracts; no additional confirmed finding remains.
+NSD confirmation and producer-owned vectors remain outstanding.
