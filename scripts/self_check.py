@@ -188,7 +188,7 @@ def shell_references(path: str, source: str, text: str) -> list[str]:
                 if redirect:
                     break
             for argument in args:
-                if any(char in argument for char in "$`*?{}"):
+                if any(char in argument for char in "$`*?{}[]"):
                     return [f"uncertain shell input read by {source}: {token}"]
                 if argument.startswith("-"):
                     continue
@@ -225,7 +225,7 @@ def input_references(path: str, sources: list[tuple[str, str]]) -> list[str]:
                     masked[:reader.start()].rstrip().endswith(".")):
                 continue
             value = literal_path(expression, source) if expression is not None else None
-            if value is None or value.startswith("/") or any(char in value for char in "*?{}$"):
+            if value is None or value.startswith("/") or any(char in value for char in "*?{}$[]"):
                 references.append(f"uncertain computed path or glob in {source}")
                 break
             candidates = path_candidates(value, source)

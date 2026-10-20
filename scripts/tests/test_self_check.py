@@ -158,7 +158,7 @@ class SelectionTests(unittest.TestCase):
         self.assertIn("crates/core/src/lib.rs", selection["reason"])
 
     def test_computed_and_glob_reads_are_uncertain_inputs(self):
-        for source in ['std::fs::read_to_string(compute_path())', 'glob::glob("fixtures/**/*.txt")']:
+        for source in ['std::fs::read_to_string(compute_path())', 'glob::glob("fixtures/**/*.txt")', 'glob::glob("fixtures/[d]ata.txt")']:
             with self.subTest(source=source):
                 self.write("crates/core/src/lib.rs", f"fn read() {{ {source}; }}\n")
                 self.commit()
@@ -249,7 +249,7 @@ class SelectionTests(unittest.TestCase):
                     'awk 1 "$INPUT_FILE"', 'grep pattern "$INPUT_FILE"', 'sort "$INPUT_FILE"',
                     'wc "$INPUT_FILE"', 'source "$INPUT_FILE"', '. "$INPUT_FILE"',
                     'while read line; do :; done < "$INPUT_FILE"', 'find "$INPUT_DIRECTORY" -type f',
-                    'cat fixtures/*.txt', 'cat "$(fixture_path)"']
+                    'cat fixtures/*.txt', 'cat fixtures/[d]ata.txt', 'cat "$(fixture_path)"']
         for command in commands:
             with self.subTest(command=command):
                 self.write("scripts/check.sh", command + "\n")
