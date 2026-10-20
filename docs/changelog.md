@@ -1,5 +1,17 @@
 ## 2026-10-20 [feat]
 
+Add complete realm membership payloads with existing Node bindings and signed
+records, plus observation-only policy counters. Keep authentication and scope in
+the existing signed publication carrier. Validate exact bindings, ordering,
+uniqueness and bounds before complete replacement without granting L3 permission.
+
+Validation: 47 independent fixtures cover replacement, malformed non-renewal,
+omission, empty withdrawal and replay refusal. Candidate self-check passed with
+438 Rust tests, zero skips, 28 selection tests and static/API/docs checks.
+Producer confirmation and independently owned producer vectors remain outstanding.
+
+## 2026-10-20 [feat]
+
 Replace the service usage subject with exact 16-byte realm-local UserId bytes.
 Add separate completed-I/O and accepted relay DATA profiles, immutable report
 parts and correlated acknowledgement, conflict, rejection and mapping-repair

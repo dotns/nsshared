@@ -86,3 +86,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**Share the Node-control codec**](20261020-1230-node-control-codec.md) `2026-10-20`
 - [x] [**Define service grants and Node authority**](20261020-1509-grant-authority.md) `2026-10-20`
 - [x] [**Define service and relay usage contracts**](20261020-1607-usage-contracts.md) `2026-10-20`
+- [x] [**Define complete realm publication payloads**](20261020-1620-realm-publication-payloads.md) `2026-10-20`

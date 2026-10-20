@@ -12,6 +12,7 @@ mod l3_authority;
 mod lifecycle;
 mod participant_roster;
 mod publication;
+mod realm_peers;
 mod registry;
 mod roster;
 mod subnet;
@@ -53,6 +54,10 @@ pub use publication::{
     PublicationContent, PublicationDecision, PublicationError, PublicationEvent,
     PublicationExpectation, PublicationKey, PublicationOutcome, PublicationScope,
     PublicationSnapshot, decide_publication, decide_publication_snapshot, publication_channel,
+};
+pub use realm_peers::{
+    MAX_PEER_REALMS, MAX_POLICY_VERSION_BYTES, PolicyVersion, RealmContribution, RealmMember,
+    RealmPeers,
 };
 pub use registry::{
     FAMILIES, FamilyId, FamilyRegistration, FamilyRegistry, M6Reuse, ReplacementRule,
