@@ -13,12 +13,12 @@ previous workspace is archived at tag `archive/v1-20261002`.
 
 | Crate | Contract | Encoded by |
 | --- | --- | --- |
-| `nsshared-proto` | Identities and typed keys, node ID / `node6` / `node4`, `NodeRecord`, relay packets v2; `rendezvous`: the `/rendezvous/v1` JSON transport, capabilities, actor `hello`, relay directory v2, mailbox phase rules and node registry; `encoding`: strict base64url / base64 and canonical CBOR | ns and the relay |
+| `nsshared-proto` | Identities and typed keys, node ID / `node6` / `node4`, `NodeRecord`, relay packets v2, Node-control v2 messages and endpoint selection; `rendezvous`: the `/rendezvous/v1` JSON transport, capabilities, actor `hello`, relay directory v2, mailbox phase rules and node registry; `encoding`: strict base64url / base64 and canonical CBOR | ns and the relay |
 | `nsshared-telemetry` | `tracing` subscriber setup (text or JSON, env filter with a default; installs the global subscriber, no exporter), `Redacted` and the sensitive field names | Every Rust component |
 
 `nsshared-proto` is pure: no I/O, no async runtime, no TLS. Not here, by
 scope: the ns app channel and its applications (pairing, file transfer), the
-in-tunnel control channel, IPv4 aliases and `lan6`, peer-source and path
+in-tunnel control runtime, IPv4 aliases and `lan6`, peer-source and path
 labels (all ns), and the relay region member protocol (the relay). Crates
 forbid `unsafe` and deny `unwrap`, `expect` and `panic` outside tests.
 
@@ -46,8 +46,9 @@ The pure `nsshared-proto::account` module specifies the [L8 account payload
 profile](l8-account-payload-profile.md), lifecycle distinctions, normalized Node
 L3 input, service usage units and atomic identity/class rosters. M6 objects and
 bytes remain owned by `nsshared-service-control`; neither crate depends on the
-other at this candidate layer. The Node-control codec and runtime remain in
-consumers until their detailed shared contract is added.
+other at this candidate layer. The pure `nsshared-proto::node_control` codec supplies unchanged Node-control v2
+messages, constants, hashes and endpoint selection for registry family 10.
+Transport, retransmission, persistence and session state remain in consumers.
 
 ## Conformance
 
@@ -64,7 +65,7 @@ is part of `just qa`. The specification-to-code tables are
 
 | Consumer | Status (2026-10-10) |
 | --- | --- |
-| ns | Uses `nsshared-proto`, `nsshared-telemetry` and the three mocks at tag `v0.5.0` from `https://github.com/dotns/nsshared`; owns the pairing, control-channel, alias and `lan6` code since `v0.2.0` |
+| ns | Uses `nsshared-proto`, `nsshared-telemetry` and the three mocks at tag `v0.5.0` from `https://github.com/dotns/nsshared`; owns the pairing, control-channel runtime, alias and `lan6` code since `v0.2.0` |
 | nsgw | Uses the archived v1 workspace; its next line adopts `nsshared-proto` for the relay v2 server (R1), including the `v0.6.0` registry state |
 | nsd | Defines its own types |
 

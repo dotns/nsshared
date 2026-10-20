@@ -23,7 +23,7 @@ pub enum FamilyId {
     Relay,
     /// Usage reports and versioned units.
     Usage,
-    /// Ordinary Node-control vocabulary.
+    /// Ordinary Node-control vocabulary; codec in [`crate::node_control`].
     NodeControl,
     /// Mapping or retirement of the old surface.
     V1Replacement,
