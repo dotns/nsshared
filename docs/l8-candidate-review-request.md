@@ -692,6 +692,10 @@ producer cases in family 7 review, independently of its reference/token syntax.
 
 ## Control exchange family state delta
 
+Implementation revision: `d118947ac53376b4849530734f72411b9322b92d`.
+Review the exact source, tuple specification and independent fixture bytes at
+that revision; the earlier package revision does not include this delta.
+
 | Family | Current candidate state | Review status |
 | --- | --- | --- |
 | Enrollment | Registration, explicit acceptance and lifecycle comparison implemented | NSD confirmation outstanding |
