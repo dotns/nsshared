@@ -5,11 +5,13 @@
 
 mod bootstrap;
 mod bootstrap_envelope;
+pub mod control_exchange;
 mod enrollment;
 mod grants;
 mod l3;
 mod l3_authority;
 mod lifecycle;
+pub mod machine_token;
 mod participant_roster;
 mod policy_auth;
 mod policy_subject;
