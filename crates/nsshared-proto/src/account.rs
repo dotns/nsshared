@@ -5,6 +5,7 @@
 
 mod bootstrap;
 mod bootstrap_envelope;
+pub mod confidential_auth;
 pub mod control_exchange;
 mod edge_declaration;
 mod edge_material;

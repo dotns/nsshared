@@ -54,7 +54,7 @@ explicitly frame only. NSD supplies producer vectors for every row.
 | 4 `exit-subnet` | Grant publication plus existing Subnet selection and independent consumers delivered | Grants B39 and selection B40; Q14 |
 | 5 `payer` | Binary realm/UserId assignment publication and cardinality refusals delivered | Grants B39; Q15 |
 | 6 `withdrawal` | Resource authority snapshots and pure successor validation delivered | Grants B39; Q16 |
-| 7 `public-edge` | Pure scoped public-edge, material and exact M6 declaration/report/listener integration with independent consumer vectors delivered | NSD confirmation/producer vectors and explicitly open carrier rows; Q17 |
+| 7 `public-edge` | Pure scoped public-edge, confidential AuthConfiguration request/response, material and exact M6 declaration/report/listener integration with independent consumer vectors delivered | NSD confirmation/producer vectors and explicitly open carrier rows; Q17 |
 | 8 `relay` | Signed roster and local schema 2 specified; directory and participant credential frame only | Q01–Q06, Q18 |
 | 9 `usage` | Realm-local payer, completed service/relay units and correlated report/answer vectors delivered | Usage contract B42; Q10, Q19 |
 | 10 `node-control` | Pure v2 codec and independent vectors delivered | `node_control` messages, constants, ACK hash and endpoint selection; Q20 |
@@ -438,10 +438,14 @@ and supply NSD producer-owned vectors; Python fixture authority is not NSD outpu
 
 Service DNS labels resolve from the authenticated M6 Resource via ServiceRef.
 Standalone labels remain excluded pending M01/M02 with the M6 contract owner.
-OIDC provider/cookie/organization/redirect carriers remain open with the auth
-consumer and NSD owners, as listed in the inventory disposition. No confirmation
-of those carriers, live interoperability or public-ingress usage changes is
-claimed; Q17 remains prepared pending delivery and response.
+The [confidential authentication contract](confidential-auth-candidate.md) closes
+the provider/import, cookie, organization, template and redirect candidate carriers.
+It retains actual verifier/secret values and exact realm/reference/generation
+correlation in authenticated confidential envelopes only. Please review
+confidential_auth_generation and supply NSD-owned positive and refusal vectors,
+including current dependency changes and rotation. NSD producer confirmation
+remains outstanding; no agreement, live interoperability or public-ingress usage
+changes are claimed; Q17 remains prepared pending delivery and response.
 
 ### Q18: Relay directory and participant payload — NSD owner
 
@@ -716,3 +720,18 @@ that revision; the earlier package revision does not include this delta.
 
 This delta accompanies the changed source and independent fixtures; the earlier
 published revision above is historical and does not contain this delta.
+
+## Confidential authentication family state delta
+
+| Family | Current candidate state | Review status |
+| --- | --- | --- |
+| Public edge | Public references unchanged; complete confidential catalog DTOs, pure codecs and exact pending/current dependency refusal implemented | NSD producer confirmation and producer-owned vectors outstanding |
+| Bootstrap / control exchange | Existing request/response envelopes carry edge.auth.config.get; no new transport or publication kind | Accepted authority/recipient binding and installation remain consumer-owned |
+
+The pinned NSD projection supplies client secrets, cookie keys and API/Basic/
+signed-URL/mTLS credentials, while management credentials remain NSD-only and JWT
+issuer projection is absent. Confirm the candidate JWT key-source/binding
+projection explicitly; the independent candidate fixture does not establish it.
+Unsupported OAuth2/webhook reservations and presentation-only last4 are explicitly
+retired in the mapping. Existing OIDC refresh, rotation, real expiry and configured
+JWKS stale refusal remain unchanged in consumers.

@@ -101,8 +101,9 @@ installed and acknowledged. A rejected ACK or a missing/different generation is
 never ready. Retaining only a numeric generation without its kind/reference and
 realm cannot establish readiness. Fetching certificates, CA bytes, verifier
 hashes, HMAC secrets and cookie secrets stays on the existing confidential
-material transport; this pure contract contains references only and no private
-key field.
+material transport; this public content contains references only. The separate
+[confidential authentication contract](confidential-auth-candidate.md) supplies
+auth catalog values inside authenticated confidential control envelopes.
 
 ## Declaration, report, response and ACK
 
@@ -134,12 +135,12 @@ the declaration set under its existing M6 meaning.
 | GatewayHttpConfig/GatewayHttpRoute, GatewayL4Map/GatewayL4Route | EdgeRealm/routes; HTTP/TCP/UDP/public_port; per-realm complete replacement |
 | PublicEdgeRouteIdentity/AclRef/PolicyRevision | Route id, ServiceRef, SubjectPolicy, signed publication version; gateway/internal listener ids stay consumer-local; rollback metadata cannot override monotonic signed version |
 | PublicEdgeTransportPolicy and upstream TLS policy | EdgeRouteOptions.transport/upstream_authority/upstream_tls, with explicit TLS trust choice; no implicit fallback |
-| HttpExternalIdentityImport/ExternalIdentityProviderRef/Kind, GatewayAuthProvider/Kind/OrganizationMode | Open: auth consumer and NSD owners retain OIDC provider/cookie/redirect/template configuration on confidential transport; no guessed defaults or wire equivalence |
+| HttpExternalIdentityImport/ExternalIdentityProviderRef/Kind, GatewayAuthProvider/Kind/OrganizationMode | [AuthConfiguration](confidential-auth-candidate.md): complete provider/import, cookie, redirect, template and organization values on confidential authenticated control transport; NSD confirmation outstanding |
 | HttpMiddlewarePolicy/SourceIpAdmissionPolicy, EdgeLimitPolicy/HttpTransformPolicy/EdgeAuditPolicy/L4Policy | EdgeRouteOptions explicit policy references, body bounds, source_ip and audit_metadata; referenced policy implementations remain consumer-owned |
 | SignedSubjectHeaderPolicy, AclPolicy rules/groups | Exact reused SignedSubjectHeaderPolicy and SubjectPolicy bytes |
 | GatewayAuthConsumer, credential-to-consumer joins | Exact SubjectBinding; display names are presentation only |
 | GatewayAuthJwtConsumerBinding/JwtAuthority/JwtKeySource/JwtIssuer | JwtSubjectBinding plus EdgeJwtAuthority issuer/audiences/auth key reference; actual key acquisition and trust qualification remain external |
-| GatewayAuthConfig/Generation and Credentials (API key, Basic, signed URL, mTLS, webhook), SecretSet/SecretVersion | Realm-qualified auth material reference/generation; bindings reuse existing subject/credential anchors; secret/verifier payloads stay on confidential transport, not copied here |
+| GatewayAuthConfig/Generation and Credentials (API key, Basic, signed URL, mTLS, webhook), SecretSet/SecretVersion | AuthConfigRequest/Response and AuthConfiguration supply exact realm/reference/generation and actual secret/verifier values confidentially; existing bindings reused; unsupported webhook reservation retired explicitly |
 | rules::signed_url and its constants/helpers | Existing SignedUrlScope canonical_request/signing_input, no second canonicalization |
 | CertificateRef/Source/Policy/ChallengePreference, CertificateBundle | Certificate material reference/generation; private key bytes are excluded; fetch/ACME/source configuration remains owned by the material consumer, not identity authority |
 | ClientCaBundle/ClientCaDependency, AuthDependency/CertificateDependency | Client-CA/auth/certificate references and exact generation joins plus correlated EdgeMaterialAck |
@@ -147,7 +148,8 @@ the declaration set under its existing M6 meaning.
 | GatewayExitProfileDeclaration | Existing Subnet family/local floor, not a parallel private-service Declaration |
 | service_fqdn and standalone service-label inputs | Resolve Resource.service_label via M6 ServiceRef; standalone inputs excluded and open pending M01/M02, owned by the M6 contract owner through owner-mediated review |
 
-Open configuration rows do not claim predecessor wire equivalence or authorize
-consumer migration of those fields. Producer confirmation and producer-owned
+Confidential configuration is specified separately and claims no predecessor
+wire equivalence. Consumer installation and route readiness remain external.
+Producer confirmation and producer-owned
 vectors remain outstanding with NSD. Python fixtures are labelled candidate
 sources, independent of the Rust codecs.

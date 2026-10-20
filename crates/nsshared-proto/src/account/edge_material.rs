@@ -120,7 +120,7 @@ fn write_blobs(values: &[Vec<u8>], out: &mut CborWriter) -> Result<(), AccountEr
     Ok(())
 }
 
-fn issuer_url(value: &str) -> Result<(), AccountError> {
+pub(super) fn issuer_url(value: &str) -> Result<(), AccountError> {
     use std::net::Ipv6Addr;
     require(!value.contains(['@', '?', '#', '\\']))?;
     let rest = value

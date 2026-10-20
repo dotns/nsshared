@@ -1,0 +1,39 @@
+# Confidential authentication configuration
+
+- **status**: implementing
+- **createdAt**: 2026-10-20 19:02
+- **approvedAt**: 2026-10-20 19:02
+- **relatedTask**: 20261020-1902-confidential-auth
+
+## Context
+
+PublicEdge carries generation-qualified dependencies and public subject bindings,
+but cannot supply the private verifier, OIDC client or cookie material needed by
+the authentication catalog. The existing producer projects current and previous
+secret values with explicit expiry. Route import order and redirect overrides
+are distinct from provider defaults. Management credentials remain producer-local.
+
+## Proposal
+
+Specify exact confidential configuration tuples and independent Python fixtures
+before adding pure Rust codecs. Reuse EdgeMaterialRef, EdgeAuth, SubjectBinding
+and PolicySubject. Bind responses to pending requests and authenticated current
+public dependencies with typed refusals. Keep envelope authentication, accepted
+binding comparison, transport, installation and persistence in consumers.
+
+## Risks
+
+Wrong realm/generation joins could expose credentials to an unrelated scope.
+Strict correlation, bounded canonical decoding and explicit confidential envelope
+requirements prevent an opaque reference from standing in for private values.
+Secret-bearing values must redact Debug output.
+
+## Scope
+
+Pure account DTOs/codecs, independent fixtures and consumer tests, specification,
+profile and review request. No runtime, publication kind or registry bytes change.
+
+## Alternatives
+
+Embedding private values in PublicEdge would disclose confidential configuration.
+Duplicating predecessor JSON would preserve an obsolete wire shape and is excluded.
