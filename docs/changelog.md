@@ -1,5 +1,16 @@
 ## 2026-10-20 [feat]
 
+Add canonical authenticated publication subscription requests with exact
+issuer/recipient/realm/scope entries, capability declarations, public ingress
+indices and bounded logical attempt identity. Reuse existing signed carriers
+and retain per-publication versions and channel ownership.
+
+Validation: 35 independent vectors cover payload and signed-carrier acceptance
+and refusals. Self-check passed with 469 workspace tests, zero skips and all
+static/API/docs checks. Matching producer confirmation remains outstanding.
+
+## 2026-10-20 [feat]
+
 Add pure public-edge routing, generation-qualified material acknowledgements and
 correlated declarations using existing service-control objects. Validate listener
 and backend endpoint ownership across complete realm replacements while keeping
