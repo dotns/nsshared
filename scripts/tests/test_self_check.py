@@ -120,6 +120,7 @@ class SelectionTests(unittest.TestCase):
         self.write("crates/core/fixtures/data.txt", "new\n")
         selection = self.selection()
         self.assertTrue(selection["full"])
+        self.assertEqual(selection["changed"], ["contract-core"])
         self.assertIn("input: crates/core/fixtures/data.txt", selection["reason"])
         self.assertIn("crates/core/src/lib.rs", selection["reason"])
 

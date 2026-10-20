@@ -227,6 +227,8 @@ def select(root: Path, paths: list[str], metadata: dict) -> Selection:
                 cause = "; ".join(input_references(path, sources))
         if cause:
             reasons.append(cause)
+            if package_id:
+                changed.add(package_id)
         if not rust:
             diagnostics.append(f"input: {path} ({cause})" if cause else f"non-input: {path} (no tracked build or test reference)")
         elif cause:
