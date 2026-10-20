@@ -692,7 +692,7 @@ producer cases in family 7 review, independently of its reference/token syntax.
 
 ## Control exchange family state delta
 
-Implementation revision: `d118947ac53376b4849530734f72411b9322b92d`.
+Implementation revision: `1c9602c5e626e186ea6c8c0d85b42536c43c508e`.
 Review the exact source, tuple specification and independent fixture bytes at
 that revision; the earlier package revision does not include this delta.
 
