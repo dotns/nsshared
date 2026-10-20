@@ -171,7 +171,7 @@ impl PublicationSnapshotRequest {
     /// Returns the existing snapshot only after checking the pending request.
     /// Acceptance and version retention remain per full publication key.
     /// # Errors
-    /// Refuses trust, correlation, recipient, unrequested scopes and stream kinds,
+    /// Refuses trust, correlation, recipient, unrequested scopes and known stream kinds,
     /// then applies every existing whole-snapshot validation rule.
     pub fn response<'a, 's>(
         &self,
@@ -239,7 +239,7 @@ impl PublicationSnapshotRequest {
                 return Err(SnapshotRequestError::Scope);
             }
             if content.channel != PublicationChannel::Snapshot
-                || publication_channel(key.family, key.kind) != Some(PublicationChannel::Snapshot)
+                || publication_channel(key.family, key.kind) == Some(PublicationChannel::Stream)
             {
                 return Err(SnapshotRequestError::Channel);
             }

@@ -543,9 +543,16 @@ active subscription facts against its own state. The response uses the same
 operation, response direction, mandatory subscriber recipient and nonce equal
 to the pending correlation. Its payload is exactly the existing PublicationSnapshot,
 with no second snapshot encoding. The verifier checks carrier trust, every event's
-recipient, exact requested scope and snapshot kind ownership, then delegates
-signature, complete replacement, validity and per-key version decisions to the
-existing snapshot validator. Pending requests never reset versions or tombstones.
+recipient, exact requested scope and declared snapshot channel. A known
+stream-owned pair is refused even when it declares the snapshot channel.
+An unknown family/kind pair is an extension, not known stream ownership:
+after the existing snapshot validator authenticates its issuer, signature,
+recipient, scope and validity, it yields UnknownKind without authority or state
+changes. Known valid updates in the same ordered snapshot remain available.
+An unknown event with a bad signature, wrong scope/recipient or declared stream
+channel still refuses the entire poll; correlation checks apply to its carrier.
+Complete replacement and per-key version decisions remain in the existing
+snapshot validator. Pending requests never reset versions or tombstones.
 
 Independent fixture producers and consumers establish candidate bytes only.
 NSD confirmation of the active subscription binding, operation, exact scope

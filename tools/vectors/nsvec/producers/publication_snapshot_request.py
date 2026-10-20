@@ -92,4 +92,34 @@ def vectors():
                     ("snapshot", snapshot), ("signing_input", signing),
                     ("issuer", issuer), ("pin", bootstrap_envelope.pin(issuer)),
                     ("decision", "accepted" if name in ("accepted", "empty") else "refused")])
+    def signed_event(value, corrupt=False):
+        content = cbor.encode(value)
+        signature = account.sign(bytes([2]) * 32, b"ns.account.publication.v1\0" + content)
+        if corrupt:
+            signature = bytes([signature[0] ^ 1]) + signature[1:]
+        return cbor.encode([content, signature])
+
+    known = signed_event(event)
+    for label, family, kind in [("unknown-kind", 11, "zz-future-kind"),
+                                ("unknown-family", 99, "future-kind")]:
+        for control, changes, corrupt, nonce in [
+            ("accepted", {}, False, correlation),
+            ("signature", {}, True, correlation),
+            ("declared-stream", {7: 0}, False, correlation),
+            ("scope", {4: "other"}, False, correlation),
+            ("recipient", {2: issuer}, False, correlation),
+            ("correlation", {}, False, bytes([6]) * 16),
+            ("known-stream", {5: 11, 6: "policy-version"}, False, correlation),
+        ]:
+            extension = list(event)
+            extension[5:7] = [family, kind]
+            for index, value in changes.items():
+                extension[index] = value
+            snapshot = cbor.encode([1, [known, signed_event(extension, corrupt)]])
+            wire, signing = envelope(snapshot, 1, nonce, subscriber, bytes([2]) * 32)
+            out.append([("name", "mixed-" + label + "-" + control), ("mode", "response"),
+                        ("bytes", wire), ("snapshot", snapshot), ("signing_input", signing),
+                        ("issuer", issuer), ("pin", bootstrap_envelope.pin(issuer)),
+                        ("extension_family", family), ("extension_kind", kind),
+                        ("decision", "accepted" if control == "accepted" else "refused")])
     return out

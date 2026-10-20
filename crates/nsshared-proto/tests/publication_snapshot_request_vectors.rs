@@ -109,13 +109,42 @@ fn publication_snapshot_request_vectors() {
             }
             _ => {}
         }
+        if v.opt("extension_kind").is_some() && v.get("decision") == "refused" {
+            if v.name().ends_with("-signature") {
+                assert!(matches!(
+                    &result,
+                    Err(SnapshotRequestError::Publication(
+                        PublicationError::Signature
+                    ))
+                ));
+            } else if v.name().ends_with("-declared-stream") || v.name().ends_with("-known-stream")
+            {
+                assert!(matches!(&result, Err(SnapshotRequestError::Channel)));
+            } else if v.name().ends_with("-scope") {
+                assert!(matches!(&result, Err(SnapshotRequestError::Scope)));
+            } else if v.name().ends_with("-recipient") {
+                assert!(matches!(&result, Err(SnapshotRequestError::Recipient)));
+            } else if v.name().ends_with("-correlation") {
+                assert!(matches!(&result, Err(SnapshotRequestError::Correlation)));
+            }
+        }
         if let Ok(snapshot) = result {
             assert_eq!(snapshot.canonical(), v.hex("snapshot"));
             let decisions: Vec<_> = snapshot.decisions().collect();
             if v.name() == "response-empty" {
                 assert!(decisions.is_empty());
             } else {
-                assert_eq!(decisions.len(), 1);
+                if let Some(kind) = v.opt("extension_kind") {
+                    assert_eq!(decisions.len(), 2);
+                    let PublicationDecision::UnknownKind(extension) = &decisions[1] else {
+                        panic!("expected authenticated extension");
+                    };
+                    assert_eq!(extension.content().key.kind, kind);
+                    assert_eq!(extension.content().key.family, v.u64("extension_family"));
+                    assert_eq!(extension.content().channel, PublicationChannel::Snapshot);
+                } else {
+                    assert_eq!(decisions.len(), 1);
+                }
                 let PublicationDecision::Replace(event) = &decisions[0] else {
                     panic!("expected replacement");
                 };

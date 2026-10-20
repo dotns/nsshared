@@ -499,7 +499,11 @@ the owning-family validator checks their contents before installation.
 A valid, complete event with a newer version returns `Replace`. An empty payload
 with outcome 0 returns `Withdraw`; it also advances the accepted version. Missing
 input returns `Absent`, changing nothing, including an already absent kind.
-An unknown `(family, kind)` returns `UnknownKind` and changes nothing. A known
+An unknown `(family, kind)` returns `UnknownKind` and changes nothing. In a
+snapshot poll it may accompany valid known updates without discarding them;
+it must still declare the snapshot channel and pass all pending-request and
+authentication checks. Only a known stream-owned pair is refused for registry
+ownership at that boundary. A known
 kind whose signed channel or actual receiving channel differs from its owner
 returns `ChannelMismatch` and changes nothing. Authentication, authorized scope
 and validity are checked even for ignored kinds. A known owning-channel event

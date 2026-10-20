@@ -41,3 +41,36 @@ Specification and independent vectors precede the pure implementation.
 
 NSD confirmation of exact scope authorization, active subscription association,
 response nonce echo and independent producer vectors remains outstanding.
+
+## Extension investigation
+
+A registry lookup returning None means an unknown pair, not stream ownership.
+The poll predicate rejects such pairs before the existing authenticated snapshot
+validator can return UnknownKind. Preserve exact scope, recipient, correlation,
+signed channel and signature checks while correcting this predicate. The
+snapshot_unknown_events_preserve_known_updates tests demonstrate both failures
+with authenticated mixed snapshots, successful known-only snapshots and refused
+corrupted envelope signatures.
+
+## Extension acceptance results
+
+- The first run of snapshot_unknown_events_preserve_known_updates failed both
+  mixed-snapshot tests with Err(Channel). The known-only and corrupted-envelope
+  controls were retained unchanged. The independent mixed-unknown-kind-accepted
+  fixture also failed before implementation.
+- The boundary now distinguishes None from Some(Stream), retaining declared
+  snapshot-channel and pending-request checks. Unknown items reach the existing
+  authenticated UnknownKind decision without discarding adjacent known updates.
+- Fourteen independent mixed-event cases cover unknown kinds/families and inner
+  signature, declared channel, known stream ownership, scope, recipient and
+  correlation refusals. The consumer checks exact Replace/UnknownKind decisions,
+  event contents, typed errors and retained known-key replay refusal.
+- Formatting and lint passed before the focused tests. The focused publication
+  decoder, poll vectors and mixed-snapshot tests passed. The complete scoped
+  self-check passed: 482 tests, none skipped, compatible APIs, matching vectors,
+  passing doctests and documentation.
+- All registry lookup and UnknownKind sites were inspected: the public re-export,
+  ownership registry, authenticated publication decision, snapshot decision
+  collection, poll filter, decoder-vector action/state handling and both poll
+  test consumers. Only the poll filter required a production change. No
+  out-of-scope defects were found.
