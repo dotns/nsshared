@@ -19,11 +19,11 @@ All arrays below have exact arity; trailing bytes and unknown discriminants fail
 All counters are u64; identity keys are validated 32-byte Ed25519 keys; opaque
 incarnations and namespaces are 16-byte strings. No conversion to M6 CBOR occurs.
 
-This frame contains no M6 object, so neither crate depends on the other. A
-consumer composes the two pure crates. Service declarations and references,
+Subnet and grant payloads embed M6 references through the existing one-way
+dependency from proto to service-control. Service declarations and references,
 listener intents, leases, snapshots, service labels and messages always use
-`nsshared-service-control` itself. A later frame embedding those types must add
-an explicit one-way dependency from proto to service-control, never the reverse.
+`nsshared-service-control` itself. No reverse dependency or alternate M6 codec
+is introduced.
 
 M6 reuse groups in the registry are:
 
@@ -64,10 +64,10 @@ of usage history, durable watermarks or received control messages.
 | --- | --- | --- |
 | 1 `enrollment` — enrollment and own Node binding | `own-node` / `binding,capabilities,endpoints` / one membership | declarations |
 | 2 `realms-peers` — served realms and peers | `realm-peers` / `realms,peer-contributions` / one account; shared peers retain provenance from remaining contributions | snapshots |
-| 3 `egress` — Egress grants | `egress-grants` / `resources,grants,payers` / one realm and recipient | declarations, listeners, snapshots |
-| 4 `exit-subnet` — Exit Subnet grants | `exit-grants` / `routes,grants,exclusions,bypasses,selection` / one realm and recipient | listeners, snapshots |
-| 5 `payer` — payer rule | `payer-bindings` / `payers` / one resource scope; ambiguity withholds the resource | snapshots |
-| 6 `withdrawal` — withdrawal and regrant | `resource-authority` / `authority,incarnations` / current authority in one recipient/resource scope | snapshots |
+| 3 `egress` — [Egress grants](grant-authority-candidate.md) | `egress-grants` / `resources,grants,payers` / one realm and recipient | declarations, listeners, snapshots |
+| 4 `exit-subnet` — [Exit Subnet grants](grant-authority-candidate.md) | `exit-grants` / `routes,grants,exclusions,bypasses,selection` / one realm and recipient | listeners, snapshots |
+| 5 `payer` — [binary realm/UserId bindings](grant-authority-candidate.md) | `payer-bindings` / `payers` / one resource scope; ambiguity withholds the resource | snapshots |
+| 6 `withdrawal` — [resource authority and retired tokens](grant-authority-candidate.md) | `resource-authority` / `authority,incarnations` / current authority in one recipient/resource scope | snapshots |
 | 7 `public-edge` — public edge | `public-edge` / `backends,names,aliases,ports,domains,subjects,auth,materials` / one account; NodeId/node6 backends and existing auth/certificate/client-CA references and material generations retain their meanings | declarations, snapshots |
 | 8 `relay` — relay directory and participant | `relay-directory-roster` / `directory\|identity-classes` / a named directory or participant roster, separately scoped; neither clears the other | snapshots |
 | 9 `usage` — usage reports and units | `usage-profile` / `units,reporters,parameters` / one reporter; never clears metering history | none |
@@ -122,6 +122,24 @@ these vectors. Candidate membership versions remain u64; the ordinary derivation
 uses positive u32 and checked increment. Consumers must reject out-of-range
 versions before ordinary derivation, without truncation. Q07 requests agreement
 on this width, the missing same-I/K refresh tag and the separate signed K generation.
+
+## Service grants and payer authority
+
+The [grant authority candidate](grant-authority-candidate.md) completes families
+3, 4, 5 and 6 with provider-recipient publications, canonical M6 resources,
+exact client/provider/floor and selection facts, explicit binary realm/UserId
+payer pairs, hard Unix-millisecond deadlines and grant incarnations. Complete
+empty replacement withdraws only its named scope. Resource authority successor
+validation retains retired tokens and preserves unrelated claims. Independent
+producer fixtures and `grant_authority_vectors` exercise accepted and typed
+refused contracts, selective withdrawal and fresh regrant. These are fixture
+producer observations; NSD producer vectors and owner confirmation remain
+outstanding. Family registry bytes are unchanged.
+
+The grant payer subject is exactly 16 ULID bytes. The service usage unit below
+still describes its predecessor IdentityKey subject; a separate usage revision
+must change that codec and its independent vectors together before combined
+usage admission. No conversion or fallback between these subject types exists.
 
 ## Subnet selection
 
@@ -196,6 +214,16 @@ stay fixed. Validation distinguishes these transitions; the choice of transition
 for a deployment remains a consumer policy.
 
 ## Normalized Node L3 form
+
+The complete authority wrapper is `[1, bindings, policy_bytes]`, where
+`policy_bytes` is the exact existing Node L3 encoding below. A binding is
+`[full_identity, wg_key]`, sorted uniquely by identity; K is a nonzero 32-byte
+string and distinct identities cannot share K. Every scoped identity requires
+a binding. Membership without an explicit matching rule denies. Removing a
+namespace in a complete replacement leaves other namespaces' rules intact.
+The consumer joins installed I/K only through these bindings, never roster
+membership or a peer record alone. Existing standalone policy vectors retain
+their bytes; they are policy fragments, not complete transport authority.
 
 L3 CBOR is `[1, issuer, recipient, revision, scopes, rules]`. The revision is
 positive and complete replacement applies only to this issuer/recipient.
