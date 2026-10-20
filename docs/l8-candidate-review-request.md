@@ -719,6 +719,9 @@ published revision above is historical and does not contain this delta.
 
 ## Control reports delta for Q11/Q21
 
+Implementation and independent fixture revision: `e8f03746d26ac26491ba644704a4357934f43bdd`.
+The earlier package does not include this explicit candidate delta.
+
 Review the exact report tuples in control-report-candidate.md and the independent
 control-reports.vec and updated public-edge.vec. Heartbeat retains uptime, local
 addresses and the observation-only policy counter. Gateway observations retain
