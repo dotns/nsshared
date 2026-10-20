@@ -1,3 +1,14 @@
+## 2026-10-20 [fix]
+
+Scope member manifest and lockfile changes by resolved dependency closures at
+the merge base and working tree. Include versions, sources, checksums and enabled
+features, select changed members and reverse consumers, and explain differences.
+Global configuration and failed or incomparable metadata retain complete QA.
+
+Validation: 41 selection tests cover added/removed dependencies, shared versions,
+checksums, features, global inputs, failures and temporary export cleanup.
+Self-check passed with 434 Rust tests, zero skips and all static/API/docs checks.
+
 ## 2026-10-20 [feat]
 
 Add complete realm membership payloads with existing Node bindings and signed
