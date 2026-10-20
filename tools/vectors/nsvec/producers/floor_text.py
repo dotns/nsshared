@@ -43,8 +43,8 @@ def vectors():
     cases = [("spaces", "web api", "exit west", "team name"),
              ("padded", " web api ", " exit west ", " team name "),
              ("one-space", " ", " ", " "),
-             ("unicode-nfc", "caf\u00e9 api", "exit\u00a0west", "team\u00a0name"),
-             ("unicode-nfd", "cafe\u0301 api", "exit\u2003west", "team\u2003name"),
+             ("unicode-nfc", "api \u00e9", "exit\u00a0west", "team\u00a0name"),
+             ("unicode-nfd", "api e\u0301", "exit\u2003west", "team\u2003name"),
              ("byte-limit", "s" * 255, "e" * 256, "k" * 256),
              ("utf8-byte-limit", "\u00e9" * 127, "\u00e9" * 128, "\u00e9" * 128)]
     for name, service, exit_ref, label in cases:
@@ -129,7 +129,7 @@ def vectors():
             ("trimmed-exit", [[" web api "], ["exit west"], []], padded),
             ("folded-service", [["WEB API"], ["exit west"], []], good),
             ("collapsed-service", [["web api"], ["exit west"], []], request("web  api")),
-            ("normalized-service", [["caf\u00e9 api"], ["exit west"], []], request("cafe\u0301 api")),
+            ("normalized-service", [["api \u00e9"], ["exit west"], []], request("api e\u0301")),
             ("trimmed-rejected-service", [[], [" exit west "], [[0, "web api", "reason"]]], padded),
             ("trimmed-rejected-exit", [[" web api "], [], [[1, "exit west", "reason"]]], padded)]:
         emit(name, "match", response(pending, outcomes), False, pending=cbor.encode(pending))
