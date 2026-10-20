@@ -1,6 +1,6 @@
 # Confidential authentication configuration
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-10-20 19:02
 - **approvedAt**: 2026-10-20 19:02
 - **relatedTask**: 20261020-1902-confidential-auth
@@ -41,13 +41,13 @@ Duplicating predecessor JSON would preserve an obsolete wire shape and is exclud
 ## Acceptance results
 
 The specification and independent Python candidate vectors preceded the codecs.
-The confidential_auth_generation consumer exercises 57 independent vectors,
+The confidential_auth_generation consumer exercises 126 independent vectors,
 including authenticated envelopes, exact successful generation delivery, mismatched
 realm/reference/generation/scope/correlation refusals, complete empty configuration,
 all key-source variants, malformed shapes and value/collection bounds.
 
-The repository self-check passed on source commit `5fdeff3`, selecting full QA.
-All 469 Rust tests passed with zero skips, 41 check-selection tests passed, and
+The repository self-check passed on source commit `34c53e2`, selecting full QA.
+All 473 Rust tests passed with zero skips, 41 check-selection tests passed, and
 one documentation test passed. Formatting, lint, dependency checks, spelling,
 vector reproducibility, API compatibility and documentation generation passed.
 NSD producer confirmation and producer-owned vectors remain outstanding.
@@ -63,3 +63,23 @@ Fixed JWKS acquisition may require an exact query to select a tenant. Validate t
 complete bound, HTTPS authority and URL safety while preserving query bytes;
 issuer and provider/route redirects keep their existing query prohibition. Add
 independent accepted controls and malformed/insecure refusals for every URL site.
+
+## Credential identity and acquisition acceptance
+
+The supplied credential collision test first failed because an API verifier and
+JWT binding shared one anchor. The query-bearing fixed JWKS test independently
+failed with InvalidField. Both tests now pass; the collision is refused during
+canonical construction after successful fixture decoding and baseline validation.
+
+All four private methods are checked against JWT anchors, all six private method
+pairs have collision/distinct controls, and duplicate/distinct JWT identities have
+independent fixtures. Fixed URI controls preserve query order, repeated parameters,
+literal plus, percent-escape case, query-only origins and IPv6 authorities.
+Malformed/insecure fixed sources and all three issuer/redirect URL sites refuse
+unsafe input. Their existing query prohibition is unchanged.
+
+The source and URL validation review covered exact private/public binding equality,
+private and JWT consumer ownership, JWT join uniqueness/cardinality, authority
+source cardinality, CA generation joins and route method references. No additional
+confirmed defect remained after the shared credential uniqueness fix. The current
+self-check passed with 473 Rust tests, zero skips and 41 check-selection tests.
