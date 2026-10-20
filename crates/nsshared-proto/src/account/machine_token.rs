@@ -158,12 +158,9 @@ impl MachineClaims {
     }
     /// Only the distinct NSD verifier's audience predicate; never gateway admission.
     /// # Errors
-    /// Refuses absent or nonmatching machine audience.
+    /// Refuses absent, array-shaped or nonmatching machine audience.
     pub fn validate_nsd_audience(&self) -> Result<(), TokenError> {
-        if self
-            .aud
-            .as_ref()
-            .is_some_and(|aud| aud.contains(MACHINE_AUDIENCE))
+        if matches!(&self.aud, Some(TokenAudience::Single(audience)) if audience == MACHINE_AUDIENCE)
         {
             Ok(())
         } else {
@@ -233,7 +230,7 @@ impl JwkSet {
     }
 }
 impl RsaJwk {
-    /// Checks supplied signing-key metadata and canonical unsigned components.
+    /// Checks supplied signing-key metadata and canonical encoded components.
     /// # Errors
     /// Refuses wrong algorithm/use/type, missing kid or malformed components.
     pub fn validate(&self) -> Result<(), TokenError> {
@@ -246,7 +243,7 @@ impl RsaJwk {
         }
         for part in [&self.n, &self.e] {
             let bytes = decode_base64url(part, MAX_BYTES).map_err(|_| TokenError::Key)?;
-            if bytes.is_empty() || bytes[0] == 0 || encode_base64url(&bytes) != *part {
+            if bytes.is_empty() || encode_base64url(&bytes) != *part {
                 return Err(TokenError::Key);
             }
         }

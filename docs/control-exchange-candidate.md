@@ -76,7 +76,8 @@ or refresh preserves the previously verified bearer in consumer custody.
 
 The gateway does **not** compare aud: absent, unrelated single and array
 values retain their existing outcome. The distinct NSD machine-audience verifier
-requires `nsd-machine-control` membership in aud. Wrong-audience vectors are
+requires the single string `nsd-machine-control`; its typed claims reject
+array-shaped aud even when an element matches. Wrong-audience vectors are
 labelled `nsd-audience`; they are not gateway refusals. Whether a later gateway
 candidate should require machine audience remains an open owner-review item.
 NSD's JWT library expiry leeway is separately 60 seconds; the gateway's 30-second
@@ -87,7 +88,8 @@ RsaJwk JSON has kty, optional kid/alg/use, n/e; JwkSet has keys in source order.
 Unsupported object descriptions are discarded in source order; scalar members,
 duplicate key lists and malformed/trailing JSON refuse.
 Usable keys require RSA, RS256, nonempty kid/n/e, use absent or `sig`, and strict
-base64url unsigned n/e without leading zero. Wrong `enc` use refuses. RFC 7638
+base64url n/e. Leading zero component bytes retain their existing qualification
+outcome; cryptographic RSA verification remains external. Wrong `enc` use refuses. RFC 7638
 thumbprints hash exact JSON `{"e":"E","kty":"RSA","n":"N"}`. The
 pure qualifier discards unsupported members, filters by effective pins and
 refuses no usable or no trusted keys. Duplicate kid selection retains first
@@ -413,3 +415,27 @@ request signature/subject matching, key qualification and external RSA verificat
 remain mandatory even when a consumer explicitly permits unbound machine claims.
 NSD confirmation of the exact candidate tuples and independent producer vectors
 remains outstanding. This checklist does not claim current producer compatibility.
+
+## Retained predicate sources
+
+Gateway source revision is `17264f418884227674737c0cda8acb3553c9b7e8`.
+`crates/nsgw-control/src/client/auth.rs` supplies RS256-before-key-selection,
+exact subject/nonwaived signing-key binding, expiry `now > exp + 30`, one
+unknown-key refresh and missing-kid singleton selection. Its audience-agnostic
+behavior is explicitly asserted by `tests/auth.rs` in
+`machine_token_accepted_regardless_of_audience_shape`. The refresh predicate is
+missing bearer or at most 300 seconds remaining. `src/token_keys.rs` supplies
+static/stored/first-use pin precedence and pinned rotation;
+`src/token_pins.rs` supplies exact realm plus trimmed address ownership.
+`src/client/token_keys_tests.rs` explicitly rejects encryption-key use without
+learning pins. The called public `crates/nsgw-realm/src/tokens.rs` qualifier
+allows absent use, rejects explicit non-sig use and decodes base64url components
+without a leading-zero predicate; this candidate preserves those outcomes.
+
+NSD source revision is `3d0b71dfcba61ec858247c3c74d2d98e77d3d08b`.
+`crates/nsd-auth/src/machine.rs` has string-shaped machine aud and a separate
+RS256 verifier requiring the machine audience. Its default library expiry
+leeway is distinct from the gateway predicate. `crates/nsd-api/src/envelope.rs`
+dispatches information, enrollment and authentication; `handlers.rs` reuses
+strict discovery and emits the RS256 machine-control token. Their existing
+handlers are a producer checklist, not confirmation of this candidate encoding.

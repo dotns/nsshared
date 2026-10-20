@@ -98,7 +98,7 @@ def vectors():
             value["aud"] = aud
         json_emit("gateway-audience-" + name, "gateway-claims", value)
         json_emit("nsd-audience-" + name, "nsd-audience", value,
-                  "accepted" if "machine" in name else "audience")
+                  "accepted" if name == "machine" else "audience")
     for name, field, value, decision in [("subject", "sub", "other", "subject"),
                                         ("key-type", "mid_kty", "rsa", "self-binding"),
                                         ("key", "mid_pub", "00" * 32, "self-binding")]:
@@ -113,6 +113,10 @@ def vectors():
         changed = dict(jwk)
         changed[field] = value
         json_emit("key-set-wrong-" + field, "keys", {"keys": [changed]}, "key")
+    missing_use = dict(jwk)
+    del missing_use["use"]
+    json_emit("key-set-absent-use", "keys", {"keys": [missing_use]})
+    json_emit("key-set-leading-zero-component", "keys", {"keys": [dict(jwk, n="AAEC")]})
     def thumb(key):
         data = json.dumps({"e": key["e"], "kty": "RSA", "n": key["n"]}, separators=(",", ":"), sort_keys=True).encode()
         return base64.urlsafe_b64encode(hashlib.sha256(data).digest()).rstrip(b"=").decode()
