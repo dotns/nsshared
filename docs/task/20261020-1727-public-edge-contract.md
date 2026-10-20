@@ -1,6 +1,6 @@
 # Public edge, material and service operation contracts
 
-- **status**: in_progress
+- **status**: completed
 - **priority**: P1
 - **owner**: public-edge-contract
 - **createdAt**: 2026-10-20 17:27
@@ -75,3 +75,43 @@ are valid before rejecting their conflicting combined TCP listener. The approved
 change expands only physical conflict registries; discovery names and material
 references stay realm-qualified. Investigation and verification results are
 tracked in the related plan and recorded below when complete.
+
+### Ownership validation results
+
+The existing `served_realms_cannot_claim_the_same_tcp_listener` test failed before
+the fix: both isolated contributions encoded successfully, but their duplicate
+TCP listener was accepted. Independent producer cases then demonstrated the same
+scope error in four consumer tests: raw listeners, HTTP hostnames, HTTP/TCP overlap
+and backend endpoints. Their isolated accepted controls ran before the composed
+refusal assertions. Both canonical construction and decoding now reject each
+conflicting combination.
+
+The producer adds 25 composed cases and 50 isolated contributions, bringing the
+fixture to 151 cases. Accepted controls preserve same-number TCP/UDP listeners,
+HTTP hosts on separate ports, distinct HTTP hosts sharing a port, backend endpoints
+separated by identity/port/transport, no-connector routes, realm-local discovery
+names and realm-qualified material references with distinct generations.
+
+| Inspected validation site | Disposition |
+|---|---|
+| public_edge.rs public_names and hostname_owners | Retained inside each realm for discovery ownership; physical HTTP ownership checked separately |
+| public_edge.rs listeners | Expanded to the complete publication; raw protocol/port and every HTTP name/alias/domain plus port |
+| public_edge.rs http_ports and tcp_ports | Expanded to the complete publication; reject both HTTP/TCP contribution orders |
+| public_edge.rs backend_ports | Expanded to the complete publication using full Node identity, underlying transport and virtual port |
+| public_edge.rs decode | Retains canonical validation, so malformed combinations cannot bypass constructor checks |
+| public_edge.rs material membership and validate_materials | Retained realm-qualified references and exact installation context |
+| edge_material.rs materials_valid, EdgeAuth::canonical and EdgeMaterialAck::validate_installation | Retained per-realm uniqueness and exact realm/request/generation correlation |
+| grants.rs virtual-port validation and GrantPublication::validate | Separate client/resource authorization domain, not a public listener registry; unchanged |
+
+Repository searches for the conflict registries and public/virtual-port fields
+found no additional physical public-listener owner outside these sites. No
+out-of-scope defect was established and no unrelated implementation was edited.
+
+Verification: format and workspace lint passed before focused tests. All 12
+focused tests passed. The current `just self-check feat/l8-account-profile` at
+`a83d47b7fc2c82220380fb6c563eb0cd5c508acf` passed: 461 nextest tests, zero skipped,
+41 check-selection tests, 15 current fixture files, API compatibility, supply-chain
+checks, doctests and warning-free documentation. The preceding complete check
+also passed at `2141dc5f82e06572b49703213d9ada6fdb7abc62`; the final run includes direct
+decoding assertions for every isolated namespace control. Only the task-owned
+completion records changed after the final passing run.

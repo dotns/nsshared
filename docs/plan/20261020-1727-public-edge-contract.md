@@ -1,6 +1,6 @@
 # Public edge, material and service operation contracts
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-10-20 17:27
 - **approvedAt**: 2026-10-20 17:27
 - **relatedTask**: 20261020-1727-public-edge-contract
@@ -67,3 +67,19 @@ Risks: a global discovery-name or material registry would conflate independent
 realm namespaces. Positive controls must retain those namespaces, same-number
 TCP/UDP listeners, HTTP hosts on separate ports, distinct HTTP hosts sharing a
 port and virtual ports separated by full Node identity or transport.
+
+### Gateway-wide ownership acceptance
+
+The retained TCP-listener regression and all four independent scope tests failed
+before implementation and pass after moving physical registries outside the
+realm loop. HTTP ownership includes all names, aliases and domains at the public
+port, with duplicate mentions within one route accepted. Discovery namespace and
+material generation controls remain realm-qualified. The fixture now has 151
+cases, including 25 composed combinations and their 50 independently decoded
+isolated contributions.
+
+The current self-check at `a83d47b7fc2c82220380fb6c563eb0cd5c508acf` passed with 461
+tests and zero skipped, plus 41 check-selection tests and all static/documentation
+checks. Physical ownership validation, decoding, realm-local namespaces and the
+related grant/material sites have explicit dispositions in the task record.
+No out-of-scope defect was established.
