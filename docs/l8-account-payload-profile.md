@@ -508,3 +508,57 @@ fields, prior scoped versions, supplied clocks and explicit expected decisions.
 Vectors include exact/over 1 MiB encoded events and malformed outer and nested
 lengths. Existing fixtures retain their names and bytes. These are candidate
 fixtures; NSD production and independent producer confirmation remain requested.
+
+
+## Node-control codec
+
+Family 10 (`FamilyId::NodeControl`) uses `nsshared_proto::node_control` for
+ordinary Node-control bytes. The registry publication remains version 1;
+control wire `VERSION` is independently 2 and `CONTROL_PORT` is 47900 at both
+ends. This is a pure codec: transport, acceptance ordering, persistence,
+retransmission, sessions and probe correlation remain in consumers.
+
+The canonical CBOR message is `[2, kind, body]`, at most 1200 encoded bytes.
+Every array has exact arity and all integers use shortest unsigned encoding.
+
+| Kind | Body |
+| --- | --- |
+| 0 ACK | `[type_in_u8, hash_16]` |
+| 1 ENDPOINTS | `[revision_u64, candidates, relays]` |
+| 2 RECORD | `[NodeRecord]`, embedding the canonical signed array directly |
+| 3 PROBE_REQUEST | `[nonce_32]` |
+| 4 PROBE_REPLY | `[nonce_32]` |
+
+ACK means **at least accepted**. A receiver that persists before ACK conforms;
+this codec adds no durability or retransmission requirement. The hash is the
+unkeyed BLAKE2s digest configured for 16-byte output over the entire encoded
+acknowledged message, not a truncated 32-byte digest. Every u8 `type_in` is
+representable, including unknown message kinds.
+
+ENDPOINTS contains at most eight candidates and four relay identifiers.
+A candidate is `[ip_bytes, port, kind]`: exactly 4 or 16 IP bytes, port 1–65535,
+and kind 0 local, 1 reflected, or 2 configured. Relay strings use the existing
+canonical RelayId parser and at most 255 UTF-8 bytes. Revision zero and duplicate
+or unsorted input entries remain wire-representable. `Endpoints::select` sorts
+by IP byte length, IP bytes, port and kind, deduplicates candidates and relays,
+places a listed home relay first, then other relays in byte order. It greedily
+adds candidates before relays subject to count and total byte limits. Its omitted
+count covers rejected unique entries, not duplicates.
+
+Decode rejects oversize input first, then malformed/noncanonical CBOR, wrong
+version, unknown kind, malformed bodies and trailing bytes in reading order.
+Candidate/relay array-head errors map to TooMany. Candidate IP strings over
+16 bytes produce Cbor string-length errors; other invalid IP lengths, ports or
+kinds produce Candidate. ACK type overflow preserves Type(0). Invalid relay
+syntax produces Relay; embedded signed record validation produces Record after
+its structural CBOR is read. Encoding preserves the supplied order and rejects
+excess counts, zero candidate ports and messages over 1200 bytes.
+
+The byte contract is the node codec at
+`50f8e3fd95fac8bbc72aea9b132459103c3b206a`. Independent Python vectors in
+`tools/vectors/nsvec/producers/node_control.py` reproduce the nine gateway
+fixtures (gateway source `a00e6d61b5f0f635e740337131eb35514adbc46f`, original shared
+revision `019bb7250549f1040a813c599a2ac1b09bd620f3`), both known-byte examples
+and the empty-input ACK hash. `tests/node_control.rs` ports all ten predecessor
+test functions; `tests/vectors_node_control.rs` checks independent bytes and
+rejections. No dependency or protocol version changes accompany this contract.

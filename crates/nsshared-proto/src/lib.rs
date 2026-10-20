@@ -7,6 +7,7 @@
 //! | --- | --- |
 //! | [`keys`] | Typed identity and WireGuard keys: generation, canonical encodings, derivations |
 //! | [`identity`] | Raw identities, node ID, address group, `node6` / `node4`, address conflicts |
+//! | [`node_control`] | Node-control v2 messages, ACK hashes and endpoint selection |
 //! | [`record`] | `NodeRecord`, its signature and the §3.3 ordering / conflict rules |
 //! | [`relay`] | Relay identifiers and relay packets v2; budget defaults in [`relay::budget`] |
 //! | [`discovery`] | Public DNS discovery of records: TXT encoding and answer checks |
@@ -26,6 +27,7 @@ pub mod encoding;
 mod identifier;
 pub mod identity;
 pub mod keys;
+pub mod node_control;
 pub mod record;
 pub mod relay;
 pub mod rendezvous;

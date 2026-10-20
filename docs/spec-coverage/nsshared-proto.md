@@ -152,11 +152,11 @@ Spec questions resolved by the protocol owner (recorded in the code docs of
 | ns/quick-v2.md §8.5 (315) | Types 10 RENDEZVOUS_REQUEST and 11 RENDEZVOUS_RESPONSE (control connection) and 12 REGISTRY_RECORD; bodies follow rendezvous v2; control only, 20480-byte limit for types 10 and 11 on control (decision 3) | none | none | out of scope: relay (removed 2026-10-03; last in tag `v0.1.0`) |
 | ns/quick-v2.md §8.6 (319) | Relay identifier `host:port` (lowercase DNS, IPv4, bracketed IPv6; port 1..65535; at most 255 bytes); no short IDs; never rewritten | `src/identifier.rs::RelayId`, `src/identifier.rs::RelayIdError`, `src/identifier.rs::MAX_RELAY_ID_BYTES` | `tests/identifier.rs::canonical_identifiers_parse_without_rewriting`, `tests/identifier.rs::maximum_length_is_accepted`, `tests/identifier.rs::refutation_relay_id_length`, `tests/identifier.rs::refutation_relay_id_syntax`, `tests/identifier.rs::refutation_relay_id_port`, `tests/identifier.rs::refutation_relay_id_ipv4`, `tests/identifier.rs::refutation_relay_id_ipv6`, `tests/identifier.rs::refutation_relay_id_dns_name`, `tests/identifier.rs::dns_identifiers_round_trip`, `tests/identifier.rs::parse_never_normalises` | implemented |
 | ns/quick-v2.md §9 (323) | UDP `N6:47900` in the tunnel, consumed by the engine before translation | none | none | out of scope: ns (moved 2026-10-03; last in tag `v0.1.0`) |
-| ns/quick-v2.md §9 (325) | Message = canonical `[ver = 2, type, body]`, at most 1200 bytes | none | none | out of scope: ns (moved 2026-10-03; last in tag `v0.1.0`) |
-| ns/quick-v2.md §9 (329) | Type 0 ACK `[type_in, hash]`, hash = unkeyed BLAKE2s-128 of the acknowledged datagram | none | none | out of scope: ns (moved 2026-10-03; last in tag `v0.1.0`) |
-| ns/quick-v2.md §9 (330) | Type 1 ENDPOINTS `[revision, candidates, relays]`, at most 8 `[ip, port, kind]` and 4 relay identifiers | none | none | out of scope: ns (moved 2026-10-03; last in tag `v0.1.0`) |
-| ns/quick-v2.md §9 (331) | Type 2 RECORD `[record]` | none | none | out of scope: ns (moved 2026-10-03; last in tag `v0.1.0`) |
-| ns/quick-v2.md §9 (332-333) | Types 3 PROBE_REQUEST and 4 PROBE_REPLY `[nonce bytes32]` | none | none | out of scope: ns (moved 2026-10-03; last in tag `v0.1.0`) |
+| ns/quick-v2.md §9 (325) | Message = canonical `[ver = 2, type, body]`, at most 1200 bytes | `src/node_control.rs` | `tests/node_control.rs::control_codec_round_trips`, `tests/vectors_node_control.rs::node_control_vectors` | implemented |
+| ns/quick-v2.md §9 (329) | Type 0 ACK `[type_in, hash]`, hash = unkeyed BLAKE2s-128 of the acknowledged datagram | `src/node_control.rs` | `tests/node_control.rs::control_codec_round_trips`, `tests/vectors_node_control.rs::node_control_vectors` | implemented |
+| ns/quick-v2.md §9 (330) | Type 1 ENDPOINTS `[revision, candidates, relays]`, at most 8 `[ip, port, kind]` and 4 relay identifiers | `src/node_control.rs` | `tests/node_control.rs::control_codec_round_trips`, `tests/vectors_node_control.rs::node_control_vectors` | implemented |
+| ns/quick-v2.md §9 (331) | Type 2 RECORD `[record]` | `src/node_control.rs` | `tests/node_control.rs::control_codec_round_trips`, `tests/vectors_node_control.rs::node_control_vectors` | implemented |
+| ns/quick-v2.md §9 (332-333) | Types 3 PROBE_REQUEST and 4 PROBE_REPLY `[nonce bytes32]` | `src/node_control.rs` | `tests/node_control.rs::control_codec_round_trips`, `tests/vectors_node_control.rs::node_control_vectors` | implemented |
 | ns/quick-v2.md §9 (335) | Types 1 and 2 are acknowledged; retransmit at 1, 2, 4 s; at most 4 outstanding; malformed or rejected records get no ACK | none | none | out of scope: ns (moved 2026-10-03; last in tag `v0.1.0`) |
 | ns/quick-v2.md §9 (336) | RECORD: `record.I` must be the peer's `I`, then §3.3; a higher `gen` replaces the peer key | none | none | out of scope: ns (moved 2026-10-03; last in tag `v0.1.0`) |
 | ns/quick-v2.md §9 (337) | ENDPOINTS revision persistent and strictly increasing; lower ignored, same bytes idempotent, same revision other bytes `endpoint_state_conflict`, higher replaces both lists | none | none | out of scope: ns (moved 2026-10-03; last in tag `v0.1.0`) |
@@ -203,7 +203,7 @@ Spec questions resolved by the protocol owner (recorded in the code docs of
 | ns/quick-protocol.md §12.7 (993, 1008) | Ignore unknown types, wrong `ver` and malformed bodies; acknowledged records and retry rule (v2: §9 rows; BINDING, REVOCATION and NAME removed) | none | none | out of scope: ns (moved 2026-10-03; last in tag `v0.1.0`) |
 | ns/quick-protocol.md §12.7 (1009) | Ordered snapshot state: persistent, strictly increasing revision from 1; exhaustion is final | none | none | out of scope: ns (moved 2026-10-03; last in tag `v0.1.0`) |
 | ns/quick-protocol.md §12.7 (1010) | Ordered acceptance (v2: §9 (323) row) | none | none | out of scope: ns (moved 2026-10-03; last in tag `v0.1.0`) |
-| ns/quick-protocol.md §12.7 (1011) | Canonical snapshot selection: home relay first, byte order, greedy fit in 1200 bytes, omissions reported, one subset for every peer | none | none | out of scope: ns (moved 2026-10-03; last in tag `v0.1.0`) |
+| ns/quick-protocol.md §12.7 (1011) | Canonical snapshot selection: home relay first, byte order, greedy fit in 1200 bytes, omissions reported, one subset for every peer | `src/node_control.rs` | `tests/node_control.rs::control_endpoints_select_is_canonical` | implemented |
 | ns/quick-protocol.md §12.7 (1012) | Type 1 compatibility form | none | none | dropped by v2 (no v1 compatibility) |
 | ns/quick-protocol.md §12.7 (1013) | Probe transport inside the tunnel | none | none | out of scope: ns node |
 | ns/quick-protocol.md §12.7 (1014) | Probe correlation | none | none | out of scope: ns (moved 2026-10-03; last in tag `v0.1.0`) |
@@ -230,3 +230,16 @@ Spec questions resolved by the protocol owner (recorded in the code docs of
 | ns/quick-protocol.md §12.8 (1094) | Rule 8: capacity | none | none | out of scope: nsgw relay |
 | ns/quick-protocol.md §12.8 (1095) | Rule 9: membership and certificates | none | none | out of scope: nsgw relay |
 | ns/quick-protocol.md §12.8 (1096, 1098) | Rule 10: operations (`/readyz`, `/status`) | none | none | out of scope: nsgw relay |
+
+## Node-control candidate
+
+The [Node-control specification](../l8-account-payload-profile.md#node-control-codec)
+fixes ACK minimum acceptance, unchanged v2 bytes and pure/runtime placement.
+`src/node_control.rs` supplies constants, all five messages, exact error mapping,
+unkeyed BLAKE2s-128 and greedy canonical endpoint selection.
+`tests/node_control.rs` preserves all ten tests from node source
+`50f8e3fd95fac8bbc72aea9b132459103c3b206a`.
+`tests/vectors_node_control.rs::node_control_vectors` consumes independently
+generated positives, known bytes, hash and malformed/boundary inputs. Runtime
+ordering, durable ACK policy, peer authority and probe correlation remain
+consumer responsibilities.
