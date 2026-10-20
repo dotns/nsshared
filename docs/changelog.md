@@ -1,5 +1,19 @@
 ## 2026-10-20 [feat]
 
+Add pure Egress/Exit grant publications, explicit binary realm/UserId payer
+bindings, resource retirement snapshots and complete Node identity-to-key
+authority. Validate payer ambiguity, exact resource context, retained retirement
+history and fresh incarnations while preserving existing policy and Subnet bytes.
+Runtime installation, expiry enforcement and persistence remain consumer-owned.
+
+Validation: 72 independent fixture cases and five new consumer tests cover
+accepted contracts, typed refusals and selective withdrawal. Self-check passed
+with 434 Rust tests, zero skips, 28 selection tests and static/API/vector/docs
+checks. Independent conformance checks found no departures. Producer confirmation
+and independently owned producer vectors remain outstanding.
+
+## 2026-10-20 [feat]
+
 Share the pure Node-control v2 codec with unchanged message bytes, constants,
 ACK hashes, endpoint selection and validation. Document ACK as at least accepted;
 transport, persistence, retransmission and sessions remain consumer-owned.
