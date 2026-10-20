@@ -571,3 +571,53 @@ prepared because no delivery or answer has been received.
 | Q23 | NSD and node | prepared | — | — |
 | M01 | M6 contract owner, through owner | prepared | — | — |
 | M02 | M6 contract owner, through owner | prepared | — | — |
+
+## Policy, subject and admin claim review delta
+
+Review the [pure policy and claim values](l8-account-payload-profile.md#policy-and-claim-values)
+and independent [policy-claims vectors](../crates/nsshared-proto/tests/fixtures/vectors/policy-claims.vec).
+The Python producer is `tools/vectors/nsvec/producers/policy_claims.py`; the
+independent Rust consumer is `tests/policy_claim_vectors.rs`. These are labelled
+candidate fixture bytes, not NSD producer confirmation or live interoperability.
+This addition remains `prepared`; no delivery or owner agreement is recorded.
+
+The values add no publication kind. Existing NodeL3Authority retains full Node
+L3 authority, public-edge/visitor/auth values embed in family 7 under its owner,
+and admin scopes travel in authenticated admin-token claims. Machine-token
+claims/key sets and the diagnostic policy-version counter remain separately
+owned. Q21's aggregate policy aliases/self-tests and other unplaced rows stay
+open carrier items; no new policy stream or implicit authority is introduced.
+
+Please confirm these concrete producer deltas against NSD's current model:
+
+- Human `Claims` carries UserId, realm, audience, organization/session and time
+  claims but no admin scope. There is no NSD producer for the gateway's
+  AdminClaims `scope`. Supply an explicit authenticated admin-token producer
+  with read_only/read_write/super_admin, or retain the consumer's refusal;
+  never derive scope from human login, API-token `full`/`read-only`, or roles.
+- Candidate binary user subjects reuse the exact Payer realm/UserId pair.
+  Symbolic user/group/machine/external labels remain explicit realm-local
+  policy subjects, not identity keys, payer conversions or credential-derived
+  principals. Confirm the NSD projection source and exact canonical bytes for
+  each subject/binding, including malformed/missing/cross-realm refusals.
+- Credential/consumer joins must preserve stable subject, enabled status,
+  credential reference, actual expiry, exact JWT authority/claim name/value
+  and opaque credential scopes. Confirm family 7's enclosing consumer and
+  issuer/audience/key-source metadata; this value performs no key fetch or
+  token verification and must not acquire that trust from unverified claims.
+- Signed URL inputs preserve the current HMAC-SHA256 canonical text, duplicate
+  query pairs, literal plus, default-port removal, exact raw path and realm/route
+  scope. Supply producer vectors for these cases and malformed percent escapes.
+  Existing account request/response domains and envelope bytes remain unchanged;
+  response-domain signatures must fail request authentication.
+- Confirm explicit signed subject-header names, keyset reference, validity and
+  inbound stripping in family 7. This package carries no header signing key or
+  credential verifier. Preserve evaluator and self-test behavior in gateway
+  consumers, and identify an enclosing carrier for every still-open aggregate
+  policy item before treating those items as delivered publications.
+
+The required independent owner vectors include every admin scope and ordering
+pair, insufficient/unknown scope, expired and wrong-subject/realm contexts,
+missing/malformed subjects, exact binary UserId widths, duplicate/unsorted sets,
+wrong signing domain and non-shortest/trailing CBOR. Consumer acceptance of the
+candidate fixture cannot replace these outstanding producer review inputs.

@@ -11,9 +11,13 @@ mod l3;
 mod l3_authority;
 mod lifecycle;
 mod participant_roster;
+mod policy_auth;
+mod policy_subject;
 mod publication;
 mod registry;
 mod roster;
+mod signed_request;
+mod subject_policy;
 mod subnet;
 mod usage;
 
@@ -45,6 +49,8 @@ pub use participant_roster::{
     ParticipantRosterError, ParticipantRosterGeneration, ParticipantRosterScope,
     ParticipantRosterStatus, participant_roster_status, verify_participant_roster,
 };
+pub use policy_auth::{AdminScope, AdminTokenClaims, JwtSubjectBinding, SignedSubjectHeaderPolicy};
+pub use policy_subject::{PolicySubject, SubjectAnchor, SubjectBinding};
 pub use publication::{
     AcceptedPublication, MAX_PUBLICATION_BYTES, PUBLICATION_SIGNATURE_DOMAIN, PublicationChannel,
     PublicationContent, PublicationDecision, PublicationError, PublicationEvent,
@@ -58,6 +64,8 @@ pub use roster::{
     AdmissionSnapshot, IdentityClass, MIN_ROSTER_VALIDITY_MS, ROSTER_SIGNATURE_DOMAIN, Roster,
     RosterEntry, RosterVersion, SignedRoster, validate_snapshot,
 };
+pub use signed_request::{SignedAccountRequest, SignedUrlScope};
+pub use subject_policy::{SubjectGroup, SubjectPolicy, SubjectRule};
 pub use subnet::{
     MAX_SELECTED_PREFIXES, MAX_SUBNET_PREFIXES, MAX_SUBNET_ROUTES, SelectedSubnetRoute,
     SubnetError, SubnetPrefix, SubnetProxyCoverage, SubnetPublication, SubnetRoute,

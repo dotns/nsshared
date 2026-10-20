@@ -590,3 +590,134 @@ revision `019bb7250549f1040a813c599a2ac1b09bd620f3`), both known-byte examples
 and the empty-input ACK hash. `tests/node_control.rs` ports all ten predecessor
 test functions; `tests/vectors_node_control.rs` checks independent bytes and
 rejections. No dependency or protocol version changes accompany this contract.
+
+## Policy and claim values
+
+These pure schema-1 values own no publication kind. All arrays use strict shortest
+CBOR, definite lengths and no trailing bytes, with the existing 1 MiB account
+limit. Text is nonempty UTF-8 of at most 256 bytes without whitespace/control
+characters unless a field explicitly permits spaces. Collections have at most
+256 entries. Consumers authenticate the enclosing carrier before interpreting
+any value; decoding never authenticates a caller or evaluates a rule.
+
+### Subjects and bindings
+
+`PolicySubject` is `[1, tag, ...]`: tag 0 is `[1, 0, realm_16, local_name]`,
+tag 1 is `[1, 1, realm_16, user_id_16]` using the existing `Payer` pair, and tag 2
+is `[1, 2, full_Node_I_32]`. Local names have an explicit nonempty namespace and
+suffix: `user:`, `group:`, `machine:` or `external:`. They are opaque, case-sensitive
+labels, never inferred from addresses, credentials or display names. Symbolic
+`user:alice` is not a binary UserId and is never converted into a payer. A group
+is a policy selector, never a credential principal. The Node form uses the
+existing full signing identity validation; it does not introduce I/K authority.
+
+`SubjectBinding` is `[1, realm_16, anchor_tag, anchor, subject_bytes, enabled,
+expires_seconds_or_null]`. Anchor 0 is a full Node identity; anchor 1 is a
+realm-local credential reference. A realm-local subject must have exactly the
+binding's realm; group subjects refuse. Node anchors/subjects use full I, not WG
+keys. Activation, expiry and credential verification stay with consumers.
+
+### Policy values
+
+`SubjectPolicy` is `[1, realm_16, rules, groups]`. Rules retain order and encode
+`[subjects, destinations, protocol_or_null]`; every subject is canonical subject
+bytes, with null standing for any *verified* subject. Subject and destination
+sets are nonempty, strictly ordered by their encoded bytes and UTF-8 bytes,
+respectively; null cannot coexist with another subject. Destinations are
+nonempty opaque gateway matcher strings (`host:ports`, CIDRs or aliases); syntax,
+host resolution, protocol matching, default deny, group expansion and self-tests
+remain in the gateway evaluator. Protocol 6 is TCP, 17 is UDP, null is both.
+Groups encode `[group_subject_bytes, member_subject_bytes_array]` in strict group
+byte order. Each group is a realm-local `group:` subject in the policy realm;
+members are unique ordered non-group subjects qualified by that same realm or
+full Node identity. References to groups require an explicit group entry.
+Rules may name groups; membership does not grant permission without a rule.
+Empty rules/groups are a valid deny-all *value*, not a publication withdrawal.
+
+### Admin claims
+
+`AdminScope` has exact JSON names `read_only`, `read_write`, `super_admin`, and
+CBOR integers 0, 1, 2 in that order. Unknown names/integers refuse; no aliases or
+default exist. `AdminTokenClaims` is `[1, subject_bytes, scope, realm_or_null,
+expires_seconds]`. The subject must be a non-group principal. A present realm
+must equal a realm-local subject's realm. A null realm does not grant cross-realm
+authority; the endpoint must enforce its own realm policy. The supplied-input
+`require_scope` predicate accepts only scopes at or above the required level.
+The supplied-input context comparison checks exact subject, exact optional realm,
+minimum scope and `now < expires`; it does not verify JWT signatures, issuer,
+audience, key id or revocation. Those checks remain mandatory in token consumers
+using their authenticated authority. Admin claims belong in authenticated admin
+tokens; they are not account publications. Human JWTs without scope cannot be
+silently promoted to admin claims. Machine-token claims and key sets remain
+outside these values.
+
+### Public-edge auth policy values
+
+`JwtSubjectBinding` is `[1, binding_bytes, authority_ref, claim_name, claim_value,
+scopes]`. It joins a previously verified exact authority/claim to a credential
+binding; the anchor must be a credential reference. Scopes are opaque ordered
+unique text and never become AdminScope. Family 7 supplies issuer/audience/public
+key source metadata and material separately; this value neither fetches nor
+verifies keys. `SignedSubjectHeaderPolicy` is `[1, enabled, header_name_or_null,
+signature_header_name_or_null, keyset_ref_or_null, validity_seconds_or_null,
+strip_inbound]`. Header names are lowercase HTTP tokens, distinct when present.
+An enabled policy requires all four optional fields, positive validity and
+inbound stripping. Disabled partial settings grant no header authority. Key
+material and signed-header production remain in family 7 and gateway consumers.
+
+### Signed request canonical inputs
+
+Account requests reuse `BootstrapEnvelope` exactly, including the request domain
+`ns.account.call.request.v1\0`, schema, signer, recipient, operation, timestamp,
+nonce, payload and signature bytes. `signing_input` exposes the existing domain
+followed by canonical content, for both request and response. `SignedAccountRequest`
+accepts only request-direction envelopes and exposes their canonical carrier;
+it defines no second signature format. Wrong direction and response-domain
+signatures refuse in the existing envelope verifier. M6 message payloads remain
+opaque and unchanged.
+
+Signed URL request text retains the gateway's HMAC input algorithm without
+implementing HMAC or credential verification. `SignedUrlScope` binds method
+(GET/HEAD), http/https scheme, host, raw path, raw query, realm, route and absolute
+expiry. Host, path and query are each bounded to 16,384 UTF-8 bytes and contain no controls; realm/route use the 256-byte label limit and cannot contain `/`. Path starts with `/` and excludes a separate query or fragment. Query pairs split at `&` and first `=`; percent decoding preserves `+`
+and duplicate names. Percent-encode every byte except RFC3986 unreserved bytes,
+using uppercase hex, remove decoded `X-Nsgw-Signature`, sort encoded name/value
+pairs and join with `&`. Lowercase the trimmed host and remove only the scheme's
+default port; preserve a nondefault port and raw path bytes without normalization.
+Canonical request text is `METHOD\nPATH\nQUERY\nhost:HOST\n\nhost\nUNSIGNED-PAYLOAD`.
+String-to-sign is `NSGW-HMAC-SHA256\nEXPIRY\nREALM/ROUTE/nsgw_signed_url\nHASH`,
+where HASH is lowercase SHA-256 of that request. Control parameter parsing,
+duplicate/missing control refusal, actual expiry, rotation, HMAC comparison and
+transport admission stay in the gateway consumer. No secret or key enters this
+API. Malformed percent escapes, non-GET/HEAD methods and multiline components
+refuse rather than silently changing the signed request.
+
+### Inventory disposition and carrier boundary
+
+| Inventoried values | Canonical value or disposition | Carrier |
+| --- | --- | --- |
+| AclPolicy.rules, AclRule.action/subject/dst/proto | SubjectPolicy rules; accept is implicit, deny actions retired | Open aggregate carrier; public-edge fragments may embed in family 7 |
+| AclPolicy.groups | Explicit qualified groups and members | Same open aggregate carrier |
+| AclBindings.wg_peer | NodeL3Authority bindings retain I/K authority; address/key-derived subjects retired | Existing family 11 node-l3 |
+| AclBindings.machine | SubjectBinding with explicit Node or credential anchor | Family 7 for public-edge credentials; other aggregates open |
+| AclPolicy.hosts, tests | Gateway destination alias resolution and self-test inputs remain evaluator-owned; no contract equivalence claimed | Open carrier item |
+| AclPolicy.gateway_roster, service_floor | Not subject authority; roster classification and service-floor metadata stay in their existing contracts/local configuration | No policy carrier added |
+| AdminClaims, AdminScope, require_admin_scope | AdminTokenClaims, AdminScope, require_scope | Authenticated admin token |
+| MachineClaims, TokenAudience, verify_machine_claims | Machine token/key-set contract remains separately owned; no duplicate claims | Existing token owner |
+| GatewayAuthConsumer.subject and credential-to-consumer joins | PolicySubject, SubjectBinding; enabled/expiry retained | Embedded family 7 |
+| GatewayAuthJwtConsumerBinding | JwtSubjectBinding plus existing subject binding; credential id is the anchor, consumer resolution belongs to the enclosing family | Embedded family 7 |
+| GatewayAuthJwtAuthority and legacy issuer metadata | Authority reference retained by JwtSubjectBinding; issuer/audience/key source remain family 7 values; no trust inferred | Family 7 owner |
+| SignedSubjectHeaderPolicy | Explicit typed header configuration | Embedded family 7 |
+| SignedUrlScope and canonical request/query/string-to-sign | SignedUrlScope deterministic public signing input | Request plus embedded family 7 scope/key metadata |
+| EnvelopeDirection, signed account requests | SignedAccountRequest reuses BootstrapEnvelope and its domains | Existing authenticated call carrier |
+| OIDC claims, organization/role subject projection, provider/cookie configuration | OIDC token verification and label construction remain consumer-owned, referencing qualified PolicySubject | Family 7 owner; no OIDC runtime here |
+| Policy compilation, VerifiedSubjectSet, verifier readiness and admission results | Consumer state/evaluation, not new wire claims | No carrier added |
+
+No evaluator moves into shared contracts. Existing NodeL3Authority is neither
+wrapped nor duplicated. Family 7 owns complete replacement of embedded visitor,
+auth and public-edge values. Service targets continue to use existing M6
+ServiceRef and grant/Payer contracts rather than a policy-specific service claim.
+Diagnostic `policy-version` remains an observation owned separately; it never
+carries this policy or establishes an authorization revision. Unplaced inventory
+items stay open until an enclosing family or a later design assigns a carrier;
+no new kind or implicit policy publication is defined here.

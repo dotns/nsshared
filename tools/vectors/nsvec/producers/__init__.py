@@ -3,6 +3,7 @@ register a new producer by adding its module to PRODUCERS."""
 
 from . import (
     account,
+    policy_claims,
     grant_authority,
     dns_txt,
     identities,
@@ -17,6 +18,7 @@ from . import (
 
 PRODUCERS = [
     account,
+    policy_claims,
     grant_authority,
     identities,
     node_records,
