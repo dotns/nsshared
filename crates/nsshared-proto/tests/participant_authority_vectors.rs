@@ -8,6 +8,7 @@ mod support;
 use nsshared_proto::{
     IdentityKey, RealmId,
     account::{
+        UsageAnswer, UsageReport, UsageRows,
         directory_binding::{BindingDecision, SignedDirectoryBinding},
         participant_session::{
             Authorization, EXPORTER_LABEL, EnrollmentProvision, Frame, PROOF_DOMAIN,
@@ -77,7 +78,12 @@ fn participant_authority_independent_vectors() {
                         frame.validate_authentication(&auth, &v.hex_array("exporter"), 1000)
                     }
                     "renew" => frame.validate_renewal(&auth, (key(1), key(2)), 1000),
-                    "report" => auth.validate(key(1), key(2), 1000),
+                    "report" => {
+                        let report = UsageReport::decode(frame.body()).unwrap();
+                        assert_eq!(report.reporter, key(2));
+                        assert!(matches!(report.rows, UsageRows::Relay(_)));
+                        auth.validate(key(1), report.reporter, 1000)
+                    }
                     "response" => {
                         let pending = PendingResponse {
                             kind: if bytes[4] == 8 { 8 } else { 10 },
@@ -114,9 +120,10 @@ fn participant_authority_independent_vectors() {
             }
             "roster" => {
                 let generation =
-                    verify_participant_roster(&bytes, key(1), key(2), 1, 1000).unwrap();
-                assert!(generation.identities.is_empty());
-                assert_eq!(generation.version.0, 2);
+                    verify_participant_roster(&bytes, key(1), key(2), v.u64("last_version"), 1000)
+                        .unwrap();
+                assert_eq!(generation.identities.len() as u64, v.u64("identity_count"));
+                assert_eq!(generation.version.0, v.u64("version"));
             }
             other => panic!("unknown mode {other}"),
         }
@@ -148,6 +155,39 @@ fn participant_auth_transport() {
     Frame::decode(&raw(&vectors, "renew"))
         .unwrap()
         .validate_renewal(&authorization(true), (key(1), key(2)), 1000)
+        .unwrap();
+    for (name, kind) in [("enrolled", 8), ("renewed", 10)] {
+        let pending = PendingResponse {
+            kind,
+            issuer: key(1),
+            participant: key(2),
+            correlation: [6; 16],
+        };
+        assert_eq!(
+            Frame::decode(&raw(&vectors, name))
+                .unwrap()
+                .validate_response(&pending, 1000)
+                .unwrap(),
+            Some(2000)
+        );
+    }
+    let initial =
+        verify_participant_roster(&raw(&vectors, "initial-roster"), key(1), key(2), 0, 1000)
+            .unwrap();
+    assert_eq!(initial.identities.len(), 2);
+    let report_frame = Frame::decode(&raw(&vectors, "accepted-report")).unwrap();
+    let report = UsageReport::decode(report_frame.body()).unwrap();
+    authorization(true)
+        .validate(key(1), report.reporter, 1000)
+        .unwrap();
+    let UsageRows::Relay(rows) = &report.rows else {
+        panic!("expected relay report")
+    };
+    assert_eq!(rows[0].epoch, initial.version);
+    let ack = Frame::decode(&raw(&vectors, "accepted-answer")).unwrap();
+    UsageAnswer::decode(ack.body())
+        .unwrap()
+        .validate_for(&report)
         .unwrap();
     let realm_a: RealmId = "030C1G60R30C1G60R30C1G60R3".parse().unwrap();
     let realm_b: RealmId = "09144GJ289144GJ289144GJ289".parse().unwrap();
@@ -200,7 +240,7 @@ fn participant_auth_transport() {
         &raw(&vectors, "revocation-empty-roster"),
         key(1),
         key(2),
-        1,
+        initial.version.0,
         1000,
     )
     .unwrap();

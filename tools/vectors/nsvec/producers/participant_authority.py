@@ -1,8 +1,9 @@
 """Independent participant credentials and directory binding bytes, fixture authority."""
+import hashlib
 import json
 
 from .. import cbor
-from . import account
+from . import account, usage
 
 CRATE = "nsshared-proto"
 GROUP = "participant-authority"
@@ -28,6 +29,12 @@ def vectors():
     credential = bytes([7])*32
     pair_request = context + correlation
     deadline = b"\1" + (2000).to_bytes(8, "big")
+    incarnation = bytes([6])*16
+    node = lambda identity: hashlib.blake2s(identity, digest_size=12, key=b"ns-node-id-v2").digest()
+    relay_row = [1, node(issuer), node(participant), 0, 1, issuer, participant, 1, 0, incarnation, 1248]
+    report = usage.report(1, participant, incarnation, [cbor.encode(relay_row)])
+    report_bytes = cbor.encode(report)
+    answer_bytes = cbor.encode([1, report[3], report[4], report[5], report[6], report[8], report[10], [0, 1]])
     out = []
 
     def emit(name, mode, raw, accepted=True, **fields):
@@ -54,6 +61,10 @@ def vectors():
               exporter=next_exporter, action="authenticate")
     transport("authenticate-fresh", 1, context + next_proof,
               exporter=next_exporter, action="authenticate")
+    initial = cbor.encode([1, issuer, participant, 1, 1000, 86401000,
+                           sorted([[issuer, 0], [participant, 1]])])
+    emit("initial-roster", "roster", cbor.encode([initial, account.sign(bytes([1])*32,
+         b"ns.account.roster.v1\0"+initial)]), last_version=0, version=1, identity_count=2)
     transport("renew", 9, pair_request, action="renew")
     transport("renewed", 10, pair_request + deadline, action="response")
     transport("response-wrong-correlation", 10, context + bytes([8])*16 + deadline,
@@ -64,7 +75,9 @@ def vectors():
     transport("revoked-authenticate", 1, context + next_proof, False,
               exporter=next_exporter, action="authenticate", enabled=0)
     transport("revoked-renew", 9, pair_request, False, action="renew", enabled=0)
-    transport("revoked-report", 5, b"immutable-report", False, action="report", enabled=0)
+    transport("accepted-report", 5, report_bytes, action="report")
+    emit("accepted-answer", "frame", frame(6, answer_bytes))
+    transport("revoked-report", 5, report_bytes, False, action="report", enabled=0)
     for name, kind, body in [("absent-deadline", 2, b"\0"),
                               ("finite-deadline", 2, deadline), ("refused", 3, b""),
                               ("roster-content", 4, b"unchanged-roster"),
@@ -131,5 +144,5 @@ def vectors():
     emit("binding-trailing", "binding", signed(base)+b"\0", False, floor=0, now_ms=1000)
     roster = cbor.encode([1, issuer, participant, 2, 1000, 86401000, []])
     emit("revocation-empty-roster", "roster", cbor.encode([roster, account.sign(bytes([1])*32,
-         b"ns.account.roster.v1\0"+roster)]))
+         b"ns.account.roster.v1\0"+roster)]), last_version=1, version=2, identity_count=0)
     return out

@@ -109,7 +109,8 @@ Directory entries, codes, update rules and Quick behavior remain unchanged.
 
 `participant_auth_transport` supplies fixed fixture keys and exporter material:
 authorized enrollment and unprovisioned-key refusal; authentication with fresh
-proof and refusal of a prior proof on another connection; correlated renewal;
+proof and refusal of a prior proof on another connection; an initial signed
+nonempty roster, correlated renewal, canonical unchanged report and correlated ACK;
 binding A/B; replacement removing A with identical directory; disabled
 reauthentication/renewal/report acceptance plus newer complete-empty roster and
 empty binding; old binding replay after floor restoration refused. Independent
