@@ -473,8 +473,7 @@ fn protocol_grant_renewal() {
     withdrawn
         .validate_successor(&renewed, &withdrawn_authority.retired)
         .unwrap();
-    let mut retired = renewed.clone();
-    retired.revision = 4;
+    let retired = GrantPublication::decode(&sample("protocol-retired-regrant")).unwrap();
     assert!(matches!(
         retired.validate_successor(&withdrawn, &withdrawn_authority.retired),
         Err(GrantError::RetiredIncarnation)

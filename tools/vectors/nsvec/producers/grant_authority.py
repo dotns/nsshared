@@ -152,6 +152,10 @@ def vectors():
     regrant = copy.deepcopy(renewed)
     regrant[4] = 4
     regrant[5][0][4] = fresh
+    retired_regrant = copy.deepcopy(renewed)
+    retired_regrant[4] = 4
+    emit("protocol-retired-regrant", "grants", retired_regrant)
+    emit("protocol-retired-authority", "withdrawal", authority(claims, [[resource, token]], 4), "retired-incarnation")
     emit("protocol-regrant", "grants", regrant)
     emit("protocol-regrant-payers", "payer", [1, 5, a, a, 4,
          [[resource, b, g[4], g[3], [0, g[6][3]]] for g in regrant[5]]])
