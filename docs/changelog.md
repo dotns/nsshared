@@ -1,5 +1,17 @@
 ## 2026-10-21 [feat]
 
+Require an explicit canonical realm and publication scope in authentication
+requests. Constrain registration source authority to nodes in the accepted
+Network, including Equal, and retain independent authority for each scope.
+Old request shapes and mismatched response scopes refuse.
+
+Validation: independent source-selection vectors and signature, correlation and
+UTF-8 boundary checks passed. Candidate self-check passed with 500 tests and zero
+skips; additional conformance checks passed with 502 tests and zero skips.
+NSD producer adoption and interoperability vectors remain outstanding.
+
+## 2026-10-21 [feat]
+
 Require signed source authority alongside successful registration results and
 authentication tokens. Verify nested authority against independent enrollment
 facts and exact pending request correlation; refuse old response shapes.

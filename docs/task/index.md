@@ -140,3 +140,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**Protocol-qualified grant identity and expiry renewal**](20261021-0451-protocol-grant-renewal.md) `P1`
 - [x] [**Define participant credentials and directory bindings**](20261021-0447-participant-credentials-directory-bindings.md) `P1`
 - [x] [**Carry signed source authority in control responses**](20261021-1109-source-response-binding.md) `P1`
+- [x] [**Select authentication source scope explicitly**](20261021-1355-authentication-source-scope.md) `P1`
