@@ -11,10 +11,10 @@ LIMIT = 1_048_576
 def vectors(a, b, sign):
     out = []
     # These are labelled fixture authorities, not NSD producer output.
-    content = [1, a, b, "realm-a", "scope-a", 11, "node-l3", 1,
+    content = [1, a, b, "030C1G60R30C1G60R30C1G60R3", "scope-a", 11, "node-l3", 1,
                True, 8, 100, 200, 0, b"fixture-node-l3"]
-    prior = [[a, b, "realm-a", "scope-a", 11, "node-l3", 7]]
-    scopes = [["realm-a", "scope-a"], ["realm-a", "scope-b"], ["realm-b", "scope-b"]]
+    prior = [[a, b, "030C1G60R30C1G60R30C1G60R3", "scope-a", 11, "node-l3", 7]]
+    scopes = [["030C1G60R30C1G60R30C1G60R3", "scope-a"], ["030C1G60R30C1G60R30C1G60R3", "scope-b"], ["09144GJ289144GJ289144GJ289", "scope-b"]]
 
     def signed(value, domain=DOMAIN, corrupt=False):
         raw = cbor.encode(value)
@@ -68,10 +68,10 @@ def vectors(a, b, sign):
     event("unknown-family", "unknown-kind", changes={5: 99})
     event("signed-channel-mismatch", "channel-mismatch", changes={7: 0})
     event("received-channel-mismatch", "channel-mismatch", channel=0)
-    event("different-scope", changes={3: "realm-b", 4: "scope-b", 9: 1})
+    event("different-scope", changes={3: "09144GJ289144GJ289144GJ289", 4: "scope-b", 9: 1})
     event("scope-only", changes={4: "scope-b", 9: 1})
-    event("issuer-version-isolated", states=[[b, b, "realm-a", "scope-a", 11, "node-l3", 99]])
-    event("recipient-version-isolated", states=[[a, a, "realm-a", "scope-a", 11, "node-l3", 99]])
+    event("issuer-version-isolated", states=[[b, b, "030C1G60R30C1G60R30C1G60R3", "scope-a", 11, "node-l3", 99]])
+    event("recipient-version-isolated", states=[[a, a, "030C1G60R30C1G60R30C1G60R3", "scope-a", 11, "node-l3", 99]])
     event("withdrawal-tombstone", "refused", states=[prior[0][:-1] + [8]], reason="stale")
     event("failure-tombstone", "refused", states=[prior[0][:-1] + [8]],
           changes={12: 1, 13: b"fixture-fetch-failed"}, reason="stale")
@@ -97,7 +97,7 @@ def vectors(a, b, sign):
         ("partial", {8: False}, "incomplete"),
         ("wrong-issuer", {1: b}, "issuer"),
         ("wrong-recipient", {2: a}, "recipient"),
-        ("wrong-realm", {3: "realm-other"}, "scope"),
+        ("wrong-realm", {3: "0A1850M2GA1850M2GA1850M2GA"}, "scope"),
         ("wrong-scope", {4: "scope-other"}, "scope"),
         ("future", {10: 151}, "validity"),
         ("empty-validity", {11: 100}, "fields"),
@@ -153,7 +153,7 @@ def vectors(a, b, sign):
     snapshot("snapshot", [valid], decisions="replace")
     snapshot("snapshot-empty", [])
     other = copy.deepcopy(content)
-    other[3:5], other[9] = ["realm-b", "scope-b"], 1
+    other[3:5], other[9] = ["09144GJ289144GJ289144GJ289", "scope-b"], 1
     snapshot("snapshot-scopes", [valid, signed(other)], decisions="replace,replace")
     empty = copy.deepcopy(content)
     empty[13] = b""

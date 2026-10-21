@@ -11,8 +11,8 @@ SECTIONS = "repository docs/control-exchange-candidate.md authenticated publicat
 def vectors():
     subscriber = account.key(bytes([1]) * 32)[0]
     issuer = account.key(bytes([2]) * 32)[0]
-    scopes = [[issuer, subscriber, "realm-a", "edge"],
-              [issuer, subscriber, "realm-b", "nodes"]]
+    scopes = [[issuer, subscriber, "030C1G60R30C1G60R30C1G60R3", "edge"],
+              [issuer, subscriber, "09144GJ289144GJ289144GJ289", "nodes"]]
     base = [1, subscriber, scopes, ["node.control", "public.edge"], [0], bytes([3]) * 16, 1]
     out = []
 
@@ -24,14 +24,14 @@ def vectors():
     emit("empty", [1, subscriber, [], [], [], bytes([3]) * 16, 1])
     emit("max-attempt", base[:-1] + [2**32 - 1])
     emit("max-lists", [1, subscriber,
-                      [[issuer, subscriber, "realm-a", f"scope-{i:02}"] for i in range(32)],
+                      [[issuer, subscriber, "030C1G60R30C1G60R30C1G60R3", f"scope-{i:02}"] for i in range(32)],
                       [f"cap-{i:02}" for i in range(64)], list(range(32)), bytes([3]) * 16, 1])
     for name, index, value in [
         ("duplicate-scopes", 2, scopes + [scopes[-1]]),
         ("unsorted-scopes", 2, list(reversed(scopes))),
-        ("wrong-recipient", 2, [[issuer, issuer, "realm-a", "edge"]]),
+        ("wrong-recipient", 2, [[issuer, issuer, "030C1G60R30C1G60R30C1G60R3", "edge"]]),
         ("empty-realm", 2, [[issuer, subscriber, "", "edge"]]),
-        ("scope-control", 2, [[issuer, subscriber, "realm-a", "edge\n"]]),
+        ("scope-control", 2, [[issuer, subscriber, "030C1G60R30C1G60R30C1G60R3", "edge\n"]]),
         ("oversized-scopes", 2, scopes * 17),
         ("invalid-capability", 3, ["Not.Valid"]),
         ("duplicate-capabilities", 3, ["node.control"] * 2),
@@ -63,7 +63,7 @@ def vectors():
                 ("pin", bootstrap_envelope.pin(subscriber)), ("signing_input", bootstrap_envelope.REQUEST + content)])
     for name, payload, recipient, operation, direction in [
         ("subscriber-mismatch", [1, issuer, [], [], [], bytes([3]) * 16, 1], issuer, "config.stream", 0),
-        ("issuer-mismatch", [1, subscriber, [[subscriber, subscriber, "realm-a", "edge"]], [], [], bytes([3]) * 16, 1], issuer, "config.stream", 0),
+        ("issuer-mismatch", [1, subscriber, [[subscriber, subscriber, "030C1G60R30C1G60R30C1G60R3", "edge"]], [], [], bytes([3]) * 16, 1], issuer, "config.stream", 0),
         ("missing-recipient", base, None, "config.stream", 0),
         ("wrong-recipient", base, subscriber, "config.stream", 0),
         ("wrong-operation", base, issuer, "info.get", 0),

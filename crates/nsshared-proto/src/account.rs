@@ -3,6 +3,8 @@
 //! M6 objects and their bytes remain in `nsshared-service-control`. This module
 //! adds no runtime or transport and reads no clock or filesystem.
 
+pub use crate::{RealmId, RealmIdError};
+
 mod bootstrap;
 mod bootstrap_envelope;
 pub mod confidential_auth;
@@ -124,6 +126,9 @@ pub const MAX_IDENTITIES: usize = 8_192;
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum AccountError {
+    /// Noncanonical membership realm text.
+    #[error(transparent)]
+    Realm(#[from] RealmIdError),
     /// Malformed or noncanonical CBOR.
     #[error(transparent)]
     Cbor(#[from] CborError),

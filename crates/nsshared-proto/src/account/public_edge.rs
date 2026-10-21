@@ -1,5 +1,7 @@
 //! Complete public discovery and routing facts without forwarding runtime.
 
+use crate::RealmId;
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use nsshared_service_control::{ServiceRef, Snapshot};
@@ -60,7 +62,7 @@ pub struct EdgeRoute {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EdgeRealm {
     /// Binary policy realm identity.
-    pub realm: [u8; 16],
+    pub realm: RealmId,
     /// Complete material references and public auth bindings.
     pub auth: EdgeAuth,
     /// Complete routes, strictly ordered by id.
@@ -71,7 +73,7 @@ pub struct EdgeRealm {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PublicEdge {
     /// Exact signed served realm.
-    pub served_realm: String,
+    pub served_realm: RealmId,
     /// Exact signed opaque scope.
     pub scope: String,
     /// Complete contributions, strictly ordered by realm; empty withdraws.
@@ -120,7 +122,6 @@ impl PublicEdge {
     /// # Errors
     /// Rejects malformed scopes, duplicates, port conflicts, invalid joins or bounds.
     pub fn canonical(&self) -> Result<Vec<u8>, AccountError> {
-        text(&self.served_realm)?;
         text(&self.scope)?;
         require(
             self.realms.len() <= MAX_EDGE_ITEMS
@@ -130,7 +131,7 @@ impl PublicEdge {
         out.array(5)
             .uint(1)
             .uint(7)
-            .text(&self.served_realm)
+            .text(&self.served_realm.to_string())
             .text(&self.scope)
             .array(self.realms.len());
         let mut http_ports = BTreeSet::new();
@@ -141,7 +142,7 @@ impl PublicEdge {
             require(realm.realm == realm.auth.realm && realm.routes.len() <= MAX_EDGE_ITEMS)?;
             require(realm.routes.windows(2).all(|p| p[0].id < p[1].id))?;
             out.array(3)
-                .bytes(&realm.realm)
+                .bytes(realm.realm.as_bytes())
                 .bytes(&realm.auth.canonical()?)
                 .array(realm.routes.len());
             let mut public_names = BTreeSet::new();
@@ -246,13 +247,13 @@ impl PublicEdge {
     pub fn decode(bytes: &[u8]) -> Result<Self, AccountError> {
         let mut input = reader(bytes, 5)?;
         require(input.uint()? == 7)?;
-        let served_realm = input.text_up_to(256)?.to_owned();
+        let served_realm = input.text_up_to(26)?.parse()?;
         let scope = input.text_up_to(256)?.to_owned();
         let count = input.array_up_to(MAX_EDGE_ITEMS)?;
         let mut realms = Vec::with_capacity(count);
         for _ in 0..count {
             input.array(3)?;
-            let realm = input.fixed_bytes()?;
+            let realm = RealmId::from_bytes(input.fixed_bytes()?);
             let auth = EdgeAuth::decode(input.bytes_up_to(MAX_BYTES)?)?;
             let count = input.array_up_to(MAX_EDGE_ITEMS)?;
             let mut routes = Vec::with_capacity(count);
@@ -423,7 +424,7 @@ impl PublicEdge {
                     require(acknowledgements.iter().any(|ack| {
                         ack.validate_installation(
                             request_id,
-                            &self.served_realm,
+                            self.served_realm,
                             &self.scope,
                             realm.realm,
                             material,

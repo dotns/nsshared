@@ -155,11 +155,11 @@ fn admin_scope_and_exact_principal_context() {
         );
         assert!(
             claims
-                .validate_context(&claims.subject, Some([9; 16]), scope, 100)
+                .validate_context(&claims.subject, Some([9; 16].into()), scope, 100)
                 .is_err()
         );
         let other = PolicySubject::Realm {
-            realm: [1; 16],
+            realm: [1; 16].into(),
             name: "external:other".into(),
         };
         assert!(
@@ -188,12 +188,12 @@ fn qualified_policy_and_binding_fields() {
     assert_eq!(
         user,
         PolicySubject::User(Payer {
-            realm: [1; 16],
+            realm: [1; 16].into(),
             subject: [3; 16]
         })
     );
     let binding = SubjectBinding::decode(&sample("binding-credential")).unwrap();
-    assert_eq!(binding.realm, [1; 16]);
+    assert_eq!(binding.realm.to_bytes(), [1; 16]);
     assert_eq!(
         binding.anchor,
         SubjectAnchor::Credential("credential-a".into())
@@ -201,14 +201,14 @@ fn qualified_policy_and_binding_fields() {
     assert_eq!(
         binding.subject,
         PolicySubject::Realm {
-            realm: [1; 16],
+            realm: [1; 16].into(),
             name: "external:app".into()
         }
     );
     assert!(binding.enabled);
     assert_eq!(binding.expires_seconds, Some(200));
     let policy = SubjectPolicy::decode(&sample("policy-groups")).unwrap();
-    assert_eq!(policy.realm, [1; 16]);
+    assert_eq!(policy.realm.to_bytes(), [1; 16]);
     assert_eq!(policy.rules[0].protocol, Some(TransportProtocol::Tcp));
     assert_eq!(policy.rules[0].destinations, ["db:5432"]);
     assert_eq!(

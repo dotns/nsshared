@@ -84,7 +84,7 @@ def vectors():
                     ("signing_input", bootstrap_envelope.RESPONSE + signed),
                     ("committed", enrollment), ("rebind", "yes" if rebind else "no")])
 
-    claims = dict(iss="issuer", sub="machine-a", realm="realm-a", aud="nsd-machine-control",
+    claims = dict(iss="issuer", sub="machine-a", realm="030C1G60R30C1G60R30C1G60R3", aud="nsd-machine-control",
                   mid_kty="ed25519", mid_pub=node.hex(), iat=100, exp=200, jti="token-a")
     def json_emit(name, kind, value, decision="accepted", now=100):
         emit(name, kind, None, decision, json.dumps(value, separators=(",", ":")).encode(),

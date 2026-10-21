@@ -47,7 +47,7 @@ def vectors():
     unavailable[:4] = ["route-b", "offline.example", [], []]
     unavailable[5] = None
     unavailable[6:9] = [6, 8443, 8081]
-    complete = [1, 7, "served", "edge", [[realm, cbor.encode(auth), [route, unavailable]],
+    complete = [1, 7, "030C1G60R30C1G60R30C1G60R3", "edge", [[realm, cbor.encode(auth), [route, unavailable]],
                 [bytes([9]) * 16, cbor.encode([1, bytes([9]) * 16, [], [], [], []]), []]]]
 
     def emit(name, kind, value, accept=True, raw=None):
@@ -82,7 +82,7 @@ def vectors():
             public_route[11] = [material]
             public_auth = cbor.encode([1, realm_id, [material], [], [], []])
             contributions.append([realm_id, public_auth, [public_route]])
-        return [1, 7, "served", "edge", contributions]
+        return [1, 7, "030C1G60R30C1G60R30C1G60R3", "edge", contributions]
 
     cases = [
         ("listener-tcp-duplicate", False, {"ports": (9443, 9443)}),
@@ -132,7 +132,7 @@ def vectors():
             emit(f"scope-{label}-isolated-{index}", "edge-isolated", isolated)
         emit("scope-" + label, "edge-cross-realm", value, accepted)
 
-    emit("empty", "edge", [1, 7, "served", "edge", []])
+    emit("empty", "edge", [1, 7, "030C1G60R30C1G60R30C1G60R3", "edge", []])
     reduced = copy.deepcopy(complete)
     reduced[4][0][2] = [route]
     reduced[4] = reduced[4][:1]
@@ -199,7 +199,7 @@ def vectors():
         bad[5][0][3][2] = 3
         emit("authority-generation-mismatch", "auth", bad, False)
 
-    ack = [1, bytes([7]) * 16, "served", "edge", realm, materials[0], 0]
+    ack = [1, bytes([7]) * 16, "030C1G60R30C1G60R30C1G60R3", "edge", realm, materials[0], 0]
     emit("installed", "material-ack", ack)
     rejected = copy.deepcopy(ack)
     rejected[-1] = 1
@@ -260,7 +260,7 @@ def vectors():
             emit(kind + "-" + name, kind, None, False, data)
 
     def event(name, payload, version, expires=200, scope="edge", channel=0):
-        content = cbor.encode([1, publisher, recipient, "served", scope, 7,
+        content = cbor.encode([1, publisher, recipient, "030C1G60R30C1G60R30C1G60R3", scope, 7,
                                "public-edge", channel, True, version, 100, expires, 0, payload])
         emit(name, "event", None, raw=cbor.encode([
             content, sign(bytes([1]) * 32, DOMAIN + content)]))
@@ -268,7 +268,7 @@ def vectors():
     event("install", cbor.encode(complete), 1)
     event("malformed-no-renewal", b"\x80", 2, 300)
     event("remove-omitted", cbor.encode(reduced), 2)
-    event("withdraw", cbor.encode([1, 7, "served", "edge", []]), 3)
+    event("withdraw", cbor.encode([1, 7, "030C1G60R30C1G60R30C1G60R3", "edge", []]), 3)
     event("replay", cbor.encode(complete), 2)
     event("empty-carrier", b"", 4)
     event("wrong-signed-scope", cbor.encode(complete), 5, scope="other")

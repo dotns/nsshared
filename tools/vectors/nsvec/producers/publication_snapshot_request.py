@@ -12,8 +12,8 @@ def vectors():
     subscriber = account.key(bytes([1]) * 32)[0]
     issuer = account.key(bytes([2]) * 32)[0]
     correlation = bytes([5]) * 16
-    scopes = [[issuer, subscriber, "realm-a", "nodes"],
-              [issuer, subscriber, "realm-b", "nodes"]]
+    scopes = [[issuer, subscriber, "030C1G60R30C1G60R30C1G60R3", "nodes"],
+              [issuer, subscriber, "09144GJ289144GJ289144GJ289", "nodes"]]
     base = [1, subscriber, scopes, bytes([3]) * 16, 1, correlation]
     out = []
 
@@ -27,10 +27,10 @@ def vectors():
     for name, index, value in [
         ("duplicate-scopes", 2, scopes + [scopes[-1]]),
         ("unsorted-scopes", 2, scopes[::-1]),
-        ("wrong-recipient", 2, [[issuer, issuer, "realm-a", "nodes"]]),
+        ("wrong-recipient", 2, [[issuer, issuer, "030C1G60R30C1G60R30C1G60R3", "nodes"]]),
         ("empty-realm", 2, [[issuer, subscriber, "", "nodes"]]),
         ("oversized-scopes", 2, scopes * 17),
-        ("control-scope", 2, [[issuer, subscriber, "realm-a", "nodes\n"]]),
+        ("control-scope", 2, [[issuer, subscriber, "030C1G60R30C1G60R30C1G60R3", "nodes\n"]]),
         ("zero-boot", 3, bytes(16)), ("zero-attempt", 4, 0),
         ("overflow-attempt", 4, 2**32), ("zero-correlation", 5, bytes(16)),
     ]:
@@ -53,7 +53,7 @@ def vectors():
         ("nonce", raw, bytes([6]) * 16, issuer),
         ("recipient", raw, correlation, None),
         ("signer", cbor.encode([1, issuer, [], bytes([3]) * 16, 1, correlation]), correlation, issuer),
-        ("issuer", cbor.encode([1, subscriber, [[subscriber, subscriber, "realm-a", "nodes"]], bytes([3]) * 16, 1, correlation]), correlation, issuer),
+        ("issuer", cbor.encode([1, subscriber, [[subscriber, subscriber, "030C1G60R30C1G60R30C1G60R3", "nodes"]], bytes([3]) * 16, 1, correlation]), correlation, issuer),
     ]:
         wire, signing = envelope(payload, 0, nonce, recipient, bytes([1]) * 32)
         out.append([("name", "signed-request-" + name), ("mode", "signed-request"),
@@ -64,7 +64,7 @@ def vectors():
     out.append([("name", "signed-request"), ("mode", "signed-request"), ("bytes", request),
                 ("signing_input", signing), ("pin", bootstrap_envelope.pin(subscriber)),
                 ("issuer", issuer), ("decision", "accepted")])
-    event = [1, issuer, subscriber, "realm-a", "nodes", 11, "node-l3", 1,
+    event = [1, issuer, subscriber, "030C1G60R30C1G60R30C1G60R3", "nodes", 11, "node-l3", 1,
              True, 8, 100, 200, 0, b"fixture-node-l3"]
     for name, changes, nonce, recipient in [
         ("accepted", {}, correlation, subscriber),

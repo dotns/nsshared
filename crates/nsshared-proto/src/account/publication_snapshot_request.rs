@@ -1,4 +1,5 @@
 //! Pure independently polled snapshot requests and pending-response validation.
+
 use super::{
     AcceptedPublication, AccountError, BootstrapEnvelope, BootstrapError, EnvelopeDirection,
     EnvelopeExpectation, MAX_CONTROL_BODY, PublicationChannel, PublicationError, PublicationEvent,
@@ -65,11 +66,8 @@ impl PublicationSnapshotRequest {
         require(self.scopes.windows(2).all(|pair| pair[0] < pair[1]))?;
         for scope in &self.scopes {
             require(scope.recipient == self.subscriber)?;
-            for text in [&scope.served_realm, &scope.scope] {
-                require(
-                    !text.is_empty() && text.len() <= 256 && !text.chars().any(char::is_control),
-                )?;
-            }
+            let text = &scope.scope;
+            require(!text.is_empty() && text.len() <= 256 && !text.chars().any(char::is_control))?;
         }
         require(self.boot_nonce != [0; 16] && self.attempt_counter > 0)?;
         require(self.correlation != [0; 16])
@@ -89,7 +87,7 @@ impl PublicationSnapshotRequest {
             out.array(4)
                 .bytes(scope.issuer.as_bytes())
                 .bytes(scope.recipient.as_bytes())
-                .text(&scope.served_realm)
+                .text(&scope.served_realm.to_string())
                 .text(&scope.scope);
         }
         out.bytes(&self.boot_nonce)
@@ -119,7 +117,7 @@ impl PublicationSnapshotRequest {
             scopes.push(SubscriptionScope {
                 issuer: identity(&mut input)?,
                 recipient: identity(&mut input)?,
-                served_realm: input.text_up_to(256)?.into(),
+                served_realm: input.text_up_to(26)?.parse().map_err(AccountError::from)?,
                 scope: input.text_up_to(256)?.into(),
             });
         }

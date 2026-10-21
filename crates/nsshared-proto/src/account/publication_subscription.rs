@@ -1,4 +1,5 @@
 //! Pure authenticated publication requests; acceptance remains per publication key.
+
 use super::{
     AccountError, BootstrapEnvelope, BootstrapError, EnvelopeDirection, EnvelopeExpectation,
     MAX_CAPABILITIES, MAX_CAPABILITY_BYTES, PublicationScope, SCHEMA,
@@ -6,6 +7,7 @@ use super::{
     enrollment::validate_capabilities,
     identity, require,
 };
+use crate::RealmId;
 use crate::{
     IdentityKey,
     encoding::{CborReader, CborWriter},
@@ -24,7 +26,7 @@ pub struct SubscriptionScope {
     /// Subscriber receiving publications.
     pub recipient: IdentityKey,
     /// Exact served realm.
-    pub served_realm: String,
+    pub served_realm: RealmId,
     /// Exact opaque authority scope.
     pub scope: String,
 }
@@ -33,7 +35,7 @@ impl SubscriptionScope {
     #[must_use]
     pub fn publication_scope(&self) -> PublicationScope<'_> {
         PublicationScope {
-            served_realm: &self.served_realm,
+            served_realm: self.served_realm,
             scope: &self.scope,
         }
     }
@@ -65,7 +67,6 @@ impl PublicationSubscriptionRequest {
         require(self.scopes.windows(2).all(|p| p[0] < p[1]))?;
         for scope in &self.scopes {
             require(scope.recipient == self.subscriber)?;
-            text(&scope.served_realm)?;
             text(&scope.scope)?;
         }
         validate_capabilities(&self.capabilities)?;
@@ -92,7 +93,7 @@ impl PublicationSubscriptionRequest {
             out.array(4)
                 .bytes(scope.issuer.as_bytes())
                 .bytes(scope.recipient.as_bytes())
-                .text(&scope.served_realm)
+                .text(&scope.served_realm.to_string())
                 .text(&scope.scope);
         }
         out.array(self.capabilities.len());
@@ -133,7 +134,7 @@ impl PublicationSubscriptionRequest {
             scopes.push(SubscriptionScope {
                 issuer: identity(&mut input)?,
                 recipient: identity(&mut input)?,
-                served_realm: input.text_up_to(256)?.into(),
+                served_realm: input.text_up_to(26)?.parse().map_err(AccountError::from)?,
                 scope: input.text_up_to(256)?.into(),
             });
         }

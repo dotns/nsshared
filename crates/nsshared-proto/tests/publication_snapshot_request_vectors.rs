@@ -74,11 +74,11 @@ fn publication_snapshot_request_vectors() {
         }
         let scopes = [
             PublicationScope {
-                served_realm: "realm-a",
+                served_realm: "030C1G60R30C1G60R30C1G60R3".parse().unwrap(),
                 scope: "nodes",
             },
             PublicationScope {
-                served_realm: "realm-b",
+                served_realm: "09144GJ289144GJ289144GJ289".parse().unwrap(),
                 scope: "nodes",
             },
         ];
@@ -154,7 +154,7 @@ fn publication_snapshot_request_vectors() {
                     key: PublicationKey {
                         issuer,
                         recipient: pending.subscriber,
-                        served_realm: "realm-a",
+                        served_realm: "030C1G60R30C1G60R30C1G60R3".parse().unwrap(),
                         scope: "nodes",
                         family: 11,
                         kind: "node-l3",

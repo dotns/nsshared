@@ -1,5 +1,15 @@
 # feat: service and relay usage candidate
 
+Membership realm identities follow the [canonical RealmId contract](canonical-realm-identity.md).
+Affected text positions retain text but require the exact uppercase 26-character
+spelling and decode to RealmId; binary positions retain their exact 16 bytes.
+This incompatible candidate delta refuses arbitrary realm labels without fallback.
+NSD/ns producer and consumer updates, including the other active consumer delivery,
+remain outstanding. Encoding equality is not authentication. Discovery realm hints,
+external provider subject namespaces and opaque scopes retain their meanings.
+Signed usage bytes and the historical payer pair remain unchanged.
+
+
 This is a pure candidate contract, not a released NSD producer profile. All CBOR
 uses definite-length arrays and strings, shortest integer/length heads, no tags,
 and no trailing bytes. Each unit, report and answer is bounded to 1 MiB.

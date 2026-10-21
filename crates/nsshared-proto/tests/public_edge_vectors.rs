@@ -175,8 +175,14 @@ fn material_and_service_acknowledgements_require_exact_pending_context() {
         .find(|v| v.get("name") == "installed")
         .unwrap();
     let ack = EdgeMaterialAck::decode(&installed.hex("bytes")).unwrap();
-    ack.validate_installation([7; 16], "served", "edge", [3; 16], &ack.material)
-        .unwrap();
+    ack.validate_installation(
+        [7; 16],
+        "030C1G60R30C1G60R30C1G60R3".parse().unwrap(),
+        "edge",
+        [3; 16].into(),
+        &ack.material,
+    )
+    .unwrap();
     for vector in vectors
         .iter()
         .filter(|v| v.get("kind") == "material-match" || v.get("name") == "rejected")
@@ -184,7 +190,13 @@ fn material_and_service_acknowledgements_require_exact_pending_context() {
         let result = EdgeMaterialAck::decode(&vector.hex("bytes")).unwrap();
         assert!(
             result
-                .validate_installation([7; 16], "served", "edge", [3; 16], &ack.material)
+                .validate_installation(
+                    [7; 16],
+                    "030C1G60R30C1G60R30C1G60R3".parse().unwrap(),
+                    "edge",
+                    [3; 16].into(),
+                    &ack.material
+                )
                 .is_err(),
             "{}",
             vector.name()
@@ -256,9 +268,9 @@ fn dependency_installation_precedes_route_exposure() {
         .iter()
         .map(|material| EdgeMaterialAck {
             request_id: [7; 16],
-            served_realm: "served".into(),
+            served_realm: "030C1G60R30C1G60R30C1G60R3".parse().unwrap(),
             scope: "edge".into(),
-            realm: [3; 16],
+            realm: [3; 16].into(),
             material: material.clone(),
             installed: true,
         })
@@ -274,7 +286,7 @@ fn dependency_installation_precedes_route_exposure() {
         changed[index].installed = false;
         assert!(edge.validate_materials([7; 16], &changed).is_err());
         changed[index] = acknowledgements[index].clone();
-        changed[index].realm = [9; 16];
+        changed[index].realm = [9; 16].into();
         assert!(edge.validate_materials([7; 16], &changed).is_err());
     }
 }
@@ -294,13 +306,13 @@ fn signed_public_edge_replacement_is_atomic_and_does_not_renew_invalid_data() {
     let key = PublicationKey {
         issuer: identity(1),
         recipient: identity(2),
-        served_realm: "served",
+        served_realm: "030C1G60R30C1G60R30C1G60R3".parse().unwrap(),
         scope: "edge",
         family: 7,
         kind: "public-edge",
     };
     let scopes = [PublicationScope {
-        served_realm: "served",
+        served_realm: "030C1G60R30C1G60R30C1G60R3".parse().unwrap(),
         scope: "edge",
     }];
     let expected = PublicationExpectation {

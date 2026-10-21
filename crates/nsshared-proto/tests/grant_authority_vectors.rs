@@ -136,7 +136,7 @@ fn grant_fields_and_subnet_selection() {
         let context = json!({
             "resource": [hex(&grant.resource.nsd_id), hex(&grant.resource.network_id), hex(&grant.resource.service_id)],
             "client": hex(grant.client.as_bytes()), "provider": hex(grant.provider.as_bytes()),
-            "payer_realm": hex(&payer.realm), "payer_subject": hex(&payer.subject),
+            "payer_realm": hex(payer.realm.as_bytes()), "payer_subject": hex(&payer.subject),
             "incarnation": hex(&grant.incarnation.0), "expiry": grant.expires_at_unix_ms,
         });
         assert_eq!(
@@ -249,7 +249,9 @@ fn grant_denial_vectors() {
             after.validate_successor(&before, &withdrawn.retired),
             Err(GrantError::RetiredIncarnation)
         ));
-        after.grants[0].payers[0].realm[0] ^= 1;
+        let mut realm = after.grants[0].payers[0].realm.to_bytes();
+        realm[0] ^= 1;
+        after.grants[0].payers[0].realm = realm.into();
         assert!(matches!(
             after.validate_successor(&before, &[]),
             Err(GrantError::ReusedIncarnation)

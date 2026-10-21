@@ -41,7 +41,7 @@ fn states(raw: &[u8]) -> Vec<AcceptedPublication<'_>> {
                 key: PublicationKey {
                     issuer: read_identity(&mut reader),
                     recipient: read_identity(&mut reader),
-                    served_realm: reader.text_up_to(256).unwrap(),
+                    served_realm: reader.text_up_to(26).unwrap().parse().unwrap(),
                     scope: reader.text_up_to(256).unwrap(),
                     family: reader.uint().unwrap(),
                     kind: reader.text_up_to(256).unwrap(),
@@ -61,7 +61,7 @@ fn scopes(raw: &[u8]) -> Vec<PublicationScope<'_>> {
         .map(|_| {
             reader.array(2).unwrap();
             PublicationScope {
-                served_realm: reader.text_up_to(256).unwrap(),
+                served_realm: reader.text_up_to(26).unwrap().parse().unwrap(),
                 scope: reader.text_up_to(256).unwrap(),
             }
         })

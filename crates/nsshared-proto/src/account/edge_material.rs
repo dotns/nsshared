@@ -1,5 +1,7 @@
 //! Generation-qualified references and public authentication bindings.
 
+use crate::RealmId;
+
 use super::policy_subject::{ordered_text, text};
 use super::{AccountError, JwtSubjectBinding, MAX_BYTES, SubjectBinding, bounded, reader, require};
 use crate::encoding::{CborReader, CborWriter};
@@ -100,7 +102,7 @@ pub struct EdgeJwtAuthority {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EdgeAuth {
     /// Binary policy realm.
-    pub realm: [u8; 16],
+    pub realm: RealmId,
     /// Complete references in kind/reference order.
     pub materials: Vec<EdgeMaterialRef>,
     /// Exact existing bindings in canonical-byte order.
@@ -166,7 +168,7 @@ impl EdgeAuth {
         let mut out = CborWriter::default();
         out.array(6)
             .uint(1)
-            .bytes(&self.realm)
+            .bytes(self.realm.as_bytes())
             .array(self.materials.len());
         for value in &self.materials {
             value.write(&mut out)?;
@@ -224,7 +226,7 @@ impl EdgeAuth {
     /// Rejects malformed/noncanonical input and invalid nested public metadata.
     pub fn decode(bytes: &[u8]) -> Result<Self, AccountError> {
         let mut input = reader(bytes, 6)?;
-        let realm = input.fixed_bytes()?;
+        let realm = RealmId::from_bytes(input.fixed_bytes()?);
         let materials = read_materials(&mut input)?;
         let count = input.array_up_to(MAX_EDGE_ITEMS)?;
         let bindings = (0..count)
@@ -272,11 +274,11 @@ pub struct EdgeMaterialAck {
     /// Always correlated with the full material reference, realm and generation.
     pub request_id: [u8; 16],
     /// Signed served realm.
-    pub served_realm: String,
+    pub served_realm: RealmId,
     /// Signed authority scope.
     pub scope: String,
     /// Realm owning this reference.
-    pub realm: [u8; 16],
+    pub realm: RealmId,
     /// Exact material generation.
     pub material: EdgeMaterialRef,
     /// True means installed; false is an explicit rejection.
@@ -289,15 +291,14 @@ impl EdgeMaterialAck {
     /// # Errors
     /// Rejects invalid scopes, material references and bounds.
     pub fn canonical(&self) -> Result<Vec<u8>, AccountError> {
-        text(&self.served_realm)?;
         text(&self.scope)?;
         let mut out = CborWriter::default();
         out.array(7)
             .uint(1)
             .bytes(&self.request_id)
-            .text(&self.served_realm)
+            .text(&self.served_realm.to_string())
             .text(&self.scope)
-            .bytes(&self.realm);
+            .bytes(self.realm.as_bytes());
         self.material.write(&mut out)?;
         out.uint(u64::from(!self.installed));
         bounded(out.into_bytes())
@@ -310,9 +311,9 @@ impl EdgeMaterialAck {
     pub fn decode(bytes: &[u8]) -> Result<Self, AccountError> {
         let mut input = reader(bytes, 7)?;
         let request_id = input.fixed_bytes()?;
-        let served_realm = input.text_up_to(256)?.to_owned();
+        let served_realm = input.text_up_to(26)?.parse()?;
         let scope = input.text_up_to(256)?.to_owned();
-        let realm = input.fixed_bytes()?;
+        let realm = RealmId::from_bytes(input.fixed_bytes()?);
         let material = EdgeMaterialRef::read(&mut input)?;
         let installed = match input.uint()? {
             0 => true,
@@ -339,9 +340,9 @@ impl EdgeMaterialAck {
     pub fn validate_installation(
         &self,
         request_id: [u8; 16],
-        served_realm: &str,
+        served_realm: RealmId,
         scope: &str,
-        realm: [u8; 16],
+        realm: RealmId,
         material: &EdgeMaterialRef,
     ) -> Result<(), AccountError> {
         self.canonical()?;

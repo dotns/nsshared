@@ -1,13 +1,23 @@
 # Realm publication candidate
 
+Membership realm identities follow the [canonical RealmId contract](canonical-realm-identity.md).
+Affected text positions retain text but require the exact uppercase 26-character
+spelling and decode to RealmId; binary positions retain their exact 16 bytes.
+This incompatible candidate delta refuses arbitrary realm labels without fallback.
+NSD/ns producer and consumer updates, including the other active consumer delivery,
+remain outstanding. Encoding equality is not authentication. Discovery realm hints,
+external provider subject namespaces and opaque scopes retain their meanings.
+Signed usage bytes and the historical payer pair remain unchanged.
+
+
 ## Canonical content
 
 The candidate fixture authority is not NSD producer confirmation. CBOR uses exact
 array arity, minimal unsigned integers, definite lengths and no trailing bytes.
 
 Family 2 `realm-peers` content is `[1, 2, contributions]`. Each contribution is
-`[realm, members]`, with a nonempty UTF-8 realm of at most 256 bytes. Contributions
-are strictly ordered by realm UTF-8 bytes. Each member is `[binding, record]`:
+`[realm, members]`, with the canonical 26-character RealmId text. Contributions
+are strictly ordered by RealmId bytes (equivalently canonical text). Each member is `[binding, record]`:
 `binding` is the existing NodeBinding array `[identity_version, I, K, generation]`,
 and `record` is a byte string containing the existing signed NodeRecord v2.
 Members are strictly ordered by full signing identity bytes. Identity version and

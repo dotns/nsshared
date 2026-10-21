@@ -1,6 +1,6 @@
 //! Qualified subjects and bindings; credential verification remains external.
 
-use nsshared_service_control::Id;
+use crate::RealmId;
 
 use super::{AccountError, MAX_BYTES, Payer, SCHEMA, bounded, identity, reader, require};
 use crate::{
@@ -36,7 +36,7 @@ pub enum PolicySubject {
     /// Opaque realm-local namespaced label, never derived from a credential.
     Realm {
         /// Realm in which the label is meaningful.
-        realm: Id,
+        realm: RealmId,
         /// Canonical user:, group:, machine: or external: label.
         name: String,
     },
@@ -49,7 +49,7 @@ pub enum PolicySubject {
 impl PolicySubject {
     /// Realm qualification, absent only for a globally qualified Node identity.
     #[must_use]
-    pub const fn realm(&self) -> Option<Id> {
+    pub const fn realm(&self) -> Option<RealmId> {
         match self {
             Self::Realm { realm, .. } => Some(*realm),
             Self::User(payer) => Some(payer.realm),
@@ -61,7 +61,7 @@ impl PolicySubject {
         matches!(self, Self::Realm { name, .. } if name.starts_with("group:"))
     }
 
-    pub(super) fn in_realm(&self, realm: Id) -> Result<(), AccountError> {
+    pub(super) fn in_realm(&self, realm: RealmId) -> Result<(), AccountError> {
         require(self.realm().is_none_or(|own| own == realm))
     }
 
@@ -79,13 +79,17 @@ impl PolicySubject {
                     matches!(prefix, "user" | "group" | "machine" | "external")
                         && !suffix.is_empty(),
                 )?;
-                out.array(4).uint(SCHEMA).uint(0).bytes(realm).text(name);
+                out.array(4)
+                    .uint(SCHEMA)
+                    .uint(0)
+                    .bytes(realm.as_bytes())
+                    .text(name);
             }
             Self::User(payer) => {
                 out.array(4)
                     .uint(SCHEMA)
                     .uint(1)
-                    .bytes(&payer.realm)
+                    .bytes(payer.realm.as_bytes())
                     .bytes(&payer.subject);
             }
             Self::Node(node) => {
@@ -105,11 +109,11 @@ impl PolicySubject {
         require(input.uint()? == SCHEMA)?;
         let value = match input.uint()? {
             0 if arity == 4 => Self::Realm {
-                realm: input.fixed_bytes()?,
+                realm: RealmId::from_bytes(input.fixed_bytes()?),
                 name: input.text_up_to(MAX_POLICY_TEXT)?.to_owned(),
             },
             1 if arity == 4 => Self::User(Payer {
-                realm: input.fixed_bytes()?,
+                realm: RealmId::from_bytes(input.fixed_bytes()?),
                 subject: input.fixed_bytes()?,
             }),
             2 if arity == 3 => Self::Node(identity(&mut input)?),
@@ -134,7 +138,7 @@ pub enum SubjectAnchor {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SubjectBinding {
     /// Realm owning the anchor and local subject.
-    pub realm: Id,
+    pub realm: RealmId,
     /// Exact verified identity or credential reference to match.
     pub anchor: SubjectAnchor,
     /// Explicit resolved subject, never a group.
@@ -154,7 +158,7 @@ impl SubjectBinding {
         self.subject.in_realm(self.realm)?;
         require(!self.subject.is_group())?;
         let mut out = CborWriter::default();
-        out.array(7).uint(SCHEMA).bytes(&self.realm);
+        out.array(7).uint(SCHEMA).bytes(self.realm.as_bytes());
         match &self.anchor {
             SubjectAnchor::Node(node) => {
                 out.uint(0).bytes(node.as_bytes());
@@ -179,7 +183,7 @@ impl SubjectBinding {
     /// Rejects malformed fields, cross-realm subjects and unsupported anchors.
     pub fn decode(bytes: &[u8]) -> Result<Self, AccountError> {
         let mut input = reader(bytes, 7)?;
-        let realm = input.fixed_bytes()?;
+        let realm = RealmId::from_bytes(input.fixed_bytes()?);
         let anchor = match input.uint()? {
             0 => SubjectAnchor::Node(identity(&mut input)?),
             1 => SubjectAnchor::Credential(input.text_up_to(MAX_POLICY_TEXT)?.to_owned()),

@@ -28,11 +28,13 @@ mod identifier;
 pub mod identity;
 pub mod keys;
 pub mod node_control;
+mod realm_id;
 pub mod record;
 pub mod relay;
 pub mod rendezvous;
 
 pub use identity::NodeId;
 pub use keys::{IdentityKey, IdentitySecret, WgSessionKey, WgSessionSecret};
+pub use realm_id::{RealmId, RealmIdError};
 pub use record::NodeRecord;
 pub use relay::RelayId;

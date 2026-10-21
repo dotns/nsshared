@@ -5,10 +5,10 @@ use nsshared_proto::account::{JwtSubjectBinding, PolicySubject, SubjectAnchor, S
 fn binding(claim_value: &str) -> JwtSubjectBinding {
     JwtSubjectBinding {
         binding: SubjectBinding {
-            realm: [1; 16],
+            realm: [1; 16].into(),
             anchor: SubjectAnchor::Credential("credential-a".into()),
             subject: PolicySubject::Realm {
-                realm: [1; 16],
+                realm: [1; 16].into(),
                 name: "external:app".into(),
             },
             enabled: true,

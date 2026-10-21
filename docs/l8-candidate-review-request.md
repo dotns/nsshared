@@ -1,5 +1,15 @@
 # L8 candidate review request for NSD and node owners
 
+Membership realm identities follow the [canonical RealmId contract](canonical-realm-identity.md).
+Affected text positions retain text but require the exact uppercase 26-character
+spelling and decode to RealmId; binary positions retain their exact 16 bytes.
+This incompatible candidate delta refuses arbitrary realm labels without fallback.
+NSD/ns producer and consumer updates, including the other active consumer delivery,
+remain outstanding. Encoding equality is not authentication. Discovery realm hints,
+external provider subject namespaces and opaque scopes retain their meanings.
+Signed usage bytes and the historical payer pair remain unchanged.
+
+
 Status: prepared for the owner to forward. Addressed to the NSD owner as
 producer and the node (`ns`) owner as consumer reviewer. No delivery, answer
 or approval is recorded. Completion means this request is ready; NSD

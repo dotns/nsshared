@@ -1,5 +1,15 @@
 # L8 account payload profile candidate
 
+Membership realm identities follow the [canonical RealmId contract](canonical-realm-identity.md).
+Affected text positions retain text but require the exact uppercase 26-character
+spelling and decode to RealmId; binary positions retain their exact 16 bytes.
+This incompatible candidate delta refuses arbitrary realm labels without fallback.
+NSD/ns producer and consumer updates, including the other active consumer delivery,
+remain outstanding. Encoding equality is not authentication. Discovery realm hints,
+external provider subject namespaces and opaque scopes retain their meanings.
+Signed usage bytes and the historical payer pair remain unchanged.
+
+
 Status: candidate, schema 1; local admission JSON schema 2. This pure contract
 is an additive module of `nsshared-proto` at the workspace minor-release version.
 It defines no runtime, transport session, policy compiler or v1 adapter.
@@ -440,7 +450,8 @@ and independent producer vectors remain requested in Q11 and Q21.
 ## Signed publication events
 
 This is the snapshot/events vocabulary of family 11, version 1. The family
-registry and every family's payload bytes remain unchanged. A publication is
+registry and payload ownership remain unchanged. Membership realm text follows
+the incompatible canonical identity delta above. A publication is
 `[content_bytes, signature_64]`, reusing the bootstrap carrier's outer shape.
 Its content is `[1, issuer_I, recipient_I, served_realm, scope, family, kind,
 channel, complete, publication_version, issued_seconds, expires_seconds,
@@ -453,7 +464,7 @@ and nonce do not express complete per-kind versions or actual validity.
 | --- | --- |
 | schema | NSD fixes version 1; labelled Python fixture fixes the candidate version |
 | issuer / recipient | NSD signs its full validated identity and exact target Node identity; fixture signs its labelled identities |
-| served realm / scope | NSD supplies the authorized served realm and opaque scope within it; fixture supplies `realm-a` / `scope-a` and explicit alternate scopes |
+| served realm / scope | NSD supplies the authorized served realm and opaque scope within it; fixture supplies canonical realm A / `scope-a` and explicit alternate scopes |
 | family / kind | NSD supplies the owning family number and exact kind below; fixture supplies the same candidate identifiers |
 | channel | NSD supplies 0 stream or 1 independently polled snapshot, according to the table; fixture supplies signed ownership and mismatch cases |
 | complete | NSD explicitly marks complete replacement; fixture supplies complete and refused partial cases |
@@ -462,7 +473,7 @@ and nonce do not express complete per-kind versions or actual validity.
 | outcome / payload | NSD supplies 0 complete data or 1 authenticated ACL fetch failure and exact opaque owning-family bytes; fixture supplies labelled data/failure bytes |
 | signature | NSD signs all content fields; the independent Python fixture signer signs candidate bytes only |
 
-Realm, scope and kind are nonempty UTF-8 strings of at most 256 bytes each.
+Realm is canonical 26-character RealmId text. Scope and kind are nonempty UTF-8 strings of at most 256 bytes each.
 Recipient is mandatory. The consumer supplies the trusted expected issuer,
 recipient, authorized `(served_realm, scope)` pairs, actual receiving channel,
 clock and last accepted version for each key. No signed field substitutes for
