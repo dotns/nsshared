@@ -61,8 +61,8 @@ pub use enrollment::{
     RebindAuthorization, decide_enrollment,
 };
 pub use grants::{
-    GrantClaim, GrantDetails, GrantError, GrantPublication, Payer, PayerBinding, PayerBindings,
-    ResourceAuthority, RetiredGrant, ServiceGrant,
+    GrantClaim, GrantDetails, GrantDiscriminator, GrantError, GrantPublication, Payer,
+    PayerBinding, PayerBindings, ResourceAuthority, RetiredGrant, ServiceGrant,
 };
 pub use l3::{L3Rule, L3Scope, NodeL3, TransportProtocol};
 pub use l3_authority::{L3Binding, NodeL3Authority};

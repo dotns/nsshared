@@ -1,8 +1,8 @@
 #![allow(clippy::unwrap_used, clippy::panic)]
 
 use nsshared_proto::account::{
-    GrantDetails, GrantError, GrantPublication, NodeL3Authority, PayerBindings, ResourceAuthority,
-    SubnetPrefix, SubnetSelection, TransportProtocol,
+    GrantDetails, GrantDiscriminator, GrantError, GrantPublication, NodeL3Authority, PayerBindings,
+    ResourceAuthority, SubnetPrefix, SubnetSelection, TransportProtocol,
 };
 use serde_json::{Value, json};
 
@@ -186,12 +186,19 @@ fn grant_fields_and_subnet_selection() {
                 );
             }
         }
-        let bindings = PayerBindings::decode(&sample("payer")).unwrap();
+        let bindings = PayerBindings::decode(&sample(if publication.family == 4 {
+            "payer-exit"
+        } else {
+            "payer"
+        }))
+        .unwrap();
+        bindings.validate_grants(&publication).unwrap();
         let binding = &bindings.bindings[0];
         assert_eq!(binding.resource, grant.resource);
         assert_eq!(binding.client, grant.client);
         assert_eq!(binding.incarnation, grant.incarnation);
         assert_eq!(binding.payers, grant.payers);
+        assert_eq!(binding.discriminator, grant.details.discriminator());
     }
 }
 
@@ -225,6 +232,18 @@ fn grant_denial_vectors() {
 
     for name in ["egress", "exit"] {
         let before = GrantPublication::decode(&sample(name)).unwrap();
+        let initial = ResourceAuthority::decode(&sample(if name == "exit" {
+            "initial-exit-authority"
+        } else {
+            "initial-authority"
+        }))
+        .unwrap();
+        let regrant = ResourceAuthority::decode(&sample(if name == "exit" {
+            "fresh-exit-authority"
+        } else {
+            "fresh-regrant"
+        }))
+        .unwrap();
         initial.validate_grants(&before).unwrap();
         assert!(matches!(
             withdrawn.validate_grants(&before),
@@ -396,4 +415,196 @@ fn node_l3_exact_authority_boundaries() {
         assert_eq!(keys[0], (rule.source, [41; 32]));
         assert_eq!(keys[1], (rule.destination, [42; 32]));
     }
+}
+
+#[test]
+fn protocol_grant_renewal() {
+    let initial = GrantPublication::decode(&sample("protocol-initial")).unwrap();
+    let renewed = GrantPublication::decode(&sample("protocol-renewed")).unwrap();
+    assert_eq!(initial.grants.len(), 2);
+    renewed.validate_successor(&initial, &[]).unwrap();
+    for (before, after) in initial.grants.iter().zip(&renewed.grants) {
+        assert_eq!(before.incarnation, after.incarnation);
+        assert_eq!(before.payers, after.payers);
+        assert_eq!(before.details, after.details);
+        assert_eq!(after.expires_at_unix_ms, 20000);
+    }
+    for name in ["earlier-deadline", "changed-payer", "changed-details"] {
+        let changed = GrantPublication::decode(&sample(&format!("protocol-{name}"))).unwrap();
+        assert!(matches!(
+            changed.validate_successor(&initial, &[]),
+            Err(GrantError::ReusedIncarnation)
+        ));
+    }
+    let payers = PayerBindings::decode(&sample("protocol-payers")).unwrap();
+    payers.validate_grants(&initial).unwrap();
+    payers.validate_grants(&renewed).unwrap();
+    for index in 0..2 {
+        let mut wrong = payers.clone();
+        wrong.bindings[index].incarnation.0[0] ^= 1;
+        assert!(matches!(
+            wrong.validate_grants(&initial),
+            Err(GrantError::Scope)
+        ));
+        let mut wrong = payers.clone();
+        wrong.bindings[index].payers[0].subject[0] ^= 1;
+        assert!(matches!(
+            wrong.validate_grants(&initial),
+            Err(GrantError::Scope)
+        ));
+    }
+    let mut wrong_protocol = payers.clone();
+    wrong_protocol.bindings.truncate(1);
+    let mut udp_only = initial.clone();
+    udp_only.grants.remove(0);
+    wrong_protocol.bindings[0].incarnation = udp_only.grants[0].incarnation;
+    assert!(matches!(
+        wrong_protocol.validate_grants(&udp_only),
+        Err(GrantError::Scope)
+    ));
+    let authority = ResourceAuthority::decode(&sample("protocol-authority")).unwrap();
+    authority.validate_grants(&initial).unwrap();
+    authority.validate_grants(&renewed).unwrap();
+    let withdrawn = GrantPublication::decode(&sample("protocol-withdrawn")).unwrap();
+    let withdrawn_authority =
+        ResourceAuthority::decode(&sample("protocol-withdrawn-authority")).unwrap();
+    withdrawn_authority.validate_successor(&authority).unwrap();
+    withdrawn_authority.validate_grants(&withdrawn).unwrap();
+    withdrawn
+        .validate_successor(&renewed, &withdrawn_authority.retired)
+        .unwrap();
+    let mut retired = renewed.clone();
+    retired.revision = 4;
+    assert!(matches!(
+        retired.validate_successor(&withdrawn, &withdrawn_authority.retired),
+        Err(GrantError::RetiredIncarnation)
+    ));
+    let regrant = GrantPublication::decode(&sample("protocol-regrant")).unwrap();
+    let regrant_authority =
+        ResourceAuthority::decode(&sample("protocol-regrant-authority")).unwrap();
+    regrant_authority
+        .validate_successor(&withdrawn_authority)
+        .unwrap();
+    regrant_authority.validate_grants(&regrant).unwrap();
+    let regrant_payers = PayerBindings::decode(&sample("protocol-regrant-payers")).unwrap();
+    regrant_payers.validate_grants(&regrant).unwrap();
+    assert!(matches!(
+        payers.validate_grants(&regrant),
+        Err(GrantError::Scope)
+    ));
+    regrant
+        .validate_successor(&withdrawn, &withdrawn_authority.retired)
+        .unwrap();
+    assert_eq!(regrant.grants[1], renewed.grants[1]);
+    let exit = GrantPublication::decode(&sample("exit")).unwrap();
+    let exit_renewed = GrantPublication::decode(&sample("protocol-exit-renewed")).unwrap();
+    exit_renewed.validate_successor(&exit, &[]).unwrap();
+    assert_eq!(exit.grants[0].details, exit_renewed.grants[0].details);
+}
+
+#[test]
+fn protocol_identity_and_token_ownership_refusals() {
+    let initial = GrantPublication::decode(&sample("protocol-initial")).unwrap();
+    let authority = ResourceAuthority::decode(&sample("protocol-authority")).unwrap();
+    let payers = PayerBindings::decode(&sample("protocol-payers")).unwrap();
+    let mut duplicate = initial.clone();
+    duplicate.grants[1] = duplicate.grants[0].clone();
+    assert!(matches!(duplicate.canonical(), Err(GrantError::Ordering)));
+    let mut reversed = initial.clone();
+    reversed.grants.reverse();
+    assert!(matches!(reversed.canonical(), Err(GrantError::Ordering)));
+    let mut reused = initial.clone();
+    reused.grants[1].incarnation = reused.grants[0].incarnation;
+    assert!(matches!(
+        reused.canonical(),
+        Err(GrantError::ReusedIncarnation)
+    ));
+    let mut reused = authority.clone();
+    reused.active[1].incarnation = reused.active[0].incarnation;
+    assert!(matches!(
+        reused.canonical(),
+        Err(GrantError::ReusedIncarnation)
+    ));
+    let mut reused = payers.clone();
+    reused.bindings[1].incarnation = reused.bindings[0].incarnation;
+    assert!(matches!(
+        reused.canonical(),
+        Err(GrantError::ReusedIncarnation)
+    ));
+    let mut reversed = payers.clone();
+    reversed.bindings.reverse();
+    assert!(matches!(reversed.canonical(), Err(GrantError::Ordering)));
+    let mut duplicate = payers.clone();
+    duplicate.bindings[1] = duplicate.bindings[0].clone();
+    assert!(matches!(duplicate.canonical(), Err(GrantError::Ordering)));
+    let mut duplicate = authority.clone();
+    duplicate.active[1] = duplicate.active[0].clone();
+    assert!(matches!(duplicate.canonical(), Err(GrantError::Ordering)));
+    let mut wrong_claim = authority.clone();
+    wrong_claim.active.truncate(1);
+    wrong_claim.active[0].incarnation = initial.grants[1].incarnation.0;
+    let mut udp_only = initial.clone();
+    udp_only.grants.remove(0);
+    assert!(matches!(
+        wrong_claim.validate_grants(&udp_only),
+        Err(GrantError::Scope)
+    ));
+    let mut moved = authority.clone();
+    moved.revision += 1;
+    moved.active.truncate(1);
+    moved.active[0].discriminator = GrantDiscriminator::Exit;
+    assert!(matches!(
+        moved.validate_successor(&authority),
+        Err(GrantError::ReusedIncarnation)
+    ));
+    let mut moved = initial.clone();
+    moved.revision += 1;
+    moved.grants.remove(0);
+    moved.grants[0].incarnation = initial.grants[0].incarnation;
+    assert!(matches!(
+        moved.validate_successor(&initial, &[]),
+        Err(GrantError::ReusedIncarnation)
+    ));
+    let mut exact = initial.clone();
+    exact.revision += 1;
+    exact.validate_successor(&initial, &[]).unwrap();
+    assert!(matches!(
+        initial.validate_successor(&initial, &[]),
+        Err(GrantError::Scope)
+    ));
+    let exit = GrantPublication::decode(&sample("exit")).unwrap();
+    let mut changed = GrantPublication::decode(&sample("protocol-exit-renewed")).unwrap();
+    if let GrantDetails::Exit(subnet) = &mut changed.grants[0].details {
+        subnet.revision += 1;
+    }
+    assert!(matches!(
+        changed.validate_successor(&exit, &[]),
+        Err(GrantError::ReusedIncarnation)
+    ));
+}
+
+#[test]
+fn exit_deadline_and_payer_renewal_boundaries() {
+    let before = GrantPublication::decode(&sample("exit")).unwrap();
+    let renewed = GrantPublication::decode(&sample("protocol-exit-renewed")).unwrap();
+    let mut earlier = renewed.clone();
+    earlier.grants[0].expires_at_unix_ms = before.grants[0].expires_at_unix_ms - 1;
+    assert!(matches!(
+        earlier.validate_successor(&before, &[]),
+        Err(GrantError::ReusedIncarnation)
+    ));
+    let mut changed = renewed.clone();
+    changed.grants[0].payers[0].subject[0] ^= 1;
+    assert!(matches!(
+        changed.validate_successor(&before, &[]),
+        Err(GrantError::ReusedIncarnation)
+    ));
+    let mut unchanged = before.clone();
+    unchanged.revision += 1;
+    unchanged.validate_successor(&before, &[]).unwrap();
+    let retired = ResourceAuthority::decode(&sample("selective-withdrawal")).unwrap();
+    assert!(matches!(
+        renewed.validate_successor(&before, &retired.retired),
+        Err(GrantError::RetiredIncarnation)
+    ));
 }

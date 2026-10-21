@@ -124,6 +124,18 @@ def vectors():
         emit("source-" + kind, "publication", publication(sb, 12, family=family,
              kind=kind, channel=channel, context=stream if channel == 0 else poll),
              channel=channel)
+    resource = cbor.encode([bytes([21])*16, bytes([22])*16, bytes([23])*16])
+    payer = [bytes([22])*16, bytes([24])*16]
+    bindings = [[resource, node, bytes([token])*16, [payer], [0, protocol]]
+                for token, protocol in [(31, 6), (32, 17)]]
+    claims = [[entry[0], entry[1], entry[2], entry[4]] for entry in bindings]
+    for name, family, kind, channel, payload in [
+        ("source-protocol-payers", 5, "payer-bindings", 1, [1, 5, nsd, node, 1, bindings]),
+        ("source-protocol-active", 6, "resource-authority", 0, [1, 6, nsd, node, 1, claims, []]),
+    ]:
+        emit(name, "publication", publication(sb, 12, family=family, kind=kind,
+             channel=channel, context=stream if channel == 0 else poll,
+             payload=cbor.encode(payload)), channel=channel)
     for name, changes in [("expired-b", {11: 150}), ("future-b", {10:151}),
                           ("wrong-inner-recipient", {2:provider}), ("wrong-inner-issuer", {1:node}),
                           ("wrong-inner-realm", {3:"09144GJ289144GJ289144GJ289"})]:
