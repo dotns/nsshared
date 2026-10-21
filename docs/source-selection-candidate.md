@@ -1,0 +1,135 @@
+# Source-bound publications and Node route commands
+
+Status: pure candidate definitions and labelled fixture authority. NSD producer
+review, producer vectors and ns/NSD interoperability remain outstanding.
+All arrays below are exact canonical CBOR with minimal integers, definite lengths,
+no extra fields and no trailing bytes. Integers are unsigned u64 unless stated.
+Bindings and complete command/receipt/response payloads are bounded by 16,384
+encoded bytes. Identity fields are complete validated 32-byte Ed25519 public keys. Realm text is
+canonical RealmId. All opaque identities below are nonzero 16-byte values. Scope
+text is nonempty, at most 256 UTF-8 bytes, without control characters.
+
+## Source authority
+
+`SourceBinding = [1, nsd, recipient, realm, scope, profile, source_node,
+contribution, source_epoch, source_generation]`. Both counters are positive.
+The sole new profile is the literal `explicit-gateway-profile`. NSD assigns it
+through authenticated enrollment; a caller cannot grant itself a profile.
+NSD's durable committed enrollment/contribution state allocates contribution and
+advances generation on replacement or retirement even when I, K and addresses do
+not change. Neither NodeBinding.generation nor M6 authority_epoch supplies this
+fact; their bytes and meaning remain unchanged. Exact equality, including issuer,
+recipient, realm, scope, profile, source, contribution, epoch and generation, is
+required when comparing accepted authority. Local attachment generation is never
+encoded as NSD source generation.
+
+`SignedSourceBinding = [bstr(SourceBinding), signature64]`, signature input:
+`"ns.account.source-binding.v1\0" || SourceBinding bytes`.
+`SourceAcceptance = [1, bstr(SignedSourceBinding), request_id]` is carried in the
+existing confidential B43 `machine.register` or `machine.auth` response. The
+response must verify the expected enrolled NSD pin, explicit recipient, operation,
+freshness/replay rules and nonce equal to pending request_id. Its signed binding
+must match the independently expected enrolled NSD, recipient, realm/scope,
+assigned profile and full source Node. Only then may its NSD-produced contribution
+and counters be retained as current. Decoding alone never establishes authority.
+
+## Source-bound publication
+
+The new signed bytes are `SourcePublicationContent = [1,
+bstr(SignedSourceBinding), bstr(DeliveryContext), bstr(PublicationEvent)]`;
+`SourcePublication = [bstr(SourcePublicationContent), signature64]`, signing input:
+`"ns.account.source-publication.v1\0" || SourcePublicationContent bytes`.
+PublicationEvent is the exact existing independently signed B44 event, including
+its complete full key, channel, complete flag, version, issue/expiry, outcome and
+payload. Its nested signature and every existing decision rule are still checked.
+This intentional incompatible signed-byte delta adds the outer signature domain,
+mandatory binding and delivery bytes; an old PublicationEvent is never accepted
+by this new decoder. There is no fallback or signature reinterpretation.
+
+Delivery is `[0, boot_nonce16, positive_u32_attempt]` for streams, or
+`[1, boot_nonce16, positive_u32_attempt, correlation16]` for snapshots. Nonces and
+correlation are nonzero. They echo the subscriber's existing subscription and
+poll identities, not a producer-chosen session. The delivery tag must match the
+actual receiving channel. The caller supplies outstanding context and current
+accepted binding. Outer and binding signatures verify against that current NSD;
+all binding fields and delivery fields must equal the supplied values before an
+inner event can yield a decision. Inner issuer/recipient/realm/scope must also
+match the binding. This authorizes the collection, not equality between enclosing
+realm and each contributing realm. RealmPeers, Node-L3, grants, Subnet and public
+edge use this form, including complete-empty and authenticated failure events.
+Independent participant rosters and M6 keep their existing carriers.
+
+The measured entire outer event is bounded by MAX_PUBLICATION_BYTES. Oversized
+stream input terminates; invalid snapshot input rejects the complete snapshot.
+Source-bound snapshots use `[1, [bstr(SourcePublication), ...]]`, bounded by
+MAX_CONTROL_BODY, strictly increasing full inner keys. Every event is validated
+before exposing any decision; omitted keys retain their state. Existing full-key
+version/tombstone retention and deadlines survive source replacement. A higher
+per-key version cannot rescue an old source or session. The consumer preserves
+this context through queues and compares local attachment generation in the same
+serialized source-owner operation as final installation. These APIs perform no
+installation and read no clock or state themselves.
+
+## Route commands and immutable receipts
+
+B43 confidential operations are `node.route.select` and `node.route.clear`, at the
+existing control endpoint. They deliberately do not reuse retired gateway-ID
+operation identifiers. `RouteCommand = [1, bstr(SignedSourceBinding), request_id,
+selection_id, action]`. Select action is `[0, provider_node_I,
+bstr(canonical_M6_ServiceRef), selection]`; selection reuses B40's exact
+`[0, []]` default or `[1, ordered_prefixes]` explicit scope. Prefixes use B40's
+family/address/length encoding, validation, ordering and overlap bounds. Empty
+explicit selects none. Resource authorization and containment in a published
+route remain NSD transaction checks, not inferred from identity or decoded bytes.
+Clear action is `[1, target_selection_generation]` with positive generation.
+Clear's source binding, selection identity and generation name an exact target.
+
+The signed B43 request nonce equals request_id, signer equals binding recipient,
+recipient equals binding NSD, operation equals the action's operation. The binding
+signature verifies against the independently trusted NSD. The transaction compares
+the authenticated caller, assigned profile and supplied binding with committed
+current source authority before a new mutation. Full provider I and stable
+ServiceRef are required; gateway strings, carrier credentials and unknown appended
+fields are refused. Request and selection identities are required, not optional.
+
+`RouteReceipt = [1, bstr(RouteCommand), selection_generation, outcome]` where
+outcome 0 is selected, 1 cleared, 2 clear target absent. Select generation is NSD's
+positive committed generation. Clear results retain the exact targeted generation
+whether cleared or absent. A receipt is immutable for its exact profile/source/
+request identity: store every original receipt, never only the latest per machine.
+The same identity with changed command bytes conflicts. A different source has a
+separate request namespace even when I/K/addresses and request ids match.
+
+`RouteResponse = [1, bstr(RouteReceipt), replayed_bool]` uses an NSD-signed B43
+response with the action's operation, explicit recipient and request nonce. The
+consumer compares its entire pending request and source/profile with the receipt.
+A response establishes committed command outcome, never applied routing. A replay
+returns the original receipt bytes and reports replayed=true; it grants no current
+mutation authority. Pure decisions distinguish Replay from Select, Clear and
+ClearAbsent. Replays verify original binding and caller and exact receipt content,
+then return before comparing mutation authority with a replacement source. New
+requests must match current source. Clear only removes a caller-supplied committed
+selection with the exact binding, identity and generation. Durable transaction
+rechecks, generation allocation, receipt lookup/history and restart restoration
+remain NSD responsibilities; pending journals and routing remain ns responsibilities.
+Old-profile receipts are refused, not translated.
+
+## Independent consumer sequence
+
+`source_selection_fence` uses a labelled authority with the same full source I,
+K and derived addresses across A/B. Accept A, select and clear A's route; replace
+only contribution/generation with B, select B's route. Deliver A's delayed signed
+success at a higher per-key version: refuse it. Replay A's clear before and after
+restoring immutable receipts/current selection from canonical bytes: the receipt
+stays A's and B remains intact. Accept the current B publication. Variants refuse
+wrong request, boot/attempt or poll context, wrong profile, missing binding,
+retired gateway-ID and carrier-credential fields. Independent Python bytes are
+consumed by Rust without using Rust output as producer input. Fixture assertions
+are contract evidence only; actual producer review and interoperability are open.
+
+## Review boundary
+
+Q12/Q14/Q21 request producer confirmation of these exact bytes and provenance,
+including durable source generation and all-receipt ownership. Directory and
+participant definitions retain their separate ownership. No directory or
+participant credential codec is added here.

@@ -352,6 +352,15 @@ work includes mapping string machine/owner identifiers and the NodeL3Config
 resource graph to full identities. Candidate fixture success does not establish
 producer confirmation; no producer reply has been received.
 
+The [source authority candidate](source-selection-candidate.md) now adds signed
+NSD/recipient/realm/scope/profile/source/contribution/epoch/generation binding and
+exact subscription boot/attempt or poll context inside new source-publication
+signed bytes. These are additional exact fences before existing full-key versions,
+including complete-empty and authenticated failures; higher versions cannot revive
+retired sources or sessions. Please confirm the authenticated control-response
+provenance and durable NSD contribution generation, and provide independent
+producer bytes. Labelled fixture success is not producer confirmation.
+
 ### Q13: Egress grant payload — NSD owner
 
 What schema completes `egress` using M6 provider/resource and declaration
@@ -401,6 +410,17 @@ consumer vectors compare every field and the independently computed selected
 CIDR output. Payer is a binary realm/UserId pair and incarnation and expiry
 are explicit. Local floor and Linux binding remain consumer facts. Outstanding:
 NSD grant/route composition, payer assignment and independently owned vectors.
+
+The [Node route command candidate](source-selection-candidate.md#route-commands-and-immutable-receipts)
+adds `node.route.select` and `node.route.clear` on the B43 confidential carrier,
+with full provider I, stable M6 ServiceRef, B40 default/explicit scope, exact
+source/profile, request and selection identities. NSD-signed committed receipts
+carry selection generation; clear targets that exact generation. Replay retrieves
+the original immutable profile/source/request receipt without changing current
+selection, including after source replacement and restart. Changed content under
+one request identity conflicts. NSD transaction rechecks, all-receipt persistence,
+producer vectors and ns pending-journal/route adoption remain outstanding; the
+predecessor latest-clear-receipt-per-machine store cannot supply this ownership.
 
 ### Q15: Payer binding payload — NSD owner
 
@@ -524,6 +544,16 @@ review results. This candidate does not claim live interoperability; transport,
 persistence, retransmission and state machines remain in consumers.
 
 ### Q21: Complete v1 replacement map — NSD and node owners
+
+The [source/selection candidate](source-selection-candidate.md) records the
+assigned `explicit-gateway-profile` vocabulary and mandatory source/profile
+comparisons. New signed forms refuse retired gateway-ID selections, carrier
+credentials and old-profile receipts without compatibility translation. The
+`source_selection_fence` independent fixture sequence preserves I/K/addresses
+while replacing source authority, refuses delayed higher-version A content and
+keeps A's original clear receipt and B's selection intact across restart. NSD/ns
+retained-cohort inventory and retirement decisions, producer review and adoption
+remain outstanding. This is candidate delivery, not approval or interoperability.
 
 Confirm the exact [publication subscription candidate](control-exchange-candidate.md#authenticated-publication-subscription): PublicationSubscriptionRequest, config.stream, /api/v1/config/stream, full issuer/recipient/realm/scope entries, enrollment capability syntax, family 7 public ingress indices and required nonzero boot nonce/positive u32 attempt counter. Confirm producer bytes and external scope authorization, confidential signed carrier use and unchanged publication versions/channel ownership. NSD confirmation remains outstanding; independent fixture vectors do not constitute producer agreement.
 
