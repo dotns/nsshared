@@ -6,14 +6,18 @@ use nsshared_proto::{
     account::{
         AcceptedPublication, BootstrapEnvelope, EnvelopeDirection, EnvelopeExpectation,
         EnvelopePins, PublicationChannel, PublicationDecision, PublicationExpectation,
-        PublicationScope,
+        PublicationScope, RebindAuthorization,
+        control_exchange::{
+            AuthenticationResponse, ExchangeError, MACHINE_REGISTER, RegistrationAcceptance,
+            RegistrationRequest, compare_registration_acceptance,
+        },
         route_command::{
             CommittedSelection, RouteCommand, RouteDecision, RouteReceipt, RouteResponse,
             decide_route_command,
         },
         source_binding::{
-            DeliveryContext, SignedSourceBinding, SourceAcceptance, SourceBinding,
-            SourceEnrollmentExpectation, SourceError,
+            DeliveryContext, SignedSourceBinding, SourceBinding, SourceEnrollmentExpectation,
+            SourceError,
         },
         source_publication::{
             SourcePublication, decide_source_publication, decide_source_snapshot,
@@ -166,6 +170,50 @@ fn check_snapshot_channels(v: &Vector, vectors: &[Vector]) {
     }
 }
 
+fn accept_source(
+    v: &Vector,
+    source: &SignedSourceBinding,
+    nsd_pins: &EnvelopePins,
+) -> Result<SignedSourceBinding, ExchangeError> {
+    let envelope = BootstrapEnvelope::decode(&v.hex("bytes")).unwrap();
+    let expected = EnvelopeExpectation {
+        pins: nsd_pins,
+        direction: EnvelopeDirection::Response,
+        recipient: source.binding.recipient,
+        kind: v.get("operation"),
+        now_seconds: 100,
+        previous_acceptance_seconds: None,
+    };
+    let pending = SourceEnrollmentExpectation {
+        nsd: source.binding.nsd,
+        recipient: source.binding.recipient,
+        served_realm: source.binding.served_realm,
+        scope: &source.binding.scope,
+        profile: source.binding.profile,
+        source_node: source.binding.source_node,
+        request_id: [6; 16],
+    };
+    if v.get("operation") == MACHINE_REGISTER {
+        let staged = RegistrationRequest::decode(&v.hex("request")).unwrap();
+        compare_registration_acceptance(
+            &envelope,
+            &expected,
+            &staged,
+            None,
+            RebindAuthorization::Denied,
+            &pending,
+        )?;
+        let response = RegistrationAcceptance::decode(&envelope.payload)?;
+        assert_eq!(response.canonical().unwrap(), envelope.payload);
+        Ok(response.source_binding)
+    } else {
+        let response = AuthenticationResponse::from_envelope(&envelope, &expected, &pending)?;
+        assert_eq!(response.token, "a.b.c");
+        assert_eq!(response.canonical().unwrap(), envelope.payload);
+        Ok(response.source_binding)
+    }
+}
+
 #[test]
 fn independent_source_selection_vectors() {
     let vectors = vectors();
@@ -198,30 +246,13 @@ fn independent_source_selection_vectors() {
                 }
             }
             "acceptance" => {
-                let envelope = BootstrapEnvelope::decode(&raw).unwrap();
-                let expected = EnvelopeExpectation {
-                    pins: &nsd_pins,
-                    direction: EnvelopeDirection::Response,
-                    recipient: a.binding.recipient,
-                    kind: "machine.auth",
-                    now_seconds: 100,
-                    previous_acceptance_seconds: None,
-                };
-                let pending = SourceEnrollmentExpectation {
-                    nsd: issuer,
-                    recipient: a.binding.recipient,
-                    served_realm: a.binding.served_realm,
-                    scope: &a.binding.scope,
-                    profile: a.binding.profile,
-                    source_node: a.binding.source_node,
-                    request_id: [6; 16],
-                };
-                let result = SourceAcceptance::from_envelope(&envelope, &expected, &pending);
+                let result = accept_source(v, &a, &nsd_pins);
                 assert_eq!(result.is_ok(), accepted, "{}: {result:?}", v.name());
                 if let Ok(value) = result {
-                    assert_eq!(value.binding, a);
+                    assert_eq!(value, a);
                 }
             }
+
             "scoped-snapshot" => {
                 let c = binding(&vectors, "source-c");
                 let scopes = [
@@ -414,7 +445,22 @@ fn independent_source_selection_vectors() {
 #[test]
 fn source_selection_fence() {
     let vectors = vectors();
-    let a = binding(&vectors, "source-a");
+    let expected_a = binding(&vectors, "source-a");
+    let nsd_pins = pins(expected_a.binding.nsd);
+    let register = vectors.iter().find(|v| v.name() == "register-a").unwrap();
+    let a = accept_source(register, &expected_a, &nsd_pins).unwrap();
+    let auth = vectors.iter().find(|v| v.name() == "auth-a").unwrap();
+    assert_eq!(accept_source(auth, &expected_a, &nsd_pins).unwrap(), a);
+    for v in vectors
+        .iter()
+        .filter(|v| v.get("mode") == "acceptance" && v.get("decision") == "refused")
+    {
+        assert!(
+            accept_source(v, &expected_a, &nsd_pins).is_err(),
+            "{}",
+            v.name()
+        );
+    }
     let b = binding(&vectors, "source-b");
     // Both source identities imply the same addresses; K stays an independent fixed fact.
     let fixture_a = vectors.iter().find(|v| v.name() == "source-a").unwrap();

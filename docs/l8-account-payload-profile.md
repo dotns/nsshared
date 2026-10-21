@@ -900,3 +900,18 @@ are unchanged. `protocol_grant_renewal` provides independent fixture producer
 and consumer coverage. NSD N06 protocol/token/deadline producer adoption and
 producer-owned vectors remain outstanding; this incompatible candidate delta
 is not contained in the earlier published package revision.
+
+## Signed source authority response delta
+
+Successful registration now requires `[1, scope, bstr(Enrollment), profile,
+decision, bstr(SignedSourceBinding)]`, including Equal. Successful authentication
+requires `[1, token, bstr(SignedSourceBinding)]`. This incompatible candidate
+extension retires standalone SourceAcceptance and refuses old response arities.
+Existing operations, confidential carrier, field encodings and refusals remain.
+The [control exchange](control-exchange-candidate.md) and
+[source authority](source-selection-candidate.md) specify envelope trust, exact
+pending nonce correlation, nested signature and independent enrollment comparisons.
+Independent fixture vectors precede the pure codecs; fixtures are not NSD output.
+NSD N04 adoption, producer-owned vectors and real interoperability remain outstanding.
+Prior delivered revisions retain their original attribution; consumers must name
+the immutable revision containing this response extension when adopting it.

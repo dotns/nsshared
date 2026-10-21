@@ -1,9 +1,28 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod support;
+use nsshared_proto::account::source_binding::{SourceEnrollmentExpectation, SourceProfile};
 use nsshared_proto::{
     IdentityKey,
     account::{control_exchange::*, machine_token::*, *},
 };
+
+fn source_expectation(
+    node: IdentityKey,
+    request_id: [u8; 16],
+) -> SourceEnrollmentExpectation<'static> {
+    use ed25519_dalek::SigningKey;
+    let nsd = IdentityKey::from_bytes(&SigningKey::from_bytes(&[2; 32]).verifying_key().to_bytes())
+        .unwrap();
+    SourceEnrollmentExpectation {
+        nsd,
+        recipient: node,
+        served_realm: "030C1G60R30C1G60R30C1G60R3".parse().unwrap(),
+        scope: "nodes",
+        profile: SourceProfile::ExplicitGateway,
+        source_node: node,
+        request_id,
+    }
+}
 
 #[test]
 fn candidate_control_exchange_vectors() {
@@ -86,6 +105,14 @@ fn candidate_control_exchange_vectors() {
                         &request,
                         committed.as_ref().map(|e| &e.binding),
                         rebind,
+                        &source_expectation(
+                            node,
+                            if v.opt("committed").is_some() {
+                                [9; 16]
+                            } else {
+                                [7; 16]
+                            },
+                        ),
                     );
                     let decision = match result {
                         Ok(_) => "accepted",
@@ -369,9 +396,15 @@ fn unbound_policy_never_bypasses_subject_expiry_or_carrier_trust() {
     )
     .unwrap();
     assert!(!format!("{request:?}").contains("provisioned"));
-    let token = AuthenticationResponse {
-        token: "secret.machine.token".into(),
-    };
+    let mut token = AuthenticationResponse::decode(
+        &vectors
+            .iter()
+            .find(|v| v.name() == "token-response")
+            .unwrap()
+            .hex("bytes"),
+    )
+    .unwrap();
+    token.token = "secret.machine.token".into();
     assert!(!format!("{token:?}").contains(&token.token));
     let mut envelope = BootstrapEnvelope::decode(
         &vectors
@@ -406,7 +439,8 @@ fn unbound_policy_never_bypasses_subject_expiry_or_carrier_trust() {
             &expected,
             &request,
             None,
-            RebindAuthorization::Denied
+            RebindAuthorization::Denied,
+            &source_expectation(identity, [7; 16]),
         ),
         Err(ExchangeError::Envelope(BootstrapError::Signature))
     ));
@@ -425,5 +459,28 @@ fn key_set_decode_retains_supported_members_without_weakening_structure() {
         b"{}",
     ] {
         assert!(JwkSet::decode_json(malformed).is_err());
+    }
+}
+
+#[test]
+fn successful_responses_require_signed_source_binding() {
+    let vectors = support::vectors::parse(include_str!("fixtures/vectors/control-exchange.vec"));
+    for (name, register) in [("acceptance", true), ("token-response", false)] {
+        let raw = vectors
+            .iter()
+            .find(|v| v.name() == name)
+            .unwrap()
+            .hex("bytes");
+        if register {
+            assert!(
+                RegistrationAcceptance::decode(&raw).is_ok(),
+                "registration must carry its signed source binding"
+            );
+        } else {
+            assert!(
+                AuthenticationResponse::decode(&raw).is_ok(),
+                "authentication must carry its signed source binding"
+            );
+        }
     }
 }

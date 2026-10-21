@@ -17,8 +17,14 @@ def vectors():
     scope = [bytes([3]) * 16, bytes([4]) * 16]
     binding = [1, node, bytes([5]) * 32, 1]
     enrollment = cbor.encode([1, binding, ["node.control"]])
-    request = [1, scope, enrollment, "ordinary-node-v1", b"provisioned", None]
-    acceptance = [1, scope, enrollment, "ordinary-node-v1", 0]
+    request = [1, scope, enrollment, "explicit-gateway-profile", b"provisioned", None]
+    def signed_source(recipient=node):
+        raw = cbor.encode([1, authority, recipient,
+            "030C1G60R30C1G60R30C1G60R3", "nodes", "explicit-gateway-profile",
+            recipient, bytes([10])*16, 1, 1])
+        return cbor.encode([raw, account.sign(bytes([2])*32,
+            b"ns.account.source-binding.v1\0" + raw)])
+    acceptance = [1, scope, enrollment, "explicit-gateway-profile", 0, signed_source()]
     out = []
 
     def emit(name, kind, value, decision="accepted", raw=None, extra=()):
@@ -28,11 +34,13 @@ def vectors():
 
     for kind, value in [("registration", request), ("acceptance", acceptance),
                         ("authentication", [1, scope, binding, "control"]),
-                        ("token-response", [1, "a.b.c"]), ("information-request", [1])]:
+                        ("token-response", [1, "a.b.c", signed_source()]), ("information-request", [1])]:
         emit(kind, kind, value)
         raw = cbor.encode(value)
         emit(kind + "-trailing", kind, None, "encoding", raw + b"\0")
         emit(kind + "-nonminimal", kind, None, "encoding", raw[:1] + b"\x18\x01" + raw[2:])
+    emit("acceptance-missing-binding", "acceptance", acceptance[:-1], "encoding")
+    emit("token-response-missing-binding", "token-response", [1, "a.b.c"], "encoding")
     pin = bootstrap_envelope.pin(authority)
     discovery = [1, 1, "https://control.example/", [1],
                  [[0, "https://control.example/"]], None, [], [pin]]
@@ -46,10 +54,10 @@ def vectors():
     for name, changed, signer, decision in [
         ("matching", acceptance, authority, "accepted"),
         ("scope", [1, [scope[0], bytes([9]) * 16], *acceptance[2:]], authority, "scope"),
-        ("profile", acceptance[:3] + ["other", 0], authority, "profile"),
+        ("profile", acceptance[:3] + ["other", 0, signed_source()], authority, "profile"),
         ("binding", [1, scope, cbor.encode([1, [1, node, bytes([9]) * 32, 1], ["node.control"]]), *acceptance[3:]], authority, "binding"),
         ("capabilities", [1, scope, cbor.encode([1, binding, ["other"]]), *acceptance[3:]], authority, "capabilities"),
-        ("decision", acceptance[:-1] + [1], authority, "lifecycle"),
+        ("decision", acceptance[:4] + [1, signed_source()], authority, "lifecycle"),
         ("authority", acceptance, node, "authority"),
     ]:
         seed = bytes([2 if signer == authority else 1]) * 32
@@ -76,8 +84,8 @@ def vectors():
     ]:
         life = None if transition is None else cbor.encode([1, transition, binding, after, bytes([1]) * 16, bytes([2]) * 16])
         enrollment_after = cbor.encode([1, after, ["node.control"]])
-        staged = [1, scope, enrollment_after, "ordinary-node-v1", b"provisioned", life]
-        accepted = [1, scope, enrollment_after, "ordinary-node-v1", declared]
+        staged = [1, scope, enrollment_after, "explicit-gateway-profile", b"provisioned", life]
+        accepted = [1, scope, enrollment_after, "explicit-gateway-profile", declared, signed_source(after[1])]
         signed = cbor.encode([1, 1, authority, after[1], "machine.register", 100, bytes([9]) * 16, cbor.encode(accepted)])
         emit("lifecycle-" + name, "match", [signed, account.sign(bytes([2]) * 32, bootstrap_envelope.RESPONSE + signed)], result,
              extra=[("request", cbor.encode(staged)), ("node", after[1]), ("pin", pin),
