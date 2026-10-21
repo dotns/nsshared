@@ -100,7 +100,7 @@ pub struct SourceBinding {
     pub profile: SourceProfile,
     /// Full source Node identity I, never a gateway id or address.
     pub source_node: IdentityKey,
-    /// NSD-allocated durable contribution identity.
+    /// NSD-allocated source record: Node record for nodes, contribution for egress.
     pub contribution: [u8; 16],
     /// Positive NSD source epoch, unrelated to M6 authority_epoch.
     pub source_epoch: u64,

@@ -873,3 +873,26 @@ Independent fixture vectors precede the pure codecs; fixtures are not NSD output
 NSD N04 adoption, producer-owned vectors and real interoperability remain outstanding.
 Prior delivered revisions retain their original attribution; consumers must name
 the immutable revision containing this response extension when adopting it.
+
+## Explicit authentication source selection
+
+AuthenticationRequest is exactly `[1, membership_scope, NodeBinding, "control",
+[served_realm, publication_scope]]`. The selector is required, with no default or
+old-shape fallback. Realm text is canonical 26-character RealmId; scope uses the
+existing nonempty, control-free UTF-8 encoding bounded to 256 bytes. This is an
+incompatible candidate request delta. AuthenticationResponse and SignedSourceBinding
+encodings and signing domains are unchanged. NSD N04 adoption remains outstanding.
+
+Registration, including pending gateway enrollment and Equal, returns nodes authority
+in the accepted registration Network. Recipient and source_node equal the enrolled
+identity. The contribution field is the NSD-allocated Node source record in this
+scope; it grants no gateway contribution, service resource or M6 admission.
+
+Nodes authentication selects the enrollment Network; egress selects an independently
+accepted contribution Network, including home. Consumers retain the exact pending
+realm/scope and nonce, compare returned authority against that pair and independently
+accepted NSD, recipient, profile and source Node facts, and verify both signatures
+and the normal token. Unknown or unauthorized selectors are refused, never replaced
+with another binding. Retain each accepted scope independently. Fixture vectors
+cover pending registration, Equal and nodes/egress authentication in one Network,
+including swapped-scope and swapped-realm refusal.

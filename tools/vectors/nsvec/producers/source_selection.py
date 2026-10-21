@@ -65,7 +65,7 @@ def vectors():
 
     request_id = bytes([6]) * 16
     enrollment = cbor.encode([1, [1, node, bytes([42])*32, 1], ["node.control"]])
-    membership = [bytes([3])*16, bytes([4])*16]
+    membership = [bytes([3])*16, bytes([3])*16]
     staged = cbor.encode([1, membership, enrollment, "explicit-gateway-profile",
                           b"provisioned", None])
     mismatches = []
@@ -100,6 +100,33 @@ def vectors():
                  carrier(cbor.encode(normal + [changed]), request_id, op), False,
                  operation=op, request=staged)
 
+
+    egress = copy.deepcopy(a)
+    egress[4], egress[7] = "egress", bytes([13])*16
+    se = signed(egress, BINDING)
+    emit("source-egress", "binding", se, signing_input=BINDING + cbor.encode(egress))
+    for label, source, expected_scope, expected_realm in [
+        ("egress", se, "egress", realm), ("other-network", sc, "nodes", c[3])]:
+        emit("register-" + label, "acceptance",
+             carrier(cbor.encode([1, membership, enrollment, "explicit-gateway-profile", 0, source]),
+                     request_id, "machine.register"), False, operation="machine.register",
+             request=staged, expected_scope=expected_scope, expected_realm=expected_realm)
+    equal = [1, membership, enrollment, "explicit-gateway-profile", 1, sa]
+    emit("register-equal", "acceptance", carrier(cbor.encode(equal), request_id, "machine.register"),
+         operation="machine.register", request=staged, committed=enrollment)
+    for label, scope, source in [("nodes", "nodes", sa), ("egress", "egress", se)]:
+        auth_request = cbor.encode([1, membership, [1, node, bytes([42])*32, 1],
+                                    "control", [realm, scope]])
+        nonce = bytes([6 if scope == "nodes" else 8])*16
+        other_realm = copy.deepcopy(a if scope == "nodes" else egress)
+        other_realm[3] = c[3]
+        emit("auth-request-" + label, "authentication-request", auth_request)
+        for suffix, returned, accepted in [("accepted", source, True),
+                                           ("swapped-scope", se if scope == "nodes" else sa, False),
+                                           ("swapped-realm", signed(other_realm, BINDING), False)]:
+            emit("auth-" + label + "-" + suffix, "selected-authentication",
+                 carrier(cbor.encode([1, "a.b.c", returned]), nonce, "machine.auth"),
+                 accepted, request=auth_request, scope=scope, pending_nonce=nonce)
 
     for name, value in [("stream-context", stream), ("snapshot-context", poll)]:
         emit(name, "context", cbor.encode(value))
