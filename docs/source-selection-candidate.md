@@ -63,7 +63,15 @@ The measured entire outer event is bounded by MAX_PUBLICATION_BYTES. Oversized
 stream input terminates; invalid snapshot input rejects the complete snapshot.
 Source-bound snapshots use `[1, [bstr(SourcePublication), ...]]`, bounded by
 MAX_CONTROL_BODY, strictly increasing full inner keys. Every event is validated
-before exposing any decision; omitted keys retain their state. Multi-scope polls
+before exposing any decision; omitted keys retain their state. Every entry must
+both declare Snapshot and avoid known stream ownership. A known stream-owned
+pair is refused even if it declares Snapshot; an unknown registry pair that
+declares Stream is also refused. Authenticated unknown pairs that declare
+Snapshot yield UnknownKind without authority and preserve adjacent valid updates.
+One wrong-channel entry rejects the whole batch, whether valid replacements occur
+before or after it. Both the single-source and multi-scope snapshot APIs enforce
+these rules without changing the low-level publication decision contract.
+Multi-scope polls
 supply the accepted binding for each requested scope, bounded by the existing
 32-scope request ceiling. Each enclosing issuer/recipient/realm/scope may have
 only one current binding; supplying both retired and replacement authority for

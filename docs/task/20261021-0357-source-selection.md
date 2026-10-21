@@ -1,6 +1,6 @@
 # Source binding and route selection
 
-- **status**: completed
+- **status**: in_progress
 - **priority**: P1
 - **owner**: (exclusive)
 - **createdAt**: 2026-10-21 03:57
@@ -31,7 +31,7 @@ definitions retain their separate ownership; producer review remains open.
   while I/K/N4/N6 stay fixed, selects B, refuses A's higher-version delayed event
   before and after canonical restoration, preserves A's original clear receipt
   and B's selection, and accepts B's current event.
-- 101 independently generated cases cover source/profile, request/attempt,
+- 129 independently generated cases cover source/profile, request/attempt,
   channel, complete-empty/failure, exact clear targets, malformed/retired fields,
   multi-scope snapshot atomicity and ambiguous-source refusal.
 - The failing-first consumer test initially found missing APIs. An executable
@@ -63,3 +63,17 @@ or directory-binding contract was added to the source/selection implementation.
 The current `just self-check` at 68c6591 passed, including 491 workspace tests
 with zero skipped. The candidate documentation and implementation are complete;
 NSD producer review, producer vectors and runtime adoption remain outstanding.
+
+## Snapshot channel validation
+
+Inspection found that source snapshot aggregation retained ChannelMismatch beside
+valid replacements. UnknownKind also requires an explicit signed snapshot-channel
+check because the low-level event decision recognizes extensions before checking
+known ownership. Both source snapshot APIs share the same aggregation path.
+
+Reject a complete source snapshot on a known channel mismatch or an extension
+that declares Stream. Preserve authenticated snapshot-channel unknown pairs and
+exact source/context/scope, ordering and multi-scope atomicity. Keep the existing
+low-level publication contracts unchanged. Verify the imported stream-entry
+regression, independent mixed-event accepted/refused vectors and the current
+self-check before recording completion.

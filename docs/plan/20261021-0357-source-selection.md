@@ -1,6 +1,6 @@
 # Source binding and route selection
 
-- **status**: completed
+- **status**: implementing
 - **createdAt**: 2026-10-21 03:57
 - **approvedAt**: 2026-10-21 03:57
 - **relatedTask**: 20261021-0357-source-selection
@@ -51,7 +51,7 @@ test, format/lint, then the current self-check against the integration baseline.
 Specification and independent Python bytes preceded the codecs. SourceBinding,
 DeliveryContext, SourceAcceptance, source-bound publications, scoped snapshots,
 route commands and immutable receipts are implemented without runtime or I/O.
-The independent corpus has 101 cases; four focused tests pass. The final
+The independent corpus has 129 cases; four focused tests pass. The final
 `just self-check` against the integration baseline passed static, vector, API,
 41 check-selection tests, 491 workspace tests with zero skipped and documentation
 checks. Source files remain within their documented size limits.
@@ -76,3 +76,17 @@ with the directory unchanged. P07 definitions and P08 gateway adoption remain
 pending; producer review and NSD/ns adoption are external outstanding work.
 The current `just self-check` at 68c6591 passed all static, vector, API, workspace
 test and documentation checks, including 491 workspace tests with zero skipped.
+
+## Snapshot channel validation
+
+Inspection found that source snapshot aggregation retained ChannelMismatch beside
+valid replacements. UnknownKind also requires an explicit signed snapshot-channel
+check because the low-level event decision recognizes extensions before checking
+known ownership. Both source snapshot APIs share the same aggregation path.
+
+Reject a complete source snapshot on a known channel mismatch or an extension
+that declares Stream. Preserve authenticated snapshot-channel unknown pairs and
+exact source/context/scope, ordering and multi-scope atomicity. Keep the existing
+low-level publication contracts unchanged. Verify the imported stream-entry
+regression, independent mixed-event accepted/refused vectors and the current
+self-check before recording completion.

@@ -65,6 +65,107 @@ fn context(channel: PublicationChannel) -> DeliveryContext {
     }
 }
 
+fn action(value: &PublicationDecision<'_>) -> &'static str {
+    match value {
+        PublicationDecision::Replace(_) => "replace",
+        PublicationDecision::UnknownKind(_) => "unknown-kind",
+        PublicationDecision::ChannelMismatch(_) => "channel-mismatch",
+        PublicationDecision::Refused(_) => "refused",
+        other => panic!("unexpected mixed snapshot decision: {other:?}"),
+    }
+}
+
+fn check_snapshot_channels(v: &Vector, vectors: &[Vector]) {
+    use nsshared_proto::encoding::CborReader;
+    let b = binding(vectors, "source-b");
+    let c = binding(vectors, "source-c");
+    let count = usize::try_from(v.u64("scope_count")).unwrap();
+    let current = [b.binding, c.binding];
+    let scopes = current
+        .iter()
+        .map(|binding| PublicationScope {
+            served_realm: binding.served_realm,
+            scope: &binding.scope,
+        })
+        .collect::<Vec<_>>();
+    let expected = PublicationExpectation {
+        issuer: current[0].nsd,
+        recipient: current[0].recipient,
+        scopes: &scopes[..count],
+        channel: PublicationChannel::Snapshot,
+        now_seconds: 150,
+    };
+    let pending = context(PublicationChannel::Snapshot);
+    let raw = v.hex("bytes");
+    let accepted = v.get("decision") == "accepted";
+    let mut reader = CborReader::new(&raw, raw.len()).unwrap();
+    reader.array(2).unwrap();
+    assert_eq!(reader.uint().unwrap(), 1);
+    let length = reader.array_up_to(raw.len()).unwrap();
+    let mut event_actions = Vec::new();
+    let mut previous = None;
+    for _ in 0..length {
+        let entry = reader.bytes_up_to(raw.len()).unwrap();
+        let event = SourcePublication::decode(entry).unwrap();
+        let inner = event.event().unwrap();
+        let key = inner.content().key;
+        assert!(
+            previous.is_none_or(|previous| previous < key),
+            "{}: independently ordered fixture",
+            v.name()
+        );
+        previous = Some(key);
+        let current = current
+            .iter()
+            .find(|binding| binding.served_realm == key.served_realm)
+            .unwrap();
+        let decision = decide_source_publication(&[], Some(entry), current, &pending, &expected);
+        event_actions.push(decision.as_ref().map_or("refused", action));
+    }
+    reader.finish().unwrap();
+    assert_eq!(
+        event_actions.join(","),
+        v.get("event_actions"),
+        "{}: per-event authentication/control",
+        v.name()
+    );
+    // Both entry points must agree for the single-scope corpus. Only the aggregate
+    // result is available to callers, so an error cannot expose adjacent actions.
+    let scoped = decide_source_snapshot_scopes(&[], &raw, &current[..count], &pending, &expected);
+    let mut results = vec![scoped];
+    if count == 1 {
+        results.push(decide_source_snapshot(
+            &[],
+            &raw,
+            &current[0],
+            &pending,
+            &expected,
+        ));
+    }
+    for result in results {
+        assert_eq!(
+            result.is_ok(),
+            accepted,
+            "{}: wrong aggregate acceptance",
+            v.name()
+        );
+        if let Ok(decisions) = result {
+            assert_eq!(
+                decisions.iter().map(action).collect::<Vec<_>>(),
+                event_actions,
+                "{}: preserved actions",
+                v.name()
+            );
+        } else if v.get("failure") == "channel" {
+            assert!(
+                matches!(result, Err(SourceError::Context)),
+                "{}: channel-specific refusal",
+                v.name()
+            );
+        }
+    }
+}
+
 #[test]
 fn independent_source_selection_vectors() {
     let vectors = vectors();
@@ -77,6 +178,7 @@ fn independent_source_selection_vectors() {
         let raw = v.hex("bytes");
         let accepted = v.get("decision") == "accepted";
         match v.get("mode") {
+            "snapshot-channel" => check_snapshot_channels(v, &vectors),
             "binding" => {
                 let result = SignedSourceBinding::decode(&raw).and_then(|s| {
                     s.verify(issuer)?;

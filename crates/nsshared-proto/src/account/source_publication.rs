@@ -260,12 +260,17 @@ pub fn decide_source_snapshot_scopes<'a>(
             PublicationDecision::Replace(event)
             | PublicationDecision::Withdraw(event)
             | PublicationDecision::FetchFailed(event)
-            | PublicationDecision::UnknownKind(event)
-            | PublicationDecision::ChannelMismatch(event) => event,
+            | PublicationDecision::UnknownKind(event) => event,
+            PublicationDecision::ChannelMismatch(_) => return Err(SourceError::Context),
             PublicationDecision::Refused(_)
             | PublicationDecision::Absent
             | PublicationDecision::TerminateStream => return Err(PublicationError::Fields.into()),
         };
+        // Unknown pairs bypass registry ownership checks in the event decision,
+        // but every source snapshot entry must still declare the snapshot channel.
+        if event.content().channel != PublicationChannel::Snapshot {
+            return Err(SourceError::Context);
+        }
         let key = event.content().key;
         if previous.is_some_and(|previous| previous >= key) {
             return Err(PublicationError::Order.into());

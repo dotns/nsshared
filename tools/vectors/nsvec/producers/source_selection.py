@@ -145,6 +145,67 @@ def vectors():
     emit("snapshot-multiple-scopes", "scoped-snapshot", cbor.encode([1, [valid, other]]))
     emit("snapshot-multiple-scopes-old-source", "scoped-snapshot", cbor.encode([1, [publication(sa, 99), other]]), False)
 
+    # Fully signed mixed batches: key order is specified independently so a
+    # wrong-channel refusal cannot be explained by duplicate or unsorted keys.
+    low = publication(sb, 12, family=2, kind="realm-peers")
+    high = publication(sb, 12)
+    def mixed(name, entries, actions, accepted, scope_count=1, failure="channel"):
+        emit(name, "snapshot-channel", cbor.encode([1, entries]), accepted,
+             scope_count=scope_count, event_actions=",".join(actions), failure=failure)
+
+    mixed("channel-known-only", [low, high], ["replace", "replace"], True)
+    extension = publication(sb, 12, family=9, kind="future-kind")
+    unknown_first = publication(sb, 12, family=0, kind="future-kind")
+    unknown_last = publication(sb, 12, family=99, kind="future-kind")
+    mixed("channel-unknown-kind-between", [low, extension, high],
+          ["replace", "unknown-kind", "replace"], True)
+    mixed("channel-unknown-family-before", [unknown_first, low, high],
+          ["unknown-kind", "replace", "replace"], True)
+    mixed("channel-unknown-family-after", [low, high, unknown_last],
+          ["replace", "replace", "unknown-kind"], True)
+    mixed("channel-multiple-scopes-unknown-kind", [low, extension, other],
+          ["replace", "unknown-kind", "replace"], True, 2)
+    mixed("channel-multiple-scopes-unknown-family", [low, unknown_last, other],
+          ["replace", "unknown-kind", "replace"], True, 2)
+
+    for name, family, kind, channel, action in [
+        ("known-stream-declared-stream", 7, "public-edge", 0, "channel-mismatch"),
+        ("known-stream-declared-snapshot", 7, "public-edge", 1, "channel-mismatch"),
+        ("known-snapshot-declared-stream", 3, "egress-grants", 0, "channel-mismatch"),
+        ("unknown-kind-declared-stream", 9, "future-kind", 0, "unknown-kind"),
+        ("unknown-family-before-declared-stream", 0, "future-kind", 0, "unknown-kind"),
+        ("unknown-family-after-declared-stream", 99, "future-kind", 0, "unknown-kind"),
+    ]:
+        wrong = publication(sb, 12, family=family, kind=kind, channel=channel)
+        for scopes in (1, 2):
+            if family == 0:
+                entries, actions = [wrong, low, high if scopes == 1 else other], [action, "replace", "replace"]
+            elif family == 99 and scopes == 1:
+                entries, actions = [low, high, wrong], ["replace", "replace", action]
+            else:
+                entries, actions = [low, wrong, high if scopes == 1 else other], ["replace", action, "replace"]
+            mixed("channel-" + name + "-scopes-" + str(scopes), entries, actions, False, scopes)
+
+    nested = cbor.decode(extension)[0]
+    nested = cbor.decode(nested)
+    inner = cbor.decode(nested[3])
+    inner[1] = bytes([inner[1][0] ^ 1]) + inner[1][1:]
+    nested[3] = cbor.encode(inner)
+    bad_inner_signature = signed(nested, PUBLICATION)
+    for name, wrong in [
+        ("bad-outer-signature", publication(sb, 12, family=9, kind="future-kind", corrupt=True)),
+        ("bad-inner-signature", bad_inner_signature),
+        ("wrong-context", publication(sb, 12, family=9, kind="future-kind", context=[1, poll[1], 2, poll[3]])),
+        ("old-source", publication(sa, 12, family=9, kind="future-kind")),
+        ("wrong-scope", publication(sb, 12, family=9, kind="future-kind", changes={4:"zz-other"})),
+    ]:
+        for scopes in (1, 2):
+            if name == "wrong-scope" and scopes == 1:
+                entries, actions = [low, high, wrong], ["replace", "replace", "refused"]
+            else:
+                entries, actions = [low, wrong, high if scopes == 1 else other], ["replace", "refused", "replace"]
+            mixed("channel-" + name + "-scopes-" + str(scopes), entries, actions, False, scopes, "authentication")
+
     route = cbor.encode([bytes([21])*16, bytes([22])*16, bytes([23])*16])
     select_a = [1, sa, bytes([30])*16, bytes([31])*16, [0, provider, route, [0, []]]]
     clear_a = [1, sa, bytes([32])*16, bytes([31])*16, [1, 10]]
