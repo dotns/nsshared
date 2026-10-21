@@ -1,5 +1,16 @@
 ## 2026-10-21 [feat]
 
+Add signed source bindings and exact delivery fences before publication decisions.
+Define Node route select/clear commands with immutable source-owned receipts and
+exact selection generations. Reject complete source snapshots on wrong-channel
+entries while preserving authenticated unknown snapshot extensions.
+
+Validation: 129 independent cases and retained regression assertions passed;
+self-check passed with 492 tests, zero skips and static/API/docs checks. Producer
+review, transaction persistence and consumer adoption remain outstanding.
+
+## 2026-10-21 [feat]
+
 Unify candidate membership realm identities as a 16-byte RealmId with strict
 uppercase ULID text. Migrate affected publication, membership, policy, payer and
 material fields while preserving existing binary wire bytes and separate discovery

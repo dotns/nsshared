@@ -97,3 +97,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**Update certificate dependencies**](20261020-2033-update-certificate-dependencies.md) `2026-10-20`
 - [x] [**Define publication snapshot poll requests**](20261020-2213-publication-snapshot-request.md) `2026-10-20`
 - [x] [**Define canonical realm identity**](20261021-0335-canonical-realm-identity.md) `2026-10-21`
+- [x] [**Define source binding and route selection**](20261021-0357-source-selection.md) `2026-10-21`
