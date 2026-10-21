@@ -135,3 +135,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**Define confidential authentication configuration**](20261020-1902-confidential-auth.md) `P1`
 - [x] [**Update certificate dependencies**](20261020-2033-update-certificate-dependencies.md) `P1`
 - [x] [**Define publication snapshot poll requests**](20261020-2213-publication-snapshot-request.md) `P1`
+- [x] [**Define canonical realm identity**](20261021-0335-canonical-realm-identity.md) `P1`

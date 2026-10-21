@@ -1,3 +1,14 @@
+## 2026-10-21 [feat]
+
+Unify candidate membership realm identities as a 16-byte RealmId with strict
+uppercase ULID text. Migrate affected publication, membership, policy, payer and
+material fields while preserving existing binary wire bytes and separate discovery
+and external identity namespaces. Arbitrary realm labels now refuse.
+
+Validation: canonical and malformed identities, authenticated two-realm membership
+removal and affected family checks passed. Self-check passed with 487 tests and
+zero skips. NSD/ns producer confirmation and consumer adaptation remain outstanding.
+
 ## 2026-10-20 [feat]
 
 Add canonical signed snapshot poll requests with exact authority scopes and
