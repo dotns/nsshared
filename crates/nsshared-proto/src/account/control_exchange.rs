@@ -8,7 +8,10 @@ use super::{
     MAX_BYTES, NodeBinding, RebindAuthorization, SCHEMA, bounded, decide_enrollment, reader,
     require,
 };
-use crate::encoding::{CborReader, CborWriter};
+use crate::{
+    RealmId,
+    encoding::{CborReader, CborWriter},
+};
 use nsshared_service_control::Id;
 use thiserror::Error;
 
@@ -225,7 +228,7 @@ pub struct RegistrationAcceptance {
     pub profile: String,
     /// Authority's declared lifecycle decision.
     pub decision: EnrollmentDecision,
-    /// Required NSD-signed contribution authority, including Equal decisions.
+    /// Required NSD-signed nodes authority in the accepted Network, including Equal.
     pub source_binding: SignedSourceBinding,
 }
 impl RegistrationAcceptance {
@@ -308,7 +311,9 @@ pub fn compare_registration_acceptance(
     if local != accepted.decision {
         return Err(ExchangeError::Lifecycle);
     }
-    if pending.recipient != staged.enrollment.binding.identity
+    if pending.scope != "nodes"
+        || pending.served_realm != RealmId::from_bytes(staged.scope.network_id)
+        || pending.recipient != staged.enrollment.binding.identity
         || pending.source_node != staged.enrollment.binding.identity
         || pending.profile.as_str() != staged.profile
     {
@@ -320,6 +325,31 @@ pub fn compare_registration_acceptance(
     Ok(local)
 }
 
+/// Exact requested source authority; selection itself grants no authority.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AuthenticationSourceScope {
+    /// Enrollment Network for nodes, accepted contribution Network for egress.
+    pub served_realm: RealmId,
+    /// Existing bounded source scope, compared exactly with the response.
+    pub publication_scope: String,
+}
+impl AuthenticationSourceScope {
+    fn write(&self, out: &mut CborWriter) -> Result<(), AccountError> {
+        text(&self.publication_scope)?;
+        out.array(2)
+            .text(&self.served_realm.to_string())
+            .text(&self.publication_scope);
+        Ok(())
+    }
+    fn read(input: &mut CborReader<'_>) -> Result<Self, AccountError> {
+        input.array(2)?;
+        Ok(Self {
+            served_realm: input.text_up_to(26)?.parse()?,
+            publication_scope: input.text_up_to(256)?.into(),
+        })
+    }
+}
+
 /// Authentication of the already accepted binding; grants no enrollment acceptance.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AuthenticationRequest {
@@ -327,6 +357,8 @@ pub struct AuthenticationRequest {
     pub scope: MembershipScope,
     /// Previously accepted Node binding.
     pub binding: NodeBinding,
+    /// Required exact source selector retained with the pending request nonce.
+    pub source_scope: AuthenticationSourceScope,
 }
 impl AuthenticationRequest {
     /// Authenticates a request against the already committed scope and binding.
@@ -358,22 +390,26 @@ impl AuthenticationRequest {
     pub fn canonical(&self) -> Result<Vec<u8>, AccountError> {
         self.binding.validate()?;
         let mut out = CborWriter::default();
-        out.array(4).uint(SCHEMA);
+        out.array(5).uint(SCHEMA);
         self.scope.write(&mut out);
         self.binding.write(&mut out);
         out.text(MACHINE_AUTH_PURPOSE);
+        self.source_scope.write(&mut out)?;
         bounded(out.into_bytes())
     }
     /// Decodes a canonical authentication request.
     /// # Errors
     /// Refuses unsupported purpose or invalid fields.
     pub fn decode(bytes: &[u8]) -> Result<Self, AccountError> {
-        let mut input = reader(bytes, 4)?;
-        let value = Self {
-            scope: MembershipScope::read(&mut input)?,
-            binding: NodeBinding::read(&mut input)?,
-        };
+        let mut input = reader(bytes, 5)?;
+        let scope = MembershipScope::read(&mut input)?;
+        let binding = NodeBinding::read(&mut input)?;
         require(input.text_up_to(256)? == MACHINE_AUTH_PURPOSE)?;
+        let value = Self {
+            scope,
+            binding,
+            source_scope: AuthenticationSourceScope::read(&mut input)?,
+        };
         input.finish()?;
         value.canonical()?;
         Ok(value)

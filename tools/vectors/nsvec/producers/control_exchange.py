@@ -14,7 +14,7 @@ SECTIONS = "repository docs/control-exchange-candidate.md"
 def vectors():
     node = account.key(bytes([1]) * 32)[0]
     authority = account.key(bytes([2]) * 32)[0]
-    scope = [bytes([3]) * 16, bytes([4]) * 16]
+    scope = [bytes([3]) * 16, bytes([3]) * 16]
     binding = [1, node, bytes([5]) * 32, 1]
     enrollment = cbor.encode([1, binding, ["node.control"]])
     request = [1, scope, enrollment, "explicit-gateway-profile", b"provisioned", None]
@@ -33,7 +33,7 @@ def vectors():
                     ("decision", decision), *extra])
 
     for kind, value in [("registration", request), ("acceptance", acceptance),
-                        ("authentication", [1, scope, binding, "control"]),
+                        ("authentication", [1, scope, binding, "control", ["030C1G60R30C1G60R30C1G60R3", "nodes"]]),
                         ("token-response", [1, "a.b.c", signed_source()]), ("information-request", [1])]:
         emit(kind, kind, value)
         raw = cbor.encode(value)
@@ -41,13 +41,24 @@ def vectors():
         emit(kind + "-nonminimal", kind, None, "encoding", raw[:1] + b"\x18\x01" + raw[2:])
     emit("acceptance-missing-binding", "acceptance", acceptance[:-1], "encoding")
     emit("token-response-missing-binding", "token-response", [1, "a.b.c"], "encoding")
+    emit("authentication-missing-selector", "authentication", [1, scope, binding, "control"], "encoding")
+    for name, selector in [("lowercase-realm", ["030c1g60r30c1g60r30c1g60r3", "nodes"]),
+                           ("empty-scope", ["030C1G60R30C1G60R30C1G60R3", ""]),
+                           ("long-scope", ["030C1G60R30C1G60R30C1G60R3", "x"*257]),
+                           ("control-scope", ["030C1G60R30C1G60R30C1G60R3", "nodes\n"])]:
+        emit("authentication-" + name, "authentication", [1, scope, binding, "control", selector], "field")
+    for name, source_scope in [("scope-bound", "x"*256), ("utf8-scope-bound", "é"*128)]:
+        emit("authentication-" + name, "authentication",
+             [1, scope, binding, "control", ["030C1G60R30C1G60R30C1G60R3", source_scope]])
+    emit("authentication-selector-extra", "authentication",
+         [1, scope, binding, "control", ["030C1G60R30C1G60R30C1G60R3", "nodes", 1]], "encoding")
     pin = bootstrap_envelope.pin(authority)
     discovery = [1, 1, "https://control.example/", [1],
                  [[0, "https://control.example/"]], None, [], [pin]]
     info = [1, cbor.encode(discovery), "realm-default", "provider", "1.0", ["auth_key"], ["node.control"]]
     emit("information", "information", info)
     emit("information-bad-method", "information", info[:5] + [["unknown"]] + info[6:], "field")
-    emit("authentication-purpose", "authentication", [1, scope, binding, "wss"], "field")
+    emit("authentication-purpose", "authentication", [1, scope, binding, "wss", ["030C1G60R30C1G60R30C1G60R3", "nodes"]], "field")
     emit("registration-empty-credential", "registration", request[:4] + [b"", None], "field")
     emit("registration-missing-lifecycle", "registration", request[:-1], "encoding")
 
@@ -71,7 +82,7 @@ def vectors():
          extra=[("node", node), ("authority", authority), ("pin", bootstrap_envelope.pin(node)),
                 ("signing_input", bootstrap_envelope.REQUEST + content)])
 
-    auth_value = [1, scope, binding, "control"]
+    auth_value = [1, scope, binding, "control", ["030C1G60R30C1G60R30C1G60R3", "nodes"]]
     auth_content = cbor.encode([1, 0, node, authority, "machine.auth", 100, bytes([8]) * 16, cbor.encode(auth_value)])
     emit("signed-authentication", "signed-authentication", [auth_content, account.sign(bytes([1]) * 32, bootstrap_envelope.REQUEST + auth_content)],
          extra=[("node", node), ("authority", authority), ("pin", bootstrap_envelope.pin(node)),

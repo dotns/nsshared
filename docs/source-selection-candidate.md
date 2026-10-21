@@ -147,9 +147,11 @@ Old-profile receipts are refused, not translated.
 ## Independent consumer sequence
 
 `source_selection_fence` uses a labelled authority with the same full source I,
-K and derived addresses across A/B. Register A with its normal acceptance and signed
-binding, then authenticate with its token and signed binding under the same pending
-request correlation. Refuse missing or mismatched bindings and wrong correlation
+K and derived addresses across A/B. Register a pending gateway with no contribution
+and accept A as nodes authority in its enrollment Network; Equal retains that scope.
+Authorize a contribution in that same Network, then authenticate independently for
+nodes and egress with the exact pending selector and nonce. Retain both bindings.
+Refuse swapped scope or realm and requests missing the selector. Refuse missing or mismatched bindings and wrong correlation
 for both operations. Select and clear A's route; replace
 only contribution/generation with B, select B's route. Deliver A's delayed signed
 success at a higher per-key version: refuse it. Replay A's clear before and after
@@ -171,3 +173,26 @@ global directory unchanged. P07 owns those shared definitions (pending), and P08
 owns gateway adoption (pending). This source-binding and Node route candidate only
 cross-references them; it does not define participant or directory-binding
 contracts. NSD producer review and NSD/ns adoption remain outstanding.
+
+## Explicit authentication source selection
+
+AuthenticationRequest is exactly `[1, membership_scope, NodeBinding, "control",
+[served_realm, publication_scope]]`. The selector is required, with no default or
+old-shape fallback. Realm text is canonical 26-character RealmId; scope uses the
+existing nonempty, control-free UTF-8 encoding bounded to 256 bytes. This is an
+incompatible candidate request delta. AuthenticationResponse and SignedSourceBinding
+encodings and signing domains are unchanged. NSD N04 adoption remains outstanding.
+
+Registration, including pending gateway enrollment and Equal, returns nodes authority
+in the accepted registration Network. Recipient and source_node equal the enrolled
+identity. The contribution field is the NSD-allocated Node source record in this
+scope; it grants no gateway contribution, service resource or M6 admission.
+
+Nodes authentication selects the enrollment Network; egress selects an independently
+accepted contribution Network, including home. Consumers retain the exact pending
+realm/scope and nonce, compare returned authority against that pair and independently
+accepted NSD, recipient, profile and source Node facts, and verify both signatures
+and the normal token. Unknown or unauthorized selectors are refused, never replaced
+with another binding. Retain each accepted scope independently. Fixture vectors
+cover pending registration, Equal and nodes/egress authentication in one Network,
+including swapped-scope and swapped-realm refusal.

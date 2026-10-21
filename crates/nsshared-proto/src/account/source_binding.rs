@@ -1,4 +1,4 @@
-//! Signed contribution authority and subscriber-produced delivery context.
+//! Signed source authority and subscriber-produced delivery context.
 
 use ed25519_dalek::{Signature, VerifyingKey};
 use thiserror::Error;
@@ -14,7 +14,7 @@ use crate::{
 
 /// Inclusive encoded ceiling for source bindings and route commands.
 pub const MAX_SOURCE_BYTES: usize = 16_384;
-/// Signature domain for durable NSD contribution authority.
+/// Signature domain for durable NSD source authority.
 pub const SOURCE_BINDING_DOMAIN: &[u8] = b"ns.account.source-binding.v1\0";
 
 /// Assigned enrollment profile; no predecessor profile conversion exists.
@@ -100,7 +100,7 @@ pub struct SourceBinding {
     pub profile: SourceProfile,
     /// Full source Node identity I, never a gateway id or address.
     pub source_node: IdentityKey,
-    /// NSD-allocated durable contribution identity.
+    /// NSD-allocated source record: Node record for nodes, contribution for egress.
     pub contribution: [u8; 16],
     /// Positive NSD source epoch, unrelated to M6 authority_epoch.
     pub source_epoch: u64,

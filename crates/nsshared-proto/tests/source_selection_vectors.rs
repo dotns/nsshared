@@ -8,8 +8,8 @@ use nsshared_proto::{
         EnvelopePins, PublicationChannel, PublicationDecision, PublicationExpectation,
         PublicationScope, RebindAuthorization,
         control_exchange::{
-            AuthenticationResponse, ExchangeError, MACHINE_REGISTER, RegistrationAcceptance,
-            RegistrationRequest, compare_registration_acceptance,
+            AuthenticationRequest, AuthenticationResponse, ExchangeError, MACHINE_REGISTER,
+            RegistrationAcceptance, RegistrationRequest, compare_registration_acceptance,
         },
         route_command::{
             CommittedSelection, RouteCommand, RouteDecision, RouteReceipt, RouteResponse,
@@ -187,8 +187,10 @@ fn accept_source(
     let pending = SourceEnrollmentExpectation {
         nsd: source.binding.nsd,
         recipient: source.binding.recipient,
-        served_realm: source.binding.served_realm,
-        scope: &source.binding.scope,
+        served_realm: v
+            .opt("expected_realm")
+            .map_or(source.binding.served_realm, |s| s.parse().unwrap()),
+        scope: v.opt("expected_scope").unwrap_or(&source.binding.scope),
         profile: source.binding.profile,
         source_node: source.binding.source_node,
         request_id: [6; 16],
@@ -199,7 +201,10 @@ fn accept_source(
             &envelope,
             &expected,
             &staged,
-            None,
+            v.opt("committed")
+                .map(|_| nsshared_proto::account::Enrollment::decode(&v.hex("committed")).unwrap())
+                .as_ref()
+                .map(|e| &e.binding),
             RebindAuthorization::Denied,
             &pending,
         )?;
@@ -214,6 +219,47 @@ fn accept_source(
     }
 }
 
+fn check_selected_authentication(
+    v: &Vector,
+    source: &SignedSourceBinding,
+    nsd_pins: &EnvelopePins,
+) -> Option<SignedSourceBinding> {
+    let raw = v.hex("request");
+    let request = AuthenticationRequest::decode(&raw).unwrap();
+    assert_eq!(request.canonical().unwrap(), raw);
+    let envelope = BootstrapEnvelope::decode(&v.hex("bytes")).unwrap();
+    let expected = EnvelopeExpectation {
+        pins: nsd_pins,
+        direction: EnvelopeDirection::Response,
+        recipient: source.binding.recipient,
+        kind: "machine.auth",
+        now_seconds: 100,
+        previous_acceptance_seconds: None,
+    };
+    assert_eq!(request.source_scope.publication_scope, v.get("scope"));
+    let pending = SourceEnrollmentExpectation {
+        nsd: source.binding.nsd,
+        recipient: source.binding.recipient,
+        served_realm: request.source_scope.served_realm,
+        scope: &request.source_scope.publication_scope,
+        profile: source.binding.profile,
+        source_node: source.binding.source_node,
+        request_id: v.hex_array("pending_nonce"),
+    };
+    let response = AuthenticationResponse::from_envelope(&envelope, &expected, &pending);
+    assert_eq!(
+        response.is_ok(),
+        v.get("decision") == "accepted",
+        "{}: {response:?}",
+        v.name()
+    );
+    response.ok().map(|response| {
+        assert_eq!(response.token, "a.b.c");
+        assert_eq!(response.canonical().unwrap(), envelope.payload);
+        response.source_binding
+    })
+}
+
 #[test]
 fn independent_source_selection_vectors() {
     let vectors = vectors();
@@ -226,6 +272,13 @@ fn independent_source_selection_vectors() {
         let raw = v.hex("bytes");
         let accepted = v.get("decision") == "accepted";
         match v.get("mode") {
+            "authentication-request" => {
+                let request = AuthenticationRequest::decode(&raw).unwrap();
+                assert_eq!(request.canonical().unwrap(), raw);
+            }
+            "selected-authentication" => {
+                check_selected_authentication(v, &a, &nsd_pins);
+            }
             "snapshot-channel" => check_snapshot_channels(v, &vectors),
             "binding" => {
                 let result = SignedSourceBinding::decode(&raw).and_then(|s| {
@@ -449,6 +502,27 @@ fn source_selection_fence() {
     let nsd_pins = pins(expected_a.binding.nsd);
     let register = vectors.iter().find(|v| v.name() == "register-a").unwrap();
     let a = accept_source(register, &expected_a, &nsd_pins).unwrap();
+    let equal = vectors
+        .iter()
+        .find(|v| v.name() == "register-equal")
+        .unwrap();
+    assert_eq!(accept_source(equal, &expected_a, &nsd_pins).unwrap(), a);
+    let retained_sources = vectors
+        .iter()
+        .filter(|v| v.get("mode") == "selected-authentication")
+        .filter_map(|v| check_selected_authentication(v, &a, &nsd_pins))
+        .collect::<Vec<_>>();
+    assert_eq!(retained_sources.len(), 2);
+    assert_eq!(retained_sources[0], a);
+    assert_eq!(retained_sources[1], binding(&vectors, "source-egress"));
+    assert_eq!(
+        retained_sources[0].binding.served_realm,
+        retained_sources[1].binding.served_realm
+    );
+    assert_ne!(
+        retained_sources[0].binding.contribution,
+        retained_sources[1].binding.contribution
+    );
     let auth = vectors.iter().find(|v| v.name() == "auth-a").unwrap();
     assert_eq!(accept_source(auth, &expected_a, &nsd_pins).unwrap(), a);
     for v in vectors
