@@ -20,6 +20,7 @@ pub enum FamilyId {
     /// Public edge names, backends, authentication and material.
     PublicEdge,
     /// Relay directory and independent participant admission.
+    /// Shared credentials and separate eligibility bindings preserve these registry bytes.
     Relay,
     /// Usage reports and versioned units.
     Usage,

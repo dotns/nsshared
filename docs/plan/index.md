@@ -99,3 +99,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**Define canonical realm identity**](20261021-0335-canonical-realm-identity.md) `2026-10-21`
 - [x] [**Define source binding and route selection**](20261021-0357-source-selection.md) `2026-10-21`
 - [x] [**Protocol-qualified grant identity and expiry renewal**](20261021-0451-protocol-grant-renewal.md) `2026-10-21`
+- [x] [**Define participant credentials and directory bindings**](20261021-0447-participant-credentials-directory-bindings.md) `2026-10-21`

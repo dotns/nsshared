@@ -305,8 +305,11 @@ NSD renews while reachable; consumers never extend a signed deadline locally.
 
 For participant rosters in registry family 8 `relay`, scope is exactly the signed
 content's `(issuer, recipient)` pair: the relay participant's own credential
-scope. No additional scope field is carried. Any authorized scope beyond this
-pair remains unresolved in Q18; directory authority is separate.
+scope. No additional scope field is carried. The shared
+[participant authority contract](participant-authority-candidate.md) defines
+enrollment, session proof, renewal and revocation for exactly this pair.
+Directory eligibility uses its separate NSD-signed binding. NSD producer review
+and adoption remain outstanding.
 
 `verify_participant_roster(bytes, issuer, recipient, last_version, now_ms)` returns
 an accepted generation containing scope, roster version as the attribution epoch,
@@ -861,9 +864,25 @@ are labelled fixture authority; NSD producer review and ns/NSD adoption remain o
 
 [Q18](l8-candidate-review-request.md) records the settled participant/directory
 choice: a shared participant credential and a separate signed directory binding,
-with the global directory unchanged. P07 shared definitions and P08 gateway
-adoption are pending. This source/selection candidate only cross-references those
-contracts. NSD producer review and NSD/ns adoption remain outstanding.
+with the global directory unchanged. The shared
+[definitions and independent vectors](participant-authority-candidate.md) are
+delivered; gateway runtime adoption remains pending. This source/selection
+candidate only cross-references those contracts. NSD producer review and NSD/ns
+adoption remain outstanding.
+
+## Shared participant credential and directory eligibility
+
+The shared definition is delivered at immutable revision
+`28bf972db2e1f434114adc324a26fabad545aed1`.
+
+Family 8 now includes shared enrollment/authentication/renewal frames and the
+separate signed directory binding defined in
+[participant authority](participant-authority-candidate.md). The existing family
+registry bytes and directory/roster replacement scopes remain unchanged. Binding
+replacement orders independently per issuer/numeric relay id and never clears a
+directory or roster. Empty binding realms withdraw eligibility, while a newer
+complete-empty roster withdraws admission. Enrollment credentials never serve as
+session bearer tokens. NSD producer review and adoption remain outstanding.
 
 ## Protocol-qualified grant and renewal delta
 

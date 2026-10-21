@@ -1,5 +1,16 @@
 ## 2026-10-21 [feat]
 
+Add shared participant enrollment and renewal frames with fresh connection proofs,
+exact request correlation and retained authorization deadlines. Add signed relay
+owner and realm bindings with withdrawal and durable version-floor replay refusal.
+Keep global directory and existing roster/report formats unchanged.
+
+Validation: independent credential/binding sequences and refusal checks passed;
+self-check passed with 496 tests and zero skips. Producer review and runtime
+adoption remain outstanding.
+
+## 2026-10-21 [feat]
+
 Qualify grant, payer and active-authority identities by TCP, UDP or Exit protocol.
 Permit equal or later expiry renewal only when all other owned content remains
 identical. Preserve token ownership, retirement history and exact payer joins.
