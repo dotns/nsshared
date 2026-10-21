@@ -2,6 +2,7 @@
 register a new producer by adding its module to PRODUCERS."""
 
 from . import (
+    participant_authority,
     source_selection,
     realm_identity,
     account,
@@ -28,6 +29,7 @@ from . import (
 )
 
 PRODUCERS = [
+    participant_authority,
     source_selection,
     realm_identity,
     account,
