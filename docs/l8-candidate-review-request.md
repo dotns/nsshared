@@ -494,7 +494,7 @@ and independent `participant-authority.vec` vectors deliver participant
 enrollment, authentication, renewal, revocation and separate signed directory
 bindings. Gateway runtime adoption remains pending. The source-binding and Node
 route candidate only cross-references this boundary. The shared definition is
-delivered at immutable revision `0135ed72888374fcbcc186d2e4fd38f129f637c7`; producer
+delivered at immutable revision `28bf972db2e1f434114adc324a26fabad545aed1`; producer
 confirmation must name its immutable consumed revision.
 
 NSD producer review, independently owned producer vectors and NSD/ns adoption
