@@ -80,8 +80,8 @@ of usage history, durable watermarks or received control messages.
 | 6 `withdrawal` — [resource authority and retired tokens](grant-authority-candidate.md) | `resource-authority` / `authority,incarnations` / current authority in one recipient/resource scope | snapshots |
 | 7 `public-edge` — [public edge, material and service operations](l8-public-edge-candidate.md) | `public-edge` / `backends,names,aliases,ports,domains,subjects,auth,materials` / exact signed issuer/recipient/served_realm/scope, per-realm contributions; full Node identity backends, explicit no-connector and generation-qualified dependencies | declarations, listeners, snapshots |
 | 8 `relay` — relay directory and participant | `relay-directory-roster` / `directory\|identity-classes` / a named directory or participant roster, separately scoped; neither clears the other | snapshots |
-| 9 `usage` — usage reports and units | `usage-profile` / `units,reporters,parameters` / one reporter; never clears metering history | none |
-| 10 `node-control` — Node-control channel | `node-control-profile` / `vocabulary,capabilities` / one membership; ACK means at least accepted, persistence may precede ACK | none |
+| 9 `usage` — [typed usage catalogue](profile-publications-candidate.md) and unchanged reports/units | `usage-profile` / `units,reporters,parameters` / one reporter; never clears metering history | none |
+| 10 `node-control` — [typed membership catalogue](profile-publications-candidate.md) and unchanged Node-control channel | `node-control-profile` / `vocabulary,capabilities` / one membership; ACK means at least accepted, persistence may precede ACK | none |
 | 11 `v1-replacement` — replacement of the v1 surface and [policy observation](realm-publication-candidate.md) | `surface-map` / `mappings,retirements` / discovery/envelope verification, admin claims, policy, signed URL, material, reports and snapshot/events vocabulary in one account profile | declarations, listeners, snapshots |
 
 The backslash before the table cell's pipe is Markdown escaping; the wire
@@ -938,3 +938,15 @@ and the normal token. Unknown or unauthorized selectors are refused, never repla
 with another binding. Retain each accepted scope independently. Fixture vectors
 cover pending registration, Equal and nodes/egress authentication in one Network,
 including swapped-scope and swapped-realm refusal.
+
+## Usage and Node-control profile payload delivery
+
+Families 9 and 10 now have explicit candidate payloads: `[1, reporter, profiles]`
+and `[1, membership_scope, 2, capabilities]`. The [exact profile specification](profile-publications-candidate.md)
+records public signatures, canonical independent bytes, refusal cases and the
+source-bound replacement sequence. These scoped catalogues describe existing
+usage quantities and Node-control kinds without changing reporting/control bytes, permissions
+or runtime semantics. Complete-empty withdrawal remains an explicit publication outcome.
+Consumers compare independent reporter/membership authority before installation.
+NSD/ns review, producer-owned vectors and producer adoption remain outstanding;
+this new delivery does not retroactively establish earlier payload support.

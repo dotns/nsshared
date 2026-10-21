@@ -60,10 +60,10 @@ pub struct MembershipScope {
     pub network_id: Id,
 }
 impl MembershipScope {
-    fn write(&self, out: &mut CborWriter) {
+    pub(super) fn write(&self, out: &mut CborWriter) {
         out.array(2).bytes(&self.nsd_id).bytes(&self.network_id);
     }
-    fn read(input: &mut CborReader<'_>) -> Result<Self, AccountError> {
+    pub(super) fn read(input: &mut CborReader<'_>) -> Result<Self, AccountError> {
         input.array(2)?;
         Ok(Self {
             nsd_id: input.fixed_bytes()?,

@@ -84,7 +84,12 @@ def vectors(a, b, sign):
         (9, "usage-profile", 0), (10, "node-control-profile", 0),
         (11, "node-l3", 1), (11, "policy-version", 0),
     ]:
-        event("owner-" + kind, changes={5: family, 6: kind, 7: channel}, channel=channel)
+        payload = content[13]
+        if family == 9:
+            payload = cbor.encode([1, b, ["l8-completed-io-v1", "l8-relay-data-v1"]])
+        elif family == 10:
+            payload = cbor.encode([1, [bytes([3])*16, bytes([3])*16], 2, [0, 1, 2, 3, 4]])
+        event("owner-" + kind, changes={5: family, 6: kind, 7: channel, 13: payload}, channel=channel)
         event("misplaced-" + kind, "channel-mismatch",
               changes={5: family, 6: kind, 7: channel}, channel=1-channel)
     event("different-kind", changes={5: 2, 6: "realm-peers", 9: 1})
