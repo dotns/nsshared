@@ -65,7 +65,7 @@ explicitly frame only. NSD supplies producer vectors for every row.
 | 5 `payer` | Binary realm/UserId assignment publication and cardinality refusals delivered | Grants B39; Q15 |
 | 6 `withdrawal` | Resource authority snapshots and pure successor validation delivered | Grants B39; Q16 |
 | 7 `public-edge` | Pure scoped public-edge, confidential AuthConfiguration request/response, material and exact M6 declaration/report/listener integration with independent consumer vectors delivered | NSD confirmation/producer vectors and explicitly open carrier rows; Q17 |
-| 8 `relay` | Signed roster and local schema 2 specified; directory and participant credential frame only | Q01–Q06, Q18 |
+| 8 `relay` | Signed roster, shared participant credentials and separate signed directory binding delivered; NSD producer review and adoption outstanding | Q01–Q06, Q18 |
 | 9 `usage` | Realm-local payer, completed service/relay units and correlated report/answer vectors delivered | Usage contract B42; Q10, Q19 |
 | 10 `node-control` | Pure v2 codec and independent vectors delivered | `node_control` messages, constants, ACK hash and endpoint selection; Q20 |
 | 11 `v1-replacement` | Diagnostic policy-version content and signed stream vectors delivered; other candidate contracts retain their individual status | NSD policy observation confirmation; Q12; complete surface mapping/retirement; Q21 |
@@ -489,10 +489,13 @@ existing format remain unchanged. Relay clients, independent participants and
 gateway Nodes retain distinct authority; directory hints or gateway Node
 credentials do not establish participant authorization.
 
-P07 owns the shared participant credential and separate signed directory-binding
-definitions; those definitions are pending. P08 owns gateway adoption of those
-contracts; that adoption is pending. The source-binding and Node route candidate
-only cross-references this boundary and does not define either contract.
+The shared [participant authority definition](participant-authority-candidate.md)
+and independent `participant-authority.vec` vectors deliver participant
+enrollment, authentication, renewal, revocation and separate signed directory
+bindings. Gateway runtime adoption remains pending. The source-binding and Node
+route candidate only cross-references this boundary. The exact delivery revision
+is the commit containing this specification; producer confirmation must name
+its immutable consumed revision.
 
 NSD producer review, independently owned producer vectors and NSD/ns adoption
 remain outstanding. The existing participant roster retains its signed
