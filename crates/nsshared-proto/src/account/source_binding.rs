@@ -319,64 +319,21 @@ pub struct SourceEnrollmentExpectation<'a> {
     pub request_id: [u8; 16],
 }
 
-/// Correlated source authority delivered by an authenticated control response.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct SourceAcceptance {
-    /// NSD-produced signed authority.
-    pub binding: SignedSourceBinding,
-    /// Original request identity.
-    pub request_id: [u8; 16],
-}
-impl SourceAcceptance {
-    /// Exact payload for the existing authenticated control response.
-    /// # Errors
-    /// Refuses malformed binding or zero correlation.
-    pub fn canonical(&self) -> Result<Vec<u8>, SourceError> {
-        nonzero(&self.request_id)?;
-        let mut out = CborWriter::default();
-        out.array(3)
-            .uint(1)
-            .bytes(&self.binding.canonical()?)
-            .bytes(&self.request_id);
-        Ok(out.into_bytes())
-    }
-    /// Decodes without trusting the supplied source.
-    /// # Errors
-    /// Refuses missing, extended, malformed or invalid fields.
-    pub fn decode(bytes: &[u8]) -> Result<Self, SourceError> {
-        let mut input = CborReader::new(bytes, MAX_SOURCE_BYTES)?;
-        input.array(3)?;
-        require(input.uint()? == 1)?;
-        let value = Self {
-            binding: SignedSourceBinding::decode(input.bytes_up_to(MAX_SOURCE_BYTES)?)?,
-            request_id: input.fixed_bytes()?,
-        };
-        input.finish()?;
-        value.canonical()?;
-        Ok(value)
-    }
-    /// Verifies the NSD response and original enrollment/request before acceptance.
-    /// # Errors
-    /// Refuses trust, operation, recipient, correlation or enrollment disagreement.
-    pub fn from_envelope(
+impl SignedSourceBinding {
+    pub(super) fn verify_response(
+        &self,
         envelope: &BootstrapEnvelope,
         carrier: &EnvelopeExpectation<'_>,
         pending: &SourceEnrollmentExpectation<'_>,
-    ) -> Result<Self, SourceError> {
-        envelope.verify(carrier)?;
-        let value = Self::decode(&envelope.payload)?;
-        let binding = &value.binding.binding;
-        value.binding.verify(pending.nsd)?;
+    ) -> Result<(), SourceError> {
+        self.verify(pending.nsd)?;
+        nonzero(&pending.request_id)?;
+        let binding = &self.binding;
         if envelope.direction != EnvelopeDirection::Response
-            || !matches!(
-                envelope.kind.as_str(),
-                super::control_exchange::MACHINE_REGISTER | super::control_exchange::MACHINE_AUTH
-            )
             || envelope.signer != pending.nsd
             || envelope.recipient != Some(pending.recipient)
             || carrier.recipient != pending.recipient
             || envelope.nonce != pending.request_id
-            || value.request_id != pending.request_id
             || binding.recipient != pending.recipient
             || binding.served_realm != pending.served_realm
             || binding.scope != pending.scope
@@ -385,6 +342,6 @@ impl SourceAcceptance {
         {
             return Err(SourceError::Authority);
         }
-        Ok(value)
+        Ok(())
     }
 }

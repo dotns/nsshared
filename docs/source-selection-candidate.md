@@ -25,13 +25,25 @@ encoded as NSD source generation.
 
 `SignedSourceBinding = [bstr(SourceBinding), signature64]`, signature input:
 `"ns.account.source-binding.v1\0" || SourceBinding bytes`.
-`SourceAcceptance = [1, bstr(SignedSourceBinding), request_id]` is carried in the
-existing confidential control carrier `machine.register` or `machine.auth` response. The
-response must verify the expected enrolled NSD pin, explicit recipient, operation,
-freshness/replay rules and nonce equal to pending request_id. Its signed binding
-must match the independently expected enrolled NSD, recipient, realm/scope,
-assigned profile and full source Node. Only then may its NSD-produced contribution
-and counters be retained as current. Decoding alone never establishes authority.
+Successful registration carries `[1, scope, bstr(Enrollment), profile, decision,
+bstr(SignedSourceBinding)]`; successful authentication carries
+`[1, token, bstr(SignedSourceBinding)]`. All accepted enrollment decisions,
+including Equal, require the binding. Refusals remain unchanged. These are the
+sole payloads of the existing confidential `machine.register` and `machine.auth`
+responses. Standalone SourceAcceptance and its whole-envelope decoder are retired;
+old response shapes have no fallback. This is an incompatible candidate delta.
+
+The response must verify the expected enrolled NSD pin, response direction,
+explicit recipient, exact operation, freshness/replay rules and nonce equal to the
+caller's pending request id. No duplicate request-id field is carried. Verify the
+nested binding signature against the independently enrolled NSD and compare its
+recipient, realm/scope, assigned profile and full source Node with independent
+expectations. Registration also compares the staged scope, enrollment, capabilities,
+profile and lifecycle with retained history. Authentication uses the selected
+accepted Node binding; token verification and custody remain consumer duties.
+Only a fully validated response supplies source authority; contribution and counters
+come from the NSD binding, never the token. Decoding alone never establishes authority.
+NSD N04 producer adoption and producer-owned interoperability vectors are outstanding.
 
 ## Source-bound publication
 
@@ -135,7 +147,10 @@ Old-profile receipts are refused, not translated.
 ## Independent consumer sequence
 
 `source_selection_fence` uses a labelled authority with the same full source I,
-K and derived addresses across A/B. Accept A, select and clear A's route; replace
+K and derived addresses across A/B. Register A with its normal acceptance and signed
+binding, then authenticate with its token and signed binding under the same pending
+request correlation. Refuse missing or mismatched bindings and wrong correlation
+for both operations. Select and clear A's route; replace
 only contribution/generation with B, select B's route. Deliver A's delayed signed
 success at a higher per-key version: refuse it. Replay A's clear before and after
 restoring immutable receipts/current selection from canonical bytes: the receipt

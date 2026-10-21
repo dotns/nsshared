@@ -64,15 +64,42 @@ def vectors():
         return cbor.encode([raw, account.sign(signer_seed, domain + raw)])
 
     request_id = bytes([6]) * 16
-    acceptance = cbor.encode([1, sa, request_id])
-    for name, payload, nonce, recipient, op in [
-        ("accept-a", acceptance, request_id, node, "machine.auth"),
-        ("accept-wrong-request", acceptance, bytes([7]) * 16, node, "machine.auth"),
-        ("accept-wrong-recipient", acceptance, request_id, None, "machine.auth"),
-        ("accept-wrong-operation", acceptance, request_id, node, "info.get"),
-        ("accept-missing-binding", cbor.encode([1, request_id]), request_id, node, "machine.auth"),
+    enrollment = cbor.encode([1, [1, node, bytes([42])*32, 1], ["node.control"]])
+    membership = [bytes([3])*16, bytes([4])*16]
+    staged = cbor.encode([1, membership, enrollment, "explicit-gateway-profile",
+                          b"provisioned", None])
+    mismatches = []
+    for field, index, value in [
+        ("nsd", 1, provider), ("recipient", 2, provider),
+        ("realm", 3, c[3]), ("scope", 4, "other"),
+        ("profile", 5, "gateway-v1"), ("source-node", 6, provider),
     ]:
-        emit(name, "acceptance", carrier(payload, nonce, op, recipient=recipient), name == "accept-a")
+        changed = copy.deepcopy(a)
+        changed[index] = value
+        mismatches.append((field, signed(changed, BINDING)))
+    for label, normal, op in [
+        ("register", [1, membership, enrollment, "explicit-gateway-profile", 0], "machine.register"),
+        ("auth", [1, "a.b.c"], "machine.auth"),
+    ]:
+        for suffix, source, nonce, recipient, operation, malformed in [
+            ("a", sa, request_id, node, op, False),
+            ("missing-binding", None, request_id, node, op, False),
+            ("mismatched-binding", sc, request_id, node, op, False),
+            ("wrong-request", sa, bytes([7])*16, node, op, False),
+            ("wrong-recipient", sa, request_id, None, op, False),
+            ("wrong-operation", sa, request_id, node, "info.get", False),
+            ("bad-binding-signature", signed(a, BINDING, True), request_id, node, op, False),
+            ("standalone-binding", sa, request_id, node, op, True),
+        ]:
+            payload = cbor.encode([1, sa, request_id] if malformed else
+                                  normal + ([] if source is None else [source]))
+            emit(label + "-" + suffix, "acceptance", carrier(payload, nonce, operation,
+                 recipient=recipient), suffix == "a", operation=op, request=staged)
+        for field, changed in mismatches:
+            emit(label + "-mismatched-" + field, "acceptance",
+                 carrier(cbor.encode(normal + [changed]), request_id, op), False,
+                 operation=op, request=staged)
+
 
     for name, value in [("stream-context", stream), ("snapshot-context", poll)]:
         emit(name, "context", cbor.encode(value))

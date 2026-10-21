@@ -1,4 +1,7 @@
 //! Pure candidate enrollment, authentication and information exchange.
+use super::source_binding::{
+    MAX_SOURCE_BYTES, SignedSourceBinding, SourceEnrollmentExpectation, SourceError,
+};
 use super::{
     AccountError, BootstrapDiscovery, BootstrapEnvelope, BootstrapError, Enrollment,
     EnrollmentDecision, EnrollmentError, EnvelopeDirection, EnvelopeExpectation, Lifecycle,
@@ -70,6 +73,9 @@ impl MembershipScope {
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum ExchangeError {
+    /// Invalid or mismatched nested source authority.
+    #[error(transparent)]
+    Source(#[from] SourceError),
     /// Malformed contract bytes or fields.
     #[error(transparent)]
     Contract(#[from] AccountError),
@@ -219,6 +225,8 @@ pub struct RegistrationAcceptance {
     pub profile: String,
     /// Authority's declared lifecycle decision.
     pub decision: EnrollmentDecision,
+    /// Required NSD-signed contribution authority, including Equal decisions.
+    pub source_binding: SignedSourceBinding,
 }
 impl RegistrationAcceptance {
     /// Encodes a complete acceptance.
@@ -227,18 +235,19 @@ impl RegistrationAcceptance {
     pub fn canonical(&self) -> Result<Vec<u8>, ExchangeError> {
         text(&self.profile)?;
         let mut out = CborWriter::default();
-        out.array(5).uint(SCHEMA);
+        out.array(6).uint(SCHEMA);
         self.scope.write(&mut out);
         out.bytes(&self.enrollment.canonical()?)
             .text(&self.profile)
-            .uint(tag(self.decision));
+            .uint(tag(self.decision))
+            .bytes(&self.source_binding.canonical()?);
         Ok(bounded(out.into_bytes())?)
     }
     /// Decodes one complete acceptance without committing it.
     /// # Errors
     /// Refuses malformed encodings and unsupported decision tags.
     pub fn decode(bytes: &[u8]) -> Result<Self, ExchangeError> {
-        let mut input = reader(bytes, 5)?;
+        let mut input = reader(bytes, 6)?;
         let value = Self {
             scope: MembershipScope::read(&mut input)?,
             enrollment: Enrollment::decode(
@@ -246,6 +255,11 @@ impl RegistrationAcceptance {
             )?,
             profile: input.text_up_to(256).map_err(AccountError::from)?.into(),
             decision: decision(input.uint().map_err(AccountError::from)?)?,
+            source_binding: SignedSourceBinding::decode(
+                input
+                    .bytes_up_to(MAX_SOURCE_BYTES)
+                    .map_err(AccountError::from)?,
+            )?,
         };
         input.finish().map_err(AccountError::from)?;
         value.canonical()?;
@@ -262,6 +276,7 @@ pub fn compare_registration_acceptance(
     staged: &RegistrationRequest,
     committed: Option<&NodeBinding>,
     rebind: RebindAuthorization,
+    pending: &SourceEnrollmentExpectation<'_>,
 ) -> Result<EnrollmentDecision, ExchangeError> {
     staged.canonical()?;
     envelope.verify(expected)?;
@@ -293,6 +308,15 @@ pub fn compare_registration_acceptance(
     if local != accepted.decision {
         return Err(ExchangeError::Lifecycle);
     }
+    if pending.recipient != staged.enrollment.binding.identity
+        || pending.source_node != staged.enrollment.binding.identity
+        || pending.profile.as_str() != staged.profile
+    {
+        return Err(SourceError::Authority.into());
+    }
+    accepted
+        .source_binding
+        .verify_response(envelope, expected, pending)?;
     Ok(local)
 }
 
@@ -361,6 +385,8 @@ impl AuthenticationRequest {
 pub struct AuthenticationResponse {
     /// Unverified compact JWT, never sufficient registration acceptance.
     pub token: String,
+    /// Required NSD-signed authority for the independently accepted source Node.
+    pub source_binding: SignedSourceBinding,
 }
 impl std::fmt::Debug for AuthenticationResponse {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -368,28 +394,56 @@ impl std::fmt::Debug for AuthenticationResponse {
     }
 }
 impl AuthenticationResponse {
-    /// Encodes bounded opaque compact token data.
+    /// Authenticates the response and its nested source against pending enrollment facts.
+    /// Token signature, claims verification and custody remain consumer responsibilities.
     /// # Errors
-    /// Refuses empty, non-ASCII or oversized data.
-    pub fn canonical(&self) -> Result<Vec<u8>, AccountError> {
+    /// Refuses carrier trust, operation, correlation or nested authority disagreement.
+    pub fn from_envelope(
+        envelope: &BootstrapEnvelope,
+        expected: &EnvelopeExpectation<'_>,
+        pending: &SourceEnrollmentExpectation<'_>,
+    ) -> Result<Self, ExchangeError> {
+        envelope.verify(expected)?;
+        if envelope.direction != EnvelopeDirection::Response || envelope.kind != MACHINE_AUTH {
+            return Err(BootstrapError::Kind.into());
+        }
+        let value = Self::decode(&envelope.payload)?;
+        value
+            .source_binding
+            .verify_response(envelope, expected, pending)?;
+        Ok(value)
+    }
+
+    /// Encodes bounded opaque compact token data and required signed source authority.
+    /// # Errors
+    /// Refuses empty, non-ASCII or oversized data and invalid source fields.
+    pub fn canonical(&self) -> Result<Vec<u8>, ExchangeError> {
         require(
             !self.token.is_empty()
                 && self.token.len() <= 16_384
                 && self.token.bytes().all(|b| b.is_ascii_graphic()),
         )?;
         let mut out = CborWriter::default();
-        out.array(2).uint(SCHEMA).text(&self.token);
-        Ok(out.into_bytes())
+        out.array(3)
+            .uint(SCHEMA)
+            .text(&self.token)
+            .bytes(&self.source_binding.canonical()?);
+        Ok(bounded(out.into_bytes())?)
     }
-    /// Decodes opaque token data, without authenticating it.
+    /// Decodes token and source data without authenticating either.
     /// # Errors
-    /// Refuses malformed fields and noncanonical bytes.
-    pub fn decode(bytes: &[u8]) -> Result<Self, AccountError> {
-        let mut input = reader(bytes, 2)?;
+    /// Refuses missing binding, malformed fields and noncanonical bytes.
+    pub fn decode(bytes: &[u8]) -> Result<Self, ExchangeError> {
+        let mut input = reader(bytes, 3)?;
         let value = Self {
-            token: input.text_up_to(16_384)?.into(),
+            token: input.text_up_to(16_384).map_err(AccountError::from)?.into(),
+            source_binding: SignedSourceBinding::decode(
+                input
+                    .bytes_up_to(MAX_SOURCE_BYTES)
+                    .map_err(AccountError::from)?,
+            )?,
         };
-        input.finish()?;
+        input.finish().map_err(AccountError::from)?;
         value.canonical()?;
         Ok(value)
     }

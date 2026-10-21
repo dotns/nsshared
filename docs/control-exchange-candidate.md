@@ -43,7 +43,7 @@ reuse Enrollment's sorted unique bounded identifier set. No normalization occurs
   lifecycle_bytes_or_null]`. Credential is opaque, nonempty and at most 16 KiB;
   it is interpreted only by the provisioned authority. No auth-key/OAuth inference
   occurs. Lifecycle is absent for initial enrollment and otherwise reuses Lifecycle.
-- Registration acceptance: `[1, scope, enrollment_bytes, profile, decision]`.
+- Registration acceptance: `[1, scope, enrollment_bytes, profile, decision, source_binding_bytes]`.
   Decision is 0 initial, 1 equal, 2 identity replacement, 3 record rotation.
   Matching compares scope, the entire binding (I/K/version/generation), exact
   capabilities and profile, then recomputes decide_enrollment against the prior
@@ -51,7 +51,7 @@ reuse Enrollment's sorted unique bounded identifier set. No normalization occurs
   Typed mismatch never commits a new binding; a receipt or token is insufficient.
 - Authentication request: `[1, scope, binding, purpose]`; purpose is `control`.
   Signer must equal binding I. No retired WebSocket leg or gateway role is carried.
-- Authentication response: `[1, compact_token]`. Token is opaque bounded ASCII;
+- Authentication response: `[1, compact_token, source_binding_bytes]`. Token is opaque bounded ASCII;
   decoding is not signature verification, trust or acceptance.
 - Information request: `[1]`.
 - Information response: `[1, discovery_bytes, instance_realm_hint, provider, version,
@@ -569,3 +569,17 @@ Independent fixture producers and consumers establish candidate bytes only.
 NSD confirmation of the active subscription binding, operation, exact scope
 selection and response nonce echo, plus independent real producer vectors,
 remains outstanding.
+
+## Required source authority in responses
+
+The response extension is incompatible: every successful registration decision,
+including Equal, and every successful authentication requires the canonical byte
+string of SignedSourceBinding. Standalone SourceAcceptance is retired with no
+old-shape fallback. Operations, existing field encodings, refusal semantics and
+confidential carriers are unchanged. See [source authority](source-selection-candidate.md)
+for independent enrolled NSD, recipient, realm/scope, assigned profile and full
+source Node comparisons and nested signature verification. The enclosing nonce
+must equal the pending request id; no payload request-id field is added.
+Registration retains all staged enrollment and lifecycle comparisons. Authentication
+retains consumer token signature, claims and custody checks and never grants
+registration acceptance. NSD N04 adoption and producer review remain outstanding.
