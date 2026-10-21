@@ -1,6 +1,6 @@
 # Source binding and route selection
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-10-21 03:57
 - **approvedAt**: 2026-10-21 03:57
 - **relatedTask**: 20261021-0357-source-selection
@@ -43,3 +43,23 @@ remains unchanged and outside this implementation.
 
 Independent source_selection_fence and refusal variants, failing-first focused
 test, format/lint, then the current self-check against the integration baseline.
+
+## Results
+
+Specification and independent Python bytes preceded the codecs. SourceBinding,
+DeliveryContext, SourceAcceptance, source-bound publications, scoped snapshots,
+route commands and immutable receipts are implemented without runtime or I/O.
+The independent corpus has 101 cases; four focused tests pass. The final
+`just self-check` against the integration baseline passed static, vector, API,
+41 check-selection tests, 491 workspace tests with zero skipped and documentation
+checks. Source files remain within their documented size limits.
+
+Failing-first evidence includes missing source/command APIs before implementation,
+missing multi-scope snapshot support, and the executable `request-fresh-attempt`
+refusal before transport nonces were separated from immutable request identity.
+The final implementation accepts a fresh attempt and refuses a previously observed
+carrier nonce while preserving the original receipt.
+
+Q18 disposition text remains unchanged; this implementation does not resolve its
+separate directory/participant wording. NSD producer review, independent producer
+vectors and ns/NSD runtime adoption remain outstanding.
