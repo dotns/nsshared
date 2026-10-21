@@ -66,8 +66,8 @@ explicitly frame only. NSD supplies producer vectors for every row.
 | 6 `withdrawal` | Resource authority snapshots and pure successor validation delivered | Grants B39; Q16 |
 | 7 `public-edge` | Pure scoped public-edge, confidential AuthConfiguration request/response, material and exact M6 declaration/report/listener integration with independent consumer vectors delivered | NSD confirmation/producer vectors and explicitly open carrier rows; Q17 |
 | 8 `relay` | Signed roster, shared participant credentials and separate signed directory binding delivered; NSD producer review and adoption outstanding | Q01–Q06, Q18 |
-| 9 `usage` | Realm-local payer, completed service/relay units and correlated report/answer vectors delivered | Usage contract B42; Q10, Q19 |
-| 10 `node-control` | Pure v2 codec and independent vectors delivered | `node_control` messages, constants, ACK hash and endpoint selection; Q20 |
+| 9 `usage` | Typed scoped usage-profile payload and independent publication vectors newly delivered; existing quantities and report/answer bytes unchanged | New candidate delta below; NSD/ns review and producer adoption outstanding; Q10, Q19 |
+| 10 `node-control` | Typed scoped node-control-profile payload and independent publication vectors newly delivered; existing v2 codec unchanged | New candidate delta below; NSD/ns review and producer adoption outstanding; Q20 |
 | 11 `v1-replacement` | Diagnostic policy-version content and signed stream vectors delivered; other candidate contracts retain their individual status | NSD policy observation confirmation; Q12; complete surface mapping/retirement; Q21 |
 
 Only an authenticated, valid, complete publication replaces its listed kinds
@@ -896,3 +896,24 @@ and the normal token. Unknown or unauthorized selectors are refused, never repla
 with another binding. Retain each accepted scope independently. Fixture vectors
 cover pending registration, Equal and nodes/egress authentication in one Network,
 including swapped-scope and swapped-realm refusal.
+
+## Usage and Node-control catalogue payload delivery
+
+Review the new [profile payload specification](profile-publications-candidate.md)
+and independent `profile-publications.vec` producer/consumer fixtures. Family 9
+now carries `[1, reporter, profiles]`; family 10 carries
+`[1, membership_scope, 2, capabilities]`. These are explicit new candidate payloads,
+with no registry family additions or changes to existing usage report/ACK or Node-control
+control bytes. Earlier package revisions do not establish this payload delivery.
+
+Confirm the configured reporter's exact identity, fixed quantity identifier
+selection and exact accepted membership/capability projection. Review malformed
+replacement refusal without reserving a version, exact-scope complete-empty
+withdrawal and retained replay tombstones. Payloads are descriptive catalogues,
+never authority, permission or runtime negotiation; captured usage and received
+control state survive replacement and withdrawal. The source-bound fixture sequence
+is available for gateway adoption using the same independent bytes.
+
+NSD/ns review, producer-owned canonical/refusal vectors and producer adoption
+remain outstanding. This delta is prepared for review; no external delivery,
+answer or live interoperability is recorded by candidate fixture acceptance.

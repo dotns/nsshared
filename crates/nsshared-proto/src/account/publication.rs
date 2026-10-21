@@ -283,6 +283,34 @@ impl<'a> PublicationEvent<'a> {
         &self.content
     }
 
+    /// Maps nonempty profile kinds to their owning typed catalogue.
+    /// Empty payloads and other kinds return None; decoding establishes no authority.
+    /// Callers must compare independently accepted reporter or membership context.
+    /// # Errors
+    /// Refuses malformed profile payloads and reporter/recipient disagreement.
+    pub fn decode_profile_payload(
+        &self,
+    ) -> Result<Option<super::ProfilePublicationPayload>, super::AccountError> {
+        use super::{
+            NodeControlProfilePublication, ProfilePublicationPayload, UsageProfilePublication,
+        };
+        let content = self.content();
+        if content.payload.is_empty() {
+            return Ok(None);
+        }
+        match (content.key.family, content.key.kind) {
+            (9, "usage-profile") => {
+                let value = UsageProfilePublication::decode(content.payload)?;
+                value.validate_reporter(content.key.recipient)?;
+                Ok(Some(ProfilePublicationPayload::Usage(value)))
+            }
+            (10, "node-control-profile") => Ok(Some(ProfilePublicationPayload::NodeControl(
+                NodeControlProfilePublication::decode(content.payload)?,
+            ))),
+            _ => Ok(None),
+        }
+    }
+
     fn authenticate(&self, expected: &PublicationExpectation<'_>) -> Result<(), PublicationError> {
         let content = &self.content;
         if content.key.issuer != expected.issuer {
@@ -351,6 +379,9 @@ pub fn decide_publication<'a>(
         .any(|state| state.key == content.key && state.version >= content.version)
     {
         return PublicationDecision::Refused(PublicationError::Stale);
+    }
+    if event.decode_profile_payload().is_err() {
+        return PublicationDecision::Refused(PublicationError::Fields);
     }
     if content.outcome == PublicationOutcome::FetchFailed {
         PublicationDecision::FetchFailed(event)

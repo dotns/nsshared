@@ -23,6 +23,7 @@ mod participant_roster;
 pub mod participant_session;
 mod policy_auth;
 mod policy_subject;
+mod profile_publications;
 mod public_edge;
 mod publication;
 pub mod publication_snapshot_request;
@@ -78,6 +79,9 @@ pub use participant_roster::{
 };
 pub use policy_auth::{AdminScope, AdminTokenClaims, JwtSubjectBinding, SignedSubjectHeaderPolicy};
 pub use policy_subject::{PolicySubject, SubjectAnchor, SubjectBinding};
+pub use profile_publications::{
+    NodeControlProfilePublication, ProfilePublicationPayload, UsageProfilePublication,
+};
 pub use public_edge::{
     EdgeProtocol, EdgeRealm, EdgeRoute, EdgeRouteOptions, EdgeSourceIp, EdgeTransport,
     EdgeUpstreamTls, PublicEdge,

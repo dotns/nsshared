@@ -119,3 +119,17 @@ behavior only. NSD producer confirmation, historical ownership storage and real
 producer vectors remain outstanding. The existing gateway neutral echo recorder
 uses message quantities and needs explicit completed-byte instrumentation before
 adopting this profile; no implicit message-to-byte conversion is authorized.
+
+## Scoped quantity catalogue publication
+
+The new family 9 `usage-profile` candidate payload is `[1, reporter, profiles]`,
+with the full validated reporter identity and a nonempty strictly sorted subset
+of the existing `l8-completed-io-v1` and `l8-relay-data-v1` identifiers. See the
+[profile publication specification](profile-publications-candidate.md) for exact
+signatures, independent canonical fixtures and context validation. These identifiers
+reference the complete quantity and parameter definitions above; they introduce
+no overrides. Replacement/withdrawal clears only the scoped catalogue, never
+captured usage, pending reports, incarnations, batching or sequence/ACK custody.
+Independent expected-reporter comparison remains mandatory. Existing usage report
+and ACK bytes are unchanged. NSD/ns review, producer-owned vectors and producer
+adoption for this new candidate payload remain outstanding.
