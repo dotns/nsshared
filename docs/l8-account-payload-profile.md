@@ -872,6 +872,9 @@ adoption remain outstanding.
 
 ## Shared participant credential and directory eligibility
 
+The shared definition is delivered at immutable revision
+`0135ed72888374fcbcc186d2e4fd38f129f637c7`.
+
 Family 8 now includes shared enrollment/authentication/renewal frames and the
 separate signed directory binding defined in
 [participant authority](participant-authority-candidate.md). The existing family
