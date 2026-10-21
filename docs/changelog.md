@@ -1,5 +1,16 @@
 ## 2026-10-21 [feat]
 
+Add typed usage and Node-control catalogue publications with strict canonical
+payloads and independent reporter/membership comparisons. Refuse malformed
+replacement before advancing versions; preserve exact-key withdrawal and replay
+tombstones without changing existing usage or control message bytes.
+
+Validation: independent payload and source-bound replacement vectors passed;
+self-check passed with 503 tests and zero skips. Producer review, adoption and
+gateway persistence verification remain outstanding.
+
+## 2026-10-21 [feat]
+
 Require an explicit canonical realm and publication scope in authentication
 requests. Constrain registration source authority to nodes in the accepted
 Network, including Equal, and retain independent authority for each scope.
