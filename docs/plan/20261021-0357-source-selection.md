@@ -1,6 +1,6 @@
 # Source binding and route selection
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-10-21 03:57
 - **approvedAt**: 2026-10-21 03:57
 - **relatedTask**: 20261021-0357-source-selection
@@ -67,3 +67,12 @@ directory binding, with the directory unchanged. P07 definitions and P08 gateway
 adoption remain pending. This candidate only cross-references their ownership;
 NSD producer review, independent producer vectors and NSD/ns adoption remain
 outstanding.
+
+## Documentation acceptance
+
+The Q18 review request, profile and source/selection specification consistently
+record the settled participant credential and separate signed directory binding,
+with the directory unchanged. P07 definitions and P08 gateway adoption remain
+pending; producer review and NSD/ns adoption are external outstanding work.
+The current `just self-check` at 68c6591 passed all static, vector, API, workspace
+test and documentation checks, including 491 workspace tests with zero skipped.

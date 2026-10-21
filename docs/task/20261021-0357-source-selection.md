@@ -1,6 +1,6 @@
 # Source binding and route selection
 
-- **status**: in_progress
+- **status**: completed
 - **priority**: P1
 - **owner**: (exclusive)
 - **createdAt**: 2026-10-21 03:57
@@ -54,3 +54,12 @@ pending shared definitions; P08 owns pending gateway adoption. The source/select
 candidate only cross-references them and defines neither contract. NSD producer
 review, producer vectors and NSD/ns adoption remain outstanding; fixture acceptance
 establishes neither confirmation nor interoperability.
+
+## Completion
+
+Q18 now consistently distinguishes the settled owner choice from pending P07
+shared definitions, P08 gateway adoption and external NSD/ns work. No participant
+or directory-binding contract was added to the source/selection implementation.
+The current `just self-check` at 68c6591 passed, including 491 workspace tests
+with zero skipped. The candidate documentation and implementation are complete;
+NSD producer review, producer vectors and runtime adoption remain outstanding.
