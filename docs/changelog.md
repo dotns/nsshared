@@ -1,5 +1,15 @@
 ## 2026-10-21 [feat]
 
+Qualify grant, payer and active-authority identities by TCP, UDP or Exit protocol.
+Permit equal or later expiry renewal only when all other owned content remains
+identical. Preserve token ownership, retirement history and exact payer joins.
+
+Validation: independent contract vectors and additional boundary checks passed;
+self-check passed with 498 tests and zero skips. Family 5/6 tuples change;
+producer adoption and independently owned interoperability vectors remain outstanding.
+
+## 2026-10-21 [feat]
+
 Add signed source bindings and exact delivery fences before publication decisions.
 Define Node route select/clear commands with immutable source-owned receipts and
 exact selection generations. Reject complete source snapshots on wrong-channel

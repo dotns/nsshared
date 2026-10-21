@@ -137,3 +137,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**Define publication snapshot poll requests**](20261020-2213-publication-snapshot-request.md) `P1`
 - [x] [**Define canonical realm identity**](20261021-0335-canonical-realm-identity.md) `P1`
 - [x] [**Define source binding and route selection**](20261021-0357-source-selection.md) `P1`
+- [x] [**Protocol-qualified grant identity and expiry renewal**](20261021-0451-protocol-grant-renewal.md) `P1`
