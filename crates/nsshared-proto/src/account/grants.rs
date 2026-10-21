@@ -134,6 +134,58 @@ fn field(condition: bool) -> Result<(), GrantError> {
     }
 }
 
+/// Canonical protocol-qualified grant identity, ordered by numeric components.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum GrantDiscriminator {
+    /// Egress TCP, encoded as `[0, 6]`.
+    EgressTcp,
+    /// Egress UDP, encoded as `[0, 17]`.
+    EgressUdp,
+    /// Exit, encoded as `[1]`.
+    Exit,
+}
+
+impl GrantDiscriminator {
+    fn write(self, out: &mut CborWriter) {
+        match self {
+            Self::EgressTcp => {
+                out.array(2).uint(0).uint(6);
+            }
+            Self::EgressUdp => {
+                out.array(2).uint(0).uint(17);
+            }
+            Self::Exit => {
+                out.array(1).uint(1);
+            }
+        }
+    }
+
+    fn read(input: &mut CborReader<'_>) -> Result<Self, GrantError> {
+        let count = input.array_up_to(2)?;
+        match (count, input.uint()?) {
+            (1, 1) => Ok(Self::Exit),
+            (2, 0) => match input.uint()? {
+                6 => Ok(Self::EgressTcp),
+                17 => Ok(Self::EgressUdp),
+                _ => Err(GrantError::Field),
+            },
+            _ => Err(GrantError::Field),
+        }
+    }
+}
+
+fn unique_tokens<'a>(
+    values: impl Iterator<Item = (&'a ServiceRef, [u8; 16])>,
+) -> Result<(), GrantError> {
+    let mut seen = std::collections::BTreeSet::new();
+    for value in values {
+        if !seen.insert(value) {
+            return Err(GrantError::ReusedIncarnation);
+        }
+    }
+    Ok(())
+}
+
 /// Family-specific resource facts, independent of host bindings.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum GrantDetails {
@@ -152,6 +204,24 @@ pub enum GrantDetails {
     },
     /// Existing Subnet selection publication containing exactly one matching route.
     Exit(SubnetPublication),
+}
+
+impl GrantDetails {
+    /// Derives the canonical identity discriminator from exact grant facts.
+    #[must_use]
+    pub const fn discriminator(&self) -> GrantDiscriminator {
+        match self {
+            Self::Egress {
+                protocol: TransportProtocol::Tcp,
+                ..
+            } => GrantDiscriminator::EgressTcp,
+            Self::Egress {
+                protocol: TransportProtocol::Udp,
+                ..
+            } => GrantDiscriminator::EgressUdp,
+            Self::Exit(_) => GrantDiscriminator::Exit,
+        }
+    }
 }
 
 /// One client/resource grant with explicit payer and lifetime.
@@ -318,7 +388,7 @@ pub struct GrantPublication {
     pub recipient: IdentityKey,
     /// Positive complete replacement revision.
     pub revision: u64,
-    /// Strictly ordered resource/client grants; empty withdraws this scope.
+    /// Strictly ordered resource/client/discriminator grants; empty withdraws this scope.
     pub grants: Vec<ServiceGrant>,
 }
 
@@ -328,13 +398,13 @@ impl GrantPublication {
         if self.grants.len() > MAX_IDENTITIES {
             return Err(GrantError::Bounds);
         }
-        if !self
-            .grants
-            .windows(2)
-            .all(|p| (&p[0].resource, p[0].client) < (&p[1].resource, p[1].client))
-        {
+        if !self.grants.windows(2).all(|p| {
+            (&p[0].resource, p[0].client, p[0].details.discriminator())
+                < (&p[1].resource, p[1].client, p[1].details.discriminator())
+        }) {
             return Err(GrantError::Ordering);
         }
+        unique_tokens(self.grants.iter().map(|g| (&g.resource, g.incarnation.0)))?;
         for grant in &self.grants {
             if grant.provider != self.recipient {
                 return Err(GrantError::Scope);
@@ -419,10 +489,12 @@ impl GrantPublication {
                 return Err(GrantError::RetiredIncarnation);
             }
             if previous.grants.iter().any(|old| {
-                old.resource == grant.resource
-                    && old.client == grant.client
-                    && old != grant
-                    && old.incarnation == grant.incarnation
+                if old.resource != grant.resource || old.incarnation != grant.incarnation {
+                    return false;
+                }
+                let mut renewed = old.clone();
+                renewed.expires_at_unix_ms = grant.expires_at_unix_ms;
+                grant.expires_at_unix_ms < old.expires_at_unix_ms || renewed != *grant
             }) {
                 return Err(GrantError::ReusedIncarnation);
             }
@@ -442,6 +514,8 @@ pub struct PayerBinding {
     pub incarnation: GrantIncarnation,
     /// Exactly one explicit realm-local payer.
     pub payers: Vec<Payer>,
+    /// Exact protocol or Exit identity.
+    pub discriminator: GrantDiscriminator,
 }
 
 /// Complete payer assignments; this payload alone grants no service access.
@@ -453,11 +527,35 @@ pub struct PayerBindings {
     pub recipient: IdentityKey,
     /// Positive replacement revision.
     pub revision: u64,
-    /// Strict resource/client order.
+    /// Strict resource/client/discriminator order.
     pub bindings: Vec<PayerBinding>,
 }
 
 impl PayerBindings {
+    /// Joins exact protocol-qualified grants, lifetimes and historical payer pairs.
+    ///
+    /// # Errors
+    /// Refuses invalid inputs, scope differences and missing or differing bindings.
+    pub fn validate_grants(&self, grants: &GrantPublication) -> Result<(), GrantError> {
+        self.canonical()?;
+        grants.canonical()?;
+        if self.issuer != grants.issuer || self.recipient != grants.recipient {
+            return Err(GrantError::Scope);
+        }
+        for grant in &grants.grants {
+            if !self.bindings.iter().any(|binding| {
+                binding.resource == grant.resource
+                    && binding.client == grant.client
+                    && binding.discriminator == grant.details.discriminator()
+                    && binding.incarnation == grant.incarnation
+                    && binding.payers == grant.payers
+            }) {
+                return Err(GrantError::Scope);
+            }
+        }
+        Ok(())
+    }
+
     /// Encodes a complete payer assignment set.
     ///
     /// # Errors
@@ -467,13 +565,13 @@ impl PayerBindings {
         if self.bindings.len() > MAX_IDENTITIES {
             return Err(GrantError::Bounds);
         }
-        if !self
-            .bindings
-            .windows(2)
-            .all(|p| (&p[0].resource, p[0].client) < (&p[1].resource, p[1].client))
-        {
+        if !self.bindings.windows(2).all(|p| {
+            (&p[0].resource, p[0].client, p[0].discriminator)
+                < (&p[1].resource, p[1].client, p[1].discriminator)
+        }) {
             return Err(GrantError::Ordering);
         }
+        unique_tokens(self.bindings.iter().map(|b| (&b.resource, b.incarnation.0)))?;
         let mut out = CborWriter::default();
         out.array(6)
             .uint(SCHEMA)
@@ -484,11 +582,12 @@ impl PayerBindings {
             .array(self.bindings.len());
         for binding in &self.bindings {
             payer(&binding.payers)?;
-            out.array(4);
+            out.array(5);
             write_reference(&binding.resource, &mut out)?;
             out.bytes(binding.client.as_bytes())
                 .bytes(&binding.incarnation.0);
             write_payers(&binding.payers, &mut out);
+            binding.discriminator.write(&mut out);
         }
         checked_bytes(out)
     }
@@ -507,12 +606,13 @@ impl PayerBindings {
         let count = input.array_up_to(MAX_IDENTITIES)?;
         let mut bindings = Vec::with_capacity(count);
         for _ in 0..count {
-            input.array(4)?;
+            input.array(5)?;
             bindings.push(PayerBinding {
                 resource: read_reference(&mut input)?,
                 client: identity(&mut input)?,
                 incarnation: GrantIncarnation(input.fixed_bytes()?),
                 payers: read_payers(&mut input)?,
+                discriminator: GrantDiscriminator::read(&mut input)?,
             });
         }
         input.finish()?;
@@ -534,6 +634,8 @@ pub struct GrantClaim {
     pub resource: ServiceRef,
     /// Full client.
     pub client: IdentityKey,
+    /// Exact protocol or Exit identity.
+    pub discriminator: GrantDiscriminator,
     /// Active lifetime token.
     pub incarnation: [u8; 16],
 }
@@ -556,7 +658,7 @@ pub struct ResourceAuthority {
     pub recipient: IdentityKey,
     /// Positive complete replacement revision.
     pub revision: u64,
-    /// Current claims in strict resource/client order.
+    /// Current claims in strict resource/client/discriminator order.
     pub active: Vec<GrantClaim>,
     /// Retained strictly ordered retirement history.
     pub retired: Vec<RetiredGrant>,
@@ -578,6 +680,7 @@ impl ResourceAuthority {
                 resource: grant.resource,
                 client: grant.client,
                 incarnation: grant.incarnation.0,
+                discriminator: grant.details.discriminator(),
             }) {
                 return Err(GrantError::Scope);
             }
@@ -594,14 +697,14 @@ impl ResourceAuthority {
         if self.active.len() > MAX_IDENTITIES || self.retired.len() > MAX_IDENTITIES {
             return Err(GrantError::Bounds);
         }
-        if !self
-            .active
-            .windows(2)
-            .all(|p| (&p[0].resource, p[0].client) < (&p[1].resource, p[1].client))
-            || !self.retired.windows(2).all(|p| p[0] < p[1])
+        if !self.active.windows(2).all(|p| {
+            (&p[0].resource, p[0].client, p[0].discriminator)
+                < (&p[1].resource, p[1].client, p[1].discriminator)
+        }) || !self.retired.windows(2).all(|p| p[0] < p[1])
         {
             return Err(GrantError::Ordering);
         }
+        unique_tokens(self.active.iter().map(|c| (&c.resource, c.incarnation)))?;
         let mut out = CborWriter::default();
         out.array(7)
             .uint(SCHEMA)
@@ -618,9 +721,10 @@ impl ResourceAuthority {
             {
                 return Err(GrantError::RetiredIncarnation);
             }
-            out.array(3);
+            out.array(4);
             write_reference(&claim.resource, &mut out)?;
             out.bytes(claim.client.as_bytes()).bytes(&claim.incarnation);
+            claim.discriminator.write(&mut out);
         }
         out.array(self.retired.len());
         for old in &self.retired {
@@ -645,11 +749,12 @@ impl ResourceAuthority {
         let count = input.array_up_to(MAX_IDENTITIES)?;
         let mut active = Vec::with_capacity(count);
         for _ in 0..count {
-            input.array(3)?;
+            input.array(4)?;
             active.push(GrantClaim {
                 resource: read_reference(&mut input)?,
                 client: identity(&mut input)?,
                 incarnation: input.fixed_bytes()?,
+                discriminator: GrantDiscriminator::read(&mut input)?,
             });
         }
         let count = input.array_up_to(MAX_IDENTITIES)?;
@@ -694,6 +799,13 @@ impl ResourceAuthority {
             return Err(GrantError::History);
         }
         for old in &previous.active {
+            if self.active.iter().any(|claim| {
+                claim.resource == old.resource
+                    && claim.incarnation == old.incarnation
+                    && claim != old
+            }) {
+                return Err(GrantError::ReusedIncarnation);
+            }
             if !self.active.contains(old)
                 && !self.retired.contains(&RetiredGrant {
                     resource: old.resource,

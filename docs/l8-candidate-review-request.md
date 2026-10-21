@@ -430,7 +430,8 @@ vectors for explicit payer, ambiguity and payer change without packet-derived
 realm inference.
 
 The [delivered payer candidate](grant-authority-candidate.md) defines complete
-family-5 assignments keyed by full M6 resource, client and grant incarnation.
+family-5 assignments keyed by full M6 resource, client and discriminator,
+with the exact grant incarnation.
 Each has exactly one `[payer_realm, payer_subject]` pair of 16-byte strings;
 subject is the paying realm's local UserId ULID, never an IdentityKey. Zero
 and multiple bindings (even equal values) are distinct typed refusals. NSD must
@@ -452,7 +453,9 @@ contains active claims and retained resource-scoped retired tokens. Pure
 successor validation requires unchanged scope, increasing revision, preserved
 history and retirement of removed/replaced claims. Independent consumers prove
 selective removal preserves another resource, fresh identical-content regrant
-succeeds and retired tokens fail. Changed grant content requires a fresh token.
+succeeds and retired tokens fail. Equal or later deadline-only renewal may keep
+the token at a strictly newer valid revision; every other content change requires
+a fresh token.
 Runtime fencing, durable history and actual expiry comparisons remain consumer
 responsibilities. NSD producer vectors and publication/history delivery remain
 outstanding; candidate fixtures do not assert deployed interoperability.
@@ -835,3 +838,20 @@ projection explicitly; the independent candidate fixture does not establish it.
 Unsupported OAuth2/webhook reservations and presentation-only last4 are explicitly
 retired in the mapping. Existing OIDC refresh, rotation, real expiry and configured
 JWKS stale refusal remain unchanged in consumers.
+
+## Protocol-qualified grant and renewal delta
+
+The [grant authority specification](grant-authority-candidate.md) changes family 5
+bindings to `[resource_bytes, client, incarnation, payers, discriminator]` and
+family 6 active claims to `[resource_bytes, client, incarnation, discriminator]`.
+Discriminators are `[0, 6]`, `[0, 17]`, `[1]` for TCP, UDP, Exit. Ordering,
+uniqueness and admission joins use the full resource/client/discriminator key,
+exact token and payer pair, without fallback. Resource/token retirement stays
+unchanged; tokens cannot be shared across independent keys within a resource.
+Strictly newer valid grant publications allow equal or later deadlines with
+all other fields unchanged, including embedded Subnet bytes. Any other reuse
+refuses and retired lifetimes cannot renew. ServiceGrant and usage tuple bytes
+are unchanged. `protocol_grant_renewal` provides independent fixture producer
+and consumer coverage. NSD N06 protocol/token/deadline producer adoption and
+producer-owned vectors remain outstanding; this incompatible candidate delta
+is not contained in the earlier published package revision.

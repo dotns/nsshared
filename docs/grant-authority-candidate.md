@@ -23,8 +23,8 @@ signature verification, outer realm/scope and version ownership are unchanged.
 
 Grant publication: `[1, family, issuer, recipient, revision, grants]`, family
 3 for Egress or 4 for Exit. Recipient is the provider, revision is positive.
-Entries are strictly ordered by `(resource, client)` and must match family and
-provider recipient. A complete empty set withdraws this named publication;
+Entries are strictly ordered by `(resource, client, discriminator)` and must
+match family and provider recipient. A complete empty set withdraws this named publication;
 missing or malformed input never means empty. Authenticated publication scope
 must match every resource's NSD/network and the exact issuer and recipient.
 
@@ -52,24 +52,28 @@ retain the existing selection contract and independently computed CIDR output.
 No local source address, interface or route binding is sent by NSD.
 
 Payer publication: `[1, 5, issuer, recipient, revision, bindings]`. Each binding
-is `[resource_bytes, client, incarnation, payers]`, strictly ordered by
-`(resource, client)`, with exactly one payer as above. A service admission joins
-the entire resource/client/incarnation context and both payer components;
+is `[resource_bytes, client, incarnation, payers, discriminator]`, strictly ordered by
+`(resource, client, discriminator)`, with exactly one payer as above. A service admission joins
+the entire resource/client/discriminator/incarnation context and both payer components;
 the payer publication alone grants no service permission.
 
 Resource authority: `[1, 6, issuer, recipient, revision, active, retired]`.
-Active claims are `[resource_bytes, client, incarnation]` sorted by resource and
-client. Retired entries are `[resource_bytes, incarnation]` sorted by both fields.
+Active claims are `[resource_bytes, client, incarnation, discriminator]` sorted
+by resource, client and discriminator. Retired entries are
+`[resource_bytes, incarnation]` sorted by both fields.
 Any active token retired for that full resource is refused, across clients.
 Successor validation requires matching issuer/recipient, increasing revision,
 preserved retirement history and retirement of every removed/replaced claim.
 This is validation of caller-owned snapshots, not a runtime state machine.
 The caller retains history durably. An identical-content regrant after removal
-needs a fresh token. Changed grant content also requires a fresh token; the
-grant successor validator compares the complete prior entry. Unchanged claims
+needs a fresh token. A strictly newer valid publication may keep a token only when every grant field
+except the deadline is unchanged and the deadline is equal or later. Earlier
+deadlines and all other changes are ReusedIncarnation, including embedded Subnet
+changes. Renewal never revives retired tokens and remains subject to actual expiry
+and enclosing authority validity. Unchanged claims
 and independently authorized resources survive selective removal unchanged.
 `ResourceAuthority::validate_grants` joins the exact issuer, recipient and every
-resource/client/incarnation against current active claims; decoding either
+resource/client/discriminator/incarnation against current active claims; decoding either
 payload alone does not perform that admission join. Consumers also compare
 the exact payer assignment and local floor and deny at actual expiry.
 
@@ -80,5 +84,26 @@ NSD's current producer uses string ULIDs, integer-array peer keys and its
 NodeL3Config resource graph. Outstanding producer work must map authenticated
 machine identities to full I/K bindings, authority namespaces and explicit rules,
 emit binary payer UserId/realm pairs, exact floor and service references,
-incarnations and deadlines. Service usage retains its predecessor subject until
-its separate coordinated wire revision; it is not interchangeable with this payer.
+incarnations and deadlines. Service usage retains its existing binary payer
+realm/UserId pair and historical attribution; this grant delta changes no usage
+bytes.
+
+## Protocol-qualified identity and renewal
+
+Derive the discriminator from GrantDetails: `[0, 6]` for Egress TCP, `[0, 17]`
+for Egress UDP and `[1]` for Exit. Compare numeric components, TCP before UDP.
+The seven-field ServiceGrant tuple is unchanged. Duplicate full keys refuse.
+Families 5 and 6 require the new tuple arities with no old-tuple fallback.
+Every admission joins the exact full key, incarnation and historical payer pair;
+no field is inferred from arrival order or an unqualified resource/client lookup.
+Within a resource, independent grant keys must have distinct lifetime tokens;
+reusing a token across keys refuses, including across successor publications.
+Retirement stays keyed by resource/incarnation, with retained history.
+
+The independent `protocol_grant_renewal` sequence covers dual protocols,
+deadline-only renewal, content refusal, selective withdrawal, fresh regrant
+and Exit renewal. Continuing usage attribution keeps the same tokens and payer
+pairs; usage wire bytes are unchanged. NSD N06 producer adoption remains
+outstanding: enabled protocols supply distinct tokens and discriminators, the
+grant publication supplies the deadline, and signed source binding remains
+mandatory. Candidate fixture acceptance does not establish producer adoption.

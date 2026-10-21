@@ -864,3 +864,20 @@ choice: a shared participant credential and a separate signed directory binding,
 with the global directory unchanged. P07 shared definitions and P08 gateway
 adoption are pending. This source/selection candidate only cross-references those
 contracts. NSD producer review and NSD/ns adoption remain outstanding.
+
+## Protocol-qualified grant and renewal delta
+
+The [grant authority specification](grant-authority-candidate.md) changes family 5
+bindings to `[resource_bytes, client, incarnation, payers, discriminator]` and
+family 6 active claims to `[resource_bytes, client, incarnation, discriminator]`.
+Discriminators are `[0, 6]`, `[0, 17]`, `[1]` for TCP, UDP, Exit. Ordering,
+uniqueness and admission joins use the full resource/client/discriminator key,
+exact token and payer pair, without fallback. Resource/token retirement stays
+unchanged; tokens cannot be shared across independent keys within a resource.
+Strictly newer valid grant publications allow equal or later deadlines with
+all other fields unchanged, including embedded Subnet bytes. Any other reuse
+refuses and retired lifetimes cannot renew. ServiceGrant and usage tuple bytes
+are unchanged. `protocol_grant_renewal` provides independent fixture producer
+and consumer coverage. NSD N06 protocol/token/deadline producer adoption and
+producer-owned vectors remain outstanding; this incompatible candidate delta
+is not contained in the earlier published package revision.
