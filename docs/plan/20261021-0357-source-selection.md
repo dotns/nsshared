@@ -1,6 +1,6 @@
 # Source binding and route selection
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-10-21 03:57
 - **approvedAt**: 2026-10-21 03:57
 - **relatedTask**: 20261021-0357-source-selection
@@ -53,7 +53,7 @@ DeliveryContext, SourceAcceptance, source-bound publications, scoped snapshots,
 route commands and immutable receipts are implemented without runtime or I/O.
 The independent corpus has 129 cases; four focused tests pass. The final
 `just self-check` against the integration baseline passed static, vector, API,
-41 check-selection tests, 491 workspace tests with zero skipped and documentation
+41 check-selection tests, 492 workspace tests with zero skipped and documentation
 checks. Source files remain within their documented size limits.
 
 Failing-first evidence includes missing source/command APIs before implementation,
@@ -90,3 +90,31 @@ exact source/context/scope, ordering and multi-scope atomicity. Keep the existin
 low-level publication contracts unchanged. Verify the imported stream-entry
 regression, independent mixed-event accepted/refused vectors and the current
 self-check before recording completion.
+
+## Snapshot validation results
+
+The stream-entry regression first failed with an accepted batch containing
+ChannelMismatch and Replace. Independently generated mixed-event cases also
+failed before the fix. Both source snapshot APIs now reject channel mismatch
+atomically, including a known stream-owned pair that declares Snapshot and an
+unknown pair that declares Stream. Authenticated snapshot-channel UnknownKind
+extensions retain their adjacent valid actions.
+
+The corpus contains 129 independent cases, including 28 new mixed batches:
+six accepted controls and 22 refused batches. Every new batch has independently
+ordered full keys and checked per-event authentication/actions; all single-scope
+batches exercise both entry points, and multi-scope batches preserve atomicity.
+Bad inner/outer signatures, old source, wrong context and wrong scope remain
+refused. The valid-only and authenticated mixed-extension controls are retained.
+
+Nine focused tests passed. The current `just self-check` at 619eacf passed
+formatting, lint, dependency checks, spelling, independent vectors, API checks,
+41 check-selection tests, 492 workspace tests with zero skipped, doctests and
+documentation compilation. Only these completion records changed afterward.
+
+Inspection covered every ChannelMismatch/UnknownKind handling path. The source
+snapshot aggregator was fixed, and the single-source wrapper inherits that fix.
+The snapshot-request boundary already checks both declared channel and known
+ownership. Low-level publication decisions and raw snapshot neutral-result
+semantics remain unchanged, along with their existing independent controls;
+strict source snapshot validation adds no new low-level contract requirement.
