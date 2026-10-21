@@ -1,5 +1,16 @@
 ## 2026-10-21 [feat]
 
+Require signed source authority alongside successful registration results and
+authentication tokens. Verify nested authority against independent enrollment
+facts and exact pending request correlation; refuse old response shapes.
+
+Validation: independent response and source-selection vectors passed; candidate
+self-check passed with 500 tests and zero skips. Additional conformance checks
+passed with 501 tests and zero skips. NSD producer adoption and interoperability
+vectors remain outstanding.
+
+## 2026-10-21 [feat]
+
 Add shared participant enrollment and renewal frames with fresh connection proofs,
 exact request correlation and retained authorization deadlines. Add signed relay
 owner and realm bindings with withdrawal and durable version-floor replay refusal.
