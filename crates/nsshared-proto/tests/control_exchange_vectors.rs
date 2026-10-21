@@ -201,17 +201,17 @@ fn machine_refresh_owner_and_key_selection_boundaries() {
     assert!(machine_refresh_needed(Some(i64::MIN), u64::MAX));
     assert!(!machine_refresh_needed(Some(i64::MAX), 0));
     let owner = KeySetOwner {
-        realm: "realm-a".into(),
+        realm: "030C1G60R30C1G60R30C1G60R3".parse().unwrap(),
         address: " https://control.example/keys/// ".into(),
     };
     let same = KeySetOwner {
-        realm: "realm-a".into(),
+        realm: "030C1G60R30C1G60R30C1G60R3".parse().unwrap(),
         address: "https://control.example/keys".into(),
     };
     assert!(owner.compare(&same).is_ok());
     assert!(matches!(
         owner.compare(&KeySetOwner {
-            realm: "realm-b".into(),
+            realm: "09144GJ289144GJ289144GJ289".parse().unwrap(),
             ..same.clone()
         }),
         Err(TokenError::Owner)
@@ -293,7 +293,7 @@ fn machine_header_algorithm_and_owned_rotation() {
     )
     .unwrap();
     let owner = KeySetOwner {
-        realm: "a".into(),
+        realm: "030C1G60R30C1G60R30C1G60R3".parse().unwrap(),
         address: "https://control.example/keys".into(),
     };
     let first = qualify_owned_key_set(&set, &owner, &[], None).unwrap();
@@ -309,7 +309,7 @@ fn machine_header_algorithm_and_owned_rotation() {
             .is_none()
     );
     let wrong_owner = KeySetOwner {
-        realm: "b".into(),
+        realm: "09144GJ289144GJ289144GJ289".parse().unwrap(),
         ..owner
     };
     assert!(matches!(

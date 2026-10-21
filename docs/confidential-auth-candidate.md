@@ -1,5 +1,15 @@
 # Confidential authentication configuration candidate
 
+Membership realm identities follow the [canonical RealmId contract](canonical-realm-identity.md).
+Affected text positions retain text but require the exact uppercase 26-character
+spelling and decode to RealmId; binary positions retain their exact 16 bytes.
+This incompatible candidate delta refuses arbitrary realm labels without fallback.
+NSD/ns producer and consumer updates, including the other active consumer delivery,
+remain outstanding. Encoding equality is not authentication. Discovery realm hints,
+external provider subject namespaces and opaque scopes retain their meanings.
+Signed usage bytes and the historical payer pair remain unchanged.
+
+
 Version 1 uses shortest-form definite CBOR, strict UTF-8, exact tuple arities,
 no trailing bytes and at most 1,048,576 bytes per object. Lists contain at most
 256 entries. Unknown fields/discriminants, missing fields and null required

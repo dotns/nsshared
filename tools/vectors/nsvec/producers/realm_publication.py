@@ -21,7 +21,7 @@ def vectors():
         signer = Signer(f"membership-node-{index}", f"membership-wg-{index}")
         record = record_sign(signer, index, 100, 200, [])[3]
         members.append([[1, signer.identity, signer.wg_key, index], record])
-    complete = [1, 2, [["realm-a", [members[0]]], ["realm-b", [members[1]]]]]
+    complete = [1, 2, [["030C1G60R30C1G60R30C1G60R3", [members[0]]], ["09144GJ289144GJ289144GJ289", [members[1]]]]]
     out = []
 
     def emit(name, kind, value, decision="accept", raw=None):
@@ -32,11 +32,11 @@ def vectors():
     emit("two-realms", "membership", complete)
     emit("omitted-realm", "membership", [1, 2, complete[2][:1]])
     emit("empty", "membership", [1, 2, []])
-    emit("served-empty-realm", "membership", [1, 2, [["realm-a", []]]])
-    same_realm = [1, 2, [["realm-a", sorted(members, key=lambda v: v[0][1])]]]
+    emit("served-empty-realm", "membership", [1, 2, [["030C1G60R30C1G60R30C1G60R3", []]]])
+    same_realm = [1, 2, [["030C1G60R30C1G60R30C1G60R3", sorted(members, key=lambda v: v[0][1])]]]
     emit("sorted-members", "membership", same_realm)
-    emit("duplicate-identity", "membership", [1, 2, [["realm-a", [members[0]]],
-                                                       ["realm-b", [members[0]]]]], "refuse")
+    emit("duplicate-identity", "membership", [1, 2, [["030C1G60R30C1G60R30C1G60R3", [members[0]]],
+                                                       ["09144GJ289144GJ289144GJ289", [members[0]]]]], "refuse")
     changed = copy.deepcopy(complete)
     # Re-sign the second record with the first key so each binding remains valid.
     signer = Signer("membership-node-2", "membership-wg-1")
@@ -55,13 +55,13 @@ def vectors():
     changed[2][0][1][0][1] = members[0][1][:-1] + bytes([members[0][1][-1] ^ 1])
     emit("record-signature", "membership", changed, "refuse")
     emit("realm-order", "membership", [1, 2, complete[2][::-1]], "refuse")
-    emit("member-order", "membership", [1, 2, [["realm-a", same_realm[2][0][1][::-1]]]], "refuse")
+    emit("member-order", "membership", [1, 2, [["030C1G60R30C1G60R30C1G60R3", same_realm[2][0][1][::-1]]]], "refuse")
     emit("duplicate-realm", "membership", [1, 2, [complete[2][0]] * 2], "refuse")
     emit("empty-realm-name", "membership", [1, 2, [["", []]]], "refuse")
     emit("long-realm-name", "membership", [1, 2, [["a" * 257, []]]], "refuse")
     emit("oversized-realms", "membership", None, "refuse", raw=b"\x83\x01\x02\x99\x01\x01")
     emit("oversized-members", "membership", None, "refuse",
-         raw=b"\x83\x01\x02\x81\x82\x61a\x99\x20\x01")
+         raw=b"\x83\x01\x02\x81\x82" + cbor.encode("030C1G60R30C1G60R30C1G60R3") + b"\x99\x20\x01")
     for counter in (0, 1, 2**64 - 1):
         emit(f"counter-{counter}", "policy", [1, 11, counter])
     emit("policy-negative", "policy", None, "refuse", raw=b"\x83\x01\x0b\x20")
@@ -78,7 +78,7 @@ def vectors():
 
     def event(name, payload, version, family=2, kind="realm-peers", channel=1,
               scope="collection", recipient_key=recipient, decision="accept", expires=200):
-        content = [1, issuer, recipient_key, "served", scope, family, kind, channel,
+        content = [1, issuer, recipient_key, "030C1G60R30C1G60R30C1G60R3", scope, family, kind, channel,
                    True, version, 100, expires, 0, payload]
         raw = cbor.encode(content)
         emit(name, "event", None, decision,

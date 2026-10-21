@@ -1,4 +1,6 @@
 use super::{AccountError, GrantIncarnation, ReporterIncarnation, SCHEMA, reader};
+
+use crate::RealmId;
 use crate::encoding::CborWriter;
 
 /// Versioned service byte boundary. WireGuard overhead is never included.
@@ -43,7 +45,7 @@ pub struct ServiceUsage {
     /// Client/provider direction.
     pub direction: Direction,
     /// Explicit paying realm.
-    pub payer_realm: [u8; 16],
+    pub payer_realm: RealmId,
     /// Paying realm-local UserId, unsigned big-endian ULID bytes.
     pub payer_subject: [u8; 16],
     /// Grant lifecycle captured when counting.
@@ -65,7 +67,7 @@ impl ServiceUsage {
             .uint(SCHEMA)
             .uint(self.boundary as u64)
             .uint(self.direction as u64)
-            .bytes(&self.payer_realm)
+            .bytes(self.payer_realm.as_bytes())
             .bytes(&self.payer_subject)
             .bytes(&self.grant.0)
             .bytes(&self.reporter.0)
@@ -100,7 +102,7 @@ impl ServiceUsage {
         let mut value = Self {
             boundary,
             direction,
-            payer_realm: input.fixed_bytes()?,
+            payer_realm: RealmId::from_bytes(input.fixed_bytes()?),
             payer_subject: input.fixed_bytes()?,
             grant: GrantIncarnation(input.fixed_bytes()?),
             reporter: ReporterIncarnation(input.fixed_bytes()?),

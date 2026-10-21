@@ -99,7 +99,7 @@ fn service_usage_vectors() {
         assert_eq!(
             decoded.payer_realm,
             if vector["name"] == "same-user-other-realm" {
-                [26; 16]
+                [26; 16].into()
             } else {
                 payer.realm
             }

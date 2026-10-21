@@ -19,7 +19,7 @@ def vectors():
     authority = key(bytes([1]) * 32)[0]
     material = [0, "auth", 7]
     ca = [2, "ca", 4]
-    pending = [1, bytes([8]) * 16, gateway, "served", "edge", realm, material]
+    pending = [1, bytes([8]) * 16, gateway, "030C1G60R30C1G60R30C1G60R3", "edge", realm, material]
     subject = cbor.encode([1, 0, realm, "external:visitor"])
     bindings = [cbor.encode([1, realm, 1, name, subject, True, 200])
                 for name in ("api", "basic", "mtls", "signed")]
@@ -160,7 +160,7 @@ def vectors():
 
     for name, index, replacement in [
         ("correlation", 1, bytes([9]) * 16), ("recipient", 2, authority),
-        ("served-realm", 3, "other"), ("scope", 4, "other"),
+        ("served-realm", 3, "09144GJ289144GJ289144GJ289"), ("scope", 4, "other"),
         ("realm", 5, bytes([9]) * 16), ("reference", 6, [0, "other", 7]),
         ("generation", 6, [0, "auth", 8]),
     ]:

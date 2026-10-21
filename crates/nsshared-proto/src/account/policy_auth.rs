@@ -1,5 +1,7 @@
 //! Supplied claims and policy values, without token verification or key custody.
 
+use crate::RealmId;
+
 use super::policy_subject::{MAX_POLICY_TEXT, ordered_text, text};
 use super::subject_policy::read_texts;
 use super::{
@@ -7,7 +9,7 @@ use super::{
     require,
 };
 use crate::encoding::{CborReader, CborWriter};
-use nsshared_service_control::Id;
+
 use serde::{Deserialize, Serialize};
 
 /// Ordered admin authorization scope; unknown wire names and values refuse.
@@ -31,7 +33,7 @@ pub struct AdminTokenClaims {
     /// Required typed scope with no default.
     pub scope: AdminScope,
     /// Optional realm constraint; None alone grants no cross-realm authority.
-    pub realm: Option<Id>,
+    pub realm: Option<RealmId>,
     /// Actual Unix-second expiry; checked against a supplied clock only.
     pub expires_seconds: u64,
 }
@@ -52,7 +54,7 @@ impl AdminTokenClaims {
     pub fn validate_context(
         &self,
         subject: &PolicySubject,
-        realm: Option<Id>,
+        realm: Option<RealmId>,
         required: AdminScope,
         now_seconds: u64,
     ) -> Result<(), AccountError> {
@@ -78,7 +80,7 @@ impl AdminTokenClaims {
             .bytes(&self.subject.canonical()?)
             .uint(self.scope as u64);
         if let Some(realm) = self.realm {
-            out.bytes(&realm);
+            out.bytes(realm.as_bytes());
         } else {
             out.null();
         }
@@ -102,7 +104,7 @@ impl AdminTokenClaims {
         let realm = if input.take_null() {
             None
         } else {
-            Some(input.fixed_bytes()?)
+            Some(RealmId::from_bytes(input.fixed_bytes()?))
         };
         let expires_seconds = input.uint()?;
         input.finish()?;

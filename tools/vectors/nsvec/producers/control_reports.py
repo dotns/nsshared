@@ -61,7 +61,7 @@ def vectors():
                         ("oversized-features", [1, request_id, ["feature"] * 257]),
                         ("bytes-features", [1, request_id, b""])]:
         emit(name, "payload", value, False, operation="machine.heartbeat", direction=0 if name == "invalid-address" else 1)
-    for name, position, value in [("id", 1, bytes([9])*16), ("served", 2, "other"), ("scope", 3, "other"),
+    for name, position, value in [("id", 1, bytes([9])*16), ("served", 2, "09144GJ289144GJ289144GJ289"), ("scope", 3, "other"),
                                   ("realm", 4, bytes([9])*16), ("reference", 5, [0, "other", 2]),
                                   ("generation", 5, [0, "auth", 3]), ("kind", 5, [1, "auth", 2]), ("status", 6, 1)]:
         changed = copy.deepcopy(material)

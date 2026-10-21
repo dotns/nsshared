@@ -1,11 +1,13 @@
 //! Ordered accept rules; matching and evaluation stay in gateway consumers.
 
+use crate::RealmId;
+
 use super::policy_subject::{MAX_POLICY_ITEMS, ordered_text};
 use super::{
     AccountError, MAX_BYTES, PolicySubject, SCHEMA, TransportProtocol, bounded, reader, require,
 };
 use crate::encoding::{CborReader, CborWriter};
-use nsshared_service_control::Id;
+
 use std::collections::BTreeSet;
 
 /// One accept rule; there is no implicit permission or deny-rule translation.
@@ -32,14 +34,14 @@ pub struct SubjectGroup {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SubjectPolicy {
     /// Realm in which local policy labels and bindings are meaningful.
-    pub realm: Id,
+    pub realm: RealmId,
     /// Rules retain supplied evaluator order.
     pub rules: Vec<SubjectRule>,
     /// Groups in strict canonical subject-byte order.
     pub groups: Vec<SubjectGroup>,
 }
 
-fn subject_set(values: &[PolicySubject], realm: Id) -> Result<Vec<Vec<u8>>, AccountError> {
+fn subject_set(values: &[PolicySubject], realm: RealmId) -> Result<Vec<Vec<u8>>, AccountError> {
     require(values.len() <= MAX_POLICY_ITEMS)?;
     let bytes = values
         .iter()
@@ -74,7 +76,7 @@ impl SubjectPolicy {
         let mut out = CborWriter::default();
         out.array(4)
             .uint(SCHEMA)
-            .bytes(&self.realm)
+            .bytes(self.realm.as_bytes())
             .array(self.rules.len());
         for rule in &self.rules {
             require(!rule.subjects.is_empty() && rule.subjects.len() <= MAX_POLICY_ITEMS)?;
@@ -123,7 +125,7 @@ impl SubjectPolicy {
     /// Rejects unknown protocols, malformed subjects, scope/order violations or bounds.
     pub fn decode(bytes: &[u8]) -> Result<Self, AccountError> {
         let mut input = reader(bytes, 4)?;
-        let realm = input.fixed_bytes()?;
+        let realm = RealmId::from_bytes(input.fixed_bytes()?);
         let count = input.array_up_to(MAX_POLICY_ITEMS)?;
         let mut rules = Vec::with_capacity(count);
         for _ in 0..count {

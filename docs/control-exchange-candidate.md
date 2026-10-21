@@ -1,5 +1,15 @@
 # Candidate control exchange
 
+Membership realm identities follow the [canonical RealmId contract](canonical-realm-identity.md).
+Affected text positions retain text but require the exact uppercase 26-character
+spelling and decode to RealmId; binary positions retain their exact 16 bytes.
+This incompatible candidate delta refuses arbitrary realm labels without fallback.
+NSD/ns producer and consumer updates, including the other active consumer delivery,
+remain outstanding. Encoding equality is not authentication. Discovery realm hints,
+external provider subject namespaces and opaque scopes retain their meanings.
+Signed usage bytes and the historical payer pair remain unchanged.
+
+
 This pure candidate extends enrollment and bootstrap, and the existing claim
 values. It adds no transport, session, credential custody, key acquisition or
 pin-store I/O. Producers independently review these bytes before live adoption.
@@ -25,7 +35,7 @@ pure domain-plus-canonical-content encoder; signing and private keys stay outsid
 
 All tuples use shortest definite CBOR, schema 1, no trailing bytes, and the
 existing account size limit. Nested contracts are exact canonical byte strings.
-Text fields are nonempty control-free UTF-8 of at most 256 bytes. Capabilities
+Membership realm text is exactly the canonical 26-character RealmId spelling. Other text fields are nonempty control-free UTF-8 of at most 256 bytes. Capabilities
 reuse Enrollment's sorted unique bounded identifier set. No normalization occurs.
 
 - Membership scope: `[nsd_id_16, network_id_16]`.
@@ -456,8 +466,8 @@ candidate request. Its canonical CBOR tuple is:
 `[1, subscriber_I, scopes, capabilities, public_ingress, boot_nonce, attempt_counter]`.
 
 Each scope is `[issuer_I, recipient_I, served_realm, scope]`: full 32-byte
-identities and nonempty realm/scope strings of at most 256 UTF-8 bytes without
-control characters. Entries are strictly sorted by those four values and unique;
+identities, canonical 26-character RealmId text and a nonempty opaque scope of
+at most 256 UTF-8 bytes without control characters. Entries are strictly sorted by those four values and unique;
 every recipient equals subscriber_I. There are at most 32 entries. These are
 exact requested PublicationScope pairs bound to their issuer/recipient, never
 wildcards or grants. The producer must compare them against externally
@@ -528,7 +538,8 @@ endpoint. HTTPS, Noise and QUIC keep their current confidentiality and trust
 requirements. The request tuple is
 `[1, subscriber_I, scopes, boot_nonce, attempt_counter, correlation]`.
 Each scope has the subscription's existing four-field shape and ordering,
-nonempty realm/scope strings bounded to 256 UTF-8 bytes without control characters.
+canonical 26-character RealmId text and a nonempty opaque scope bounded to
+256 UTF-8 bytes without control characters.
 The canonical request ceiling is 8192 bytes. Both nonce and correlation are
 nonzero 16-byte strings; attempt is a positive u32 with no wrapping. Callers
 retain the active subscription pair and supply a distinct correlation per poll.

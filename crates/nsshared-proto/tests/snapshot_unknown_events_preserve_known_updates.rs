@@ -21,7 +21,7 @@ fn event(signer: &SigningKey, recipient: IdentityKey, family: u64, kind: &str) -
         .uint(1)
         .bytes(signer.verifying_key().as_bytes())
         .bytes(recipient.as_bytes())
-        .text("realm-a")
+        .text("030C1G60R30C1G60R30C1G60R3")
         .text("nodes")
         .uint(family)
         .text(kind)
@@ -53,7 +53,7 @@ fn check_extension(family: u64, kind: &str) {
         scopes: vec![SubscriptionScope {
             issuer,
             recipient: subscriber,
-            served_realm: "realm-a".into(),
+            served_realm: "030C1G60R30C1G60R30C1G60R3".parse().unwrap(),
             scope: "nodes".into(),
         }],
         boot_nonce: [3; 16],
@@ -61,7 +61,7 @@ fn check_extension(family: u64, kind: &str) {
         correlation: [5; 16],
     };
     let scopes = [PublicationScope {
-        served_realm: "realm-a",
+        served_realm: "030C1G60R30C1G60R30C1G60R3".parse().unwrap(),
         scope: "nodes",
     }];
     let expected = PublicationExpectation {

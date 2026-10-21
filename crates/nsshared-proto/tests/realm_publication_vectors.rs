@@ -18,7 +18,7 @@ fn configured_key(family: u64, kind: &'static str) -> PublicationKey<'static> {
     PublicationKey {
         issuer: identity(1),
         recipient: identity(2),
-        served_realm: "served",
+        served_realm: "030C1G60R30C1G60R30C1G60R3".parse().unwrap(),
         scope: "collection",
         family,
         kind,
@@ -76,7 +76,7 @@ fn realm_membership_replacement() {
         .collect();
     let key = configured_key(2, "realm-peers");
     let scopes = [PublicationScope {
-        served_realm: "served",
+        served_realm: "030C1G60R30C1G60R30C1G60R3".parse().unwrap(),
         scope: "collection",
     }];
     let expected = PublicationExpectation {
@@ -125,9 +125,9 @@ fn realm_membership_replacement() {
                     current
                         .realms
                         .iter()
-                        .map(|v| v.realm.as_str())
+                        .map(|v| v.realm.to_string())
                         .collect::<Vec<_>>(),
-                    ["realm-a", "realm-b"]
+                    ["030C1G60R30C1G60R30C1G60R3", "09144GJ289144GJ289144GJ289"]
                 );
                 assert_eq!(
                     current
@@ -183,7 +183,7 @@ fn policy_observations_use_publication_versions() {
         .collect();
     let key = configured_key(11, "policy-version");
     let scopes = [PublicationScope {
-        served_realm: "served",
+        served_realm: "030C1G60R30C1G60R30C1G60R3".parse().unwrap(),
         scope: "collection",
     }];
     let expected = PublicationExpectation {
@@ -236,7 +236,7 @@ fn constructed_membership_validation() {
     changed.realms.reverse();
     assert!(changed.canonical().is_err());
     let mut changed = value.clone();
-    changed.realms[0].realm.clear();
+    changed.realms[0].realm = changed.realms[1].realm;
     assert!(changed.canonical().is_err());
     let mut changed = value.clone();
     changed.realms = vec![value.realms[0].clone(); MAX_PEER_REALMS + 1];

@@ -1,4 +1,6 @@
 //! Pure confidential authentication delivery; see `docs/confidential-auth-candidate.md`.
+
+use crate::RealmId;
 mod values;
 pub use values::*;
 
@@ -14,7 +16,7 @@ use thiserror::Error;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AuthConfiguration {
     /// Contributing binary realm, independent of served realm.
-    pub realm: [u8; 16],
+    pub realm: RealmId,
     /// Positive generation in the requested auth reference's domain.
     pub generation: u64,
     /// Explicit default provider; None selects no provider.
@@ -183,7 +185,7 @@ impl AuthConfiguration {
         let mut out = CborWriter::default();
         out.array(12)
             .uint(1)
-            .bytes(&self.realm)
+            .bytes(self.realm.as_bytes())
             .uint(self.generation);
         if let Some(value) = &self.default_provider_ref {
             out.text(value);
@@ -224,7 +226,7 @@ impl AuthConfiguration {
     /// Rejects noncanonical input, missing/unknown fields and invalid joins.
     pub fn decode(bytes: &[u8]) -> Result<Self, AccountError> {
         let mut input = reader(bytes, 12)?;
-        let realm = input.fixed_bytes()?;
+        let realm = RealmId::from_bytes(input.fixed_bytes()?);
         let generation = input.uint()?;
         let default_provider_ref = if input.take_null() {
             None
@@ -284,11 +286,11 @@ pub struct AuthConfigRequest {
     /// Exact gateway recipient; accepted binding validation remains external.
     pub recipient: IdentityKey,
     /// Signed served realm.
-    pub served_realm: String,
+    pub served_realm: RealmId,
     /// Signed publication scope.
     pub scope: String,
     /// Realm contributing the material.
-    pub realm: [u8; 16],
+    pub realm: RealmId,
     /// Exact auth reference and generation.
     pub material: EdgeMaterialRef,
 }
@@ -297,7 +299,6 @@ impl AuthConfigRequest {
     /// # Errors
     /// Rejects invalid scope, non-auth material and bounds.
     pub fn canonical(&self) -> Result<Vec<u8>, AccountError> {
-        text(&self.served_realm)?;
         text(&self.scope)?;
         require(self.material.kind == EdgeMaterialKind::Auth)?;
         let mut out = CborWriter::default();
@@ -305,9 +306,9 @@ impl AuthConfigRequest {
             .uint(1)
             .bytes(&self.request_id)
             .bytes(self.recipient.as_bytes())
-            .text(&self.served_realm)
+            .text(&self.served_realm.to_string())
             .text(&self.scope)
-            .bytes(&self.realm);
+            .bytes(self.realm.as_bytes());
         self.material.write(&mut out)?;
         bounded(out.into_bytes())
     }
@@ -319,9 +320,9 @@ impl AuthConfigRequest {
         let value = Self {
             request_id: input.fixed_bytes()?,
             recipient: identity(&mut input)?,
-            served_realm: input.text_up_to(256)?.to_owned(),
+            served_realm: input.text_up_to(26)?.parse()?,
             scope: input.text_up_to(256)?.to_owned(),
-            realm: input.fixed_bytes()?,
+            realm: RealmId::from_bytes(input.fixed_bytes()?),
             material: EdgeMaterialRef::read(&mut input)?,
         };
         input.finish()?;
@@ -398,7 +399,7 @@ impl AuthConfigResponse {
     pub fn validate_for(
         &self,
         pending: &AuthConfigRequest,
-        current_realm: [u8; 16],
+        current_realm: RealmId,
         current_material: &EdgeMaterialRef,
     ) -> Result<(), AuthConfigError> {
         self.canonical()?;

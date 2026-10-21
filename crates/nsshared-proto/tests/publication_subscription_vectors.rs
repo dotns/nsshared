@@ -31,7 +31,10 @@ fn publication_subscription_vectors() {
             assert!(value.scopes.iter().all(|s| s.recipient == value.subscriber));
             if v.name() == "populated" {
                 assert_eq!(value.scopes.len(), 2);
-                assert_eq!(value.scopes[0].served_realm, "realm-a");
+                assert_eq!(
+                    value.scopes[0].served_realm.to_string(),
+                    "030C1G60R30C1G60R30C1G60R3"
+                );
                 assert_eq!(value.scopes[0].scope, "edge");
                 assert_eq!(value.capabilities, ["node.control", "public.edge"]);
                 assert_eq!(value.public_ingress, [0]);

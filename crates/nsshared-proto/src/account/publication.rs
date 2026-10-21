@@ -1,5 +1,7 @@
 //! Signed per-kind authority; payloads remain the owning family's exact bytes.
 
+use crate::RealmId;
+
 use ed25519_dalek::{Signature, VerifyingKey};
 use thiserror::Error;
 
@@ -28,7 +30,7 @@ pub enum PublicationChannel {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct PublicationScope<'a> {
     /// Authorized served realm.
-    pub served_realm: &'a str,
+    pub served_realm: RealmId,
     /// Opaque authority scope within the served realm.
     pub scope: &'a str,
 }
@@ -41,7 +43,7 @@ pub struct PublicationKey<'a> {
     /// Full recipient identity.
     pub recipient: IdentityKey,
     /// Signed served realm.
-    pub served_realm: &'a str,
+    pub served_realm: RealmId,
     /// Signed opaque scope within the realm.
     pub scope: &'a str,
     /// Owning family number, including unknown future families.
@@ -219,7 +221,10 @@ impl<'a> PublicationEvent<'a> {
                 .map_err(|_| PublicationError::Fields)?,
             recipient: IdentityKey::from_bytes(&reader.fixed_bytes()?)
                 .map_err(|_| PublicationError::Fields)?,
-            served_realm: reader.text_up_to(256)?,
+            served_realm: reader
+                .text_up_to(26)?
+                .parse()
+                .map_err(|_| PublicationError::Fields)?,
             scope: reader.text_up_to(256)?,
             family: reader.uint()?,
             kind: reader.text_up_to(256)?,
@@ -240,8 +245,7 @@ impl<'a> PublicationEvent<'a> {
         };
         let payload = reader.bytes_up_to(bytes.len())?;
         reader.finish()?;
-        if key.served_realm.is_empty()
-            || key.scope.is_empty()
+        if key.scope.is_empty()
             || key.kind.is_empty()
             || version == 0
             || issued_seconds >= expires_seconds

@@ -122,7 +122,7 @@ fn control_report_contract_vectors() {
                             .report
                             .validate_installation(
                                 pending.request_id,
-                                &pending.served_realm,
+                                pending.served_realm,
                                 &pending.scope,
                                 pending.realm,
                                 &pending.material
@@ -243,7 +243,7 @@ fn report_receipts_preserve_observations_and_exact_pending_context() {
         rejected
             .validate_installation(
                 material.request_id,
-                &material.served_realm,
+                material.served_realm,
                 &material.scope,
                 material.realm,
                 &material.material

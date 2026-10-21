@@ -1,5 +1,15 @@
 # Public-edge content, material and service operations
 
+Membership realm identities follow the [canonical RealmId contract](canonical-realm-identity.md).
+Affected text positions retain text but require the exact uppercase 26-character
+spelling and decode to RealmId; binary positions retain their exact 16 bytes.
+This incompatible candidate delta refuses arbitrary realm labels without fallback.
+NSD/ns producer and consumer updates, including the other active consumer delivery,
+remain outstanding. Encoding equality is not authentication. Discovery realm hints,
+external provider subject namespaces and opaque scopes retain their meanings.
+Signed usage bytes and the historical payer pair remain unchanged.
+
+
 Candidate version 1. All new arrays use shortest-form definite CBOR, strict UTF-8,
 no trailing bytes, and at most 1,048,576 encoded bytes. Collections have at most
 256 items per encoded collection. Caller-supplied snapshot and material-ACK

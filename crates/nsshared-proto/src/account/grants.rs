@@ -1,5 +1,7 @@
 //! Pure service authority payloads; installation and history custody stay in consumers.
 
+use crate::RealmId;
+
 use nsshared_service_control::ServiceRef;
 use thiserror::Error;
 
@@ -64,7 +66,7 @@ pub enum GrantError {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Payer {
     /// Paying realm's binary identifier.
-    pub realm: [u8; 16],
+    pub realm: RealmId,
     /// Realm-local UserId, unsigned big-endian ULID bytes.
     pub subject: [u8; 16],
 }
@@ -80,7 +82,9 @@ fn payer(values: &[Payer]) -> Result<&Payer, GrantError> {
 fn write_payers(values: &[Payer], out: &mut CborWriter) {
     out.array(values.len());
     for value in values {
-        out.array(2).bytes(&value.realm).bytes(&value.subject);
+        out.array(2)
+            .bytes(value.realm.as_bytes())
+            .bytes(&value.subject);
     }
 }
 
@@ -95,7 +99,7 @@ fn read_payers(input: &mut CborReader<'_>) -> Result<Vec<Payer>, GrantError> {
     }
     input.array(2)?;
     Ok(vec![Payer {
-        realm: input.fixed_bytes()?,
+        realm: RealmId::from_bytes(input.fixed_bytes()?),
         subject: input.fixed_bytes()?,
     }])
 }

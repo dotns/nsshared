@@ -1,5 +1,7 @@
 //! Public RS256 claim/key values; signature verification and custody remain external.
+
 use super::{AccountError, MAX_BYTES, require};
+use crate::RealmId;
 use crate::{
     IdentityKey,
     encoding::{decode_base64url, encode_base64url},
@@ -43,8 +45,8 @@ pub struct MachineClaims {
     pub iss: String,
     /// Exact registered machine subject.
     pub sub: String,
-    /// Producer's realm label; not inferred from an unverified token.
-    pub realm: String,
+    /// Canonical realm identity; trust is not inferred from an unverified token.
+    pub realm: RealmId,
     /// Optional single/array audience; deliberately unchecked by the gateway.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub aud: Option<TokenAudience>,
@@ -337,8 +339,8 @@ impl QualifiedKeySet {
 /// Exact persisted token-pin owner, separate from envelope signer trust.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct KeySetOwner {
-    /// Provisioned realm label.
-    pub realm: String,
+    /// Independently provisioned realm identity.
+    pub realm: RealmId,
     /// Confidential acquisition address, normalized only for comparison.
     pub address: String,
 }

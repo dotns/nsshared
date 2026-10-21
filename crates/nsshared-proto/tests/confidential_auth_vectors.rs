@@ -116,7 +116,7 @@ fn confidential_auth_current_dependency_and_refusals() {
     assert!(!debug.contains(&"11".repeat(32)));
     assert!(!debug.contains(&"22".repeat(32)));
     assert!(matches!(
-        response.validate_for(&pending, [9; 16], &pending.material),
+        response.validate_for(&pending, [9; 16].into(), &pending.material),
         Err(AuthConfigError::Dependency)
     ));
     for material in [

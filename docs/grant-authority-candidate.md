@@ -1,5 +1,15 @@
 # Service grant authority candidate
 
+Membership realm identities follow the [canonical RealmId contract](canonical-realm-identity.md).
+Affected text positions retain text but require the exact uppercase 26-character
+spelling and decode to RealmId; binary positions retain their exact 16 bytes.
+This incompatible candidate delta refuses arbitrary realm labels without fallback.
+NSD/ns producer and consumer updates, including the other active consumer delivery,
+remain outstanding. Encoding equality is not authentication. Discovery realm hints,
+external provider subject namespaces and opaque scopes retain their meanings.
+Signed usage bytes and the historical payer pair remain unchanged.
+
+
 These pure candidate payloads use strict shortest-form definite-length CBOR,
 schema 1, at most 1 MiB and at most 8,192 entries per collection. Existing M6
 ServiceRef values are embedded as canonical byte strings using the M6 codec.

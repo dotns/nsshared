@@ -1,5 +1,7 @@
 //! Complete membership content; enclosing publication authority stays external.
 
+use crate::RealmId;
+
 use std::collections::BTreeSet;
 
 use super::{AccountError, MAX_IDENTITIES, NodeBinding, SCHEMA, bounded, require};
@@ -26,8 +28,8 @@ pub struct RealmMember {
 /// Complete members of a contributing served realm, including an empty realm.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RealmContribution {
-    /// Contribution name, not the enclosing publication's authority scope.
-    pub realm: String,
+    /// Contributing realm identity, independent of the enclosing authority scope.
+    pub realm: RealmId,
     /// Strict full-identity order within this realm.
     pub members: Vec<RealmMember>,
 }
@@ -49,7 +51,6 @@ impl RealmPeers {
         let mut keys = BTreeSet::new();
         let mut total = 0usize;
         for realm in &self.realms {
-            require(!realm.realm.is_empty() && realm.realm.len() <= 256)?;
             if realm.members.len() > MAX_IDENTITIES - total {
                 return Err(AccountError::Bounds);
             }
@@ -100,7 +101,9 @@ impl RealmPeers {
         let mut out = CborWriter::default();
         out.array(3).uint(SCHEMA).uint(2).array(self.realms.len());
         for realm in &self.realms {
-            out.array(2).text(&realm.realm).array(realm.members.len());
+            out.array(2)
+                .text(&realm.realm.to_string())
+                .array(realm.members.len());
             for member in &realm.members {
                 out.array(2);
                 member.binding.write(&mut out);
@@ -122,7 +125,7 @@ impl RealmPeers {
         let mut total = 0usize;
         for _ in 0..count {
             input.array(2)?;
-            let realm = input.text_up_to(256)?.to_owned();
+            let realm = input.text_up_to(26)?.parse()?;
             let count = input.array_up_to(MAX_IDENTITIES - total)?;
             total += count;
             let mut members = Vec::with_capacity(count);
