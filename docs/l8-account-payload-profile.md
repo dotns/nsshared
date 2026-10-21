@@ -843,3 +843,24 @@ the signed response nonce. The payload remains the existing PublicationSnapshot;
 pending-scope checks add no version domain or acceptance runtime. Independent
 publication-snapshot-request.vec fixture bytes are candidate evidence. NSD
 confirmation and real producer vectors remain outstanding.
+
+## Source binding and Node route commands
+
+The [source/selection candidate](source-selection-candidate.md) adds mandatory
+signed SourceBinding authority and subscriber DeliveryContext to a new outer
+source-publication signature domain. Existing full publication keys, versions,
+channels, complete replacement, failure/empty events and deadlines retain their
+meaning. An old unbound event is refused by the new form without fallback; a
+higher version never revives a retired source or session. M6 bytes are unchanged.
+The same source/profile fences apply to Node/ServiceRef select-clear operations
+on the confidential signed control carrier. Clear targets exact selection and
+generation; original immutable receipts survive replacement and restart with no
+current mutation authority. NSD assigns `explicit-gateway-profile` in enrollment.
+Retired gateway-ID and carrier-credential fields are refused. Independent vectors
+are labelled fixture authority; NSD producer review and ns/NSD adoption remain open.
+
+[Q18](l8-candidate-review-request.md) records the settled participant/directory
+choice: a shared participant credential and a separate signed directory binding,
+with the global directory unchanged. P07 shared definitions and P08 gateway
+adoption are pending. This source/selection candidate only cross-references those
+contracts. NSD producer review and NSD/ns adoption remain outstanding.
