@@ -1,6 +1,6 @@
 # Shared participant credentials and directory bindings
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-10-21 04:47
 - **approvedAt**: 2026-10-21 04:47
 
@@ -34,5 +34,15 @@ would break existing semantics; preserve framing and use a separate signed recor
 
 ## Annotations
 
-Implementation approved with the complete specification. Shared indexes and
-changelog are maintained separately.
+The implementation preserves existing authentication and roster/report wire
+contracts and adds separately scoped enrollment, renewal and directory eligibility.
+
+## Results
+
+Specification and independently generated credential/binding vectors precede the
+pure codec implementation in history. The supplied-state validators and all four
+contract tests pass, including the complete participant transport sequence.
+The final self-check passed all 496 tests with zero skips, plus static checks,
+independent vectors, API compatibility, doctests and documentation. The existing
+directory and roster/report/answer bytes are unchanged. Producer confirmation,
+gateway runtime migration and ns/NSD interoperability remain outstanding.
