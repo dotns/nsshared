@@ -1,6 +1,6 @@
 # Source binding and route selection
 
-- **status**: completed
+- **status**: in_progress
 - **priority**: P1
 - **owner**: (exclusive)
 - **createdAt**: 2026-10-21 03:57
@@ -46,8 +46,11 @@ definitions retain their separate ownership; producer review remains open.
   no unresolved implementation findings remain. M6 and existing publication bytes
   are unchanged; the mandatory outer signed-byte delta is explicit.
 
-## Remaining documentation and adoption
+## Documentation and external adoption
 
-Q18 directory/participant disposition text remains unchanged. Its wording is not
-resolved by this contract implementation. NSD producer review and ns/NSD runtime
-adoption remain outstanding; fixture acceptance establishes neither.
+Q18 records the settled owner choice: shared participant credential plus separate
+NSD-signed directory binding, with the global directory unchanged. P07 owns the
+pending shared definitions; P08 owns pending gateway adoption. The source/selection
+candidate only cross-references them and defines neither contract. NSD producer
+review, producer vectors and NSD/ns adoption remain outstanding; fixture acceptance
+establishes neither confirmation nor interoperability.

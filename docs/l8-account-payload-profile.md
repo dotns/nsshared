@@ -858,3 +858,9 @@ generation; original immutable receipts survive replacement and restart with no
 current mutation authority. NSD assigns `explicit-gateway-profile` in enrollment.
 Retired gateway-ID and carrier-credential fields are refused. Independent vectors
 are labelled fixture authority; NSD producer review and ns/NSD adoption remain open.
+
+[Q18](l8-candidate-review-request.md) records the settled participant/directory
+choice: a shared participant credential and a separate signed directory binding,
+with the global directory unchanged. P07 shared definitions and P08 gateway
+adoption are pending. This source/selection candidate only cross-references those
+contracts. NSD producer review and NSD/ns adoption remain outstanding.

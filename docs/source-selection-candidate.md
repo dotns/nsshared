@@ -140,6 +140,11 @@ are contract evidence only; actual producer review and interoperability are open
 ## Review boundary
 
 Q12/Q14/Q21 request producer confirmation of these exact bytes and provenance,
-including durable source generation and all-receipt ownership. Directory and
-participant definitions retain their separate ownership. No directory or
-participant credential codec is added here.
+including durable source generation and all-receipt ownership.
+
+[Q18](l8-candidate-review-request.md) records the settled owner choice: a shared
+participant credential plus a separate NSD-signed directory binding, with the
+global directory unchanged. P07 owns those shared definitions (pending), and P08
+owns gateway adoption (pending). This source-binding and Node route candidate only
+cross-references them; it does not define participant or directory-binding
+contracts. NSD producer review and NSD/ns adoption remain outstanding.

@@ -483,19 +483,25 @@ changes are claimed; Q17 remains prepared pending delivery and response.
 
 ### Q18: Relay directory and participant payload — NSD owner
 
-What schemas complete relay directory capabilities and independent participant
-credentials/authorized scope, keeping the relay client, participant and gateway
-Node distinct? Name NSD vectors for separate complete directory/roster scopes,
-the union of served-realm admission identities and removal. The concrete
-roster carriers are reviewed separately in Q01–Q06.
+The owner choice is settled: use a shared participant credential and a separate
+NSD-signed directory binding. The global directory, its entry identities and its
+existing format remain unchanged. Relay clients, independent participants and
+gateway Nodes retain distinct authority; directory hints or gateway Node
+credentials do not establish participant authorization.
 
-The participant roster candidate uses only its existing signed issuer/recipient
-pair as its own credential scope. What additional authorized scopes, if any,
-require a separate agreed contract? This question remains open for those scopes;
-none is inferred from directory or gateway Node authority. Confirm Q03's retained
-complete authority and diagnostic degradation rule and supply NSD producer
-vectors for renewal, empty replacement, revocation, class changes and the exact
-validity/degradation boundaries. Candidate Python vectors are preparation only.
+P07 owns the shared participant credential and separate signed directory-binding
+definitions; those definitions are pending. P08 owns gateway adoption of those
+contracts; that adoption is pending. The source-binding and Node route candidate
+only cross-references this boundary and does not define either contract.
+
+NSD producer review, independently owned producer vectors and NSD/ns adoption
+remain outstanding. The existing participant roster retains its signed
+issuer/recipient scope; its concrete carriers remain reviewed in Q01–Q06.
+Confirm Q03's retained complete authority and diagnostic degradation rule and
+supply NSD producer vectors for enrollment/renewal, empty replacement, revocation,
+realm eligibility withdrawal, class changes and the exact validity/degradation
+boundaries. Candidate fixture vectors establish neither producer confirmation
+nor live interoperability.
 
 ### Q19: Service and relay report schemas — NSD owner
 
@@ -660,7 +666,9 @@ delivery, with its actual date. Record `answered` with the answer's durable
 location. Use `outstanding` for an unresolved or unreceived answer after delivery;
 retain the delivery date and any partial answer reference. Outstanding answers
 do not block candidate preparation and do not imply approval. All rows start
-prepared because no delivery or answer has been received.
+prepared because no external producer delivery or answer has been received.
+These statuses track external producer review; Q18's owner design choice is
+settled while shared definitions and adoption remain pending.
 
 | Reference | Addressee | Status | Sent date (reported by owner) | Answer location |
 | --- | --- | --- | --- | --- |
