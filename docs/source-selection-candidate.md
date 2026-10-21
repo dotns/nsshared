@@ -26,7 +26,7 @@ encoded as NSD source generation.
 `SignedSourceBinding = [bstr(SourceBinding), signature64]`, signature input:
 `"ns.account.source-binding.v1\0" || SourceBinding bytes`.
 `SourceAcceptance = [1, bstr(SignedSourceBinding), request_id]` is carried in the
-existing confidential B43 `machine.register` or `machine.auth` response. The
+existing confidential control carrier `machine.register` or `machine.auth` response. The
 response must verify the expected enrolled NSD pin, explicit recipient, operation,
 freshness/replay rules and nonce equal to pending request_id. Its signed binding
 must match the independently expected enrolled NSD, recipient, realm/scope,
@@ -39,8 +39,8 @@ The new signed bytes are `SourcePublicationContent = [1,
 bstr(SignedSourceBinding), bstr(DeliveryContext), bstr(PublicationEvent)]`;
 `SourcePublication = [bstr(SourcePublicationContent), signature64]`, signing input:
 `"ns.account.source-publication.v1\0" || SourcePublicationContent bytes`.
-PublicationEvent is the exact existing independently signed B44 event, including
-its complete full key, channel, complete flag, version, issue/expiry, outcome and
+The nested PublicationEvent retains its existing independent signature and
+complete full key, channel, complete flag, version, issue/expiry, outcome and
 payload. Its nested signature and every existing decision rule are still checked.
 This intentional incompatible signed-byte delta adds the outer signature domain,
 mandatory binding and delivery bytes; an old PublicationEvent is never accepted
@@ -63,7 +63,12 @@ The measured entire outer event is bounded by MAX_PUBLICATION_BYTES. Oversized
 stream input terminates; invalid snapshot input rejects the complete snapshot.
 Source-bound snapshots use `[1, [bstr(SourcePublication), ...]]`, bounded by
 MAX_CONTROL_BODY, strictly increasing full inner keys. Every event is validated
-before exposing any decision; omitted keys retain their state. Existing full-key
+before exposing any decision; omitted keys retain their state. Multi-scope polls
+supply the accepted binding for each requested scope, bounded by the existing
+32-scope request ceiling. Each enclosing issuer/recipient/realm/scope may have
+only one current binding; supplying both retired and replacement authority for
+one scope is refused. Every returned event must match its scope's exact current
+binding; a good event in another scope cannot hide one stale-source event. Existing full-key
 version/tombstone retention and deadlines survive source replacement. A higher
 per-key version cannot rescue an old source or session. The consumer preserves
 this context through queues and compares local attachment generation in the same
@@ -72,19 +77,20 @@ installation and read no clock or state themselves.
 
 ## Route commands and immutable receipts
 
-B43 confidential operations are `node.route.select` and `node.route.clear`, at the
+control carrier confidential operations are `node.route.select` and `node.route.clear`, at the
 existing control endpoint. They deliberately do not reuse retired gateway-ID
 operation identifiers. `RouteCommand = [1, bstr(SignedSourceBinding), request_id,
 selection_id, action]`. Select action is `[0, provider_node_I,
-bstr(canonical_M6_ServiceRef), selection]`; selection reuses B40's exact
-`[0, []]` default or `[1, ordered_prefixes]` explicit scope. Prefixes use B40's
+bstr(canonical_M6_ServiceRef), selection]`; selection reuses SubnetSelection's exact
+`[0, []]` default or `[1, ordered_prefixes]` explicit scope. Prefixes use SubnetSelection's
 family/address/length encoding, validation, ordering and overlap bounds. Empty
 explicit selects none. Resource authorization and containment in a published
 route remain NSD transaction checks, not inferred from identity or decoded bytes.
 Clear action is `[1, target_selection_generation]` with positive generation.
 Clear's source binding, selection identity and generation name an exact target.
 
-The signed B43 request nonce equals request_id, signer equals binding recipient,
+The signed control carrier request nonce is a fresh nonzero transmission-attempt identity,
+independent of the immutable payload request_id; signer equals binding recipient,
 recipient equals binding NSD, operation equals the action's operation. The binding
 signature verifies against the independently trusted NSD. The transaction compares
 the authenticated caller, assigned profile and supplied binding with committed
@@ -100,9 +106,13 @@ request identity: store every original receipt, never only the latest per machin
 The same identity with changed command bytes conflicts. A different source has a
 separate request namespace even when I/K/addresses and request ids match.
 
-`RouteResponse = [1, bstr(RouteReceipt), replayed_bool]` uses an NSD-signed B43
-response with the action's operation, explicit recipient and request nonce. The
-consumer compares its entire pending request and source/profile with the receipt.
+`RouteResponse = [1, bstr(RouteReceipt), replayed_bool]` uses an NSD-signed control
+response with the action's operation, explicit recipient and the pending attempt's
+nonce. The consumer supplies and compares that exact nonce as well as its entire
+pending immutable request and source/profile with the receipt. Retransmission uses
+a fresh carrier timestamp/nonce under the unchanged control carrier replay rules while
+retaining payload request_id and exact command bytes. Fetching the original
+receipt never reuses the first carrier's replay authority.
 A response establishes committed command outcome, never applied routing. A replay
 returns the original receipt bytes and reports replayed=true; it grants no current
 mutation authority. Pure decisions distinguish Replay from Select, Clear and

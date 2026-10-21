@@ -12,11 +12,13 @@ use nsshared_proto::{
             decide_route_command,
         },
         source_binding::{
-            DeliveryContext, SignedSourceBinding, SourceAcceptance, SourceEnrollmentExpectation,
+            DeliveryContext, SignedSourceBinding, SourceAcceptance, SourceBinding,
+            SourceEnrollmentExpectation, SourceError,
         },
         source_publication::{
             SourcePublication, decide_source_publication, decide_source_snapshot,
-            encode_source_publication, source_publication_signing_input,
+            decide_source_snapshot_scopes, encode_source_publication,
+            source_publication_signing_input,
         },
     },
 };
@@ -118,6 +120,49 @@ fn independent_source_selection_vectors() {
                     assert_eq!(value.binding, a);
                 }
             }
+            "scoped-snapshot" => {
+                let c = binding(&vectors, "source-c");
+                let scopes = [
+                    PublicationScope {
+                        served_realm: b.binding.served_realm,
+                        scope: &b.binding.scope,
+                    },
+                    PublicationScope {
+                        served_realm: c.binding.served_realm,
+                        scope: &c.binding.scope,
+                    },
+                ];
+                let expected = PublicationExpectation {
+                    issuer,
+                    recipient: b.binding.recipient,
+                    scopes: &scopes,
+                    channel: PublicationChannel::Snapshot,
+                    now_seconds: 150,
+                };
+                let current = [b.binding.clone(), c.binding.clone()];
+                let result = decide_source_snapshot_scopes(
+                    &[],
+                    &raw,
+                    &current,
+                    &context(PublicationChannel::Snapshot),
+                    &expected,
+                );
+                assert_eq!(result.is_ok(), accepted, "{}: {result:?}", v.name());
+                if let Ok(decisions) = result {
+                    assert_eq!(decisions.len(), 2);
+                }
+                let ambiguous = [a.binding.clone(), b.binding.clone()];
+                assert!(
+                    decide_source_snapshot_scopes(
+                        &[],
+                        &raw,
+                        &ambiguous,
+                        &context(PublicationChannel::Snapshot),
+                        &expected
+                    )
+                    .is_err()
+                );
+            }
             "publication" | "snapshot" => {
                 let channel = if v.opt("channel") == Some("0") {
                     PublicationChannel::Stream
@@ -217,6 +262,13 @@ fn independent_source_selection_vectors() {
                 };
                 let result = RouteCommand::from_envelope(&envelope, &expected, issuer);
                 assert_eq!(result.is_ok(), accepted, "{}: {result:?}", v.name());
+                if accepted {
+                    let replayed = EnvelopeExpectation {
+                        previous_acceptance_seconds: Some(100),
+                        ..expected
+                    };
+                    assert!(RouteCommand::from_envelope(&envelope, &replayed, issuer).is_err());
+                }
             }
             "receipt" => {
                 let result = RouteReceipt::decode(&raw);
@@ -242,7 +294,11 @@ fn independent_source_selection_vectors() {
                     now_seconds: 100,
                     previous_acceptance_seconds: None,
                 };
-                let result = RouteResponse::from_envelope(&envelope, &expected, &pending);
+                let pending_nonce = v
+                    .opt("pending_nonce")
+                    .map_or(pending.request_id, |_| v.hex_array("pending_nonce"));
+                let result =
+                    RouteResponse::from_envelope(&envelope, &expected, &pending, pending_nonce);
                 assert_eq!(result.is_ok(), accepted, "{}: {result:?}", v.name());
                 if let Ok(value) = result {
                     assert_eq!(value.canonical().unwrap(), envelope.payload);
@@ -318,17 +374,33 @@ fn source_selection_fence() {
         now_seconds: 150,
     };
     let delayed = bytes(&vectors, "delayed-a-higher-version");
-    assert!(
-        decide_source_publication(
-            &[],
-            Some(&delayed),
-            &b.binding,
-            &context(PublicationChannel::Snapshot),
-            &expected
-        )
-        .is_err()
-    );
+    let valid = bytes(&vectors, "current-b");
+    let old_event = SourcePublication::decode(&delayed)
+        .unwrap()
+        .event()
+        .unwrap();
+    let current_event = SourcePublication::decode(&valid).unwrap().event().unwrap();
+    assert!(old_event.content().version > current_event.content().version);
+    let retained = [AcceptedPublication {
+        key: current_event.content().key,
+        version: 7,
+    }];
     for restored in [false, true] {
+        let accepted = if restored {
+            SourceBinding::decode(&b.binding.canonical().unwrap()).unwrap()
+        } else {
+            b.binding.clone()
+        };
+        let delivery = context(PublicationChannel::Snapshot);
+        let delivery = if restored {
+            DeliveryContext::decode(&delivery.canonical().unwrap()).unwrap()
+        } else {
+            delivery
+        };
+        assert!(matches!(
+            decide_source_publication(&retained, Some(&delayed), &accepted, &delivery, &expected),
+            Err(SourceError::Authority)
+        ));
         let old_receipt = if restored {
             RouteReceipt::decode(&rc.canonical().unwrap()).unwrap()
         } else {
@@ -345,7 +417,7 @@ fn source_selection_fence() {
         let result = decide_route_command(
             &ca,
             a.binding.recipient,
-            &b.binding,
+            &accepted,
             Some(&old_receipt),
             Some(&selection),
         )
@@ -357,7 +429,6 @@ fn source_selection_fence() {
         assert_eq!(selection, current);
         assert_eq!(original.command.binding, a);
     }
-    let valid = bytes(&vectors, "current-b");
     assert!(matches!(
         decide_source_publication(
             &[],
@@ -396,7 +467,7 @@ fn source_selection_fence() {
         now_seconds: 100,
         previous_acceptance_seconds: None,
     };
-    assert!(RouteResponse::from_envelope(&wire, &expected, &wrong_pending).is_err());
+    assert!(RouteResponse::from_envelope(&wire, &expected, &wrong_pending, ca.request_id).is_err());
 }
 
 #[test]
@@ -480,7 +551,10 @@ fn exact_clear_target_and_source_request_namespace() {
     };
     let mut pending = old_receipt.command.clone();
     pending.binding = b.clone();
-    assert!(RouteResponse::from_envelope(&wire, &carrier, &pending).is_err());
+    assert!(
+        RouteResponse::from_envelope(&wire, &carrier, &pending, old_receipt.command.request_id)
+            .is_err()
+    );
     let mut wrong_source = b.binding;
     wrong_source.source_epoch += 1;
     assert!(

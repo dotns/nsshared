@@ -33,6 +33,9 @@ def vectors():
         return cbor.encode([raw, signature])
 
     sa, sb = signed(a, BINDING), signed(b, BINDING)
+    c = copy.deepcopy(b)
+    c[3], c[7] = "09144GJ289144GJ289144GJ289", bytes([12])*16
+    sc = signed(c, BINDING)
 
     def emit(name, mode, raw, accepted=True, **fields):
         out.append([("name", name), ("mode", mode), ("bytes", raw),
@@ -41,6 +44,7 @@ def vectors():
 
     for name, value in [("source-a", a), ("source-b", b)]:
         emit(name, "binding", signed(value, BINDING), signing_input=BINDING + cbor.encode(value), wg_key=bytes([42])*32, n4=derive.node_addr(node, 1), n6=derive.node_addr(node, 0))
+    emit("source-c", "binding", sc, signing_input=BINDING + cbor.encode(c))
     for name, index, value in [
         ("old-profile-binding", 5, "gateway-v1"), ("zero-contribution", 7, bytes(16)),
         ("zero-epoch", 8, 0), ("zero-generation", 9, 0),
@@ -137,6 +141,10 @@ def vectors():
     emit("snapshot-atomic-old-source", "snapshot", cbor.encode([1, [valid, publication(sa, 99)]]), False)
     emit("snapshot-duplicate", "snapshot", cbor.encode([1, [valid, valid]]), False)
 
+    other = publication(sc, 9, changes={3:c[3]})
+    emit("snapshot-multiple-scopes", "scoped-snapshot", cbor.encode([1, [valid, other]]))
+    emit("snapshot-multiple-scopes-old-source", "scoped-snapshot", cbor.encode([1, [publication(sa, 99), other]]), False)
+
     route = cbor.encode([bytes([21])*16, bytes([22])*16, bytes([23])*16])
     select_a = [1, sa, bytes([30])*16, bytes([31])*16, [0, provider, route, [0, []]]]
     clear_a = [1, sa, bytes([32])*16, bytes([31])*16, [1, 10]]
@@ -149,12 +157,14 @@ def vectors():
              direction=0, recipient=nsd, signer_seed=bytes([1])*32))
     raw = cbor.encode(select_b)
     for name, nonce, recipient, op, signer in [
-        ("request-wrong-nonce", bytes([99])*16, nsd, "node.route.select", bytes([1])*32),
+        ("request-zero-nonce", bytes(16), nsd, "node.route.select", bytes([1])*32),
         ("request-missing-recipient", select_b[2], None, "node.route.select", bytes([1])*32),
         ("request-retired-operation", select_b[2], nsd, "client.exit_node_selection.v1", bytes([1])*32),
         ("request-wrong-signer", select_b[2], nsd, "node.route.select", bytes([3])*32),
     ]:
         emit(name, "command-carrier", carrier(raw, nonce, op, direction=0, recipient=recipient, signer_seed=signer), False)
+    emit("request-fresh-attempt", "command-carrier", carrier(cbor.encode(select_b), bytes([99])*16,
+         "node.route.select", direction=0, recipient=nsd, signer_seed=bytes([1])*32))
     explicit = copy.deepcopy(select_b)
     explicit[4][3] = [1, [[4, bytes([10, 0, 0, 0]), 8]]]
     emit("select-explicit", "command", cbor.encode(explicit))
@@ -191,6 +201,8 @@ def vectors():
     emit("response-wrong-request", "response", carrier(response_a, bytes([99])*16, "node.route.clear"), False)
     emit("response-missing-recipient", "response", carrier(response_a, clear_a[2], "node.route.clear", recipient=None), False)
     emit("response-wrong-operation", "response", carrier(response_a, clear_a[2], "node.route.select"), False)
+    retry_nonce = bytes([98])*16
+    emit("receipt-clear-a-fresh-replay", "response", carrier(response_a, retry_nonce, "node.route.clear"), pending_nonce=retry_nonce)
     old_command = copy.deepcopy(clear_a)
     old_command[1] = signed(a[:5] + ["gateway-v1"] + a[6:], BINDING)
     old_receipt = cbor.encode([1, cbor.encode(old_command), 10, 1])

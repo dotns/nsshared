@@ -21,8 +21,8 @@ cannot become contribution authority. RealmId is the canonical realm type.
 Specify and independently generate source bindings, source-bound publication
 wrappers and Node/route commands before implementing pure codecs. Authenticate
 bindings in correlated control responses. Add exact source/delivery comparisons
-before existing per-key publication decisions. Reuse B43 for command receipts and
-B40 scope encoding; expose replay as a receipt with no mutation authority.
+before existing per-key publication decisions. Reuse BootstrapEnvelope for command receipts and
+SubnetSelection for scope encoding; expose replay as a receipt with no mutation authority.
 Keep externally supplied current source and immutable receipt history separate.
 
 ## Risks

@@ -1,4 +1,4 @@
-//! Pure Node/route commands and immutable receipt decisions on B43.
+//! Pure Node/route commands and immutable receipt decisions on the authenticated control carrier.
 
 use super::{
     BootstrapEnvelope, EnvelopeDirection, EnvelopeExpectation, SubnetSelection, identity, require,
@@ -19,7 +19,7 @@ pub const NODE_ROUTE_CLEAR: &str = "node.route.clear";
 /// Command intent, not an assertion that routing has been applied.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum RouteAction {
-    /// Select a stable route with a full provider identity and B40 scope.
+    /// Select a stable route with a full provider identity and SubnetSelection scope.
     Select {
         /// Full provider Node I.
         provider: IdentityKey,
@@ -56,7 +56,7 @@ impl RouteCommand {
             RouteAction::Clear { .. } => NODE_ROUTE_CLEAR,
         }
     }
-    /// Encodes exact fields with B40 scope and unchanged canonical M6 reference bytes.
+    /// Encodes exact fields with SubnetSelection scope and unchanged canonical M6 reference bytes.
     /// # Errors
     /// Refuses invalid identities, source, prefixes, generation or encoded size.
     pub fn canonical(&self) -> Result<Vec<u8>, SourceError> {
@@ -156,7 +156,7 @@ impl RouteCommand {
     /// Authenticates the existing confidential request carrier and its source issuer.
     /// Current-source transaction authorization remains a separate decision.
     /// # Errors
-    /// Refuses signature, correlation, operation, caller or explicit recipient mismatch.
+    /// Refuses signature, invalid nonce, operation, caller or explicit recipient mismatch.
     pub fn from_envelope(
         envelope: &BootstrapEnvelope,
         expected: &EnvelopeExpectation<'_>,
@@ -164,13 +164,13 @@ impl RouteCommand {
     ) -> Result<Self, SourceError> {
         envelope.verify(expected)?;
         let value = Self::decode(&envelope.payload)?;
+        nonzero(&envelope.nonce)?;
         value.binding.verify(nsd)?;
         if envelope.direction != EnvelopeDirection::Request
             || envelope.kind != value.operation()
             || envelope.recipient != Some(nsd)
             || expected.recipient != nsd
             || envelope.signer != value.binding.binding.recipient
-            || envelope.nonce != value.request_id
         {
             return Err(SourceError::Authority);
         }
@@ -256,7 +256,7 @@ pub struct RouteResponse {
     pub replayed: bool,
 }
 impl RouteResponse {
-    /// Exact response payload for the NSD-signed B43 carrier.
+    /// Exact response payload for the NSD-signed control-envelope carrier.
     /// # Errors
     /// Refuses invalid receipt fields or bounds.
     pub fn canonical(&self) -> Result<Vec<u8>, SourceError> {
@@ -284,16 +284,19 @@ impl RouteResponse {
         Ok(value)
     }
     /// Verifies NSD commitment to the exact pending original request and profile/source.
-    /// Never authorizes current mutation or asserts applied routing.
+    /// The pending nonce identifies this transmission attempt independently of the
+    /// immutable request identity. Never authorizes mutation or applied routing.
     /// # Errors
     /// Refuses signature, wrong request, retired profile, operation or recipient.
     pub fn from_envelope(
         envelope: &BootstrapEnvelope,
         expected: &EnvelopeExpectation<'_>,
         pending: &RouteCommand,
+        pending_nonce: [u8; 16],
     ) -> Result<Self, SourceError> {
         envelope.verify(expected)?;
         pending.canonical()?;
+        nonzero(&pending_nonce)?;
         let binding = &pending.binding.binding;
         pending.binding.verify(binding.nsd)?;
         let value = Self::decode(&envelope.payload)?;
@@ -302,7 +305,7 @@ impl RouteResponse {
             || envelope.recipient != Some(binding.recipient)
             || expected.recipient != binding.recipient
             || envelope.kind != pending.operation()
-            || envelope.nonce != pending.request_id
+            || envelope.nonce != pending_nonce
             || &value.receipt.command != pending
         {
             return Err(SourceError::Authority);

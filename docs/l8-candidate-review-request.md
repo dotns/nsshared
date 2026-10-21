@@ -412,8 +412,8 @@ are explicit. Local floor and Linux binding remain consumer facts. Outstanding:
 NSD grant/route composition, payer assignment and independently owned vectors.
 
 The [Node route command candidate](source-selection-candidate.md#route-commands-and-immutable-receipts)
-adds `node.route.select` and `node.route.clear` on the B43 confidential carrier,
-with full provider I, stable M6 ServiceRef, B40 default/explicit scope, exact
+adds `node.route.select` and `node.route.clear` on the confidential signed control carrier,
+with full provider I, stable M6 ServiceRef, existing default/explicit scope, exact
 source/profile, request and selection identities. NSD-signed committed receipts
 carry selection generation; clear targets that exact generation. Replay retrieves
 the original immutable profile/source/request receipt without changing current

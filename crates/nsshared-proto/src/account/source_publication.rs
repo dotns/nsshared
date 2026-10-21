@@ -202,10 +202,42 @@ pub fn decide_source_snapshot<'a>(
     pending: &DeliveryContext,
     expected: &PublicationExpectation<'_>,
 ) -> Result<Vec<PublicationDecision<'a>>, SourceError> {
-    current.canonical()?;
+    decide_source_snapshot_scopes(
+        last,
+        bytes,
+        std::slice::from_ref(current),
+        pending,
+        expected,
+    )
+}
+
+/// Validates one complete multi-scope poll against independently accepted bindings.
+/// Each exact issuer/recipient/realm/scope has one current source; the existing
+/// request bound applies before any event can expose an action.
+/// # Errors
+/// Refuses ambiguous sources, mismatched context, malformed or invalid events.
+pub fn decide_source_snapshot_scopes<'a>(
+    last: &[AcceptedPublication<'_>],
+    bytes: &'a [u8],
+    current: &[SourceBinding],
+    pending: &DeliveryContext,
+    expected: &PublicationExpectation<'_>,
+) -> Result<Vec<PublicationDecision<'a>>, SourceError> {
+    require(current.len() <= super::publication_snapshot_request::MAX_SNAPSHOT_SCOPES)?;
     pending.canonical()?;
-    if current.nsd != expected.issuer || current.recipient != expected.recipient {
-        return Err(SourceError::Authority);
+    for (index, binding) in current.iter().enumerate() {
+        binding.canonical()?;
+        if binding.nsd != expected.issuer
+            || binding.recipient != expected.recipient
+            || current[..index].iter().any(|other| {
+                other.nsd == binding.nsd
+                    && other.recipient == binding.recipient
+                    && other.served_realm == binding.served_realm
+                    && other.scope == binding.scope
+            })
+        {
+            return Err(SourceError::Authority);
+        }
     }
     if expected.channel != PublicationChannel::Snapshot || pending.channel() != expected.channel {
         return Err(SourceError::Context);
@@ -218,7 +250,12 @@ pub fn decide_source_snapshot<'a>(
     let mut previous = None;
     for _ in 0..count {
         let bytes = input.bytes_up_to(MAX_PUBLICATION_BYTES)?;
-        let decision = decide_source_publication(last, Some(bytes), current, pending, expected)?;
+        let presented = SourcePublication::decode(bytes)?;
+        let binding = current
+            .iter()
+            .find(|binding| **binding == presented.binding.binding)
+            .ok_or(SourceError::Authority)?;
+        let decision = decide_source_publication(last, Some(bytes), binding, pending, expected)?;
         let event = match &decision {
             PublicationDecision::Replace(event)
             | PublicationDecision::Withdraw(event)
