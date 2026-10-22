@@ -232,3 +232,17 @@ uses complete positive generations, explicit SubnetSelection destinations/defaul
 stable M6 allocation custody. Its payload ceiling is 1 MiB rather than the route
 command ceiling. Existing source, select/clear and publication bytes are unchanged.
 NSD N30/N07/N08 and ns S11/S25 adoption remain outstanding.
+
+## Exit grants and consumer Subnet route views
+
+Both family 4 snapshot kinds use the recipient's current nodes source in the
+event Network: provider `exit-grants` and client `subnet-routes`. Recipient and
+source_node equal that Node. Family 3 `egress-grants` retains its independent
+egress contribution source; a nodes binding cannot substitute. Source decision
+APIs enforce these scopes, including for complete-empty withdrawals.
+
+The [grant and route view specification](grant-authority-candidate.md#exit-grants-and-consumer-subnet-route-views)
+defines the distinct payloads, accepted membership comparisons and exact-key
+replacement rules. Route views grant no provider authority and carry no Exit
+floor. Existing select/clear receipts, source and delivery bytes are unchanged.
+NSD N07/N08 projection and ns route installation/adoption remain outstanding.

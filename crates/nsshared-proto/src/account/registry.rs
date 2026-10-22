@@ -182,6 +182,22 @@ pub const FAMILIES: [FamilyRegistration; 11] = [
 pub struct FamilyRegistry;
 
 impl FamilyRegistry {
+    /// Exact per-kind replacement rule; additional kinds do not change family IDs.
+    /// The canonical family registry retains each family's primary publication.
+    #[must_use]
+    pub fn replacement(self, family: u64, kind: &str) -> Option<ReplacementRule> {
+        if (family, kind) == (4, "subnet-routes") {
+            return Some(ReplacementRule {
+                publication: "subnet-routes",
+                clears: "routes,exclusions,bypasses,selection",
+            });
+        }
+        FAMILIES
+            .iter()
+            .find(|entry| entry.id as u64 == family && entry.replacement.publication == kind)
+            .map(|entry| entry.replacement)
+    }
+
     /// Encodes every registered family with canonical CBOR.
     #[must_use]
     pub fn canonical(self) -> Vec<u8> {

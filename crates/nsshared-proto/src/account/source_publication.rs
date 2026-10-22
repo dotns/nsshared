@@ -121,6 +121,17 @@ impl<'a> SourcePublication<'a> {
         {
             return Err(SourceError::Authority);
         }
+        match (key.family, key.kind) {
+            (4, "exit-grants" | "subnet-routes")
+                if key.scope != "nodes" || current.source_node != current.recipient =>
+            {
+                return Err(SourceError::Authority);
+            }
+            (3, "egress-grants") if key.scope != "egress" => {
+                return Err(SourceError::Authority);
+            }
+            _ => {}
+        }
         Ok(())
     }
 }

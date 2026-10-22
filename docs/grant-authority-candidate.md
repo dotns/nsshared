@@ -83,7 +83,7 @@ Candidate fixtures supply authority; they do not establish live interoperability
 NSD's current producer uses string ULIDs, integer-array peer keys and its
 NodeL3Config resource graph. Outstanding producer work must map authenticated
 machine identities to full I/K bindings, authority namespaces and explicit rules,
-emit binary payer UserId/realm pairs, exact floor and service references,
+emit binary payer UserId/realm pairs, Egress floor and exact service references,
 incarnations and deadlines. Service usage retains its existing binary payer
 realm/UserId pair and historical attribution; this grant delta changes no usage
 bytes.
@@ -107,3 +107,51 @@ pairs; usage wire bytes are unchanged. NSD N06 producer adoption remains
 outstanding: enabled protocols supply distinct tokens and discriminators, the
 grant publication supplies the deadline, and signed source binding remains
 mandatory. Candidate fixture acceptance does not establish producer adoption.
+
+## Exit grants and consumer Subnet route views
+
+Family 4 has two snapshot kinds. `exit-grants` carries the existing
+GrantPublication `[1, 4, issuer, recipient, revision, grants]`, with recipient equal
+to the provider. Exit details `[1, subnet_publication_bytes]` contain exactly one
+matching route; the embedded recipient equals the client, not the outer provider.
+`subnet-routes` carries standalone B40 `[1, 4, nsd_id, network_id, recipient,
+revision, routes]`, with recipient equal to the client and possibly several
+providers. Kind selects the decoder; these payloads cannot substitute for each other.
+Its exact clears rule is `routes,exclusions,bypasses,selection`.
+
+Both Exit views use the recipient's current nodes binding in the event's Network,
+with event scope `nodes`; recipient and source_node equal that Node. Egress grants
+retain the provider's `egress` contribution binding. Nodes enrollment alone grants
+no Exit resource. Exact retained binding and pending delivery context comparisons
+remain mandatory. Client view validation compares independently accepted identity,
+MembershipScope NSD/Network IDs, event served realm (the same Network bytes), and
+payload revision against event version. M6 NSD ID is not the signing key.
+
+Each complete view replaces only its exact issuer/recipient/Network/scope/family/kind
+collection. Empty withdraws that collection and omission removes a route; neither
+clears another provider or another kind, including when a Node is both client and
+provider. Route views carry selection information, never provider grant, payer or
+incarnation authority and never independently authorize traffic service.
+
+There is no Exit floor on the wire. Provider-local enablement and Linux
+source/interface/route bindings are independently validated before admission.
+Egress retains its existing wire floor reference. B40 ordering, bounds, prefixes,
+explicit/default selection, and grant/payer/incarnation/renewal bytes are unchanged.
+
+The independent `subnet_publication_views` sequence accepts providers P/Q and
+client C under their nodes bindings without an Exit floor; rejects kind, recipient,
+source and membership mismatches; empties P without changing Q/C; omits P from C's
+newer view; then empties C without clearing Q. Fixture acceptance proves pure
+contracts only. NSD N07/N08 projection, producer-owned vectors, and ns route
+installation/adoption remain outstanding. Select/clear receipts stay immutable
+command outcomes, separate from replaceable route views.
+
+Consumer API sequence: authenticate with `decide_source_publication` (or the
+source snapshot API), then call `PublicationEvent::validate_routing_context`
+with the independently retained identity and `control_exchange::MembershipScope`
+before installation. `decode_grant_payload` and `decode_subnet_payload` select
+by exact kind, compare payload envelope facts and expose the existing owning types.
+The generic publication decision refuses malformed routing payloads before any
+version can advance. Source decisions enforce nodes versus egress ownership.
+`FamilyRegistry::replacement(4, "subnet-routes")` exposes the additional exact
+replacement rule; canonical family registry bytes retain the primary family row.

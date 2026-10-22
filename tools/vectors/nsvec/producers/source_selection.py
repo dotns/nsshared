@@ -175,9 +175,13 @@ def vectors():
     # The same exact wrapper covers every dependent input's existing channel.
     for family, kind, channel in [(2, "realm-peers", 1), (3, "egress-grants", 1),
                                    (4, "exit-grants", 1), (7, "public-edge", 0)]:
-        emit("source-" + kind, "publication", publication(sb, 12, family=family,
-             kind=kind, channel=channel, context=stream if channel == 0 else poll),
-             channel=channel)
+        source = se if family == 3 else sb
+        scope = "egress" if family == 3 else "nodes"
+        payload = cbor.encode([1, family, nsd, node, 12, []]) if family in (3, 4) else b"fixture-l3"
+        emit("source-" + kind, "publication", publication(source, 12, family=family,
+             kind=kind, channel=channel, context=stream if channel == 0 else poll,
+             payload=payload, changes={4: scope}), channel=channel,
+             current_source="source-egress" if family == 3 else "source-b")
     resource = cbor.encode([bytes([21])*16, bytes([22])*16, bytes([23])*16])
     payer = [bytes([22])*16, bytes([24])*16]
     bindings = [[resource, node, bytes([token])*16, [payer], [0, protocol]]
@@ -237,7 +241,7 @@ def vectors():
     for name, family, kind, channel, action in [
         ("known-stream-declared-stream", 7, "public-edge", 0, "channel-mismatch"),
         ("known-stream-declared-snapshot", 7, "public-edge", 1, "channel-mismatch"),
-        ("known-snapshot-declared-stream", 3, "egress-grants", 0, "channel-mismatch"),
+        ("known-snapshot-declared-stream", 5, "payer-bindings", 0, "channel-mismatch"),
         ("unknown-kind-declared-stream", 9, "future-kind", 0, "unknown-kind"),
         ("unknown-family-before-declared-stream", 0, "future-kind", 0, "unknown-kind"),
         ("unknown-family-after-declared-stream", 99, "future-kind", 0, "unknown-kind"),

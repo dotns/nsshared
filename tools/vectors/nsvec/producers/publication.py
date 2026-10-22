@@ -55,6 +55,7 @@ def vectors(a, b, sign):
             if value[0] == 1 and value[3] and value[7] in (0, 1) and value[12] in (0, 1):
                 owners = {(1, "own-node"): 0, (2, "realm-peers"): 1,
                           (3, "egress-grants"): 1, (4, "exit-grants"): 1,
+                          (4, "subnet-routes"): 1,
                           (5, "payer-bindings"): 1, (6, "resource-authority"): 0,
                           (7, "public-edge"): 0, (8, "directory"): 1,
                           (8, "identity-classes"): 0, (9, "usage-profile"): 0,
@@ -99,14 +100,18 @@ def vectors(a, b, sign):
     # Independent ownership checklist, including both kinds of the relay family.
     for family, kind, channel in [
         (1, "own-node", 0), (2, "realm-peers", 1), (3, "egress-grants", 1),
-        (4, "exit-grants", 1), (5, "payer-bindings", 1),
+        (4, "exit-grants", 1), (4, "subnet-routes", 1), (5, "payer-bindings", 1),
         (6, "resource-authority", 0), (7, "public-edge", 0),
         (8, "directory", 1), (8, "identity-classes", 0),
         (9, "usage-profile", 0), (10, "node-control-profile", 0),
         (11, "node-l3", 1), (11, "policy-version", 0),
     ]:
         payload = content[13]
-        if family == 9:
+        if family in (3, 4) and kind != "subnet-routes":
+            payload = cbor.encode([1, family, a, b, 8, []])
+        elif kind == "subnet-routes":
+            payload = cbor.encode([1, 4, bytes([21])*16, bytes([3])*16, b, 8, []])
+        elif family == 9:
             payload = cbor.encode([1, b, ["l8-completed-io-v1", "l8-relay-data-v1"]])
         elif family == 10:
             payload = cbor.encode([1, [bytes([3])*16, bytes([3])*16], 2, [0, 1, 2, 3, 4]])

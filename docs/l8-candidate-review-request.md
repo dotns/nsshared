@@ -382,13 +382,16 @@ No acceptance proof or local host binding is added to the payload.
 
 What schema completes `exit-subnet` with stable route/resource identity,
 family-neutral prefixes, actual IPv4 and mapped IPv6 range, exclusions,
-bypasses, selection, client, payer, incarnation, local enablement and limits?
+bypasses, selection, client, payer, incarnation and limits? Local Exit enablement
+and floor are provider-local and have no wire field. Egress wire floor is unchanged.
 Name NSD vectors for nested default/specific routes, range ownership and empty
 selection; preserve the existing M6 route/listener boundaries.
 
 The prepared [Subnet selection candidate](l8-account-payload-profile.md#subnet-selection)
-uses complete `[1, 4, nsd_id, network_id, recipient, revision, routes]`
-publications and canonical M6 ServiceRef bytes. Each route names real/mapped
+uses standalone client-recipient `subnet-routes` snapshots with complete
+`[1, 4, nsd_id, network_id, recipient, revision, routes]` payloads and canonical M6
+ServiceRef bytes. This kind is separate from provider-recipient `exit-grants`;
+both use the recipient's nodes source in the event Network. Each route names real/mapped
 family/address/length, full provider/client identities, exact distinct exclusions
 and bypasses and tagged default/explicit selection. IPv4 mapping is `/96+p`
 with exact embedded real network bits. Selected destinations subtract exclusions;
@@ -961,3 +964,16 @@ NSD N30 ingestion/allocation/persistence, N07/N08 selection/projection and ns
 S11/S25 production/custody adoption and producer-owned interoperability evidence
 remain outstanding. Gateway self-reporting is deferred to later ordinary-provider
 integration. Prepared shared contracts do not demonstrate external adoption.
+
+## Exit grant and client route view review addition
+
+Review the two family 4 snapshot kinds and their distinct payloads in the
+[grant specification](grant-authority-candidate.md#exit-grants-and-consumer-subnet-route-views).
+Confirm provider exit-grants and client subnet-routes use their recipient's nodes
+source, while Egress retains its egress contribution source. Confirm no Exit wire
+floor is produced; Egress floor remains unchanged. Confirm independent membership,
+recipient, served realm and revision comparisons and exact collection isolation.
+
+The independent subnet_publication_views sequence is prepared for consumer reuse.
+NSD N07/N08 projection, producer-owned canonical/refusal vectors and ns route
+installation/adoption remain outstanding; fixture acceptance is not interoperability.
