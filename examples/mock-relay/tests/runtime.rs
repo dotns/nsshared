@@ -344,3 +344,133 @@ async fn shutdown_closes_open_wss_connections() {
     relay.shutdown().await;
     assert_eq!(close_code(&mut ws).await, Some(CloseCode::Away));
 }
+
+#[tokio::test]
+async fn owned_udp_socket_serves_queued_register_and_releases_on_shutdown() {
+    let owned = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+    let address = owned.local_addr().unwrap();
+    let identity =
+        nsshared_proto::RelayId::parse(&format!("relay.example.test:{}", address.port())).unwrap();
+    let node = TestNode::new([7; 32], &identity, unix_now() - 60).unwrap();
+    let attempt = node.register(&identity, 1, unix_now(), [1; 32]).unwrap();
+    let client = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+    client.send_to(attempt.packet(), address).await.unwrap();
+    let relay = MockRelay::start_with_udp_socket(
+        MockRelayConfig {
+            wss: false,
+            ..MockRelayConfig::default()
+        },
+        owned,
+    )
+    .await
+    .unwrap();
+    assert_eq!(relay.udp_addr(), Some(address));
+    assert_eq!(relay.relay_id(), &identity);
+    assert!(relay.wss_addr().is_none());
+    assert!(relay.generated_cert().is_none());
+    assert!(StdUdpSocket::bind(address).is_err());
+    let mut buf = vec![0; MAX_RELAY_PACKET_BYTES];
+    let (len, from) = timeout(WAIT, client.recv_from(&mut buf))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(from, address);
+    let (registered, _) = attempt.accept(&buf[..len]).unwrap();
+    assert_eq!(registered.capabilities, ["udp"]);
+    relay.shutdown().await;
+    let rebound = StdUdpSocket::bind(address).unwrap();
+    assert_eq!(rebound.local_addr().unwrap(), address);
+}
+
+#[tokio::test]
+async fn owned_udp_socket_preserves_explicit_identity() {
+    let owned = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+    let identity = nsshared_proto::RelayId::parse("custom.example.test:4433").unwrap();
+    let relay = MockRelay::start_with_udp_socket(
+        MockRelayConfig {
+            relay_id: Some(identity.clone()),
+            wss: false,
+            ..MockRelayConfig::default()
+        },
+        owned,
+    )
+    .await
+    .unwrap();
+    assert_eq!(relay.relay_id(), &identity);
+    let node = TestNode::new([7; 32], &identity, unix_now() - 60).unwrap();
+    let attempt = node.register(&identity, 1, unix_now(), [1; 32]).unwrap();
+    let client = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+    client
+        .send_to(attempt.packet(), relay.udp_addr().unwrap())
+        .await
+        .unwrap();
+    let mut buf = vec![0; MAX_RELAY_PACKET_BYTES];
+    let (len, _) = timeout(WAIT, client.recv_from(&mut buf))
+        .await
+        .unwrap()
+        .unwrap();
+    attempt.accept(&buf[..len]).unwrap();
+    relay.shutdown().await;
+}
+
+#[tokio::test]
+async fn owned_udp_socket_rejects_conflicts_and_releases_socket() {
+    let base = MockRelayConfig {
+        wss: false,
+        ..MockRelayConfig::default()
+    };
+    for config in [
+        MockRelayConfig {
+            wss: true,
+            ..base.clone()
+        },
+        MockRelayConfig {
+            udp: false,
+            ..base.clone()
+        },
+        MockRelayConfig {
+            external_wss: true,
+            ..base.clone()
+        },
+        MockRelayConfig {
+            udp_listen: Some("127.0.0.1:0".parse().unwrap()),
+            ..base.clone()
+        },
+        MockRelayConfig {
+            wss_listen: Some("127.0.0.1:0".parse().unwrap()),
+            ..base.clone()
+        },
+        MockRelayConfig {
+            listen: "0.0.0.0:0".parse().unwrap(),
+            ..base.clone()
+        },
+    ] {
+        let owned = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+        let address = owned.local_addr().unwrap();
+        let error = MockRelay::start_with_udp_socket(config, owned)
+            .await
+            .unwrap_err();
+        assert!(matches!(error, nsshared_mock_relay::Error::OwnedUdpConfig));
+        let rebound = StdUdpSocket::bind(address).unwrap();
+        assert_eq!(rebound.local_addr().unwrap(), address);
+    }
+}
+
+#[tokio::test]
+async fn owned_udp_socket_releases_on_core_initialization_failure() {
+    let owned = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+    let address = owned.local_addr().unwrap();
+    let error = MockRelay::start_with_udp_socket(
+        MockRelayConfig {
+            wss: false,
+            presence_ttl_s: 0,
+            ..MockRelayConfig::default()
+        },
+        owned,
+    )
+    .await
+    .unwrap_err();
+    assert!(matches!(error, nsshared_mock_relay::Error::Config(_)));
+    let rebound = StdUdpSocket::bind(address).unwrap();
+    assert_eq!(rebound.local_addr().unwrap(), address);
+}
