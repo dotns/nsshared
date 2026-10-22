@@ -37,6 +37,8 @@ pub const GATEWAY_SERVICES_REPORT: &str = "gateway.services_report";
 pub const GATEWAY_USAGE_REPORT: &str = "gateway.usage_report";
 /// Signed exact material installation status operation.
 pub const GATEWAY_MATERIAL_STATUS: &str = "gateway.material_status";
+/// Confidential M6 unary operation and signed stream event name.
+pub const SERVICE_CONTROL: &str = "service.control.v1";
 /// Authenticated publication subscription operation.
 pub const CONFIG_STREAM: &str = "config.stream";
 /// Confidential authenticated publication stream endpoint.

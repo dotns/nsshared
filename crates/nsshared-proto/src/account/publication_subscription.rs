@@ -1,5 +1,6 @@
 //! Pure authenticated publication requests; acceptance remains per publication key.
 
+use super::service_control::ServiceControlBinding;
 use super::{
     AccountError, BootstrapEnvelope, BootstrapError, EnvelopeDirection, EnvelopeExpectation,
     MAX_CAPABILITIES, MAX_CAPABILITY_BYTES, PublicationScope, SCHEMA,
@@ -56,6 +57,8 @@ pub struct PublicationSubscriptionRequest {
     pub boot_nonce: [u8; 16],
     /// Positive checked logical attempt number; no publication version meaning.
     pub attempt_counter: u32,
+    /// Optional exact admitted M6 session; no admission is inferred by decoding.
+    pub service_control: Option<ServiceControlBinding>,
 }
 
 fn text(value: &str) -> Result<(), AccountError> {
@@ -76,6 +79,9 @@ impl PublicationSubscriptionRequest {
             require(usize::try_from(*index).is_ok_and(|i| i < self.scopes.len()))?;
         }
         require(self.boot_nonce != [0; 16] && self.attempt_counter > 0)?;
+        if let Some(binding) = &self.service_control {
+            binding.validate()?;
+        }
         Ok(())
     }
 
@@ -85,7 +91,7 @@ impl PublicationSubscriptionRequest {
     pub fn canonical(&self) -> Result<Vec<u8>, ExchangeError> {
         self.validate()?;
         let mut out = CborWriter::default();
-        out.array(7)
+        out.array(8)
             .uint(SCHEMA)
             .bytes(self.subscriber.as_bytes())
             .array(self.scopes.len());
@@ -106,6 +112,11 @@ impl PublicationSubscriptionRequest {
         }
         out.bytes(&self.boot_nonce)
             .uint(u64::from(self.attempt_counter));
+        if let Some(binding) = &self.service_control {
+            binding.write(&mut out);
+        } else {
+            out.null();
+        }
         let bytes = out.into_bytes();
         if bytes.len() > MAX_SUBSCRIPTION_BYTES {
             return Err(AccountError::Bounds.into());
@@ -124,7 +135,7 @@ impl PublicationSubscriptionRequest {
 
     fn read(bytes: &[u8]) -> Result<Self, AccountError> {
         let mut input = CborReader::new(bytes, MAX_SUBSCRIPTION_BYTES)?;
-        input.array(7)?;
+        input.array(8)?;
         require(input.uint()? == SCHEMA)?;
         let subscriber = identity(&mut input)?;
         let count = input.array_up_to(MAX_SUBSCRIPTION_SCOPES)?;
@@ -152,6 +163,11 @@ impl PublicationSubscriptionRequest {
         let boot_nonce = input.fixed_bytes()?;
         let attempt_counter =
             u32::try_from(input.uint()?).map_err(|_| AccountError::InvalidField)?;
+        let service_control = if input.take_null() {
+            None
+        } else {
+            Some(ServiceControlBinding::read(&mut input)?)
+        };
         input.finish()?;
         Ok(Self {
             subscriber,
@@ -160,6 +176,7 @@ impl PublicationSubscriptionRequest {
             public_ingress,
             boot_nonce,
             attempt_counter,
+            service_control,
         })
     }
 

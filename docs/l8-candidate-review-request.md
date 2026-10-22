@@ -68,7 +68,7 @@ explicitly frame only. NSD supplies producer vectors for every row.
 | 8 `relay` | Signed roster, shared participant credentials and separate signed directory binding delivered; NSD producer review and adoption outstanding | Q01–Q06, Q18 |
 | 9 `usage` | Typed scoped usage-profile payload and independent publication vectors newly delivered; existing quantities and report/answer bytes unchanged | New candidate delta below; NSD/ns review and producer adoption outstanding; Q10, Q19 |
 | 10 `node-control` | Typed scoped node-control-profile payload and independent publication vectors newly delivered; existing v2 codec unchanged | New candidate delta below; NSD/ns review and producer adoption outstanding; Q20 |
-| 11 `v1-replacement` | Diagnostic policy-version content and signed stream vectors delivered; other candidate contracts retain their individual status | NSD policy observation confirmation; Q12; complete surface mapping/retirement; Q21 |
+| 11 `v1-replacement` | Diagnostic policy-version plus pure M6 carrier, signed receipts and bound stream event vectors delivered; other candidate contracts retain their individual status | NSD policy observation confirmation; Q12; complete surface mapping/retirement; Q21 |
 
 Only an authenticated, valid, complete publication replaces its listed kinds
 in the explicitly named issuer/recipient scope. A complete empty publication
@@ -977,6 +977,38 @@ recipient, served realm and revision comparisons and exact collection isolation.
 The independent subnet_publication_views sequence is prepared for consumer reuse.
 NSD N07/N08 projection, producer-owned canonical/refusal vectors and ns route
 installation/adoption remain outstanding; fixture acceptance is not interoperability.
+
+## M6 carrier and subscription review delta
+
+Review the [canonical M6 carrier](service-control-carrier-candidate.md), its pure
+`account::service_control` APIs and independent `service-control-carrier.vec`
+fixtures. Confirm all legal unary pairs, signed empty receipts for snapshot.ack,
+port.result, port.query.result and service.retry-port, Error/bootstrap runtime
+and epoch shapes, singleton lease.acquire and exact per-service results. The
+stream admits only SnapshotPush, PortCancel and PortQuery; reverse answers echo
+the full proposal and M6 correlation, using their own unary nonce and receipt.
+Confirm current contribution/session custody and persistent proposal comparisons,
+not just successful decoding. No receipt is readiness or termination proof.
+
+PublicationSubscriptionRequest is now exactly eight elements, appending null or
+`[nsd_id, network_id, runtime_generation, runtime_id, authority_epoch, session_seq,
+session_request_id]`. This is breaking for existing consumers; seven-element
+requests are refused. Existing scope/capability/boot/attempt meanings remain.
+The reference lifecycle is `ns/docs/plan/20261017-m6-service-contract.md` at
+`0e5adc17c9b05ae7fa351de00a5184a57b92e584`, sections 1–6 and 10; its historical
+carrier is replaced by the candidate mapping. M6 message and declaration bytes
+are unchanged. No runtime or persistence is added to shared contracts.
+
+| Family surface | Delivered shared candidate | Review/adoption status |
+| --- | --- | --- |
+| Bootstrap / v1 replacement | Unary context, empty receipts, failures and bound M6 events with independent vectors | NSD M6 carrier adoption and independent real producer vectors outstanding |
+| Public edge / service integration | Unchanged M6 bytes, singleton leases and exact reverse port result comparison | Consumer current-contribution/proposal custody and real NSD interoperability outstanding |
+| Subscription | Breaking optional typed M6 binding in eight-element request | NSD and consumer byte adoption outstanding; no agreement is recorded |
+
+The `contribution_network_sessions` shared vector test establishes candidate
+bytes and refusals across two Networks. It does not claim gateway lifecycle
+execution or real NSD agreement. Request explicit producer review of the full
+reverse-event, receipt and singleton-lease mapping before live interoperability.
 
 ## Confidential certificate and client-CA acquisition addition
 

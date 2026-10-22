@@ -1027,6 +1027,30 @@ contracts only. NSD N07/N08 projection, producer-owned vectors, and ns route
 installation/adoption remain outstanding. Select/clear receipts stay immutable
 command outcomes, separate from replaceable route views.
 
+## M6 service control carrier
+
+The [canonical carrier specification](service-control-carrier-candidate.md)
+adds the shared `service.control.v1` unary operation and bound signed stream
+mapping to the existing confidential carrier. Payloads reuse exact M6 Message
+bytes; four one-way operations receive signed zero-byte carrier receipts.
+Pure comparisons cover legal pairs, bootstrap results and Error, exact pending
+context, singleton consumer leases and reverse cancel/query answers. Stream
+bodies are only SnapshotPush, PortCancel and PortQuery. Receipts, content ACKs
+and cancel delivery never grant readiness, termination or lease authority.
+
+The subscription request is now an incompatible eight-element tuple with an
+appended null or exact M6 session binding. Seven-element inputs are refused.
+Existing publication scope, capability, boot nonce, attempt and channel meanings
+remain unchanged. Source contribution custody, persistence and content floors
+stay external. Independent carrier and regenerated subscription vectors are
+candidate evidence; NSD M6 carrier adoption and producer review are outstanding.
+
+| Existing family surface | Candidate delta | External status |
+| --- | --- | --- |
+| Bootstrap / v1 replacement | Exact M6 unary, receipt and bound signed-event validation | NSD carrier adoption and real producer vectors outstanding |
+| Public edge / service integration | Reuses unchanged declaration, snapshot, listener, lease and port messages | Consumer lifecycle and NSD interoperability remain separate |
+| Publication subscription | Breaking eight-field tuple with optional exact per-Network M6 session | Producer and consumer adoption required; no old-arity fallback |
+
 ## Confidential certificate and client-CA acquisition
 
 The [material acquisition contract](confidential-material-candidate.md) adds
