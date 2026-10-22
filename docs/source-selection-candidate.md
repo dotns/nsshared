@@ -223,3 +223,12 @@ NSD N06, N08 and N21 producers should adopt implementation revision
 `2391ebd5e59574cb318fbc2c7b1ca3615426796a`;
 earlier package revisions do not include it. Producer-owned vectors and adoption
 remain outstanding.
+
+## Ordinary provider report addition
+
+The additive confidential `node.subnet.report` operation carries the exact signed
+nodes authority defined here. Its [provider report contract](provider-subnet-report-candidate.md)
+uses complete positive generations, explicit SubnetSelection destinations/default and retained
+stable M6 allocation custody. Its payload ceiling is 1 MiB rather than the route
+command ceiling. Existing source, select/clear and publication bytes are unchanged.
+NSD N30/N07/N08 and ns S11/S25 adoption remain outstanding.

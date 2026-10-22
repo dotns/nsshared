@@ -944,3 +944,20 @@ NSD N06, N08 and N21 producers should adopt implementation revision
 `2391ebd5e59574cb318fbc2c7b1ca3615426796a`;
 earlier package revisions do not include it. Producer-owned vectors and adoption
 remain outstanding.
+
+## Ordinary provider Subnet report review addition
+
+Review the additive `node.subnet.report` operation in both directions on the
+confidential BootstrapEnvelope under the
+[provider report specification](provider-subnet-report-candidate.md).
+NSD enrollment supplies exact signed nodes authority; committed mapping custody
+supplies provider, Network and real-prefix eligibility. NSD supplies stable M6
+references; the provider carries intent and retains the pending report/response.
+Pure independent vectors cover complete replacement/withdrawal, retained
+allocations and stale generation/source refusal. M6 declarations, Subnet
+publications and select/clear bytes remain unchanged.
+
+NSD N30 ingestion/allocation/persistence, N07/N08 selection/projection and ns
+S11/S25 production/custody adoption and producer-owned interoperability evidence
+remain outstanding. Gateway self-reporting is deferred to later ordinary-provider
+integration. Prepared shared contracts do not demonstrate external adoption.

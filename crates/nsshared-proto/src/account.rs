@@ -24,6 +24,7 @@ pub mod participant_session;
 mod policy_auth;
 mod policy_subject;
 mod profile_publications;
+pub mod provider_subnet_report;
 mod public_edge;
 mod publication;
 pub mod publication_snapshot_request;

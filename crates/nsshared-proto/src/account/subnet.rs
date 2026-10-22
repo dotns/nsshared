@@ -173,7 +173,7 @@ impl SubnetPrefix {
         }
     }
 
-    fn validate(self) -> Result<(), SubnetError> {
+    pub(super) fn validate(self) -> Result<(), SubnetError> {
         if self.length > self.width() {
             return Err(SubnetError::InvalidPrefix);
         }
@@ -183,7 +183,7 @@ impl SubnetPrefix {
         Ok(())
     }
 
-    fn contains(self, other: Self) -> bool {
+    pub(super) fn contains(self, other: Self) -> bool {
         self.address.is_ipv4() == other.address.is_ipv4()
             && self.length <= other.length
             && other.number() & !self.host_mask() == self.number()
