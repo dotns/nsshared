@@ -146,3 +146,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**Define ordinary provider Subnet route reports**](20261022-1014-provider-subnet-report.md) `P1`
 - [x] [**Separate Exit grants and client Subnet route views**](20261022-1615-subnet-publication-views.md) `P1`
 - [x] [**Start the mock relay with an owned UDP socket**](20261022-1938-owned-udp-socket.md) `P1`
+- [x] [**Define confidential certificate and client-CA acquisition**](20261022-2227-confidential-material.md) `P1`

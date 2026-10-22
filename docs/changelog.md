@@ -1,5 +1,15 @@
 ## 2026-10-22 [feat]
 
+Add confidential certificate and client-CA acquisition contracts with exact
+pending-request echoes, typed kind/realm/generation refusals and redacted secret
+values. Preserve auth-only acquisition and installation-status ACK bytes.
+
+Validation: independent payload and signed-carrier vectors passed; self-check
+passed with 517 tests and zero skips. Producer adoption, current dependency
+checks and runtime installation remain external obligations.
+
+## 2026-10-22 [feat]
+
 Allow mock relay startup with a caller-owned UDP socket and assigned-port DNS
 identity. Preserve the original receive queue without rebinding or retries;
 reject conflicting settings and release the socket on failure and shutdown.
