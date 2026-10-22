@@ -144,3 +144,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**Define usage and Node-control profile publications**](20261021-2159-profile-publications.md) `P1`
 - [x] [**Encode inner signed publication events**](20261022-0839-publication-event-producer.md) `P1`
 - [x] [**Define ordinary provider Subnet route reports**](20261022-1014-provider-subnet-report.md) `P1`
+- [x] [**Separate Exit grants and client Subnet route views**](20261022-1615-subnet-publication-views.md) `P1`

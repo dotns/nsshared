@@ -1,5 +1,16 @@
 ## 2026-10-22 [feat]
 
+Separate provider Exit grants from client Subnet route snapshots by exact kind.
+Validate independent recipient and membership context and enforce nodes authority
+for Exit views while retaining egress contribution authority for Egress grants.
+Replacement and withdrawal remain isolated per complete publication key.
+
+Validation: independent multi-provider view and refusal vectors passed; self-check
+passed with 511 tests and zero skips. Existing grant and route bytes remain
+unchanged. NSD projection and client route adoption remain outstanding.
+
+## 2026-10-22 [feat]
+
 Add source-qualified ordinary provider Subnet route reports and correlated
 allocation responses. Validate committed mapping authority, complete generations
 and stable retained M6 references through withdrawal and reoffer. Refuse stale
