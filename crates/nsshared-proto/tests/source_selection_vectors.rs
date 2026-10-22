@@ -350,18 +350,19 @@ fn independent_source_selection_vectors() {
                 );
             }
             "publication" | "snapshot" => {
+                let current = binding(&vectors, v.opt("current_source").unwrap_or("source-b"));
                 let channel = if v.opt("channel") == Some("0") {
                     PublicationChannel::Stream
                 } else {
                     PublicationChannel::Snapshot
                 };
                 let scopes = [PublicationScope {
-                    served_realm: b.binding.served_realm,
-                    scope: &b.binding.scope,
+                    served_realm: current.binding.served_realm,
+                    scope: &current.binding.scope,
                 }];
                 let expected = PublicationExpectation {
                     issuer,
-                    recipient: b.binding.recipient,
+                    recipient: current.binding.recipient,
                     scopes: &scopes,
                     channel,
                     now_seconds: 150,
@@ -376,7 +377,7 @@ fn independent_source_selection_vectors() {
                     let result = decide_source_snapshot(
                         &last,
                         &raw,
-                        &b.binding,
+                        &current.binding,
                         &context(channel),
                         &expected,
                     );
@@ -385,7 +386,7 @@ fn independent_source_selection_vectors() {
                     let result = decide_source_publication(
                         &last,
                         Some(&raw),
-                        &b.binding,
+                        &current.binding,
                         &context(channel),
                         &expected,
                     );

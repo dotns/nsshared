@@ -262,6 +262,7 @@ pub fn publication_channel(family: u64, kind: &str) -> Option<PublicationChannel
         (2, "realm-peers")
         | (3, "egress-grants")
         | (4, "exit-grants")
+        | (4, "subnet-routes")
         | (5, "payer-bindings")
         | (8, "directory")
         | (11, "node-l3") => Some(PublicationChannel::Snapshot),
@@ -398,6 +399,97 @@ impl<'a> PublicationEvent<'a> {
         }
     }
 
+    /// Decodes only provider grant kinds, comparing signed envelope facts.
+    /// Empty withdrawal and unrelated kinds return None.
+    /// # Errors
+    /// Refuses wrong payload types, recipients, issuers, families or revisions.
+    pub fn decode_grant_payload(
+        &self,
+    ) -> Result<Option<super::GrantPublication>, PublicationError> {
+        let content = self.content();
+        if !matches!(
+            (content.key.family, content.key.kind),
+            (3, "egress-grants") | (4, "exit-grants")
+        ) || content.payload.is_empty()
+        {
+            return Ok(None);
+        }
+        let value = super::GrantPublication::decode(content.payload)
+            .map_err(|_| PublicationError::Fields)?;
+        if value.family != content.key.family
+            || value.issuer != content.key.issuer
+            || value.recipient != content.key.recipient
+            || value.revision != content.version
+        {
+            return Err(PublicationError::Fields);
+        }
+        Ok(Some(value))
+    }
+
+    /// Decodes only the standalone client route kind, never provider grants.
+    /// Empty withdrawal and unrelated kinds return None.
+    /// # Errors
+    /// Refuses malformed routes or disagreement with event recipient/revision.
+    pub fn decode_subnet_payload(
+        &self,
+    ) -> Result<Option<super::SubnetPublication>, PublicationError> {
+        let content = self.content();
+        if (content.key.family, content.key.kind) != (4, "subnet-routes")
+            || content.payload.is_empty()
+        {
+            return Ok(None);
+        }
+        let value = super::SubnetPublication::decode(content.payload)
+            .map_err(|_| PublicationError::Fields)?;
+        if value.recipient != *content.key.recipient.as_bytes() || value.revision != content.version
+        {
+            return Err(PublicationError::Fields);
+        }
+        Ok(Some(value))
+    }
+
+    /// Compares routing collections against independently accepted identity and membership.
+    /// Source signatures and pending delivery still require the source decision API.
+    /// Empty withdrawals retain the same recipient, Network and source-scope fences.
+    /// # Errors
+    /// Refuses unrelated kinds, mismatched context, wrong scopes or invalid payloads.
+    pub fn validate_routing_context(
+        &self,
+        recipient: IdentityKey,
+        membership: &super::control_exchange::MembershipScope,
+    ) -> Result<(), PublicationError> {
+        let content = self.content();
+        let scope = match (content.key.family, content.key.kind) {
+            (3, "egress-grants") => "egress",
+            (4, "exit-grants" | "subnet-routes") => "nodes",
+            _ => return Err(PublicationError::Fields),
+        };
+        if content.key.recipient != recipient {
+            return Err(PublicationError::Recipient);
+        }
+        if content.key.scope != scope
+            || content.key.served_realm != RealmId::from_bytes(membership.network_id)
+        {
+            return Err(PublicationError::Scope);
+        }
+        if let Some(value) = self.decode_subnet_payload()?
+            && (value.recipient != *recipient.as_bytes()
+                || value.nsd_id != membership.nsd_id
+                || value.network_id != membership.network_id)
+        {
+            return Err(PublicationError::Scope);
+        }
+        if let Some(value) = self.decode_grant_payload()?
+            && value.grants.iter().any(|grant| {
+                grant.resource.nsd_id != membership.nsd_id
+                    || grant.resource.network_id != membership.network_id
+            })
+        {
+            return Err(PublicationError::Scope);
+        }
+        Ok(())
+    }
+
     fn authenticate(&self, expected: &PublicationExpectation<'_>) -> Result<(), PublicationError> {
         let content = &self.content;
         if content.key.issuer != expected.issuer {
@@ -467,7 +559,10 @@ pub fn decide_publication<'a>(
     {
         return PublicationDecision::Refused(PublicationError::Stale);
     }
-    if event.decode_profile_payload().is_err() {
+    if event.decode_profile_payload().is_err()
+        || event.decode_grant_payload().is_err()
+        || event.decode_subnet_payload().is_err()
+    {
         return PublicationDecision::Refused(PublicationError::Fields);
     }
     if content.outcome == PublicationOutcome::FetchFailed {

@@ -75,7 +75,7 @@ of usage history, durable watermarks or received control messages.
 | 1 `enrollment` — enrollment and own Node binding | `own-node` / `binding,capabilities,endpoints` / one membership | declarations |
 | 2 `realms-peers` — [complete served realms and peers](realm-publication-candidate.md) | `realm-peers` / `realms,peer-contributions` / exact signed issuer/recipient/served_realm/scope collection; omitted contributions removed | snapshots |
 | 3 `egress` — [Egress grants](grant-authority-candidate.md) | `egress-grants` / `resources,grants,payers` / one realm and recipient | declarations, listeners, snapshots |
-| 4 `exit-subnet` — [Exit Subnet grants](grant-authority-candidate.md) | `exit-grants` / `routes,grants,exclusions,bypasses,selection` / one realm and recipient | listeners, snapshots |
+| 4 `exit-subnet` — [Exit grants and client routes](grant-authority-candidate.md) | `exit-grants` / `routes,grants,exclusions,bypasses,selection` / provider nodes collection; `subnet-routes` / `routes,exclusions,bypasses,selection` / client nodes collection | listeners, snapshots |
 | 5 `payer` — [binary realm/UserId bindings](grant-authority-candidate.md) | `payer-bindings` / `payers` / one resource scope; ambiguity withholds the resource | snapshots |
 | 6 `withdrawal` — [resource authority and retired tokens](grant-authority-candidate.md) | `resource-authority` / `authority,incarnations` / current authority in one recipient/resource scope | snapshots |
 | 7 `public-edge` — [public edge, material and service operations](l8-public-edge-candidate.md) | `public-edge` / `backends,names,aliases,ports,domains,subjects,auth,materials` / exact signed issuer/recipient/served_realm/scope, per-realm contributions; full Node identity backends, explicit no-connector and generation-qualified dependencies | declarations, listeners, snapshots |
@@ -137,7 +137,7 @@ on this width, the missing same-I/K refresh tag and the separate signed K genera
 
 The [grant authority candidate](grant-authority-candidate.md) completes families
 3, 4, 5 and 6 with provider-recipient publications, canonical M6 resources,
-exact client/provider/floor and selection facts, explicit binary realm/UserId
+exact client/provider and selection facts, Egress wire floor references, explicit binary realm/UserId
 payer pairs, hard Unix-millisecond deadlines and grant incarnations. Complete
 empty replacement withdraws only its named scope. Resource authority successor
 validation retains retired tokens and preserves unrelated claims. Independent
@@ -153,7 +153,7 @@ IdentityKey bytes without a conversion, fallback or tagged union. See the
 
 ## Subnet selection
 
-Family 4's route selection candidate is a complete publication encoded as
+Family 4 kind `subnet-routes` carries the standalone complete route view encoded as
 `[1, 4, nsd_id, network_id, recipient, revision, routes]`. IDs use M6 `Id`,
 recipient/provider/client use M6 `Identity` with validated full Ed25519 keys,
 and revision is positive. Authority and authenticated recipient scope are
@@ -488,7 +488,7 @@ served_realm, scope, family, kind)`; a version never orders different keys.
 | 1 enrollment | `own-node` | stream |
 | 2 realms-peers | `realm-peers` | snapshot |
 | 3 egress | `egress-grants` | snapshot |
-| 4 exit-subnet | `exit-grants` | snapshot |
+| 4 exit-subnet | `exit-grants`, `subnet-routes` | snapshot |
 | 5 payer | `payer-bindings` | snapshot |
 | 6 withdrawal | `resource-authority` | stream |
 | 7 public-edge | `public-edge` | stream |
@@ -988,3 +988,41 @@ retained stable M6 allocation comparisons. M6, Subnet publication and select/cle
 Independent fixtures establish pure decisions only. NSD N30/N07/N08 and ns
 S11/S25 adoption and producer-owned vectors remain outstanding; gateway
 self-reporting belongs to later ordinary-provider integration.
+
+## Exit grants and consumer Subnet route views
+
+Family 4 has two snapshot kinds. `exit-grants` carries the existing
+GrantPublication `[1, 4, issuer, recipient, revision, grants]`, with recipient equal
+to the provider. Exit details `[1, subnet_publication_bytes]` contain exactly one
+matching route; the embedded recipient equals the client, not the outer provider.
+`subnet-routes` carries standalone B40 `[1, 4, nsd_id, network_id, recipient,
+revision, routes]`, with recipient equal to the client and possibly several
+providers. Kind selects the decoder; these payloads cannot substitute for each other.
+Its exact clears rule is `routes,exclusions,bypasses,selection`.
+
+Both Exit views use the recipient's current nodes binding in the event's Network,
+with event scope `nodes`; recipient and source_node equal that Node. Egress grants
+retain the provider's `egress` contribution binding. Nodes enrollment alone grants
+no Exit resource. Exact retained binding and pending delivery context comparisons
+remain mandatory. Client view validation compares independently accepted identity,
+MembershipScope NSD/Network IDs, event served realm (the same Network bytes), and
+payload revision against event version. M6 NSD ID is not the signing key.
+
+Each complete view replaces only its exact issuer/recipient/Network/scope/family/kind
+collection. Empty withdraws that collection and omission removes a route; neither
+clears another provider or another kind, including when a Node is both client and
+provider. Route views carry selection information, never provider grant, payer or
+incarnation authority and never independently authorize traffic service.
+
+There is no Exit floor on the wire. Provider-local enablement and Linux
+source/interface/route bindings are independently validated before admission.
+Egress retains its existing wire floor reference. B40 ordering, bounds, prefixes,
+explicit/default selection, and grant/payer/incarnation/renewal bytes are unchanged.
+
+The independent `subnet_publication_views` sequence accepts providers P/Q and
+client C under their nodes bindings without an Exit floor; rejects kind, recipient,
+source and membership mismatches; empties P without changing Q/C; omits P from C's
+newer view; then empties C without clearing Q. Fixture acceptance proves pure
+contracts only. NSD N07/N08 projection, producer-owned vectors, and ns route
+installation/adoption remain outstanding. Select/clear receipts stay immutable
+command outcomes, separate from replaceable route views.
