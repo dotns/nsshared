@@ -6,8 +6,8 @@ not NSD producer output or persistence evidence.
 ## Wire contract
 
 `node.subnet.report` uses the authenticated confidential BootstrapEnvelope in both
-directions. Request payload is `[1, bstr(SignedSourceBinding), report_generation,
-offers]`, with each offer `[subnet_id, selection]`. Response payload is
+directions. `NodeSubnetRouteReport` payload is `[1, bstr(SignedSourceBinding), report_generation,
+offers]`, with each offer `[subnet_id, selection]`. `NodeSubnetRouteReportResponse` payload is
 `[1, bstr(SignedSourceBinding), report_generation, allocations]`, with each
 allocation `[subnet_id, bstr(canonical_M6_ServiceRef)]`. Arrays have exact arity,
 definite lengths and shortest unsigned integers; extra fields and trailing bytes
@@ -17,10 +17,10 @@ encoded limit, in addition to unchanged carrier and transport limits.
 
 Selection retains the exact SubnetSelection representation: `[0, []]` explicitly
 offers the logical default; `[1, prefixes]` offers strictly ordered nonoverlapping
-network-aligned B40 prefixes, at most 256 per offer. Empty explicit offers no
+network-aligned SubnetSelection prefixes, at most 256 per offer. Empty explicit offers no
 destinations. Named destinations must fit the mapping's committed real prefix,
 with the same family; default requires a real /0. No absent-field default,
-chunking, truncation or repair exists. M6, B40 publications and P06 commands keep
+chunking, truncation or repair exists. M6 declarations, Subnet publications and route commands keep
 their exact existing bytes. M6 supplies reference encoding directly.
 
 ## Authority and pure comparisons

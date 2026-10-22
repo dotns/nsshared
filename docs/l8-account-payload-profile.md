@@ -984,7 +984,7 @@ The additive `node.subnet.report` request/response operation uses the existing
 confidential BootstrapEnvelope and signed nodes authority. The
 [provider report contract](provider-subnet-report-candidate.md) specifies exact
 canonical bytes, complete generations and withdrawal, mapping qualification and
-retained stable M6 allocation comparisons. M6, B40 and P06 bytes are unchanged.
+retained stable M6 allocation comparisons. M6, Subnet publication and select/clear bytes are unchanged.
 Independent fixtures establish pure decisions only. NSD N30/N07/N08 and ns
 S11/S25 adoption and producer-owned vectors remain outstanding; gateway
 self-reporting belongs to later ordinary-provider integration.

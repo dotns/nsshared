@@ -228,7 +228,7 @@ remain outstanding.
 
 The additive confidential `node.subnet.report` operation carries the exact signed
 nodes authority defined here. Its [provider report contract](provider-subnet-report-candidate.md)
-uses complete positive generations, explicit B40 destinations/default and retained
+uses complete positive generations, explicit SubnetSelection destinations/default and retained
 stable M6 allocation custody. Its payload ceiling is 1 MiB rather than the route
 command ceiling. Existing source, select/clear and publication bytes are unchanged.
 NSD N30/N07/N08 and ns S11/S25 adoption remain outstanding.

@@ -954,8 +954,8 @@ NSD enrollment supplies exact signed nodes authority; committed mapping custody
 supplies provider, Network and real-prefix eligibility. NSD supplies stable M6
 references; the provider carries intent and retains the pending report/response.
 Pure independent vectors cover complete replacement/withdrawal, retained
-allocations and stale generation/source refusal. M6 declarations, B40
-publications and P06 select/clear bytes remain unchanged.
+allocations and stale generation/source refusal. M6 declarations, Subnet
+publications and select/clear bytes remain unchanged.
 
 NSD N30 ingestion/allocation/persistence, N07/N08 selection/projection and ns
 S11/S25 production/custody adoption and producer-owned interoperability evidence

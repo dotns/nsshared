@@ -87,7 +87,7 @@ fn bounded(bytes: Vec<u8>) -> Result<Vec<u8>, SubnetReportError> {
 pub struct SubnetRouteOffer {
     /// Nonzero NSD-allocated u32 mapping identity.
     pub subnet_id: u32,
-    /// Exact B40 explicit or default selection representation.
+    /// Exact existing explicit or default SubnetSelection representation.
     pub selection: SubnetSelection,
 }
 
