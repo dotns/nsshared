@@ -49,6 +49,27 @@ def vectors(a, b, sign):
         fields.append(("next_states", cbor.encode(sorted(next_states))))
         if canonical:
             fields.append(("canonical", raw))
+        if mode == "event" and canonical:
+            value = cbor.decode(cbor.decode(raw)[0])
+            # Only representable Rust content enters the producer API.
+            if value[0] == 1 and value[3] and value[7] in (0, 1) and value[12] in (0, 1):
+                owners = {(1, "own-node"): 0, (2, "realm-peers"): 1,
+                          (3, "egress-grants"): 1, (4, "exit-grants"): 1,
+                          (5, "payer-bindings"): 1, (6, "resource-authority"): 0,
+                          (7, "public-edge"): 0, (8, "directory"): 1,
+                          (8, "identity-classes"): 0, (9, "usage-profile"): 0,
+                          (10, "node-control-profile"): 0, (11, "node-l3"): 1,
+                          (11, "policy-version"): 0}
+                valid = (0 < len(value[4].encode()) <= 256
+                         and 0 < len(value[6].encode()) <= 256
+                         and owners.get((value[5], value[6])) == value[7]
+                         and value[9] > 0 and value[10] < value[11]
+                         and (value[12] == 0 or
+                              (value[5:7] == [11, "node-l3"] and value[13])))
+                result = "fields" if not valid else "bounds" if len(raw) > LIMIT else "accept"
+                fields.extend([("producer_content", cbor.decode(raw)[0]),
+                               ("producer_result", result),
+                               ("signing_input", DOMAIN + cbor.decode(raw)[0])])
         out.append(fields)
 
     def event(name, decision="replace", *, changes=None, raw=None, **kwargs):
@@ -110,6 +131,9 @@ def vectors(a, b, sign):
         ("empty-scope", {4: ""}, "fields"),
         ("empty-kind", {6: ""}, "fields"),
         ("long-kind", {6: "k" * 257}, "encoding"),
+        ("long-scope", {4: "s" * 257}, "encoding"),
+        ("reversed-validity", {10: 201}, "fields"),
+        ("wrong-failure-family", {5: 2, 12: 1}, "fields"),
         ("invalid-channel", {7: 2}, "fields"),
         ("invalid-outcome", {12: 2}, "fields"),
         ("wrong-failure-kind", {5: 2, 6: "realm-peers", 12: 1}, "fields"),

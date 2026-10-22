@@ -8,7 +8,7 @@ use thiserror::Error;
 use super::{MAX_BYTES, MAX_CONTROL_BODY};
 use crate::{
     IdentityKey,
-    encoding::{CborError, CborReader},
+    encoding::{CborError, CborReader, CborWriter},
 };
 
 /// Ed25519 publication domain, including the final zero separator.
@@ -105,6 +105,79 @@ pub struct PublicationContent<'a> {
     pub outcome: PublicationOutcome,
     /// Exact opaque owning-family payload bytes; M6 bytes stay unchanged.
     pub payload: &'a [u8],
+}
+
+impl PublicationContent<'_> {
+    /// Canonical signed content for a producer, with opaque family payload bytes.
+    /// Known partial publications are valid; completeness is a consumer decision.
+    /// # Errors
+    /// Refuses invalid fields, unknown ownership, wrong channels and encoded bounds.
+    pub fn canonical(&self) -> Result<Vec<u8>, PublicationError> {
+        let key = &self.key;
+        if key.scope.is_empty()
+            || key.scope.len() > 256
+            || key.kind.is_empty()
+            || key.kind.len() > 256
+            || publication_channel(key.family, key.kind) != Some(self.channel)
+            || self.version == 0
+            || self.issued_seconds >= self.expires_seconds
+            || (self.outcome == PublicationOutcome::FetchFailed
+                && (key.family != 11 || key.kind != "node-l3" || self.payload.is_empty()))
+        {
+            return Err(PublicationError::Fields);
+        }
+        if self.payload.len() > MAX_PUBLICATION_BYTES {
+            return Err(PublicationError::Bounds);
+        }
+        let mut writer = CborWriter::default();
+        writer
+            .array(14)
+            .uint(1)
+            .bytes(key.issuer.as_bytes())
+            .bytes(key.recipient.as_bytes())
+            .text(&key.served_realm.to_string())
+            .text(key.scope)
+            .uint(key.family)
+            .text(key.kind)
+            .uint(self.channel as u64)
+            .boolean(self.complete)
+            .uint(self.version)
+            .uint(self.issued_seconds)
+            .uint(self.expires_seconds)
+            .uint(self.outcome as u64)
+            .bytes(self.payload);
+        let bytes = writer.into_bytes();
+        let mut carrier = CborWriter::default();
+        carrier.array(2).bytes(&bytes).bytes(&[0; 64]);
+        if carrier.into_bytes().len() > MAX_PUBLICATION_BYTES {
+            return Err(PublicationError::Bounds);
+        }
+        Ok(bytes)
+    }
+
+    /// Domain-separated canonical input for a producer-held signing key.
+    /// # Errors
+    /// Refuses the same invalid content and complete-event bounds as canonical.
+    pub fn signing_input(&self) -> Result<Vec<u8>, PublicationError> {
+        let content = self.canonical()?;
+        let mut bytes = PUBLICATION_SIGNATURE_DOMAIN.to_vec();
+        bytes.extend_from_slice(&content);
+        Ok(bytes)
+    }
+}
+
+/// Encodes validated content with a producer-supplied signature; holds no key.
+/// Signature authenticity is checked only by the consumer decision API.
+/// # Errors
+/// Refuses invalid content, unknown ownership, wrong channels and encoded bounds.
+pub fn encode_publication(
+    content: &PublicationContent<'_>,
+    signature: &[u8; 64],
+) -> Result<Vec<u8>, PublicationError> {
+    let bytes = content.canonical()?;
+    let mut carrier = CborWriter::default();
+    carrier.array(2).bytes(&bytes).bytes(signature);
+    Ok(carrier.into_bytes())
 }
 
 /// Canonical borrowed event; decoding alone does not establish authentication.
@@ -281,6 +354,20 @@ impl<'a> PublicationEvent<'a> {
     #[must_use]
     pub const fn content(&self) -> &PublicationContent<'a> {
         &self.content
+    }
+
+    /// Exact signature input, without re-encoding or establishing authenticity.
+    #[must_use]
+    pub fn signing_input(&self) -> Vec<u8> {
+        let mut bytes = PUBLICATION_SIGNATURE_DOMAIN.to_vec();
+        bytes.extend_from_slice(self.signing_bytes);
+        bytes
+    }
+
+    /// Exact received signature; decoding alone does not authenticate it.
+    #[must_use]
+    pub const fn signature(&self) -> &[u8; 64] {
+        &self.signature
     }
 
     /// Maps nonempty profile kinds to their owning typed catalogue.
