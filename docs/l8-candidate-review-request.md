@@ -64,7 +64,7 @@ explicitly frame only. NSD supplies producer vectors for every row.
 | 4 `exit-subnet` | Grant publication plus existing Subnet selection and independent consumers delivered | Grants B39 and selection B40; Q14 |
 | 5 `payer` | Binary realm/UserId assignment publication and cardinality refusals delivered | Grants B39; Q15 |
 | 6 `withdrawal` | Resource authority snapshots and pure successor validation delivered | Grants B39; Q16 |
-| 7 `public-edge` | Pure scoped public-edge, confidential AuthConfiguration request/response, material and exact M6 declaration/report/listener integration with independent consumer vectors delivered | NSD confirmation/producer vectors and explicitly open carrier rows; Q17 |
+| 7 `public-edge` | Pure scoped public-edge, confidential AuthConfiguration and certificate/client-CA acquisition request/response, material and exact M6 declaration/report/listener integration with independent consumer vectors delivered | NSD confirmation/producer vectors and explicitly open carrier rows; Q17 |
 | 8 `relay` | Signed roster, shared participant credentials and separate signed directory binding delivered; NSD producer review and adoption outstanding | Q01–Q06, Q18 |
 | 9 `usage` | Typed scoped usage-profile payload and independent publication vectors newly delivered; existing quantities and report/answer bytes unchanged | New candidate delta below; NSD/ns review and producer adoption outstanding; Q10, Q19 |
 | 10 `node-control` | Typed scoped node-control-profile payload and independent publication vectors newly delivered; existing v2 codec unchanged | New candidate delta below; NSD/ns review and producer adoption outstanding; Q20 |
@@ -977,3 +977,22 @@ recipient, served realm and revision comparisons and exact collection isolation.
 The independent subnet_publication_views sequence is prepared for consumer reuse.
 NSD N07/N08 projection, producer-owned canonical/refusal vectors and ns route
 installation/adoption remain outstanding; fixture acceptance is not interoperability.
+
+## Confidential certificate and client-CA acquisition addition
+
+Review the [canonical material contract](confidential-material-candidate.md) and
+`confidential_edge_material_generation` consumer vectors for `edge.material.get`.
+The seven-field acquisition request uses the existing encodings, permits only
+Certificate/ClientCa, and is echoed in full canonical bytes. Successful values
+carry nonempty PEM, permitted hostnames, an exclusive Unix-seconds deadline and,
+for ClientCa, a trust domain. No private value is present in public publications.
+The auth-only operation and installation ACK bytes remain unchanged; certificate
+and client-CA ACK ids are independently minted installation-status ids.
+
+Please supply NSD-owned exact producer bytes and refusals, authorize material
+release against authenticated custody, and adopt the confidential operation's
+production and dispatch. Current dependency validation, host coverage, trust-domain
+comparison, X.509 parsing and installation stay with the gateway. The independent
+Python candidate vectors do not establish NSD agreement or live interoperability.
+NSD confirmation, producer implementation, dispatch adoption and producer-owned
+vectors remain outstanding; this review request records no received agreement.

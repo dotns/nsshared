@@ -18,6 +18,9 @@ use thiserror::Error;
 /// Confidential authentication configuration request/response operation.
 pub const EDGE_AUTH_CONFIG_GET: &str = "edge.auth.config.get";
 
+/// Confidential certificate and client-CA acquisition operation.
+pub const EDGE_MATERIAL_GET: &str = "edge.material.get";
+
 /// Registration operation inside the signed carrier.
 pub const MACHINE_REGISTER: &str = "machine.register";
 /// Authentication operation inside the signed carrier.

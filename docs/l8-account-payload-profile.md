@@ -1026,3 +1026,17 @@ newer view; then empties C without clearing Q. Fixture acceptance proves pure
 contracts only. NSD N07/N08 projection, producer-owned vectors, and ns route
 installation/adoption remain outstanding. Select/clear receipts stay immutable
 command outcomes, separate from replaceable route views.
+
+## Confidential certificate and client-CA acquisition
+
+The [material acquisition contract](confidential-material-candidate.md) adds
+`edge.material.get` on the existing authenticated confidential carrier. Its pure
+request/response codecs and independent certificate/client-CA fixtures preserve
+exact pending-request echo and kind/reference/generation scope. Host lists and
+exclusive Unix-seconds deadlines constrain use; installation, current dependency
+rechecks, route coverage, trust-domain comparison and X.509 parsing stay external.
+Family 7 gains confidential value delivery without changing public references,
+registry bytes, AuthConfigRequest's auth-only restriction or installation ACK bytes.
+Certificate/client-CA ACK ids are separate installation-status ids, not acquisition
+ids. NSD producer implementation, confidential dispatch adoption, confirmation and
+producer-owned vectors remain outstanding; fixture delivery is not agreement.

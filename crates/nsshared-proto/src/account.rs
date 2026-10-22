@@ -8,6 +8,7 @@ pub use crate::{RealmId, RealmIdError};
 mod bootstrap;
 mod bootstrap_envelope;
 pub mod confidential_auth;
+pub mod confidential_material;
 pub mod control_exchange;
 pub mod control_reports;
 pub mod directory_binding;
