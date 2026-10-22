@@ -1,5 +1,16 @@
 ## 2026-10-22 [feat]
 
+Add source-qualified ordinary provider Subnet route reports and correlated
+allocation responses. Validate committed mapping authority, complete generations
+and stable retained M6 references through withdrawal and reoffer. Refuse stale
+reports and delayed responses without restoring withdrawn offers.
+
+Validation: independent lifecycle and carrier vectors passed; self-check passed
+with 510 tests and zero skips. NSD ingestion/allocation/persistence and provider
+adoption remain outstanding; shared contracts add no runtime or I/O.
+
+## 2026-10-22 [feat]
+
 Add validated canonical content encoding, domain-separated signing input and
 inner publication event encoding with supplied signatures. Preserve wire bytes
 and consumer decisions; reject unknown ownership, invalid structural fields and

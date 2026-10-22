@@ -104,3 +104,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**Select authentication source scope explicitly**](20261021-1355-authentication-source-scope.md) `2026-10-21`
 - [x] [**Define usage and Node-control profile publications**](20261021-2159-profile-publications.md) `2026-10-21`
 - [x] [**Encode inner signed publication events**](20261022-0839-publication-event-producer.md) `2026-10-22`
+- [x] [**Define ordinary provider Subnet route reports**](20261022-1014-provider-subnet-report.md) `2026-10-22`
