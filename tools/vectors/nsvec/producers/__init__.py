@@ -2,6 +2,7 @@
 register a new producer by adding its module to PRODUCERS."""
 
 from . import (
+    service_control_carrier,
     subnet_publication_views,
     profile_publications,
     participant_authority,
@@ -32,6 +33,7 @@ from . import (
 )
 
 PRODUCERS = [
+    service_control_carrier,
     subnet_publication_views,
     profile_publications,
     participant_authority,

@@ -13,7 +13,7 @@ def vectors():
     issuer = account.key(bytes([2]) * 32)[0]
     scopes = [[issuer, subscriber, "030C1G60R30C1G60R30C1G60R3", "edge"],
               [issuer, subscriber, "09144GJ289144GJ289144GJ289", "nodes"]]
-    base = [1, subscriber, scopes, ["node.control", "public.edge"], [0], bytes([3]) * 16, 1]
+    base = [1, subscriber, scopes, ["node.control", "public.edge"], [0], bytes([3]) * 16, 1, None]
     out = []
 
     def emit(name, value, accepted=True, raw=None):
@@ -21,11 +21,11 @@ def vectors():
                     ("decision", "accepted" if accepted else "refused")])
 
     emit("populated", base)
-    emit("empty", [1, subscriber, [], [], [], bytes([3]) * 16, 1])
-    emit("max-attempt", base[:-1] + [2**32 - 1])
+    emit("empty", [1, subscriber, [], [], [], bytes([3]) * 16, 1, None])
+    emit("max-attempt", base[:6] + [2**32 - 1, None])
     emit("max-lists", [1, subscriber,
                       [[issuer, subscriber, "030C1G60R30C1G60R30C1G60R3", f"scope-{i:02}"] for i in range(32)],
-                      [f"cap-{i:02}" for i in range(64)], list(range(32)), bytes([3]) * 16, 1])
+                      [f"cap-{i:02}" for i in range(64)], list(range(32)), bytes([3]) * 16, 1, None])
     for name, index, value in [
         ("duplicate-scopes", 2, scopes + [scopes[-1]]),
         ("unsorted-scopes", 2, list(reversed(scopes))),
@@ -50,20 +50,28 @@ def vectors():
         changed = list(base)
         changed[index] = value
         emit(name, changed, False)
+    emit("old-seven-elements", base[:-1], False)
+    for network in (4, 5):
+        binding = [bytes([3])*16, bytes([network])*16, 1, bytes([6])*16, 2, 3, bytes([7])*16]
+        emit(f"bound-network-{network}", base[:-1] + [binding])
+        for index in (2, 4, 5):
+            invalid = list(binding); invalid[index] = 0
+            emit(f"zero-binding-{network}-{index}", base[:-1] + [invalid], False)
+        emit(f"short-binding-{network}", base[:-1] + [binding[:-1]], False)
     emit("unknown-field", base + [0], False)
     raw = cbor.encode(base)
     emit("nonminimal", None, False, raw[:1] + b"\x18\x01" + raw[2:])
     emit("trailing", None, False, raw + b"\0")
     emit("oversized-bytes", None, False, bytes(8193))
     # A declared array ceiling is refused before its elements are read.
-    emit("declared-scopes", None, False, b"\x87" + cbor.encode(1) + cbor.encode(subscriber) + b"\x98\x21")
+    emit("declared-scopes", None, False, b"\x88" + cbor.encode(1) + cbor.encode(subscriber) + b"\x98\x21")
     content = cbor.encode([1, 0, subscriber, issuer, "config.stream", 100, bytes([4]) * 16, raw])
     out.append([("name", "signed"), ("bytes", cbor.encode([content, account.sign(bytes([1]) * 32, bootstrap_envelope.REQUEST + content)])),
                 ("decision", "signed"), ("subscriber", subscriber), ("issuer", issuer),
                 ("pin", bootstrap_envelope.pin(subscriber)), ("signing_input", bootstrap_envelope.REQUEST + content)])
     for name, payload, recipient, operation, direction in [
-        ("subscriber-mismatch", [1, issuer, [], [], [], bytes([3]) * 16, 1], issuer, "config.stream", 0),
-        ("issuer-mismatch", [1, subscriber, [[subscriber, subscriber, "030C1G60R30C1G60R30C1G60R3", "edge"]], [], [], bytes([3]) * 16, 1], issuer, "config.stream", 0),
+        ("subscriber-mismatch", [1, issuer, [], [], [], bytes([3]) * 16, 1, None], issuer, "config.stream", 0),
+        ("issuer-mismatch", [1, subscriber, [[subscriber, subscriber, "030C1G60R30C1G60R30C1G60R3", "edge"]], [], [], bytes([3]) * 16, 1, None], issuer, "config.stream", 0),
         ("missing-recipient", base, None, "config.stream", 0),
         ("wrong-recipient", base, subscriber, "config.stream", 0),
         ("wrong-operation", base, issuer, "info.get", 0),

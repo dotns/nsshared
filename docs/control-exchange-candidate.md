@@ -463,7 +463,7 @@ by the report contract. NSD producer confirmation remains outstanding.
 `account::publication_subscription::PublicationSubscriptionRequest` is the
 candidate request. Its canonical CBOR tuple is:
 
-`[1, subscriber_I, scopes, capabilities, public_ingress, boot_nonce, attempt_counter]`.
+`[1, subscriber_I, scopes, capabilities, public_ingress, boot_nonce, attempt_counter, service_control]`.
 
 Each scope is `[issuer_I, recipient_I, served_realm, scope]`: full 32-byte
 identities, canonical 26-character RealmId text and a nonempty opaque scope of
@@ -606,3 +606,19 @@ and the normal token. Unknown or unauthorized selectors are refused, never repla
 with another binding. Retain each accepted scope independently. Fixture vectors
 cover pending registration, Equal and nodes/egress authentication in one Network,
 including swapped-scope and swapped-realm refusal.
+
+## M6 service control candidate
+
+The [service control carrier specification](service-control-carrier-candidate.md)
+defines `service.control.v1` on the existing confidential control endpoint,
+unchanged Message bytes, exact unary pairs, signed zero-byte carrier receipts,
+bootstrap/failure correlation, singleton leases and bound signed stream events.
+PublicationSubscriptionRequest now has eight elements: the appended
+service_control is null or a typed seven-element admitted-session tuple. This is
+breaking for existing consumers; the old seven-element request is refused.
+Existing scopes, capabilities, public ingress, boot nonce and attempt meanings
+remain unchanged. Stream events admit only SnapshotPush, PortCancel and
+PortQuery, with pure exact reverse-result comparison. No new publication family,
+M6 schema, runtime or admission state is introduced. Current source ownership,
+content floors, persistent proposal and lease timing checks remain consumer work.
+NSD adoption and independent real producer confirmation remain outstanding.

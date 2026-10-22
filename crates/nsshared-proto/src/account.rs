@@ -33,6 +33,7 @@ mod realm_peers;
 mod registry;
 mod roster;
 pub mod route_command;
+pub mod service_control;
 mod signed_request;
 pub mod source_binding;
 pub mod source_publication;
