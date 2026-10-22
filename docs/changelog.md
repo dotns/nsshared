@@ -1,5 +1,16 @@
 ## 2026-10-22 [feat]
 
+Add authenticated M6 unary and stream carrier contracts with exact pending
+request correlation, singleton lease results, reverse proposal comparisons and
+eight-field publication subscriptions. Bound sessions reject zero runtime and
+session request identifiers while preserving existing M6 message bytes.
+
+Validation: independent carrier and subscription vectors and original identifier
+regressions passed; self-check passed with 523 tests and zero skips. NSD adoption,
+durable session custody and runtime interoperability remain external obligations.
+
+## 2026-10-22 [feat]
+
 Add confidential certificate and client-CA acquisition contracts with exact
 pending-request echoes, typed kind/realm/generation refusals and redacted secret
 values. Preserve auth-only acquisition and installation-status ACK bytes.

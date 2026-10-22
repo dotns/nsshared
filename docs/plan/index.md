@@ -108,3 +108,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**Separate Exit grants and client Subnet route views**](20261022-1615-subnet-publication-views.md) `2026-10-22`
 - [x] [**Start the mock relay with an owned UDP socket**](20261022-1938-owned-udp-socket.md) `2026-10-22`
 - [x] [**Define confidential certificate and client-CA acquisition**](20261022-2227-confidential-material.md) `2026-10-22`
+- [x] [**Define the authenticated M6 control carrier**](20261022-2237-service-control-carrier.md) `2026-10-22`
