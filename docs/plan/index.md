@@ -106,3 +106,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**Encode inner signed publication events**](20261022-0839-publication-event-producer.md) `2026-10-22`
 - [x] [**Define ordinary provider Subnet route reports**](20261022-1014-provider-subnet-report.md) `2026-10-22`
 - [x] [**Separate Exit grants and client Subnet route views**](20261022-1615-subnet-publication-views.md) `2026-10-22`
+- [x] [**Start the mock relay with an owned UDP socket**](20261022-1938-owned-udp-socket.md) `2026-10-22`

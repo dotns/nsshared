@@ -1,5 +1,15 @@
 ## 2026-10-22 [feat]
 
+Allow mock relay startup with a caller-owned UDP socket and assigned-port DNS
+identity. Preserve the original receive queue without rebinding or retries;
+reject conflicting settings and release the socket on failure and shutdown.
+Existing startup and command-line behavior remain unchanged.
+
+Validation: four real UDP ownership tests passed; the runtime suite passed all
+15 tests and self-check passed 515 tests with zero skips.
+
+## 2026-10-22 [feat]
+
 Separate provider Exit grants from client Subnet route snapshots by exact kind.
 Validate independent recipient and membership context and enforce nodes authority
 for Exit views while retaining egress contribution authority for Egress grants.
