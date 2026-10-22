@@ -1,6 +1,6 @@
 # Provider Subnet route report
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-10-22 10:14
 - **approvedAt**: 2026-10-22 10:14
 - **relatedTask**: 20261022-1014-provider-subnet-report
@@ -35,3 +35,14 @@ Runtime ingestion and allocation belong to external consumers and are excluded.
 ## Annotations
 
 Implementation is approved together with the contract requirements.
+
+## Acceptance
+
+The specification and independent Python fixture producer preceded the Rust API.
+The complete provider sequence and five focused companion tests pass. Response
+comparison retains accepted generation/content as well as allocation history, so
+a delayed response cannot restore withdrawn offers even within the current source.
+The self-check passed formatting, workspace lint, dependency policy, spelling,
+all 26 independent fixture files, API compatibility, 510 tests without skips,
+doctests and documentation generation. No runtime, allocation or persistence was
+added. Source implementation is recorded at `7e84ad5543f8265ed41f0c099f17dd2d37dc7157`.
