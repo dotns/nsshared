@@ -1,3 +1,14 @@
+## 2026-10-22 [feat]
+
+Add validated canonical content encoding, domain-separated signing input and
+inner publication event encoding with supplied signatures. Preserve wire bytes
+and consumer decisions; reject unknown ownership, invalid structural fields and
+full-event overflow while retaining partial content and opaque family payloads.
+
+Validation: independent byte/signature round trips and exact-size boundary checks
+passed; self-check passed with 504 tests and zero skips. NSD producer adoption
+and producer-owned interoperability vectors remain outstanding.
+
 ## 2026-10-21 [feat]
 
 Add typed usage and Node-control catalogue publications with strict canonical

@@ -142,3 +142,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**Carry signed source authority in control responses**](20261021-1109-source-response-binding.md) `P1`
 - [x] [**Select authentication source scope explicitly**](20261021-1355-authentication-source-scope.md) `P1`
 - [x] [**Define usage and Node-control profile publications**](20261021-2159-profile-publications.md) `P1`
+- [x] [**Encode inner signed publication events**](20261022-0839-publication-event-producer.md) `P1`
