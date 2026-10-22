@@ -45,3 +45,39 @@ fn bound_subscription_rejects_zero_runtime_identifier() {
 fn bound_subscription_rejects_zero_session_request_identifier() {
     check_identifier("session_request_id");
 }
+
+#[test]
+fn constructed_subscription_preserves_identifier_constraints() {
+    let vectors =
+        support::vectors::parse(include_str!("fixtures/vectors/service-control-carrier.vec"));
+    let vector = vectors
+        .iter()
+        .find(|v| v.name() == "subscription-4")
+        .unwrap();
+    let original = PublicationSubscriptionRequest::decode(&vector.hex("bytes")).unwrap();
+    assert_eq!(original.canonical().unwrap(), vector.hex("bytes"));
+    for runtime in [true, false] {
+        let mut invalid = original.clone();
+        let binding = invalid.service_control.as_mut().unwrap();
+        if runtime {
+            binding.runtime_id = [0; 16];
+        } else {
+            binding.session_request_id = [0; 16];
+        }
+        assert!(invalid.canonical().is_err());
+    }
+    for nsd in [true, false] {
+        let mut allowed = original.clone();
+        let binding = allowed.service_control.as_mut().unwrap();
+        if nsd {
+            binding.nsd_id = [0; 16];
+        } else {
+            binding.network_id = [0; 16];
+        }
+        let encoded = allowed.canonical().unwrap();
+        assert_eq!(
+            PublicationSubscriptionRequest::decode(&encoded).unwrap(),
+            allowed
+        );
+    }
+}

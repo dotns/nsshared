@@ -614,7 +614,10 @@ defines `service.control.v1` on the existing confidential control endpoint,
 unchanged Message bytes, exact unary pairs, signed zero-byte carrier receipts,
 bootstrap/failure correlation, singleton leases and bound signed stream events.
 PublicationSubscriptionRequest now has eight elements: the appended
-service_control is null or a typed seven-element admitted-session tuple. This is
+service_control is null or a typed seven-element admitted-session tuple.
+Its runtime_id and session_request_id are nonzero M6 IDs on construction,
+decoding and authenticated ingress; NSD/Network zero-ID encoding semantics are
+unchanged. This is
 breaking for existing consumers; the old seven-element request is refused.
 Existing scopes, capabilities, public ingress, boot nonce and attempt meanings
 remain unchanged. Stream events admit only SnapshotPush, PortCancel and

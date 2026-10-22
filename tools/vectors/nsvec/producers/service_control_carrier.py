@@ -180,6 +180,10 @@ def vectors():
         error['session_seq'] = 3
         pair(f"error-with-session-{network}", acquire, error, False)
     base = message('session.open', {})
+    for field in ('runtime_id', 'request_id', 'nsd_id', 'network_id'):
+        changed = copy.deepcopy(base); changed[field] = bytes(16)
+        emit('zero-request-' + field, 'request', envelope(encode(changed), False),
+             field in ('nsd_id', 'network_id'))
     raw = encode(base)
     emit('nonminimal-message', 'request', envelope(b'\xb8\x0b'+raw[1:], False), False)
     bad = dict(base, extra=1)

@@ -21,19 +21,23 @@ pub struct ServiceControlBinding {
     pub network_id: Id,
     /// Persistent Node runtime generation.
     pub runtime_generation: u64,
-    /// Current Node runtime identifier.
+    /// Current nonzero Node runtime identifier.
     pub runtime_id: Id,
     /// Accepted M6 authority epoch.
     pub authority_epoch: u64,
     /// Accepted connection attempt sequence.
     pub session_seq: u64,
-    /// Logical request identifier of the accepted SessionOpen.
+    /// Nonzero logical request identifier of the accepted SessionOpen.
     pub session_request_id: Id,
 }
 impl ServiceControlBinding {
     pub(super) fn validate(&self) -> Result<(), AccountError> {
         super::require(
-            self.runtime_generation > 0 && self.authority_epoch > 0 && self.session_seq > 0,
+            self.runtime_generation > 0
+                && self.authority_epoch > 0
+                && self.session_seq > 0
+                && self.runtime_id != [0; 16]
+                && self.session_request_id != [0; 16],
         )
     }
     pub(super) fn write(&self, out: &mut CborWriter) {

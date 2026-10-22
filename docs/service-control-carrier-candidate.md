@@ -69,7 +69,12 @@ This eight-element tuple is **breaking for existing consumers**; seven elements
 are refused with no fallback. The appended slot is null or exactly
 `[nsd_id, network_id, runtime_generation, runtime_id, authority_epoch,
 session_seq, session_request_id]`. IDs are M6 16-byte strings; the three counters
-are positive u64 values. Other seven fields retain all existing meanings.
+are positive u64 values. runtime_id and session_request_id must each be nonzero,
+matching the existing M6 runtime_id and request_id constraints. All-zero NSD and
+Network identifiers remain representable where the unchanged M6 codec permits
+them; this does not establish their authority. Canonical construction, decoding,
+authenticated subscription ingress and directly supplied stream bindings all
+apply the same identifier checks. Other seven fields retain all existing meanings.
 
 The caller authenticates current contribution/source authority independently.
 It persists a runtime, reserves a fresh session_seq and logical SessionOpen

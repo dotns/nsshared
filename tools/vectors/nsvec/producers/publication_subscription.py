@@ -50,10 +50,21 @@ def vectors():
         changed = list(base)
         changed[index] = value
         emit(name, changed, False)
+    signed_bindings = []
     emit("old-seven-elements", base[:-1], False)
     for network in (4, 5):
         binding = [bytes([3])*16, bytes([network])*16, 1, bytes([6])*16, 2, 3, bytes([7])*16]
         emit(f"bound-network-{network}", base[:-1] + [binding])
+        signed_bindings.append((f"binding-network-{network}", base[:-1] + [binding], True))
+        for index, name in [(3, "runtime-id"), (6, "session-request-id")]:
+            invalid = list(binding); invalid[index] = bytes(16)
+            payload = base[:-1] + [invalid]
+            emit(f"zero-{name}-{network}", payload, False)
+            signed_bindings.append((f"zero-{name}-{network}", payload, False))
+        for index, name in [(0, "nsd-id"), (1, "network-id")]:
+            allowed = list(binding); allowed[index] = bytes(16)
+            emit(f"zero-{name}-{network}", base[:-1] + [allowed])
+            signed_bindings.append((f"zero-{name}-{network}", base[:-1] + [allowed], True))
         for index in (2, 4, 5):
             invalid = list(binding); invalid[index] = 0
             emit(f"zero-binding-{network}-{index}", base[:-1] + [invalid], False)
@@ -83,4 +94,11 @@ def vectors():
                     ("bytes", cbor.encode([content, account.sign(bytes([1]) * 32, domain + content)])),
                     ("decision", "signed-refused"), ("subscriber", subscriber), ("issuer", issuer),
                     ("pin", bootstrap_envelope.pin(subscriber)), ("signing_input", domain + content)])
+    for name, payload, accepted in signed_bindings:
+        content = cbor.encode([1, 0, subscriber, issuer, "config.stream", 100, bytes([4])*16, cbor.encode(payload)])
+        out.append([("name", "signed-" + name),
+                    ("bytes", cbor.encode([content, account.sign(bytes([1])*32, bootstrap_envelope.REQUEST + content)])),
+                    ("decision", "signed" if accepted else "signed-refused"), ("subscriber", subscriber),
+                    ("issuer", issuer), ("pin", bootstrap_envelope.pin(subscriber)),
+                    ("signing_input", bootstrap_envelope.REQUEST + content)])
     return out

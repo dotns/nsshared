@@ -109,6 +109,27 @@ fn contribution_network_sessions() {
                 let result = validate_stream_event(SERVICE_CONTROL, &data, &expected, &stream);
                 assert_eq!(result.is_ok(), accepted, "{}: {result:?}", v.name());
                 if let Ok(message) = result {
+                    for runtime in [true, false] {
+                        let mut invalid_binding = stream.binding.clone();
+                        if runtime {
+                            invalid_binding.runtime_id = [0; 16];
+                        } else {
+                            invalid_binding.session_request_id = [0; 16];
+                        }
+                        let invalid_stream = StreamExpectation {
+                            binding: &invalid_binding,
+                            ..stream
+                        };
+                        assert!(
+                            validate_stream_event(
+                                SERVICE_CONTROL,
+                                &data,
+                                &expected,
+                                &invalid_stream
+                            )
+                            .is_err()
+                        );
+                    }
                     assert_eq!(
                         message.encode().unwrap(),
                         BootstrapEnvelope::decode(&bytes).unwrap().payload
