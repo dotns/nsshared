@@ -1,6 +1,6 @@
 # 20261022-0839-publication-event-producer Publication event producer
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-10-22 08:39
 - **approvedAt**: 2026-10-22
 - **relatedTask**: 20261022-0839-publication-event-producer
@@ -40,5 +40,15 @@ the same validated content encoding.
 ## Annotations
 
 Specification and independent fixtures were extended before implementation.
-The focused producer and existing decoder vector tests both pass. Final static
-and scoped regression checks remain pending.
+The focused producer and existing decoder vector tests both pass. Final self-check passed all static checks, API compatibility, documentation
+and 504 tests with zero skips.
+
+## Acceptance results
+
+`publication_event_producer` passes independent byte equality and matching
+refusal cases, including partial and opaque payload acceptance. A test-key
+signature verifies through decide_publication. Existing decoder vectors pass
+unchanged. The initial test compilation failed on absent producer APIs before
+implementation; focused tests and the final self-check both pass afterward.
+Local source and test review found no actionable defects. Independent fixtures
+remain contract evidence, not live NSD interoperability.
