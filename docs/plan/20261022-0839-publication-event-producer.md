@@ -1,30 +1,44 @@
 # 20261022-0839-publication-event-producer Publication event producer
 
-- **status**: draft
+- **status**: implementing
 - **createdAt**: 2026-10-22 08:39
-- **approvedAt**: (pending clarification)
+- **approvedAt**: 2026-10-22
 - **relatedTask**: 20261022-0839-publication-event-producer
 
 ## Context
 
-`PublicationEvent::decode` validates structural fields and byte bounds. Channel ownership, completeness and typed profile payload checks occur later in `decide_publication`. The independent vectors include structurally valid events with a signed channel mismatch, partial content and unknown kinds.
+The decoder checks structural fields and byte bounds. Channel ownership,
+completeness and typed payload acceptance are separate consumer decisions.
+Independent vectors include unknown kinds, signed channel mismatches and partial
+content, so producer round trips distinguish valid content from producer refusals.
 
 ## Proposal
 
-Add canonical content encoding, domain-prefixed signing input and complete event encoding with a supplied signature. Preserve the wire format and keep private keys outside the crate. Extend independent vectors and document the producer revision.
+Expose PublicationContent::canonical and signing_input, encode_publication with
+a supplied signature, and exact PublicationEvent signature/input accessors.
+One shared validation path refuses unknown registry pairs, ownership mismatch,
+invalid scope/kind lengths, zero version, invalid validity, invalid FetchFailed
+kind/payload and complete-event overflow. Known partial content remains valid;
+family payloads stay opaque. Preserve decoder, decision and wire behavior.
 
 ## Risks
 
-The requested round trip for every existing inner event conflicts with refusing channel ownership mismatches before encoding: `publication-signed-channel-mismatch` must both reproduce its bytes and be refused. Implementation is blocked until the round-trip domain is defined. Completeness, unknown-kind and typed profile payload validation also need an explicit producer policy because decoding and acceptance apply different checks.
+Producer acceptance does not authenticate supplied signatures or validate family
+payloads. Producers must use family codecs and retain private signing keys.
+Consumers continue to authenticate and apply independent acceptance context.
 
 ## Scope
 
-Publication producer API, account exports, independent vectors, tests and producer documentation.
+Publication module and exports, independent Python vectors, Rust producer tests,
+payload profile, source publication specification and review request.
 
 ## Alternatives
 
-Either require exact round trips only for producer-valid content and assert refusal for decoded invalid content, or allow structural re-encoding and enforce ownership through a separate validated producer API. The former matches the requested refusal policy more closely.
+A separate structural encoder is unnecessary; every producer entry point uses
+the same validated content encoding.
 
 ## Annotations
 
-No implementation has started. The wire contract remains unchanged.
+Specification and independent fixtures were extended before implementation.
+The focused producer and existing decoder vector tests both pass. Final static
+and scoped regression checks remain pending.

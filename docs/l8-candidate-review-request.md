@@ -940,7 +940,7 @@ unchanged, including unknown-kind forward compatibility and incomplete refusal.
 Independent fixtures round-trip producer-valid content and assert producer refusal
 for decodable invalid content; they are not NSD output.
 
-NSD N06, N08 and N21 producers should adopt the immutable implementation revision
-containing this addition, identified in the publication producer delivery record;
+NSD N06, N08 and N21 producers should adopt implementation revision
+`2391ebd5e59574cb318fbc2c7b1ca3615426796a`;
 earlier package revisions do not include it. Producer-owned vectors and adoption
 remain outstanding.
