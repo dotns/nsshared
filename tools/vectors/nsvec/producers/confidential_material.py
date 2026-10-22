@@ -1,8 +1,11 @@
 """Independent confidential material candidate producer; fixture values only."""
 import copy
+import base64
+import hashlib
+import json
 
 from .. import cbor
-from .account import key
+from .account import key, sign
 
 CRATE = "nsshared-proto"
 GROUP = "confidential-material"
@@ -31,6 +34,19 @@ def vectors():
 
         emit("request", "request", pending)
         emit("generation", "response", response)
+        for direction, seed, recipient in [(0, bytes([2]) * 32, key(bytes([1]) * 32)[0]),
+                                           (1, bytes([1]) * 32, pending[2])]:
+            signer = key(seed)[0]
+            payload = cbor.encode(pending if direction == 0 else response)
+            content = cbor.encode([1, direction, signer, recipient, "edge.material.get",
+                                   100, bytes([6]) * 16, payload])
+            domain = b"ns.account.call." + (b"request" if direction == 0 else b"response") + b".v1\0"
+            signature = sign(seed, domain + content)
+            x = base64.urlsafe_b64encode(signer).decode().rstrip("=")
+            jwk = json.dumps({"crv": "Ed25519", "kty": "OKP", "x": x}, separators=(",", ":"))
+            pin = base64.urlsafe_b64encode(hashlib.sha256(jwk.encode()).digest()).decode().rstrip("=")
+            emit("envelope-" + str(direction), "envelope", [content, signature])
+            out[-1].append(("pin", pin))
         for name, index, value, reason in [
             ("wrong-realm", 5, bytes([9]) * 16, "realm"),
             ("wrong-generation", 6, [kind, label, 8], "generation"),
