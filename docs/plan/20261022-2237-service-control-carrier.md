@@ -1,6 +1,6 @@
 # 20261022-2237-service-control-carrier Service control carrier
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-10-22 22:37
 - **approvedAt**: 2026-10-22 22:37
 - **relatedTask**: 20261022-2237-service-control-carrier
@@ -93,3 +93,22 @@ new carrier identifier reader and its route to the existing M6 codec.
   nonzero runtime/request checks and do not prohibit zero NSD/Network IDs.
 - No additional same-class defect was confirmed, in or outside the edited scope.
   The original regression's valid controls and both original assertions remain.
+
+### Session identifier acceptance
+
+The preserved tests bound_subscription_rejects_zero_runtime_identifier and
+bound_subscription_rejects_zero_session_request_identifier both failed before
+the correction because decoding accepted all-zero identifiers. Both original
+valid fixture controls and original decode/construction assertions remain.
+The additional constructed-value test checks both nonzero constraints and
+accepted zero NSD/Network identifiers. Independent signed subscription fixtures
+exercise authenticated ingress, and stream checks reject invalid manually
+constructed bindings. Unary fixtures confirm the unchanged Message decoder
+rejects zero runtime/request identifiers and accepts zero NSD/Network IDs.
+
+Standalone formatting and workspace lint passed before the focused six tests,
+which all passed. Complete `just self-check feat/l8-account-profile` on
+`19bd717572d6f1eafd13ce7b63e19b7379271329` passed: 521 tests, zero failures or
+skips, 29 fixture files current, compatibility, doctests and documentation clean.
+There are now 152 carrier and 64 subscription vectors. No M6 schema or unrelated
+identifier contract changed, and no additional confirmed audit finding remains.
