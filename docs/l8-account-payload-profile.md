@@ -1050,3 +1050,17 @@ candidate evidence; NSD M6 carrier adoption and producer review are outstanding.
 | Bootstrap / v1 replacement | Exact M6 unary, receipt and bound signed-event validation | NSD carrier adoption and real producer vectors outstanding |
 | Public edge / service integration | Reuses unchanged declaration, snapshot, listener, lease and port messages | Consumer lifecycle and NSD interoperability remain separate |
 | Publication subscription | Breaking eight-field tuple with optional exact per-Network M6 session | Producer and consumer adoption required; no old-arity fallback |
+
+## Confidential certificate and client-CA acquisition
+
+The [material acquisition contract](confidential-material-candidate.md) adds
+`edge.material.get` on the existing authenticated confidential carrier. Its pure
+request/response codecs and independent certificate/client-CA fixtures preserve
+exact pending-request echo and kind/reference/generation scope. Host lists and
+exclusive Unix-seconds deadlines constrain use; installation, current dependency
+rechecks, route coverage, trust-domain comparison and X.509 parsing stay external.
+Family 7 gains confidential value delivery without changing public references,
+registry bytes, AuthConfigRequest's auth-only restriction or installation ACK bytes.
+Certificate/client-CA ACK ids are separate installation-status ids, not acquisition
+ids. NSD producer implementation, confidential dispatch adoption, confirmation and
+producer-owned vectors remain outstanding; fixture delivery is not agreement.
