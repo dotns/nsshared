@@ -950,3 +950,30 @@ or runtime semantics. Complete-empty withdrawal remains an explicit publication 
 Consumers compare independent reporter/membership authority before installation.
 NSD/ns review, producer-owned vectors and producer adoption remain outstanding;
 this new delivery does not retroactively establish earlier payload support.
+
+## Inner publication producer addition
+
+The additive producer API keeps existing inner wire bytes unchanged:
+`PublicationContent::canonical()` returns validated signed content bytes,
+`PublicationContent::signing_input()` returns
+`PUBLICATION_SIGNATURE_DOMAIN || content_bytes`, and
+`encode_publication(content, signature64)` returns `[bstr(content_bytes), signature64]`.
+`PublicationEvent::signing_input()` and `signature()` expose the exact received
+signature inputs for independent producers. The crate holds no signing key.
+
+The producer requires a registered family/kind and its owning signed channel,
+nonempty scope/kind bounded to 256 UTF-8 bytes, positive version, issue before
+expiry, and Data or FetchFailed outcome. FetchFailed requires family 11 node-l3
+and nonempty payload. The complete encoded event must fit MAX_PUBLICATION_BYTES,
+including CBOR and signature overhead. Structural and ownership refusals use
+PublicationError::Fields; measured overflow uses PublicationError::Bounds.
+Known-pair partial content is producer-valid. Family payload bytes remain opaque;
+family codecs validate their typed content. Decoder and decision behavior stay
+unchanged, including unknown-kind forward compatibility and incomplete refusal.
+Independent fixtures round-trip producer-valid content and assert producer refusal
+for decodable invalid content; they are not NSD output.
+
+NSD N06, N08 and N21 producers should adopt implementation revision
+`2391ebd5e59574cb318fbc2c7b1ca3615426796a`;
+earlier package revisions do not include it. Producer-owned vectors and adoption
+remain outstanding.

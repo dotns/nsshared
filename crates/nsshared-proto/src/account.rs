@@ -90,7 +90,8 @@ pub use publication::{
     AcceptedPublication, MAX_PUBLICATION_BYTES, PUBLICATION_SIGNATURE_DOMAIN, PublicationChannel,
     PublicationContent, PublicationDecision, PublicationError, PublicationEvent,
     PublicationExpectation, PublicationKey, PublicationOutcome, PublicationScope,
-    PublicationSnapshot, decide_publication, decide_publication_snapshot, publication_channel,
+    PublicationSnapshot, decide_publication, decide_publication_snapshot, encode_publication,
+    publication_channel,
 };
 pub use realm_peers::{
     MAX_PEER_REALMS, MAX_POLICY_VERSION_BYTES, PolicyVersion, RealmContribution, RealmMember,
