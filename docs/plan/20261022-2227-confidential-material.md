@@ -1,6 +1,6 @@
 # Confidential certificate and client-CA acquisition
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-10-22 22:27
 - **approvedAt**: 2026-10-22 22:27
 - **relatedTask**: 20261022-2227-confidential-material
@@ -41,3 +41,14 @@ contract preserves that meaning without duplicating runtime behavior.
 ## Annotations
 
 The specified wire format and boundaries are approved for implementation.
+
+## Acceptance
+
+Delivered the specified public codecs, typed refusals, operation constant and
+consumer validation with 82 independent fixture cases. Specification and fixture
+commits preceded implementation. The initial consumer build failed on the missing
+API; focused tests then passed. The complete self-check passed on
+`f435616c613219fda0f31c5fbcaf0a64d5775b87`, including 517 workspace tests with
+zero skips, static checks, API compatibility, doctests and documentation.
+Only completion records changed after that check. Runtime installation and
+external producer/dispatch adoption remain outside this pure contract.
