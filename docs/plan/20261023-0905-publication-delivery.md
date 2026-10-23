@@ -1,6 +1,6 @@
 # Publication stream and snapshot delivery
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-10-23 09:05
 - **approvedAt**: 2026-10-23 09:05
 - **relatedTask**: 20261023-0905-publication-delivery
@@ -40,16 +40,26 @@ Verify framing expansion and LF/CRLF boundaries, correlated large source-bound s
 - Existing source-publication/source-binding implementations, source-selection fixtures and M6 carrier implementation/fixtures have no changes. The directory fixture reuses the existing directory payload with numeric id 17 and code HK.
 - Local review found no additional implementation defect. The intentional response API change requires independently retained current sources and returns a complete validated collection of borrowed-event decisions.
 
-## Remaining work
+## Initial qualification failure (resolved)
 
-`just self-check feat/l8-account-profile` stopped at `cargo deny`: the unchanged locked dependency ctutils 0.4.2 is affected by RUSTSEC-2026-0385; the advisory requires at least 0.4.4. Dependency resolution is outside this change's scope. The implementation remains in progress until the dependency is repaired and the complete self-check passes. Shared index and changelog updates are deferred to integration.
+`just self-check feat/l8-account-profile` stopped at `cargo deny`: the unchanged locked dependency ctutils 0.4.2 is affected by RUSTSEC-2026-0385; the advisory requires at least 0.4.4. Dependency resolution is outside this change's scope. This initial failure is retained as history. After integrating the upstream dependency repair, the complete self-check passed as recorded below. Shared index and changelog updates are deferred to integration.
 
-## Adoption wording and pending qualification
+## Adoption wording and qualification history
 
-The review request directly identifies the NSD N09 producer and Node S23 adapter. Their adoption remains outstanding, and fixture bytes and shared delivery do not record agreement. This wording correction changes no implementation. Dependency repair remains separate; no lockfile, manifest or advisory policy is changed. Full qualification remains pending until the dependency repair is integrated, the branch is synchronized and one complete self-check passes. The candidate is ready for source review and independent conformance after the scoped static and focused checks.
+The review request directly identifies the NSD N09 producer and Node S23 adapter. Their adoption remains outstanding, and fixture bytes and shared delivery do not record agreement. This wording correction changes no implementation. Dependency repair remains separate; no lockfile, manifest or advisory policy is changed. At that point, full qualification remained pending until the dependency repair was integrated, the branch synchronized and one complete self-check passed. The candidate is ready for source review and independent conformance after the scoped static and focused checks.
 
-After the wording correction, `just fmt-check`, workspace `just lint`, `just vectors-check` and the same six focused protocol test binaries passed: 32 fixture files current, 11 tests passed and none ignored. Source review and independent conformance may proceed; full qualification and completion remain pending the synchronized complete self-check.
+After the wording correction, `just fmt-check`, workspace `just lint`, `just vectors-check` and the same six focused protocol test binaries passed: 32 fixture files current, 11 tests passed and none ignored. Source review and independent conformance may proceed; full qualification and completion were still pending the synchronized complete self-check.
 
 ## Pending request encoding boundary
 
-A publicly constructed pending request could satisfy scope and field rules while exceeding the canonical 8192-byte request ceiling, then accept an authenticated empty response. The response validator will call the full request encoder before carrier validation. Independent fixtures will cover an accepted 8192-byte request and a refused 8193-byte request with individually valid scopes and an authenticated empty response. Existing source/scope equality, authentication, correlation and atomic decisions remain unchanged. Equivalent pending-response paths will be checked for canonical encoded bounds. Qualification remains pending the complete self-check after synchronization with the dependency repair.
+A publicly constructed pending request could satisfy scope and field rules while exceeding the canonical 8192-byte request ceiling, then accept an authenticated empty response. The response validator will call the full request encoder before carrier validation. Independent fixtures will cover an accepted 8192-byte request and a refused 8193-byte request with individually valid scopes and an authenticated empty response. Existing source/scope equality, authentication, correlation and atomic decisions remain unchanged. Equivalent pending-response paths will be checked for canonical encoded bounds. Qualification was held pending the complete self-check after synchronization with the dependency repair.
+
+## Completed qualification
+
+The complete pending request is now canonicalized before a response can be accepted, enforcing the inclusive 8192-byte total ceiling as well as semantic bounds. The supplied `empty_poll_refuses_a_pending_request_that_cannot_be_encoded_within_its_limit` test failed before the fix and passed after it; its file, controls and assertions are unchanged. Independently generated 8192-byte and 8193-byte fixtures use 32 valid sorted scopes and the same authenticated empty response: the boundary succeeds and the over-bound pending request is refused.
+
+Formatting, workspace Clippy, vector consistency and all 13 focused tests passed, with no ignored tests. All 33 protocol fixture files are current. The complete `just self-check feat/l8-account-profile` passed at commit `dd2007e32875850e9ca9ff9bc1559d54c159145e`: 532 tests passed, zero skipped; doctests and workspace documentation also passed. Only these qualification records changed after that run. The earlier advisory failure is historical evidence, not a waiver; the synchronized upstream dependency repair is retained without independent dependency or policy changes.
+
+Equivalent pending-response paths were inspected: registration, confidential auth/material acquisition, heartbeat/gateway/material receipts, edge service acknowledgements, Node L3 status, provider route reports, route receipts and usage answers already canonicalize their pending requests and enforce their encoded ceilings. Subscription decoding retains its 8192-byte limit. M6 pending requests have private fields and can only be built from authenticated bounded carriers; participant pending correlations and delivery contexts have fixed-size fields. No additional confirmed instance was found. Source/scope equality, carrier trust, correlation and whole-container source decisions are unchanged.
+
+The implementation and qualification are complete. External NSD producer and Node adapter adoption remains outstanding and is not inferred from fixture conformance. Shared index and changelog entries remain for integration.
