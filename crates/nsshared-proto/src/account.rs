@@ -20,6 +20,7 @@ mod l3;
 mod l3_authority;
 mod lifecycle;
 pub mod machine_token;
+pub mod node_l3_status;
 mod participant_roster;
 pub mod participant_session;
 mod policy_auth;

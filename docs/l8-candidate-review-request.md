@@ -61,14 +61,14 @@ explicitly frame only. NSD supplies producer vectors for every row.
 | 1 `enrollment` | Binding/lifecycle and complete control exchange specified in the control-exchange delta | Q11; producer confirmation outstanding |
 | 2 `realms-peers` | Complete canonical realm contributions, NodeBinding/NodeRecord checks and independent replacement/refusal vectors delivered | NSD producer confirmation and vectors; Q12 |
 | 3 `egress` | Pure grant publication and independent consumer vectors delivered | Grants contract B39; Q13 |
-| 4 `exit-subnet` | Grant publication plus existing Subnet selection and independent consumers delivered | Grants B39 and selection B40; Q14 |
+| 4 `exit-subnet` | Provider grants and separate client route selection retain exact bytes; mapped route admission needs no ordinary provider host rule | Q14; NSD/ns producer adoption and route admission confirmation outstanding |
 | 5 `payer` | Binary realm/UserId assignment publication and cardinality refusals delivered | Grants B39; Q15 |
 | 6 `withdrawal` | Resource authority snapshots and pure successor validation delivered | Grants B39; Q16 |
 | 7 `public-edge` | Pure scoped public-edge, confidential AuthConfiguration and certificate/client-CA acquisition request/response, material and exact M6 declaration/report/listener integration with independent consumer vectors delivered | NSD confirmation/producer vectors and explicitly open carrier rows; Q17 |
 | 8 `relay` | Signed roster, shared participant credentials and separate signed directory binding delivered; NSD producer review and adoption outstanding | Q01–Q06, Q18 |
 | 9 `usage` | Typed scoped usage-profile payload and independent publication vectors newly delivered; existing quantities and report/answer bytes unchanged | New candidate delta below; NSD/ns review and producer adoption outstanding; Q10, Q19 |
 | 10 `node-control` | Typed scoped node-control-profile payload and independent publication vectors newly delivered; existing v2 codec unchanged | New candidate delta below; NSD/ns review and producer adoption outstanding; Q20 |
-| 11 `v1-replacement` | Diagnostic policy-version plus pure M6 carrier, signed receipts and bound stream event vectors delivered; other candidate contracts retain their individual status | NSD policy observation confirmation; Q12; complete surface mapping/retirement; Q21 |
+| 11 `v1-replacement` | Exact Node L3 applied-status codec, signed-event digest, retained-context comparison and independent vectors delivered; existing policy observation and M6 carrier unchanged | Q09; NSD N08 producer and Node S03/S24 consumer adoption outstanding; Q12 and Q21 remain open |
 
 Only an authenticated, valid, complete publication replaces its listed kinds
 in the explicitly named issuer/recipient scope. A complete empty publication
@@ -266,7 +266,8 @@ rules use inclusive nonzero ports, overlap as union and no implicit wildcard.
 Missing membership or policy denies; selective namespace withdrawal preserves
 independently authorized namespaces. Independent consumers cover these cases,
 exact I/K bindings and namespace/protocol/port boundaries. Compilation and
-N6/N4/provider-range resolution remain in consumers. Confirm the 8,192-entry
+direct N6/N4 identity resolution remain in consumers; mapped Subnet routes
+resolve their exact resource and selection without a provider-wide Node rule. Confirm the 8,192-entry
 bounds and 1 MiB wrapper limit.
 
 Outstanding NSD/ns producer deltas: resolve current string machine/owner
@@ -1094,3 +1095,17 @@ adoption remain outstanding, including independent producer confirmation.
 The review delta is a candidate, never agreement or interoperability evidence.
 No new field, carrier, P-item or dependency edge is introduced; previous delivery
 evidence does not establish this delta or release external cutover acceptance.
+
+## Node L3 route admission and applied status review delta
+
+The [status specification](node-l3-status-candidate.md) defines the confidential
+`node.l3.status` request, exact signed-inner-event digest, current issuance/source
+comparisons and exact echoed receipt. Only enforcement application produces
+Applied; complete-empty Applied proves removal. Independent shared vectors cover
+route selection without ordinary host permission and the applied-status sequence.
+NodeL3, NodeL3Authority, grant, Subnet and service-control bytes are unchanged.
+
+NSD N08 producer and Node S03/S24 consumer adoption remains outstanding:
+NSD retains and correlates exact issuance/source, and the Node associates actual
+collection application with status.
+These are review requests, never recorded agreement or live interoperability.
