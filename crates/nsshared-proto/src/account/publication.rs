@@ -5,7 +5,8 @@ use crate::RealmId;
 use ed25519_dalek::{Signature, VerifyingKey};
 use thiserror::Error;
 
-use super::{MAX_BYTES, MAX_CONTROL_BODY};
+use super::MAX_CONTROL_BODY;
+pub use super::control_exchange::MAX_PUBLICATION_BYTES;
 use crate::{
     IdentityKey,
     encoding::{CborError, CborReader, CborWriter},
@@ -13,8 +14,6 @@ use crate::{
 
 /// Ed25519 publication domain, including the final zero separator.
 pub const PUBLICATION_SIGNATURE_DOMAIN: &[u8] = b"ns.account.publication.v1\0";
-/// Inclusive bound on the measured complete encoded signed event as received.
-pub const MAX_PUBLICATION_BYTES: usize = MAX_BYTES;
 
 /// The independent channel carrying a kind's authority.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -574,7 +573,8 @@ pub fn decide_publication<'a>(
     }
 }
 
-/// Fully validated, borrowed polled event container; no M6 type is redefined.
+/// Low-level plain publication container; not a config.snapshot response validator.
+/// No M6 type is redefined.
 /// No decisions are available until every event has passed validation.
 pub struct PublicationSnapshot<'a, 's> {
     bytes: &'a [u8],
@@ -621,7 +621,9 @@ fn snapshot_reader(bytes: &[u8]) -> Result<(CborReader<'_>, usize), PublicationE
     Ok((reader, count))
 }
 
-/// Validates all snapshot events before exposing any action, including ordering.
+/// Validates low-level plain snapshot events, including ordering.
+/// This codec is not a config.snapshot response validator; use
+/// PublicationSnapshotRequest::response for the source-bound carrier.
 /// Missing keys retain their current state, and an empty container is valid.
 ///
 /// # Errors

@@ -2,9 +2,12 @@
 
 use super::{
     AcceptedPublication, AccountError, BootstrapEnvelope, BootstrapError, EnvelopeDirection,
-    EnvelopeExpectation, MAX_CONTROL_BODY, PublicationChannel, PublicationError, PublicationEvent,
-    PublicationExpectation, PublicationSnapshot, SCHEMA, decide_publication_snapshot, identity,
-    publication_channel, publication_subscription::SubscriptionScope, require,
+    EnvelopeExpectation, PublicationDecision, PublicationError, PublicationExpectation, SCHEMA,
+    identity,
+    publication_subscription::SubscriptionScope,
+    require,
+    source_binding::{DeliveryContext, SourceBinding, SourceError},
+    source_publication::decide_source_snapshot_scopes,
 };
 use crate::{
     IdentityKey,
@@ -29,6 +32,9 @@ pub enum SnapshotRequestError {
     /// Invalid existing signed publication snapshot.
     #[error(transparent)]
     Publication(#[from] PublicationError),
+    /// Invalid source binding, signature or pending delivery context.
+    #[error(transparent)]
+    Source(#[from] SourceError),
     /// Poll correlation differs from the pending request.
     #[error("snapshot poll correlation mismatch")]
     Correlation,
@@ -166,19 +172,23 @@ impl PublicationSnapshotRequest {
         Ok(value)
     }
 
-    /// Returns the existing snapshot only after checking the pending request.
-    /// Acceptance and version retention remain per full publication key.
+    /// Validates the sole source-bound config.snapshot response against a pending poll.
+    /// The complete pending request must fit its canonical encoded byte ceiling.
+    /// Every requested scope needs exactly one independently accepted current source.
+    /// All entries pass validation before any decision becomes available; omission
+    /// retains state and each complete outer entry keeps its decoded byte ceiling.
     /// # Errors
-    /// Refuses trust, correlation, recipient, unrequested scopes and known stream kinds,
-    /// then applies every existing whole-snapshot validation rule.
-    pub fn response<'a, 's>(
+    /// Refuses carrier trust/address/operation/correlation, scope-set differences,
+    /// plain or mixed entries, invalid source/context, ordering and publication errors.
+    pub fn response<'a>(
         &self,
         envelope: &'a BootstrapEnvelope,
         carrier: &EnvelopeExpectation<'_>,
-        last: &'s [AcceptedPublication<'s>],
-        expected: &'s PublicationExpectation<'s>,
-    ) -> Result<PublicationSnapshot<'a, 's>, SnapshotRequestError> {
-        self.validate()?;
+        last: &[AcceptedPublication<'_>],
+        current: &[SourceBinding],
+        expected: &PublicationExpectation<'_>,
+    ) -> Result<Vec<PublicationDecision<'a>>, SnapshotRequestError> {
+        self.canonical()?;
         envelope.verify(carrier)?;
         if envelope.direction != EnvelopeDirection::Response
             || envelope.kind != super::control_exchange::CONFIG_SNAPSHOT
@@ -194,55 +204,44 @@ impl PublicationSnapshotRequest {
         if envelope.signer != expected.issuer {
             return Err(SnapshotRequestError::Signer);
         }
-        if self
-            .scopes
-            .iter()
-            .any(|scope| scope.issuer != envelope.signer)
+        if current.len() != self.scopes.len()
+            || expected.scopes.len() != self.scopes.len()
+            || self.scopes.iter().any(|scope| {
+                scope.issuer != envelope.signer
+                    || current
+                        .iter()
+                        .filter(|binding| {
+                            binding.nsd == scope.issuer
+                                && binding.recipient == scope.recipient
+                                && binding.served_realm == scope.served_realm
+                                && binding.scope == scope.scope
+                        })
+                        .count()
+                        != 1
+                    || expected
+                        .scopes
+                        .iter()
+                        .filter(|publication| {
+                            publication.served_realm == scope.served_realm
+                                && publication.scope == scope.scope
+                        })
+                        .count()
+                        != 1
+            })
         {
             return Err(SnapshotRequestError::Scope);
         }
-        self.check_events(&envelope.payload)?;
-        Ok(decide_publication_snapshot(
+        let pending = DeliveryContext::Snapshot {
+            boot_nonce: self.boot_nonce,
+            attempt_counter: self.attempt_counter,
+            correlation: self.correlation,
+        };
+        Ok(decide_source_snapshot_scopes(
             last,
             &envelope.payload,
+            current,
+            &pending,
             expected,
         )?)
-    }
-
-    fn check_events(&self, bytes: &[u8]) -> Result<(), SnapshotRequestError> {
-        // Decode the existing container, without adding a second response format.
-        let mut reader = CborReader::new(bytes, MAX_CONTROL_BODY).map_err(AccountError::from)?;
-        reader.array(2).map_err(AccountError::from)?;
-        require(reader.uint().map_err(AccountError::from)? == SCHEMA)?;
-        let count = reader
-            .array_up_to(bytes.len())
-            .map_err(AccountError::from)?;
-        for _ in 0..count {
-            let event = PublicationEvent::decode(
-                reader
-                    .bytes_up_to(MAX_CONTROL_BODY)
-                    .map_err(AccountError::from)?,
-            )?;
-            let content = event.content();
-            let key = content.key;
-            if key.recipient != self.subscriber {
-                return Err(SnapshotRequestError::Recipient);
-            }
-            if !self.scopes.iter().any(|scope| {
-                scope.issuer == key.issuer
-                    && scope.recipient == key.recipient
-                    && scope.served_realm == key.served_realm
-                    && scope.scope == key.scope
-            }) {
-                return Err(SnapshotRequestError::Scope);
-            }
-            if content.channel != PublicationChannel::Snapshot
-                || publication_channel(key.family, key.kind) == Some(PublicationChannel::Stream)
-            {
-                return Err(SnapshotRequestError::Channel);
-            }
-        }
-        reader.finish().map_err(AccountError::from)?;
-        Ok(())
     }
 }

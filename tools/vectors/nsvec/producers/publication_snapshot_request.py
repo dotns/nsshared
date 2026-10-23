@@ -1,6 +1,6 @@
-"""Independent snapshot poll requests and signed existing snapshot responses."""
+"""Independent snapshot poll requests and source-bound snapshot responses."""
 from .. import cbor
-from . import account, bootstrap_envelope
+from . import account, bootstrap_envelope, participant_authority
 
 CRATE = "nsshared-proto"
 GROUP = "publication-snapshot-request"
@@ -64,6 +64,21 @@ def vectors():
     out.append([("name", "signed-request"), ("mode", "signed-request"), ("bytes", request),
                 ("signing_input", signing), ("pin", bootstrap_envelope.pin(subscriber)),
                 ("issuer", issuer), ("decision", "accepted")])
+    def sign(value, domain):
+        content = cbor.encode(value)
+        return cbor.encode([content, account.sign(bytes([2])*32, domain + content)])
+
+    bindings = [sign([1, issuer, subscriber, scope[2], "nodes",
+                     "explicit-gateway-profile", subscriber, bytes([10+i])*16, 1, 1],
+                     b"ns.account.source-binding.v1\0") for i, scope in enumerate(scopes)]
+    for i, binding in enumerate(bindings):
+        out.append([("name", "current-source-" + str(i)), ("mode", "source"),
+                    ("bytes", binding), ("decision", "accepted")])
+
+    def wrap(inner, binding=bindings[0], delivery=None):
+        return sign([1, binding, cbor.encode(delivery or [1, bytes([3])*16, 1, correlation]), inner],
+                    b"ns.account.source-publication.v1\0")
+
     event = [1, issuer, subscriber, "030C1G60R30C1G60R30C1G60R3", "nodes", 11, "node-l3", 1,
              True, 8, 100, 200, 0, b"fixture-node-l3"]
     for name, changes, nonce, recipient in [
@@ -82,11 +97,11 @@ def vectors():
             value[index] = field
         content = cbor.encode(value)
         signed = cbor.encode([content, account.sign(bytes([2]) * 32, b"ns.account.publication.v1\0" + content)])
-        snapshot = cbor.encode([1, [] if changes is None else [signed]])
+        snapshot = cbor.encode([1, [] if changes is None else [wrap(signed)]])
         if name == "nonminimal":
             snapshot = snapshot[:1] + b"\x18\x01" + snapshot[2:]
         elif name == "unknown-field":
-            snapshot = cbor.encode([1, [signed], 0])
+            snapshot = cbor.encode([1, [wrap(signed)], 0])
         wire, signing = envelope(snapshot, 1, nonce, recipient, bytes([2]) * 32)
         out.append([("name", "response-" + name), ("mode", "response"), ("bytes", wire),
                     ("snapshot", snapshot), ("signing_input", signing),
@@ -97,7 +112,7 @@ def vectors():
         signature = account.sign(bytes([2]) * 32, b"ns.account.publication.v1\0" + content)
         if corrupt:
             signature = bytes([signature[0] ^ 1]) + signature[1:]
-        return cbor.encode([content, signature])
+        return wrap(cbor.encode([content, signature]))
 
     known = signed_event(event)
     for label, family, kind in [("unknown-kind", 11, "zz-future-kind"),
@@ -122,4 +137,39 @@ def vectors():
                         ("issuer", issuer), ("pin", bootstrap_envelope.pin(issuer)),
                         ("extension_family", family), ("extension_kind", kind),
                         ("decision", "accepted" if control == "accepted" else "refused")])
+    directory = list(event)
+    directory[5:7] = [8, "directory"]
+    directory[13] = participant_authority.DIRECTORY.encode("utf-8")
+    large = list(event)
+    large[13] = b"x" * 800_000
+    unknown = list(event)
+    unknown[5:7] = [99, "future-kind"]
+    entries = [signed_event(directory), signed_event(large), signed_event(unknown)]
+    plain = sign(event, b"ns.account.publication.v1\0")
+    stale = sign([1, issuer, subscriber, scopes[0][2], "nodes",
+                  "explicit-gateway-profile", subscriber, bytes([99])*16, 1, 1],
+                 b"ns.account.source-binding.v1\0")
+    second = list(event)
+    second[3] = scopes[1][2]
+    second_entry = wrap(sign(second, b"ns.account.publication.v1\0"), binding=bindings[1])
+    oversized = list(event)
+    oversized[13] = b"x" * 1_048_576
+    for name, values, nonce in [
+        ("source-two-scopes", [known, second_entry], correlation),
+        ("oversized-entry", [signed_event(oversized)], correlation),
+        ("duplicate-key", [known, known], correlation),
+        ("unordered-keys", [entries[1], entries[0]], correlation),
+        ("source-ordered-large-directory-unknown", entries, correlation),
+        ("plain-entry", [plain], correlation),
+        ("mixed-container", entries + [plain], correlation),
+        ("wrong-correlation", entries, bytes([6])*16),
+        ("stale-source", [entries[0], wrap(plain, binding=stale)], correlation),
+        ("wrong-delivery", [entries[0], wrap(plain, delivery=[1, bytes([3])*16, 2, correlation])], correlation),
+    ]:
+        snapshot = cbor.encode([1, values])
+        wire, signing = envelope(snapshot, 1, nonce, subscriber, bytes([2])*32)
+        out.append([("name", name), ("mode", "response"), ("bytes", wire),
+                    ("snapshot", snapshot), ("signing_input", signing),
+                    ("issuer", issuer), ("pin", bootstrap_envelope.pin(issuer)),
+                    ("decision", "accepted" if name.startswith("source-ordered") or name == "source-two-scopes" else "refused")])
     return out

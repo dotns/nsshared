@@ -73,8 +73,9 @@ Independent participant rosters and M6 keep their existing carriers.
 
 The measured entire outer event is bounded by MAX_PUBLICATION_BYTES. Oversized
 stream input terminates; invalid snapshot input rejects the complete snapshot.
-Source-bound snapshots use `[1, [bstr(SourcePublication), ...]]`, bounded by
-MAX_CONTROL_BODY, strictly increasing full inner keys. Every event is validated
+The only `config.snapshot` response is a signed B43 Response with nonce equal to
+the pending poll correlation. Its payload uses `[1, [bstr(SourcePublication), ...]]`, bounded by
+MAX_CONTROL_BODY with no SSE/Base64 framing limit on entries, strictly increasing full inner keys. Every event is validated
 before exposing any decision; omitted keys retain their state. Every entry must
 both declare Snapshot and avoid known stream ownership. A known stream-owned
 pair is refused even if it declares Snapshot; an unknown registry pair that
