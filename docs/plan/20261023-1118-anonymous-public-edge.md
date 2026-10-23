@@ -1,8 +1,9 @@
 # Explicit anonymous public-edge selectors
 
-- **status**: implementing
+- **status**: completed
 - **priority**: P1
 - **createdAt**: 2026-10-23 11:18
+- **relatedTask**: 20261023-1118-anonymous-public-edge
 - **approvedAt**: 2026-10-23 11:18
 
 ## Context
@@ -45,5 +46,36 @@ Run format and lint before focused tests, then the scoped self-check.
 
 ## Progress
 
-Investigation and proposal complete; implementation authorized. Shared indexes
-and changelog are left for integration.
+Investigation, proposal, implementation and validation are complete. Shared
+indexes and changelog are left for integration.
+
+
+## Verification
+
+The failing-first `anonymous_public_edge_vectors` test rejected the independently
+encoded Anonymous policy with `anonymous: Err(InvalidField)` before the codec
+change. The implemented codec accepts its exact bytes and continues rejecting
+null mixed with other selectors, noncanonical/unknown selector encodings,
+unordered sets and invalid destination/protocol values.
+
+The independent producer now supplies 88 fixtures, including 42 documented
+matching outcomes and 18 HTTP/TCP/UDP route fixtures. Anonymous remains rejected
+as a PolicySubject, credential binding, group member or admin principal. Required
+Auth materials still require exact installation acknowledgement even when the
+route policy contains Anonymous. Existing policy and public-edge fixtures retain
+their bytes; the existing typed group-field assertion retains its property.
+
+`just fmt-check lint` passed before tests. The focused anonymous, policy/claims
+and public-edge suites passed all 13 tests. `just self-check` against the accepted
+comparison base passed on source revision
+`5c0e45dc64fcc123ff01e29ddc65e3c803002b0b`: 535 tests passed with zero skips,
+41 selection tests passed, doctests and documentation passed. Static checks,
+independent vector regeneration, dependency checks and API compatibility passed.
+The local Rust/Python diff review found no remaining correctness or scope issues.
+Only these completion records changed after that passing source revision.
+
+## Remaining work
+
+External NSD producer adoption remains outstanding; fixture output does not
+establish external agreement or interoperability. No runtime evaluator or
+authentication implementation is included.
