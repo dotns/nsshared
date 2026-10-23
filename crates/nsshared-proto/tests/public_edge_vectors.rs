@@ -29,7 +29,8 @@ fn public_edge_vectors() {
     let edge = PublicEdge::decode(&full.hex("bytes")).unwrap();
     let routes = &edge.realms[0].routes;
     assert_eq!(routes.len(), 2);
-    assert_eq!(routes[0].name, "web.example");
+    assert_eq!(routes[0].name.as_deref(), Some("web.example"));
+    assert!(routes[1].name.is_none());
     assert_eq!(routes[0].aliases, ["alias.example"]);
     assert_eq!(routes[0].domains, ["web.example"]);
     assert_eq!(routes[0].virtual_port, 8080);
@@ -372,4 +373,60 @@ fn signed_public_edge_replacement_is_atomic_and_does_not_renew_invalid_data() {
     assert_eq!(inputs.len(), 9);
     assert_eq!(accepted[0].version, 4);
     assert_eq!(expiry, 200);
+}
+
+#[test]
+fn public_edge_protocol_names() {
+    let vectors = support::vectors::parse(include_str!("fixtures/vectors/public-edge.vec"));
+    let mut count = 0;
+    for vector in vectors.iter().filter(|v| v.get("kind") == "protocol-names") {
+        let raw = vector.hex("bytes");
+        let result = PublicEdge::decode(&raw);
+        assert_eq!(
+            result.is_ok(),
+            vector.get("expect") == "accept",
+            "{}: {result:?}",
+            vector.name()
+        );
+        if let Ok(value) = result {
+            assert_eq!(value.canonical().unwrap(), raw);
+        }
+        count += 1;
+    }
+    assert_eq!(count, 9);
+    let valid = vectors
+        .iter()
+        .find(|v| v.name() == "protocol-names-valid")
+        .unwrap();
+    let edge = PublicEdge::decode(&valid.hex("bytes")).unwrap();
+    let routes = &edge.realms[0].routes;
+    assert_eq!(routes[0].name.as_deref(), Some("web.example"));
+    assert!(
+        routes[1..].iter().all(|route| route.name.is_none()
+            && route.aliases.is_empty()
+            && route.domains.is_empty())
+    );
+    assert_eq!(routes[1].public_port, routes[2].public_port);
+    assert_ne!(routes[1].backend, routes[2].backend);
+    for index in 0..3 {
+        let mut changed = edge.clone();
+        changed.realms[0].routes[index].name = if index == 0 {
+            None
+        } else {
+            Some("raw.example".into())
+        };
+        assert!(changed.canonical().is_err());
+    }
+    for index in 1..3 {
+        let mut changed = edge.clone();
+        changed.realms[0].routes[index]
+            .aliases
+            .push("alias.example".into());
+        assert!(changed.canonical().is_err());
+        changed.realms[0].routes[index].aliases.clear();
+        changed.realms[0].routes[index]
+            .domains
+            .push("web.example".into());
+        assert!(changed.canonical().is_err());
+    }
 }

@@ -27,13 +27,13 @@ pub enum EdgeProtocol {
     Udp = 17,
 }
 
-/// One named route and its explicit Node destination, if currently available.
+/// One protocol-qualified route and its explicit Node destination, if available.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EdgeRoute {
     /// Stable contribution-local route id.
     pub id: String,
-    /// Public name, independent of the service DNS label.
-    pub name: String,
+    /// HTTP public hostname; raw TCP/UDP routes have no name.
+    pub name: Option<String>,
     /// Ordered public aliases.
     pub aliases: Vec<String>,
     /// Ordered public domains.
@@ -149,19 +149,28 @@ impl PublicEdge {
             let mut hostname_owners = BTreeMap::new();
             for route in &realm.routes {
                 text(&route.id)?;
-                hostname(&route.name)?;
-                require(public_names.insert(&route.name))?;
-                for alias in &route.aliases {
-                    require(public_names.insert(alias))?;
-                }
-                for name in std::iter::once(&route.name)
-                    .chain(&route.aliases)
-                    .chain(&route.domains)
-                {
+                if route.protocol == EdgeProtocol::Http {
+                    let name = route.name.as_ref().ok_or(AccountError::InvalidField)?;
+                    hostname(name)?;
+                    require(public_names.insert(name))?;
+                    for alias in &route.aliases {
+                        require(public_names.insert(alias))?;
+                    }
+                    for name in std::iter::once(name)
+                        .chain(&route.aliases)
+                        .chain(&route.domains)
+                    {
+                        require(
+                            hostname_owners
+                                .insert(name, &route.id)
+                                .is_none_or(|owner| owner == &route.id),
+                        )?;
+                    }
+                } else {
                     require(
-                        hostname_owners
-                            .insert(name, &route.id)
-                            .is_none_or(|owner| owner == &route.id),
+                        route.name.is_none()
+                            && route.aliases.is_empty()
+                            && route.domains.is_empty(),
                     )?;
                 }
                 match route.protocol {
@@ -181,7 +190,9 @@ impl PublicEdge {
                         && route.policy.realm == realm.realm,
                 )?;
                 if route.protocol == EdgeProtocol::Http {
-                    let hosts: BTreeSet<_> = std::iter::once(&route.name)
+                    let hosts: BTreeSet<_> = route
+                        .name
+                        .iter()
                         .chain(&route.aliases)
                         .chain(&route.domains)
                         .collect();
@@ -216,7 +227,12 @@ impl PublicEdge {
                             && Some(&v.reference) == route.headers.keyset_ref.as_ref()
                     }))?;
                 }
-                out.array(13).text(&route.id).text(&route.name);
+                out.array(13).text(&route.id);
+                if let Some(name) = &route.name {
+                    out.text(name);
+                } else {
+                    out.null();
+                }
                 names(&route.aliases, &mut out)?;
                 names(&route.domains, &mut out)?;
                 out.bytes(&reference_bytes(route.service)?);
@@ -260,7 +276,11 @@ impl PublicEdge {
             for _ in 0..count {
                 input.array(13)?;
                 let id = input.text_up_to(256)?.to_owned();
-                let name = input.text_up_to(253)?.to_owned();
+                let name = if input.take_null() {
+                    None
+                } else {
+                    Some(input.text_up_to(253)?.to_owned())
+                };
                 let aliases = read_names(&mut input)?;
                 let domains = read_names(&mut input)?;
                 let value =

@@ -44,7 +44,7 @@ def vectors():
     route = ["route-a", "web.example", ["alias.example"], ["web.example"], reference,
              publisher, 0, 443, 8080, policy, headers, materials, options]
     unavailable = copy.deepcopy(route)
-    unavailable[:4] = ["route-b", "offline.example", [], []]
+    unavailable[:4] = ["route-b", None, [], []]
     unavailable[5] = None
     unavailable[6:9] = [6, 8443, 8081]
     complete = [1, 7, "030C1G60R30C1G60R30C1G60R3", "edge", [[realm, cbor.encode(auth), [route, unavailable]],
@@ -55,6 +55,28 @@ def vectors():
                     ("bytes", cbor.encode(value) if raw is None else raw),
                     ("expect", "accept" if accept else "reject")])
 
+    protocol_names = copy.deepcopy(complete)
+    protocol_names[4] = protocol_names[4][:1]
+    tcp = copy.deepcopy(unavailable)
+    tcp[5] = recipient
+    udp = copy.deepcopy(tcp)
+    udp[0], udp[5], udp[6] = "route-c", publisher, 17
+    protocol_names[4][0][2] = [copy.deepcopy(route), tcp, udp]
+    emit("protocol-names-valid", "protocol-names", protocol_names)
+    for label, index, position, replacement in [
+        ("http-null", 0, 1, None),
+        ("raw-text", 1, 1, "raw.example"),
+        ("raw-empty-text", 1, 1, ""),
+        ("raw-alias", 1, 2, ["alias.example"]),
+        ("raw-domain", 2, 3, ["web.example"]),
+        ("duplicate-listener", 2, 6, 6),
+        ("http-tcp-conflict", 1, 7, 443),
+    ]:
+        changed = copy.deepcopy(protocol_names)
+        changed[4][0][2][index][position] = replacement
+        emit("protocol-names-" + label, "protocol-names", changed, False)
+    emit("protocol-names-http", "protocol-names", [
+        *complete[:4], [[realm, cbor.encode(auth), [route]]]])
     emit("complete", "edge", complete)
     two_networks = copy.deepcopy(complete)
     second = copy.deepcopy(route)
@@ -74,7 +96,7 @@ def vectors():
         for index, realm_id in enumerate((realm, bytes([9]) * 16)):
             material = [0, "auth", 2 + index]
             public_route = copy.deepcopy(route)
-            public_route[:4] = ["realm-route", names[index],
+            public_route[:4] = ["realm-route", names[index] if protocols[index] == 0 else None,
                                 list(aliases[index]), list(domains[index])]
             public_route[5:9] = [backends[index], protocols[index], ports[index],
                                  virtual_ports[index]]
@@ -121,7 +143,7 @@ def vectors():
         ("backend-distinct-transports", True, {"protocols": (6, 17), "backends": (publisher, publisher),
             "virtual_ports": (8080, 8080)}),
         ("backend-no-connector", True, {"virtual_ports": (8080, 8080)}),
-        ("realm-names-materials", True, {"aliases": (("alias.example",), ("alias.example",)),
+        ("realm-names-materials", True, {"protocols": (0, 0), "aliases": (("alias.example",), ("alias.example",)),
             "domains": (("domain.example",), ("domain.example",))}),
     ]
     for label, accepted, inputs in cases:

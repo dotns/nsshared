@@ -15,11 +15,13 @@ fn served_realms_cannot_claim_the_same_tcp_listener() {
     let mut edge = PublicEdge::decode(&raw).unwrap();
     let mut route = edge.realms[0].routes[0].clone();
     route.protocol = EdgeProtocol::Tcp;
+    route.name = None;
+    route.aliases.clear();
+    route.domains.clear();
     route.public_port = 9443;
     route.backend = None;
     edge.realms[0].routes = vec![route.clone()];
     route.id = "other".into();
-    route.name = "other.example".into();
     route.aliases.clear();
     route.domains.clear();
     route.policy.realm = edge.realms[1].realm;

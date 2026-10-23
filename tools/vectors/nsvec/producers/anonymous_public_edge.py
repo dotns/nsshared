@@ -86,7 +86,7 @@ def vectors():
             headers = cbor.encode([1, False, None, None, None, None, False])
             options = [0, None, None, [None] * 11, None, None, None, []]
             dependencies = [[0, "auth", 1]] if requires_auth else []
-            route = ["route", "public.example", [], [], reference, node, protocol,
+            route = ["route", "public.example" if protocol == 0 else None, [], [], reference, node, protocol,
                      public_port, 8080, cbor.encode(rule), headers, dependencies, options]
             auth = cbor.encode([1, realm, dependencies, [], [], []])
             emit(name + "-" + suffix, "edge",
