@@ -558,7 +558,9 @@ requirements. The request tuple is
 Each scope has the subscription's existing four-field shape and ordering,
 canonical 26-character RealmId text and a nonempty opaque scope bounded to
 256 UTF-8 bytes without control characters.
-The canonical request ceiling is 8192 bytes. Both nonce and correlation are
+The canonical request ceiling is 8192 bytes. Response validation enforces this
+complete pending-request ceiling even for publicly constructed requests and
+authenticated empty responses; individual scope bounds do not replace it. Both nonce and correlation are
 nonzero 16-byte strings; attempt is a positive u32 with no wrapping. Callers
 retain the active subscription pair and supply a distinct correlation per poll.
 No scope wildcard, capability grant, optional unbound session or kind selector

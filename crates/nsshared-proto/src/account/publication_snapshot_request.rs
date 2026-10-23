@@ -173,6 +173,7 @@ impl PublicationSnapshotRequest {
     }
 
     /// Validates the sole source-bound config.snapshot response against a pending poll.
+    /// The complete pending request must fit its canonical encoded byte ceiling.
     /// Every requested scope needs exactly one independently accepted current source.
     /// All entries pass validation before any decision becomes available; omission
     /// retains state and each complete outer entry keeps its decoded byte ceiling.
@@ -187,7 +188,7 @@ impl PublicationSnapshotRequest {
         current: &[SourceBinding],
         expected: &PublicationExpectation<'_>,
     ) -> Result<Vec<PublicationDecision<'a>>, SnapshotRequestError> {
-        self.validate()?;
+        self.canonical()?;
         envelope.verify(carrier)?;
         if envelope.direction != EnvelopeDirection::Response
             || envelope.kind != super::control_exchange::CONFIG_SNAPSHOT
