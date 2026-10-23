@@ -484,3 +484,66 @@ fn successful_responses_require_signed_source_binding() {
         }
     }
 }
+
+#[test]
+fn r3_local_naming_capability() {
+    let vectors = support::vectors::parse(include_str!("fixtures/vectors/control-exchange.vec"));
+    for name in ["r3-registration", "r3-acceptance"] {
+        let v = vectors
+            .iter()
+            .find(|v| v.name() == name)
+            .expect("missing local naming vector");
+        let enrollment = if name == "r3-registration" {
+            RegistrationRequest::decode(&v.hex("bytes"))
+                .unwrap()
+                .enrollment
+        } else {
+            RegistrationAcceptance::decode(&v.hex("bytes"))
+                .unwrap()
+                .enrollment
+        };
+        assert_eq!(
+            enrollment.capabilities,
+            ["node.control", NODE_LOCAL_NAMES_V1]
+        );
+        assert_eq!(enrollment.canonical().unwrap(), v.hex("enrollment"));
+        assert_eq!(
+            v.hex("capabilities"),
+            b"\x82\x6cnode.control\x73node_local_names.v1"
+        );
+    }
+    for name in [
+        "r3-registration-unsorted",
+        "r3-registration-duplicate",
+        "r3-acceptance-unsorted",
+        "r3-acceptance-duplicate",
+        "accept-r3-local-naming",
+    ] {
+        let v = vectors
+            .iter()
+            .find(|v| v.name() == name)
+            .expect("missing local naming vector");
+        if v.get("kind") == "match" {
+            let envelope = BootstrapEnvelope::decode(&v.hex("bytes")).unwrap();
+            let acceptance = RegistrationAcceptance::decode(&envelope.payload).unwrap();
+            let request = RegistrationRequest::decode(&v.hex("request")).unwrap();
+            assert_eq!(acceptance.enrollment, request.enrollment);
+            assert_eq!(
+                acceptance.enrollment.capabilities,
+                ["node.control", NODE_LOCAL_NAMES_V1]
+            );
+        } else {
+            let result = if v.get("kind") == "registration" {
+                RegistrationRequest::decode(&v.hex("bytes")).map(|_| ())
+            } else {
+                RegistrationAcceptance::decode(&v.hex("bytes")).map(|_| ())
+            };
+            assert!(matches!(
+                result,
+                Err(ExchangeError::Enrollment(
+                    EnrollmentError::InvalidCapabilities
+                ))
+            ));
+        }
+    }
+}

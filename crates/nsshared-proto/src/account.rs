@@ -64,7 +64,7 @@ pub use edge_material::{
 };
 pub use enrollment::{
     Enrollment, EnrollmentDecision, EnrollmentError, MAX_CAPABILITIES, MAX_CAPABILITY_BYTES,
-    RebindAuthorization, decide_enrollment,
+    NODE_LOCAL_NAMES_V1, RebindAuthorization, decide_enrollment,
 };
 pub use grants::{
     GrantClaim, GrantDetails, GrantDiscriminator, GrantError, GrantPublication, Payer,

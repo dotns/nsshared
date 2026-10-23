@@ -82,6 +82,24 @@ def vectors():
          extra=[("node", node), ("authority", authority), ("pin", bootstrap_envelope.pin(node)),
                 ("signing_input", bootstrap_envelope.REQUEST + content)])
 
+    local_caps = ["node.control", "node_local_names.v1"]
+    local_enrollment = cbor.encode([1, binding, local_caps])
+    local_request = request[:2] + [local_enrollment] + request[3:]
+    local_acceptance = acceptance[:2] + [local_enrollment] + acceptance[3:]
+    for kind, value in [("registration", local_request), ("acceptance", local_acceptance)]:
+        emit("r3-" + kind, kind, value,
+             extra=[("enrollment", local_enrollment), ("capabilities", cbor.encode(local_caps))])
+        for suffix, caps in [("unsorted", list(reversed(local_caps))),
+                             ("duplicate", ["node_local_names.v1"] * 2)]:
+            emit("r3-" + kind + "-" + suffix, kind,
+                 value[:2] + [cbor.encode([1, binding, caps])] + value[3:], "capabilities")
+    content = cbor.encode([1, 1, authority, node, "machine.register", 100,
+                          bytes([7]) * 16, cbor.encode(local_acceptance)])
+    emit("accept-r3-local-naming", "match",
+         [content, account.sign(bytes([2]) * 32, bootstrap_envelope.RESPONSE + content)],
+         extra=[("request", cbor.encode(local_request)), ("node", node), ("pin", pin),
+                ("signing_input", bootstrap_envelope.RESPONSE + content)])
+
     auth_value = [1, scope, binding, "control", ["030C1G60R30C1G60R30C1G60R3", "nodes"]]
     auth_content = cbor.encode([1, 0, node, authority, "machine.auth", 100, bytes([8]) * 16, cbor.encode(auth_value)])
     emit("signed-authentication", "signed-authentication", [auth_content, account.sign(bytes([1]) * 32, bootstrap_envelope.REQUEST + auth_content)],

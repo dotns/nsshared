@@ -2,6 +2,9 @@ use super::{AccountError, Lifecycle, NodeBinding, SCHEMA, Transition, reader};
 use crate::encoding::{CborError, CborWriter};
 use thiserror::Error;
 
+/// Declares local Node naming only; grants no service or DNS publication permission.
+pub const NODE_LOCAL_NAMES_V1: &str = "node_local_names.v1";
+
 /// Maximum opaque capability identifiers in an enrollment publication.
 pub const MAX_CAPABILITIES: usize = 64;
 /// Maximum ASCII bytes in one capability identifier.
