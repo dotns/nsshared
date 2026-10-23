@@ -1,5 +1,16 @@
 ## 2026-10-23 [feat]
 
+Add an explicit Anonymous subject-rule selector while preserving verified-only
+null and qualified identity encodings. Document anonymous HTTP/TCP/UDP policy
+matching, default deny and continued enforcement of required Auth dependencies.
+Identity subjects and confidential authentication configuration remain unchanged.
+
+Validation: independent policy, matching and public-edge vectors and self-check
+passed with 535 tests and zero skips. External producer adoption and runtime
+matching remain consumer obligations.
+
+## 2026-10-23 [feat]
+
 Define publication stream event/query names and inclusive decoded, encoded and
 framed bounds. Require source-bound snapshot responses with exact pending
 scope/source and delivery context validation, rejecting plain or mixed entries
