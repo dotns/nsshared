@@ -1160,7 +1160,11 @@ Only a trusted ingress adapter may classify an observed unauthenticated visitor
 as Anonymous, without a PolicySubject payload. Missing or untrusted input denies.
 A verified principal never matches Anonymous. AnyVerified and explicit subject
 or expanded group selectors match verified principals only; null never matches
-an anonymous visitor. Group expansion uses the existing realm-qualified members.
+an anonymous visitor. "Verified matching subject/group" means a verified principal
+equal to the subject selector, or a member of the selector's explicit group entry.
+A group label presented as the principal is refused input and denies under every
+selector, like missing or untrusted input. Group expansion uses the existing
+realm-qualified members.
 After selector matching, consumers still check the actual destination, port and
 protocol, with default deny. Existing verified-only callers retain their meaning.
 
