@@ -22,14 +22,18 @@ or deduplicated by the decoder. Unknown discriminants refuse.
 
 `PublicEdge` = `[1, 7, served_realm, scope, realms]`.
 Each `EdgeRealm` = `[realm_16, auth_bytes, routes]`, ordered by binary realm.
-`EdgeRoute` = `[id, name, aliases, domains, service_ref_bytes, backend_I_or_null,
+`EdgeRoute` = `[id, name_or_null, aliases, domains, service_ref_bytes, backend_I_or_null,
 protocol, public_port, virtual_port, policy_bytes, headers_bytes, dependencies, options]`.
 Routes are ordered by id. Protocol is 0 HTTP, 6 TCP or 17 UDP. Ports are 1..65535.
-Names, aliases and domains are canonical lowercase ASCII DNS names, at most 253
+HTTP requires a text name. TCP/UDP require exactly CBOR null and empty aliases
+and domains; raw text names and HTTP null names refuse. No empty-string
+substitute or inferred hostname is permitted. HTTP names, aliases and domains
+are canonical lowercase ASCII DNS names, at most 253
 bytes, dot-separated labels of 1..63 letters/digits/hyphens with alphanumeric
 ends. These public hostnames are not M6 service labels. Aliases/domains are each
 strictly ordered. Names and aliases cannot collide within a realm, including
-within one route. Discovery name/alias/domain ownership stays realm-local.
+within one route. Discovery name/alias/domain ownership stays realm-local for HTTP. Raw routes
+claim no hostname ownership; their identity is the realm-qualified route id.
 Physical listener ownership is gateway-wide across every served realm in the
 complete publication: raw TCP and UDP use protocol/port, while HTTP uses every
 name, alias and domain paired with its listener port. Different HTTP hosts may
@@ -184,3 +188,17 @@ and fail_closed behavior. An Anonymous selector never skips a required dependenc
 or converts failed required authentication into bypass. Ordered methods,
 default versus ACL-selected OIDC and redirect host remain unchanged. The codec
 only validates and carries these facts; matching and forwarding stay external.
+
+## Protocol-specific name vectors
+
+The independent `public_edge_protocol_names` consumer sequence covers HTTP host
+bytes, unnamed TCP/UDP on one numeric port with distinct backend endpoints,
+protocol/name mismatches, nonempty raw name collections and listener conflicts.
+Existing HTTP-only fixture bytes are unchanged. Existing raw-route fixture names
+are deliberately regenerated from text to null, including anonymous-policy
+fixtures. Version 1 and the thirteen-position tuple remain unchanged; neither
+old named raw routes nor a compatibility fallback are accepted. Upstream
+authority, TLS SNI and confidential material hostnames retain their own rules.
+NSD raw exposure protocol/port supplies null and empty collections; its HTTP
+public_host supplies the HTTP name. Real producer adoption remains outstanding;
+fixture authority does not establish producer agreement.

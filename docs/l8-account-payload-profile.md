@@ -1180,3 +1180,20 @@ This candidate API and accepted-wire-domain extension preserves all existing
 selector bytes. Older consumers reject the new selector rather than reading it
 as null or an identity. Credential bindings, group members, admin claims and
 signed identity subjects keep their existing types and bytes.
+
+## Protocol-specific public-edge names
+
+Family 7 retains version 1 and thirteen route positions, with `name_or_null`
+at the existing name position. HTTP requires its canonical hostname and retains
+its bytes and host ownership. TCP/UDP require null and empty aliases/domains,
+claim no names, and retain realm-qualified route identity and gateway-wide
+protocol/port listener ownership. Duplicate raw listeners and TCP/HTTP port
+conflicts refuse; TCP/UDP may share a numeric port. Backend endpoint uniqueness
+and all policy/material/source checks remain unchanged. No empty or inferred
+hostname is accepted. The independent `public_edge_protocol_names` sequence
+covers these shapes and conflicts; existing named raw fixtures are regenerated
+to null, while HTTP-only bytes stay unchanged.
+
+NSD N20 producer adoption remains outstanding. Confirm NSD HTTP public_host
+and raw protocol/port projection, with producer-owned accepted/refused vectors.
+Independent candidate fixtures are not producer agreement.
