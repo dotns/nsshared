@@ -68,7 +68,7 @@ explicitly frame only. NSD supplies producer vectors for every row.
 | 8 `relay` | Signed roster, shared participant credentials and separate signed directory binding delivered; NSD producer review and adoption outstanding | Q01–Q06, Q18 |
 | 9 `usage` | Typed scoped usage-profile payload and independent publication vectors newly delivered; existing quantities and report/answer bytes unchanged | New candidate delta below; NSD/ns review and producer adoption outstanding; Q10, Q19 |
 | 10 `node-control` | Typed scoped node-control-profile payload and independent publication vectors newly delivered; existing v2 codec unchanged | New candidate delta below; NSD/ns review and producer adoption outstanding; Q20 |
-| 11 `v1-replacement` | Exact Node L3 applied-status codec, signed-event digest, retained-context comparison and independent vectors delivered; existing policy observation and M6 carrier unchanged | Q09; Campaign 3 N08/S03/S24 adoption outstanding; Q12 and Q21 remain open |
+| 11 `v1-replacement` | Exact Node L3 applied-status codec, signed-event digest, retained-context comparison and independent vectors delivered; existing policy observation and M6 carrier unchanged | Q09; NSD N08 producer and Node S03/S24 consumer adoption outstanding; Q12 and Q21 remain open |
 
 Only an authenticated, valid, complete publication replaces its listed kinds
 in the explicitly named issuer/recipient scope. A complete empty publication
@@ -1105,6 +1105,7 @@ Applied; complete-empty Applied proves removal. Independent shared vectors cover
 route selection without ordinary host permission and the applied-status sequence.
 NodeL3, NodeL3Authority, grant, Subnet and service-control bytes are unchanged.
 
-Campaign 3 N08/S03/S24 adoption remains outstanding: NSD retains and correlates
-exact issuance/source, and ns associates actual collection application with status.
+NSD N08 producer and Node S03/S24 consumer adoption remains outstanding:
+NSD retains and correlates exact issuance/source, and the Node associates actual
+collection application with status.
 These are review requests, never recorded agreement or live interoperability.
