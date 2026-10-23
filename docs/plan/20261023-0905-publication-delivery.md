@@ -43,3 +43,9 @@ Verify framing expansion and LF/CRLF boundaries, correlated large source-bound s
 ## Remaining work
 
 `just self-check feat/l8-account-profile` stopped at `cargo deny`: the unchanged locked dependency ctutils 0.4.2 is affected by RUSTSEC-2026-0385; the advisory requires at least 0.4.4. Dependency resolution is outside this change's scope. The implementation remains in progress until the dependency is repaired and the complete self-check passes. Shared index and changelog updates are deferred to integration.
+
+## Adoption wording and pending qualification
+
+The review request directly identifies the NSD N09 producer and Node S23 adapter. Their adoption remains outstanding, and fixture bytes and shared delivery do not record agreement. This wording correction changes no implementation. Dependency repair remains separate; no lockfile, manifest or advisory policy is changed. Full qualification remains pending until the dependency repair is integrated, the branch is synchronized and one complete self-check passes. The candidate is ready for source review and independent conformance after the scoped static and focused checks.
+
+After the wording correction, `just fmt-check`, workspace `just lint`, `just vectors-check` and the same six focused protocol test binaries passed: 32 fixture files current, 11 tests passed and none ignored. Source review and independent conformance may proceed; full qualification and completion remain pending the synchronized complete self-check.

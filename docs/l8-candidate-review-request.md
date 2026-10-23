@@ -1110,5 +1110,6 @@ NSD retains and correlates exact issuance/source, and the Node associates actual
 collection application with status.
 These are review requests, never recorded agreement or live interoperability.
 
-Publication delivery adoption by Campaign 3 N09/S23 remains outstanding; fixture
-bytes and shared delivery do not record producer/adapter agreement.
+Publication delivery adoption by the NSD N09 producer and Node S23 adapter
+remains outstanding; fixture bytes and shared delivery do not record
+producer/adapter agreement.
