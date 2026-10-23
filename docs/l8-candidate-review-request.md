@@ -1113,3 +1113,23 @@ These are review requests, never recorded agreement or live interoperability.
 Publication delivery adoption by the NSD N09 producer and Node S23 adapter
 remains outstanding; fixture bytes and shared delivery do not record
 producer/adapter agreement.
+
+
+## Explicit anonymous public-edge selector delta
+
+SubjectRule now uses SubjectSelector: AnyVerified retains sole null, Subject
+retains canonical PolicySubject bytes, and Anonymous is the byte string
+`43 82 01 03` containing canonical `[1, 3]`. Anonymous can coexist with ordered
+explicit subjects; null remains exclusive. Older consumers reject the extension.
+See the [profile matching table](l8-account-payload-profile.md#anonymous-selector-consumption)
+and [family 7 consumption rules](l8-public-edge-candidate.md#anonymous-authorization).
+The independent `anonymous-public-edge.vec` fixtures distinguish anonymous,
+verified user, Node and group matching, malformed selectors, and no-Auth
+HTTP/TCP/UDP routes. They are consumer fixtures, not external producer evidence.
+
+NSD producer adoption of accepted service public-ingress policy and ACL remains
+outstanding, including the separately tracked N20 producer adoption. No producer
+agreement, external interoperability or live promotion is recorded. PolicySubject,
+credential bindings, group members, admin claims and confidential authentication
+configuration remain unchanged. Consumers must preserve payload-free anonymous
+classification, verified-only null semantics and required Auth dependencies.

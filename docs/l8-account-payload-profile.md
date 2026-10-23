@@ -661,10 +661,14 @@ keys. Activation, expiry and credential verification stay with consumers.
 ### Policy values
 
 `SubjectPolicy` is `[1, realm_16, rules, groups]`. Rules retain order and encode
-`[subjects, destinations, protocol_or_null]`; every subject is canonical subject
-bytes, with null standing for any *verified* subject. Subject and destination
+`[subjects, destinations, protocol_or_null]`; subjects use typed `SubjectSelector`:
+`AnyVerified` is the existing sole null, `Subject(PolicySubject)` is the unchanged
+canonical subject byte string, and `Anonymous` is a byte string containing
+canonical CBOR `[1, 3]` (`82 01 03`, outer byte string `43 82 01 03`).
+Anonymous is a rule selector, never a PolicySubject namespace. Subject and destination
 sets are nonempty, strictly ordered by their encoded bytes and UTF-8 bytes,
-respectively; null cannot coexist with another subject. Destinations are
+respectively; null cannot coexist with another selector. Anonymous may coexist
+with explicit subjects in strict selector payload-byte order. Destinations are
 nonempty opaque gateway matcher strings (`host:ports`, CIDRs or aliases); syntax,
 host resolution, protocol matching, default deny, group expansion and self-tests
 remain in the gateway evaluator. Protocol 6 is TCP, 17 is UDP, null is both.
@@ -1148,3 +1152,27 @@ an exact signed inner event. See the [canonical status contract](node-l3-status-
 for request/response bytes, digest, full source fencing and independent vectors.
 An exact Applied empty withdrawal proves removal; rejection and authenticated
 fetch-failure denial never provide permission evidence.
+
+
+### Anonymous selector consumption
+
+Only a trusted ingress adapter may classify an observed unauthenticated visitor
+as Anonymous, without a PolicySubject payload. Missing or untrusted input denies.
+A verified principal never matches Anonymous. AnyVerified and explicit subject
+or expanded group selectors match verified principals only; null never matches
+an anonymous visitor. Group expansion uses the existing realm-qualified members.
+After selector matching, consumers still check the actual destination, port and
+protocol, with default deny. Existing verified-only callers retain their meaning.
+
+| Selector | Explicit anonymous visitor | Verified matching subject/group | Verified other subject | Missing/untrusted |
+| --- | --- | --- | --- | --- |
+| AnyVerified (null) | deny | match | match | deny |
+| Subject | deny | match | deny | deny |
+| Anonymous | match | deny | deny | deny |
+
+Family 7 carries these selectors unchanged for HTTP, TCP and UDP; see
+[public-edge authorization](l8-public-edge-candidate.md#anonymous-authorization).
+This candidate API and accepted-wire-domain extension preserves all existing
+selector bytes. Older consumers reject the new selector rather than reading it
+as null or an identity. Credential bindings, group members, admin claims and
+signed identity subjects keep their existing types and bytes.

@@ -159,3 +159,28 @@ wire equivalence. Consumer installation and route readiness remain external.
 Producer confirmation and producer-owned
 vectors remain outstanding with NSD. Python fixtures are labelled candidate
 sources, independent of the Rust codecs.
+
+
+## Anonymous authorization
+
+`EdgeRoute.policy` carries the explicit SubjectSelector contract from the
+[account profile](l8-account-payload-profile.md#anonymous-selector-consumption).
+Anonymous is the byte string containing canonical CBOR `[1, 3]` (`82 01 03`),
+never a PolicySubject or a null wildcard. Older consumers reject it.
+
+An explicitly anonymous HTTP route or TCP/UDP listener needs no Auth dependency.
+Absence of Auth alone authorizes nothing: an exact matching Anonymous rule must
+admit the actual backend destination, port and protocol. A trusted ingress
+adapter classifies the observed unauthenticated visitor without fabricating a
+subject. Missing or untrusted input denies; verified principals never match
+Anonymous. Null and explicit identity/group selectors admit verified principals
+only. Source-IP checks, served realm/source lifetime, connector availability,
+independently bound activation, certificate/client-CA dependencies, withdrawal
+and transport restrictions still apply.
+
+Routes with an Auth dependency retain its exact configuration/generation and
+[confidential authentication](confidential-auth-candidate.md) anonymous_bypass
+and fail_closed behavior. An Anonymous selector never skips a required dependency
+or converts failed required authentication into bypass. Ordered methods,
+default versus ACL-selected OIDC and redirect host remain unchanged. The codec
+only validates and carries these facts; matching and forwarding stay external.

@@ -10,11 +10,30 @@ use crate::encoding::{CborReader, CborWriter};
 
 use std::collections::BTreeSet;
 
+const ANONYMOUS_SELECTOR: &[u8] = &[0x82, 0x01, 0x03];
+
+/// A rule selector, distinct from a credential or signed identity subject.
+///
+/// Consumers match Anonymous only against an explicitly classified unauthenticated
+/// visitor, without a subject payload. Verified principals never match Anonymous;
+/// AnyVerified and Subject (including expanded groups) match verified input only.
+/// Missing or untrusted input matches none. Destination, port, protocol and required
+/// authentication dependencies must still pass; selector matching grants no bypass.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum SubjectSelector {
+    /// Any verified principal; encoded as the sole null in a rule's subject set.
+    AnyVerified,
+    /// One unchanged qualified subject or explicitly defined group.
+    Subject(PolicySubject),
+    /// Explicit anonymous visitor; byte string containing canonical CBOR [1, 3].
+    Anonymous,
+}
+
 /// One accept rule; there is no implicit permission or deny-rule translation.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SubjectRule {
-    /// Canonical subject-byte order; a sole None matches any verified subject.
-    pub subjects: Vec<Option<PolicySubject>>,
+    /// Strict selector payload-byte order; AnyVerified is exclusive.
+    pub subjects: Vec<SubjectSelector>,
     /// Ordered unique destination matcher strings interpreted by the evaluator.
     pub destinations: Vec<String>,
     /// None matches both TCP and UDP.
@@ -85,17 +104,23 @@ impl SubjectPolicy {
             out.array(3).array(rule.subjects.len());
             let mut previous = None;
             for subject in &rule.subjects {
-                if let Some(subject) = subject {
-                    subject.in_realm(self.realm)?;
-                    let bytes = subject.canonical()?;
-                    require(!subject.is_group() || group_keys.contains(&bytes))?;
-                    require(previous.as_ref().is_none_or(|last| last < &bytes))?;
-                    previous = Some(bytes.clone());
-                    out.bytes(&bytes);
-                } else {
-                    require(rule.subjects.len() == 1)?;
-                    out.null();
-                }
+                let bytes = match subject {
+                    SubjectSelector::AnyVerified => {
+                        require(rule.subjects.len() == 1)?;
+                        out.null();
+                        continue;
+                    }
+                    SubjectSelector::Subject(subject) => {
+                        subject.in_realm(self.realm)?;
+                        let bytes = subject.canonical()?;
+                        require(!subject.is_group() || group_keys.contains(&bytes))?;
+                        bytes
+                    }
+                    SubjectSelector::Anonymous => ANONYMOUS_SELECTOR.to_vec(),
+                };
+                require(previous.as_ref().is_none_or(|last| last < &bytes))?;
+                previous = Some(bytes.clone());
+                out.bytes(&bytes);
             }
             out.array(rule.destinations.len());
             for destination in &rule.destinations {
@@ -134,9 +159,14 @@ impl SubjectPolicy {
             let mut subjects = Vec::with_capacity(count);
             for _ in 0..count {
                 subjects.push(if input.take_null() {
-                    None
+                    SubjectSelector::AnyVerified
                 } else {
-                    Some(PolicySubject::decode(input.bytes_up_to(MAX_BYTES)?)?)
+                    let bytes = input.bytes_up_to(MAX_BYTES)?;
+                    if bytes == ANONYMOUS_SELECTOR {
+                        SubjectSelector::Anonymous
+                    } else {
+                        SubjectSelector::Subject(PolicySubject::decode(bytes)?)
+                    }
                 });
             }
             let destinations = read_texts(&mut input)?;

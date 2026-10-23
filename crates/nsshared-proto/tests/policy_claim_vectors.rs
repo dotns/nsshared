@@ -213,7 +213,9 @@ fn qualified_policy_and_binding_fields() {
     assert_eq!(policy.rules[0].destinations, ["db:5432"]);
     assert_eq!(
         policy.rules[0].subjects,
-        [Some(policy.groups[0].group.clone())]
+        [nsshared_proto::account::SubjectSelector::Subject(
+            policy.groups[0].group.clone()
+        )]
     );
     assert!(policy.groups[0].members.contains(&user));
     let jwt = JwtSubjectBinding::decode(&sample("jwt-binding")).unwrap();

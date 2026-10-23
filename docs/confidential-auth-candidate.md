@@ -140,3 +140,16 @@ producer. NSD confirmation and producer-owned vectors remain outstanding. This
 contract changes no family registry bytes or publication channel. Full replacement
 and generation conflict handling, original expiry, OIDC refresh/rotation and
 `auth_jwks_max_stale_secs` remain consumer responsibilities.
+
+
+## Anonymous public-edge policy cross-reference
+
+The [public-edge selector contract](l8-public-edge-candidate.md#anonymous-authorization)
+adds explicit Anonymous authorization independently of authentication configuration.
+AuthRouteImport, its ordered methods, anonymous_bypass and fail_closed retain
+exactly their existing types and bytes. No-Auth HTTP/TCP/UDP ingress still needs
+an exact Anonymous policy rule. With an Auth dependency, its exact installed
+generation and existing authentication behavior remain required; the selector
+never bypasses the dependency or turns authentication failure into anonymous.
+An explicitly allowed anonymous-bypass outcome matches Anonymous only, never
+AnyVerified (null) or an explicit subject/group selector.

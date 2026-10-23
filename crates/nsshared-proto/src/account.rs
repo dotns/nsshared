@@ -109,7 +109,7 @@ pub use roster::{
     RosterEntry, RosterVersion, SignedRoster, validate_snapshot,
 };
 pub use signed_request::{SignedAccountRequest, SignedUrlScope};
-pub use subject_policy::{SubjectGroup, SubjectPolicy, SubjectRule};
+pub use subject_policy::{SubjectGroup, SubjectPolicy, SubjectRule, SubjectSelector};
 pub use subnet::{
     MAX_SELECTED_PREFIXES, MAX_SUBNET_PREFIXES, MAX_SUBNET_ROUTES, SelectedSubnetRoute,
     SubnetError, SubnetPrefix, SubnetProxyCoverage, SubnetPublication, SubnetRoute,
