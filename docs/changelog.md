@@ -1,3 +1,14 @@
+## 2026-10-23 [feat]
+
+Define publication stream event/query names and inclusive decoded, encoded and
+framed bounds. Require source-bound snapshot responses with exact pending
+scope/source and delivery context validation, rejecting plain or mixed entries
+atomically. Enforce the pending request's complete 8192-byte encoding ceiling.
+
+Validation: independent stream and snapshot vectors, unchanged request-boundary
+regressions and self-check passed with 532 tests and zero skips. NSD producer
+and Node adapter adoption remain outstanding.
+
 ## 2026-10-23 [fix]
 
 Update ctutils from 0.4.2 to 0.4.4 to resolve RUSTSEC-2026-0385 without
