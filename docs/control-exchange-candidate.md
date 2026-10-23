@@ -625,3 +625,59 @@ PortQuery, with pure exact reverse-result comparison. No new publication family,
 M6 schema, runtime or admission state is introduced. Current source ownership,
 content floors, persistent proposal and lease timing checks remain consumer work.
 NSD adoption and independent real producer confirmation remain outstanding.
+
+## R3 local Node naming and legacy registration retirement
+
+R3 enrollment declares `node_local_names.v1` using the public
+`account::NODE_LOCAL_NAMES_V1` constant in the existing Enrollment.capabilities
+set. Omission does not negotiate a legacy response or fallback. This declares
+naming mode only, not service permission or permission to publish DNS.
+NSD accepts the declaration through authenticated registration without allocating
+or requiring a legacy Node label. Capability encoding and all existing exact
+exchange tuples remain unchanged.
+
+| Retired registration value | R3 disposition and retained meaning |
+|---|---|
+| `domain_base` | No R3 producer, carrier or pinned-value comparison. Retire its per-machine `.node.` root and derived `.svc.`/`.gw.` suffix selection from the R3 reader. The canonical Node name is the existing `node_dns_name(NodeId)` form `<node id>.n.ns.io`, with NodeId derived from the accepted NodeBinding identity, never from a hostname or machine-id prefix. Do not manufacture a replacement domain_base or service/gateway suffix by string substitution. |
+| `dns_root` | No R3 registration producer, carrier or pinned-value comparison. The Node zone is the shared `NODE_DNS_ZONE` constant `n.ns.io`, not a remotely selected root. Existing Subnet and public-edge naming retain their own contracts; the Node zone does not replace their suffixes. |
+| `network_token` | No R3 registration producer, carrier or pinned-value comparison. NSD's committed Network naming state retains this token internally for existing Subnet suffix consumers; it is not an enrollment identifier or new shared field. Any existing Subnet name remains owned by its own authenticated projection, not inferred from the Node name. |
+| `node_name` | No R3 registration producer, carrier or pinned-value comparison. Retire the NSD-allocated immutable compact Node label. Manual nicknames remain local and never published as registration authority; they do not alter the identity-derived canonical Node name. |
+
+RegistrationAcceptance, AuthenticationResponse and InformationResponse carry
+none of `domain_base`, `dns_root`, `network_token` or `node_name`. There is no
+substitute naming publication or shared legacy-value decoder. An R3 consumer
+refuses any response or adapter supplying these values; it must not silently
+accept them or compare an old pin. The legacy `dns_config.short_dns_v2`
+tuple-bound snapshot supplies no R3 naming authority. Existing exact tuple
+validation remains the shared boundary; adapter refusal belongs to consumers.
+
+The staged Node Enrollment produces the capability set; authenticated registration
+acceptance must carry the exact same bytes, binding and declared profile.
+Consumers compare membership, full binding, capabilities, trusted authority and
+source binding before committing. Missing capability or mismatched acceptance
+never switches naming mode. After acceptance, `node_dns_name` derives
+`<node id>.n.ns.io` from the accepted NodeBinding identity and `NODE_DNS_ZONE`.
+Verified NodeRecord identity/name/address comparison remains discovery, not
+authorization. M6 `Resource.service_label` remains the sole source of service
+labels through the authenticated recipient/Network snapshot. Public domains
+remain in authenticated public-edge publication with its existing ownership
+checks. `InformationResponse.realm` remains a display hint.
+
+The consumer owns old-pin cutover: at the authenticated R3 commit it removes all
+four naming pins and tuple-bound Short DNS authority from active R3 state,
+without feeding absent values through the legacy first-wins setter. Pins are
+never compared, converted into identity or recovered after restart. Failure
+before commit preserves the prior selected profile. Original-profile records
+remain isolated and preserved under existing custody rules; no deletion,
+deployment or re-enrollment is authorized here. Startup uses accepted binding
+and mode. Registration history and lifecycle comparisons remain unchanged.
+Retired compact Node names are not promised as aliases. Subnet names, service
+labels, public-edge names and authorization retain their existing contracts.
+
+The external R3 runtime consumer owns cutover and its commit/restart regression:
+matching acceptance must drop every active old pin and Short DNS authority; mismatched acceptance or supplied legacy values must leave the prior
+profile intact. NSD N04/N09 producer adoption and ns S05/S06/S11 consumer/cutover
+adoption remain outstanding, including independent producer confirmation.
+The review delta is a candidate, never agreement or interoperability evidence.
+No new field, carrier, P-item or dependency edge is introduced; previous delivery
+evidence does not establish this delta or release external cutover acceptance.
