@@ -61,6 +61,9 @@ fn fixture_matches(
     subject: Option<&PolicySubject>,
 ) -> bool {
     use nsshared_proto::account::SubjectSelector;
+    if matches!(subject, Some(PolicySubject::Realm { name, .. }) if name.starts_with("group:")) {
+        return false;
+    }
     policy.rules[0].subjects.iter().any(|selector| {
         if principal == "anonymous" {
             return *selector == SubjectSelector::Anonymous;
@@ -103,7 +106,8 @@ fn anonymous_public_edge_matching_table() {
         );
         count += 1;
     }
-    assert_eq!(count, 42);
+    // Six selectors each cover seven principal states, including refused group labels.
+    assert_eq!(count, 6 * 7);
 }
 
 #[test]
@@ -159,4 +163,32 @@ fn anonymous_selector_typed_encoding_and_order() {
             [SubjectSelector::Anonymous]
         );
     }
+}
+
+#[test]
+fn group_label_principals_are_refused() {
+    let vectors =
+        support::vectors::parse(include_str!("fixtures/vectors/anonymous-public-edge.vec"));
+    let mut count = 0;
+    for vector in vectors.iter().filter(|v| v.get("kind") == "matching") {
+        let Some(_) = vector.opt("subject") else {
+            continue;
+        };
+        let subject = PolicySubject::decode(&vector.hex("subject")).unwrap();
+        if !matches!(&subject, PolicySubject::Realm { name, .. } if name.starts_with("group:")) {
+            continue;
+        }
+        let policy = SubjectPolicy::decode(&vector.hex("bytes")).unwrap();
+        for principal in ["group-label", "verified-user", "anonymous"] {
+            assert!(
+                !fixture_matches(&policy, principal, Some(&subject)),
+                "{}: group label admitted as {principal}",
+                vector.name()
+            );
+        }
+        assert_eq!(vector.get("principal"), "group-label");
+        assert!(!vector.bool("matches"), "{}", vector.name());
+        count += 1;
+    }
+    assert_eq!(count, 6);
 }

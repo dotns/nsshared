@@ -32,14 +32,14 @@ def vectors():
                 ("anonymous-subjects", sorted([anonymous, user, node_subject, group]))]
     # Expected outcomes follow the contract table, independent of consumer code.
     expected = {
-        "any-verified": {"verified-user", "verified-node", "verified-group", "verified-other"},
+        "any-verified": {"verified-user", "verified-node", "verified-other"},
         "anonymous": {"anonymous"}, "user": {"verified-user"},
         "node": {"verified-node"},
-        "group": {"verified-user", "verified-node", "verified-group"},
-        "anonymous-subjects": {"anonymous", "verified-user", "verified-node", "verified-group"},
+        "group": {"verified-user", "verified-node"},
+        "anonymous-subjects": {"anonymous", "verified-user", "verified-node"},
     }
     principals = [("anonymous", None), ("verified-user", user),
-                  ("verified-node", node_subject), ("verified-group", group),
+                  ("verified-node", node_subject), ("group-label", group),
                   ("verified-other", outsider), ("missing", None), ("untrusted", user)]
     for name, selectors in policies:
         emit(name, "policy", policy(selectors))
