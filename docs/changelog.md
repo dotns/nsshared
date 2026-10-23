@@ -1,3 +1,13 @@
+## 2026-10-23 [feat]
+
+Require canonical hostnames for HTTP routes and null names with empty aliases
+and domains for raw TCP/UDP routes. Preserve HTTP bytes, realm-qualified route
+identity, gateway-wide listener conflicts and backend endpoint uniqueness.
+Regenerate existing raw-route fixtures without a compatibility fallback.
+
+Validation: independent protocol/name and conflict vectors and self-check passed
+with 537 tests and zero skips. NSD producer adoption remains outstanding.
+
 ## 2026-10-23 [fix]
 
 Update tokio from 1.53.2 to 1.54.1 to resolve RUSTSEC-2026-0386. Preserve
