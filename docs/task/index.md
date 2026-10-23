@@ -155,3 +155,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**Define publication stream and snapshot delivery**](20261023-0905-publication-delivery.md) `P1`
 - [x] [**Define explicit anonymous public-edge selectors**](20261023-1118-anonymous-public-edge.md) `P1`
 - [x] [**Refuse group labels as policy principals**](20261023-1153-group-label-principals.md) `P1`
+- [x] [**Update the asynchronous I/O dependency**](20261023-1548-fix-async-io-dependency.md) `P1`
