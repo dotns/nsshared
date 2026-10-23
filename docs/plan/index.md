@@ -116,3 +116,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**Define publication stream and snapshot delivery**](20261023-0905-publication-delivery.md) `2026-10-23`
 - [x] [**Define explicit anonymous public-edge selectors**](20261023-1118-anonymous-public-edge.md) `2026-10-23`
 - [x] [**Refuse group labels as policy principals**](20261023-1153-group-label-principals.md) `2026-10-23`
+- [x] [**Update the asynchronous I/O dependency**](20261023-1548-fix-async-io-dependency.md) `2026-10-23`

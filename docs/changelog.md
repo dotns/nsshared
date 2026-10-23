@@ -1,5 +1,14 @@
 ## 2026-10-23 [fix]
 
+Update tokio from 1.53.2 to 1.54.1 to resolve RUSTSEC-2026-0386. Preserve
+existing manifests and advisory policy; only the package version and checksum
+change in the lockfile. No affected AsyncFd constructor calls were found.
+
+Validation: advisory checks and self-check passed with 536 tests and zero skips,
+including compatibility checks, doctests and documentation.
+
+## 2026-10-23 [fix]
+
 Correct anonymous public-edge matching fixtures so group labels deny under every
 selector, even when presented with a verified classification. Preserve matching
 for verified explicit group members and all serialized policy and subject bytes.
