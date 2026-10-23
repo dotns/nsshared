@@ -47,3 +47,14 @@ dependency audit, dependency usage, spelling, independent vector regeneration,
 API compatibility, selection tests, 537 tests with zero skips, doctests and
 warning-free documentation all passed. The initial advisory failure is retained
 above. Acceptance is complete; real producer adoption remains outstanding.
+
+## Producer adoption wording
+
+The profile and review request now state outstanding NSD N20 producer adoption
+directly. HTTP public_host and raw protocol/port projection, producer-owned
+accepted/refused vectors and the absence of producer agreement remain explicit.
+No protocol, implementation or dependency change was needed.
+
+The complete `just self-check feat/l8-account-profile` passed again on
+`32943bafe8c6b614b862de396d8b3563052f55bc`, after the wording corrections.
+The initial dependency advisory failures remain recorded above.
