@@ -1,3 +1,12 @@
+## 2026-10-23 [fix]
+
+Correct anonymous public-edge matching fixtures so group labels deny under every
+selector, even when presented with a verified classification. Preserve matching
+for verified explicit group members and all serialized policy and subject bytes.
+
+Validation: all six group-label cases deny, the 42-case matching matrix passes,
+and self-check passed with 536 tests and zero skips. No codec or wire change.
+
 ## 2026-10-23 [feat]
 
 Add an explicit Anonymous subject-rule selector while preserving verified-only
