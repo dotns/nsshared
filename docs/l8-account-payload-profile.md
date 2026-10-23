@@ -548,13 +548,16 @@ and signature, before decoding or allocation. It is not a payload length or an
 SSE/base64/hex length. Over-ceiling stream input returns `TerminateStream`, with
 no replacement; the consumer must terminate and reconnect, never drop and
 continue. Over-ceiling polled events reject the whole snapshot. SSE framing and
-encoded carrier assembly remain consumer responsibilities with their own bounds.
+encoded carrier assembly remain consumer responsibilities using the shared
+publication event/query names and derived 1,398,139-byte inclusive framing ceiling
+defined in the [control exchange specification](control-exchange-candidate.md#publication-stream-framing).
 The event decoder borrows all variable data, checks each canonical length and
 available input slice before use, and allocates no variable data on either success
 or rejection. Thus truncated length heads and declared lengths beyond input fail
 without allocating for their claimed size.
 
-A polled publication snapshot is canonical `[1, [signed_event_bytes, ...]]`,
+A `config.snapshot` response is a signed B43 Response whose payload is canonical
+`[1, [bstr(SourcePublication), ...]]`,
 not the M6 Snapshot type. Its total encoded bound is the existing 8,388,608-byte
 call-body ceiling. Each event has its own measured signed-event ceiling and
 signature. Keys must be strictly increasing in the tuple order above (numeric
@@ -562,9 +565,11 @@ family order, then UTF-8 byte order for strings), refusing duplicates. Empty lis
 are valid and imply no withdrawals. The consumer validates every event, scope,
 signature, freshness and ordering before exposing any decisions. One invalid
 known event rejects the whole snapshot, including any preceding replacement or
-typed failure. Authenticated unknown kinds and wrong-channel kinds remain ignored.
-The validated result borrows the container and exposes decisions without allocating
-an event collection. The authenticated call envelope supplies outer completeness
+typed failure. Authenticated unknown Snapshot kinds yield UnknownKind; wrong-channel entries
+reject the complete poll. The low-level plain PublicationSnapshot codec is not
+a config.snapshot response validator.
+The response validator returns a collection of decisions borrowing the signed
+event bytes only after validating the complete ordered container. The authenticated call envelope supplies outer completeness
 and poll authentication; absence never synthesizes a signed empty event.
 
 The independent Python producer supplies canonical event/snapshot bytes, signed
@@ -855,7 +860,8 @@ control endpoint. Exact sorted issuer/recipient/realm/scope entries request only
 snapshot-owned kinds. The predecessor has no kind selector; stream selectors are
 unknown fields and refused. Required boot nonce/checked attempt retain the active
 subscription association, while a separate nonzero poll correlation is echoed in
-the signed response nonce. The payload remains the existing PublicationSnapshot;
+the signed response nonce. The only response payload is the source-bound container defined above;
+entries use request-derived Snapshot delivery and have no SSE/Base64 framing limit;
 pending-scope checks add no version domain or acceptance runtime. Independent
 publication-snapshot-request.vec fixture bytes are candidate evidence. NSD
 confirmation and real producer vectors remain outstanding.

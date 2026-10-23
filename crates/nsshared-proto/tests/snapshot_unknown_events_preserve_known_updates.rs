@@ -1,14 +1,20 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+mod support;
+
 use ed25519_dalek::{Signer as _, SigningKey};
 use nsshared_proto::{
     IdentityKey,
     account::{
         BootstrapEnvelope, EnvelopeDirection, EnvelopeExpectation, EnvelopePins,
         PUBLICATION_SIGNATURE_DOMAIN, PublicationChannel, PublicationDecision,
-        PublicationExpectation, PublicationScope, control_exchange::CONFIG_SNAPSHOT,
-        decide_publication_snapshot, publication_snapshot_request::PublicationSnapshotRequest,
+        PublicationExpectation, PublicationScope,
+        control_exchange::CONFIG_SNAPSHOT,
+        decide_publication_snapshot,
+        publication_snapshot_request::PublicationSnapshotRequest,
         publication_subscription::SubscriptionScope,
+        source_binding::{DeliveryContext, SignedSourceBinding},
+        source_publication::{encode_source_publication, source_publication_signing_input},
     },
     encoding::{CborWriter, encode_base64url},
 };
@@ -108,6 +114,37 @@ fn check_extension(family: u64, kind: &str) {
     assert!(decisions.next().is_none());
     drop(decisions);
 
+    let sources = support::vectors::load("publication-snapshot-request");
+    let binding = SignedSourceBinding::decode(
+        &sources
+            .iter()
+            .find(|v| v.name() == "current-source-0")
+            .unwrap()
+            .hex("bytes"),
+    )
+    .unwrap();
+    let current = [binding.binding.clone()];
+    let context = DeliveryContext::Snapshot {
+        boot_nonce: pending.boot_nonce,
+        attempt_counter: pending.attempt_counter,
+        correlation: pending.correlation,
+    };
+    let wrap = |inner: &[u8]| {
+        let input = source_publication_signing_input(&binding, &context, inner).unwrap();
+        encode_source_publication(&binding, &context, inner, &signer.sign(&input).to_bytes())
+            .unwrap()
+    };
+    let known = wrap(&known);
+    let unknown = wrap(&unknown);
+    let mut source_snapshot = CborWriter::default();
+    source_snapshot
+        .array(2)
+        .uint(1)
+        .array(2)
+        .bytes(&known)
+        .bytes(&unknown);
+    let snapshot = source_snapshot.into_bytes();
+
     let mut envelope = BootstrapEnvelope {
         direction: EnvelopeDirection::Response,
         signer: issuer,
@@ -123,18 +160,22 @@ fn check_extension(family: u64, kind: &str) {
     known_only.array(2).uint(1).array(1).bytes(&known);
     control.payload = known_only.into_bytes();
     control.signature = signer.sign(&control.signing_input().unwrap()).to_bytes();
-    assert!(pending.response(&control, &carrier, &[], &expected).is_ok());
+    assert!(
+        pending
+            .response(&control, &carrier, &[], &current, &expected)
+            .is_ok()
+    );
     let mut invalid_signature = control.clone();
     invalid_signature.signature[0] ^= 1;
     assert!(
         pending
-            .response(&invalid_signature, &carrier, &[], &expected)
+            .response(&invalid_signature, &carrier, &[], &current, &expected)
             .is_err()
     );
 
     envelope.signature = signer.sign(&envelope.signing_input().unwrap()).to_bytes();
     envelope.verify(&carrier).unwrap();
-    let result = pending.response(&envelope, &carrier, &[], &expected);
+    let result = pending.response(&envelope, &carrier, &[], &current, &expected);
     assert!(
         result.is_ok(),
         "authenticated extension must preserve known updates: {result:?}"

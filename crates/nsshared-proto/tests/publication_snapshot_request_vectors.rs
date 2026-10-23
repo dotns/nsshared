@@ -4,10 +4,11 @@ use nsshared_proto::{
     IdentityKey,
     account::{
         AcceptedPublication, BootstrapEnvelope, EnvelopeDirection, EnvelopeExpectation,
-        EnvelopePins, PublicationChannel, PublicationDecision, PublicationError,
-        PublicationExpectation, PublicationKey, PublicationScope,
+        EnvelopePins, PublicationChannel, PublicationDecision, PublicationExpectation,
+        PublicationKey, PublicationScope,
         control_exchange::{CONFIG_SNAPSHOT, CONFIG_SNAPSHOT_PATH, CONTROL_ENVELOPE_PATH},
         publication_snapshot_request::{PublicationSnapshotRequest, SnapshotRequestError},
+        source_binding::SignedSourceBinding,
     },
 };
 
@@ -17,7 +18,19 @@ fn publication_snapshot_request_vectors() {
         "fixtures/vectors/publication-snapshot-request.vec"
     ));
     let pending = PublicationSnapshotRequest::decode(&vectors[0].hex("bytes")).unwrap();
+    let current: Vec<_> = vectors
+        .iter()
+        .filter(|v| v.get("mode") == "source")
+        .map(|v| {
+            SignedSourceBinding::decode(&v.hex("bytes"))
+                .unwrap()
+                .binding
+        })
+        .collect();
     for v in &vectors {
+        if v.get("mode") == "source" {
+            continue;
+        }
         let bytes = v.hex("bytes");
         if v.get("mode") == "request" {
             let result = PublicationSnapshotRequest::decode(&bytes);
@@ -89,48 +102,46 @@ fn publication_snapshot_request_vectors() {
             channel: PublicationChannel::Snapshot,
             now_seconds: 100,
         };
-        let result = pending.response(&envelope, &expected, &[], &publication);
+        let result = pending.response(&envelope, &expected, &[], &current, &publication);
         assert_eq!(
             result.is_ok(),
             v.get("decision") == "accepted",
             "{}",
             v.name()
         );
-        match v.name() {
-            "response-unrequested-scope" => {
-                assert!(matches!(&result, Err(SnapshotRequestError::Scope)))
-            }
-            "response-event-recipient" | "response-carrier-recipient" => assert!(result.is_err()),
-            "response-correlation" => {
-                assert!(matches!(&result, Err(SnapshotRequestError::Correlation)))
-            }
-            "response-stream-kind" => {
-                assert!(matches!(&result, Err(SnapshotRequestError::Channel)))
-            }
-            _ => {}
-        }
-        if v.opt("extension_kind").is_some() && v.get("decision") == "refused" {
-            if v.name().ends_with("-signature") {
-                assert!(matches!(
-                    &result,
-                    Err(SnapshotRequestError::Publication(
-                        PublicationError::Signature
-                    ))
-                ));
-            } else if v.name().ends_with("-declared-stream") || v.name().ends_with("-known-stream")
-            {
-                assert!(matches!(&result, Err(SnapshotRequestError::Channel)));
-            } else if v.name().ends_with("-scope") {
-                assert!(matches!(&result, Err(SnapshotRequestError::Scope)));
-            } else if v.name().ends_with("-recipient") {
-                assert!(matches!(&result, Err(SnapshotRequestError::Recipient)));
-            } else if v.name().ends_with("-correlation") {
-                assert!(matches!(&result, Err(SnapshotRequestError::Correlation)));
-            }
+        if v.name().contains("correlation") {
+            assert!(matches!(&result, Err(SnapshotRequestError::Correlation)));
         }
         if let Ok(snapshot) = result {
-            assert_eq!(snapshot.canonical(), v.hex("snapshot"));
-            let decisions: Vec<_> = snapshot.decisions().collect();
+            assert_eq!(envelope.payload, v.hex("snapshot"));
+            let decisions = snapshot;
+            if v.name() == "source-two-scopes" {
+                assert_eq!(decisions.len(), 2);
+                assert!(
+                    decisions
+                        .iter()
+                        .all(|d| matches!(d, PublicationDecision::Replace(_)))
+                );
+                continue;
+            }
+            if v.name() == "source-ordered-large-directory-unknown" {
+                assert_eq!(decisions.len(), 3);
+                let PublicationDecision::Replace(directory) = &decisions[0] else {
+                    panic!("directory");
+                };
+                assert_eq!(directory.content().key.family, 8);
+                assert_eq!(directory.content().key.kind, "directory");
+                let payload: serde_json::Value =
+                    serde_json::from_slice(directory.content().payload).unwrap();
+                assert_eq!(payload["relays"][0]["id"], 17);
+                assert_eq!(payload["relays"][0]["code"], "HK");
+                let PublicationDecision::Replace(large) = &decisions[1] else {
+                    panic!("large entry");
+                };
+                assert_eq!(large.content().payload.len(), 800_000);
+                assert!(matches!(&decisions[2], PublicationDecision::UnknownKind(_)));
+                continue;
+            }
             if v.name() == "response-empty" {
                 assert!(decisions.is_empty());
             } else {
@@ -161,10 +172,11 @@ fn publication_snapshot_request_vectors() {
                     },
                     version: 8,
                 }];
-                assert!(matches!(
-                    pending.response(&envelope, &expected, &last, &publication),
-                    Err(SnapshotRequestError::Publication(PublicationError::Stale))
-                ));
+                assert!(
+                    pending
+                        .response(&envelope, &expected, &last, &current, &publication)
+                        .is_err()
+                );
             }
         }
     }

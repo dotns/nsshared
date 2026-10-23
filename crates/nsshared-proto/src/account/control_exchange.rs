@@ -46,6 +46,26 @@ pub const SERVICE_CONTROL: &str = "service.control.v1";
 pub const CONFIG_STREAM: &str = "config.stream";
 /// Confidential authenticated publication stream endpoint.
 pub const CONFIG_STREAM_PATH: &str = "/api/v1/config/stream";
+/// Publication SSE event containing one complete SourcePublication, never a B43 envelope.
+pub const CONFIG_PUBLICATION_EVENT: &str = "config-envelope.v1";
+/// Query parameter containing the canonical unpadded Base64 signed subscription.
+pub const CONFIG_STREAM_REQUEST_PARAM: &str = "request";
+/// Inclusive complete decoded SourcePublication ceiling N, independent of framing.
+pub const MAX_PUBLICATION_BYTES: usize = MAX_BYTES;
+/// Canonical unpadded Base64 length E(N) = 4 * floor(N/3) + remainder + 1
+/// for a nonzero remainder, otherwise 4 * floor(N/3): 1,398,102 bytes.
+pub const MAX_PUBLICATION_ENCODED_BYTES: usize = 4 * (MAX_PUBLICATION_BYTES / 3)
+    + if MAX_PUBLICATION_BYTES.is_multiple_of(3) {
+        0
+    } else {
+        MAX_PUBLICATION_BYTES % 3 + 1
+    };
+/// Inclusive complete SSE event ceiling: E(N) + event-name length + 19.
+/// The 19 bytes are `event: `, `data: ` and three CRLF endings, totaling
+/// 1,398,139 bytes; LF is three bytes shorter. Consumers measure each event
+/// and terminate on either this bound or the independent decoded bound.
+pub const MAX_PUBLICATION_FRAMED_BYTES: usize =
+    MAX_PUBLICATION_ENCODED_BYTES + CONFIG_PUBLICATION_EVENT.len() + 19;
 /// Independently polled publication snapshot operation.
 pub const CONFIG_SNAPSHOT: &str = "config.snapshot";
 /// Existing confidential signed operation endpoint for snapshot polls.

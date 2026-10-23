@@ -500,8 +500,8 @@ recipient equals every requested issuer. The authenticated ingress also checks
 the configured subscriber/authority and authorized exact scope set; decoding
 alone confers no authority. Existing confidential HTTPS/Noise/QUIC carriers and
 encoded-subscription bounds apply; no plaintext, empty unsigned request or JSON
-fallback is introduced. HTTP may carry the signed envelope in the existing
-base64url request parameter; URL encoding and stream I/O remain consumer work.
+fallback is introduced. HTTP carries the complete signed subscription envelope as canonical URL-safe
+unpadded Base64 in the `request` query parameter; URL encoding and stream I/O remain consumer work.
 Stream and independently polled snapshot authority keep their existing kind
 ownership; a subscription never moves a snapshot kind to the stream.
 
@@ -511,13 +511,31 @@ and unsorted sets, oversized declarations, unknown fields and nonminimal bytes.
 NSD confirmation of this exact candidate and producer vectors is outstanding;
 the current predecessor handler is a checklist, not interoperability evidence.
 
+
+### Publication stream framing
+
+`control_exchange::CONFIG_PUBLICATION_EVENT` is `config-envelope.v1`;
+`CONFIG_STREAM_REQUEST_PARAM` is `request`. Each event has one `data: ` line:
+canonical URL-safe unpadded Base64 of exactly one complete SourcePublication,
+never a B43 Response envelope. Producers use LF; consumers accept LF and CRLF.
+For N = MAX_PUBLICATION_BYTES = 1,048,576, E(N) = 4 * floor(N / 3) +
+(0 when N mod 3 = 0, otherwise N mod 3 + 1) = 1,398,102.
+MAX_PUBLICATION_ENCODED_BYTES is E(N). MAX_PUBLICATION_FRAMED_BYTES is
+E(N) + len(`config-envelope.v1`) + 19 = 1,398,139, inclusive, accounting for
+`event: `, `data: ` and three CRLF endings. LF uses three fewer bytes.
+Measure each complete event including framing, independently of network reads;
+retain bounded standalone keepalives. Exceeding the framed bound or the independent
+decoded N bound terminates the stream without installing that event; never drop
+and continue. Runtime parsing remains consumer work. The separate
+`service.control.v1` event keeps its B43/M6 encoding and limits.
+
 ## Independent publication snapshot poll
 
 | Predecessor | Candidate | Meaning |
 |---|---|---|
 | GatewayRealmConfigSnapshotRequest.stream_session | boot_nonce, attempt_counter | Required nonzero restart nonce and positive checked u32 logical stream attempt; same caller-supplied identity as the active subscription. No session runtime or scope grant. |
 | GatewayRealmConfigSnapshotRequest | PublicationSnapshotRequest | Subscriber plus exact sorted issuer/recipient/served-realm/scope entries, at most 32; every recipient is the subscriber. No predecessor kind selector existed. All snapshot-owned kinds within each entry are requested; stream kinds are never requested. |
-| GatewayRealmConfigSnapshotResponse.realms[].realm_id/events | PublicationSnapshot | Existing canonical signed-event container, with each event retaining its full authenticated publication key. Empty snapshots retain state; signed empty event payloads withdraw only their exact key. |
+| GatewayRealmConfigSnapshotResponse.realms[].realm_id/events | SourcePublication container | Canonical source-bound container `[1, [bstr(SourcePublication), ...]]`, with each entry retaining its full authenticated publication key. Empty snapshots retain state; signed empty event payloads withdraw only their exact key. |
 
 The predecessor operation `gateway.realm_config_snapshot` is replaced by
 `config.snapshot`; gateway-only machine lookup and gateway-wide wildcard
@@ -552,8 +570,17 @@ signer is the subscriber, mandatory recipient is every requested issuer and
 nonce equals correlation. The authority checks the requested exact scopes and
 active subscription facts against its own state. The response uses the same
 operation, response direction, mandatory subscriber recipient and nonce equal
-to the pending correlation. Its payload is exactly the existing PublicationSnapshot,
-with no second snapshot encoding. The verifier checks carrier trust, every event's
+to the pending correlation. Its only payload form is canonical
+`[1, [bstr(SourcePublication), ...]]`; plain PublicationEvent and mixed containers
+are refused, with no fallback or second poll mode. Every entry, including family 8
+`directory` and authenticated unknown Snapshot kinds, uses Snapshot delivery
+`[1, boot_nonce, attempt_counter, correlation]`. The pure response validator checks
+the exact pending scope set against independently accepted current source bindings,
+then validates every entry with the request-derived delivery context before exposing
+any decision. One invalid entry rejects the complete poll. Each complete outer entry
+is bounded by 1,048,576 bytes; the container and signed B43 carrier retain
+MAX_CONTROL_BODY. Snapshot entries have no SSE/Base64 framing limit. Directory
+payloads, numeric registrations and separate discovery binding/eligibility are unchanged. The verifier checks carrier trust, every event's
 recipient, exact requested scope and declared snapshot channel. A known
 stream-owned pair is refused even when it declares the snapshot channel.
 An unknown family/kind pair is an extension, not known stream ownership:
