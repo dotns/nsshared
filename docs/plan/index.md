@@ -109,3 +109,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**Start the mock relay with an owned UDP socket**](20261022-1938-owned-udp-socket.md) `2026-10-22`
 - [x] [**Define confidential certificate and client-CA acquisition**](20261022-2227-confidential-material.md) `2026-10-22`
 - [x] [**Define the authenticated M6 control carrier**](20261022-2237-service-control-carrier.md) `2026-10-22`
+- [x] [**Declare local Node naming**](20261023-0317-node-local-naming.md) `2026-10-23`

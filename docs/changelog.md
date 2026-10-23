@@ -1,3 +1,13 @@
+## 2026-10-23 [feat]
+
+Declare `node_local_names.v1` through the existing enrollment capability set.
+Document identity-derived Node naming, retirement of four legacy registration
+values and consumer-owned atomic cutover without changing exchange tuples.
+
+Validation: independent registration and authenticated acceptance vectors,
+canonical capability refusals and self-check passed with 522 tests and zero skips.
+Producer adoption, consumer cutover and interoperability remain outstanding.
+
 ## 2026-10-22 [feat]
 
 Add authenticated M6 unary and stream carrier contracts with exact pending
