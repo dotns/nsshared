@@ -287,6 +287,16 @@ exclusion of WireGuard overhead. Confirm `batch_loss_window: null` means unset,
 distinct from measured `[0]`, with no invented duration. Identify producer
 vectors for these units; relay DATA remains a separate unit.
 
+`EchoReplySend` retains its completed-send meaning: completed synthetic ICMP
+reply message bytes excluding IP headers, for a runtime that can observe
+per-packet send completion. The current gateway candidate emits no `EchoReplySend`
+rows: at frozen nsplane 0.16.0, synthetic replies are delivered but unbilled
+because the normal outbound path provides no per-packet successful-send receipt.
+Queue admission is never completion. `EchoProbeSend` is unchanged; an unmetered
+or failed reply does not erase a completed probe. Reply billing remains deferred
+until a released packet-runtime capability is adopted and qualified. This is an
+outstanding runtime capability, not a contract change or recorded agreement.
+
 ### Q11: Enrollment payload — NSD owner
 
 Confirm the [independent snapshot poll candidate](control-exchange-candidate.md#independent-publication-snapshot-poll): PublicationSnapshotRequest, config.snapshot on the existing confidential control endpoint, exact sorted scopes, retained active subscription boot nonce/attempt and signed response nonce correlation. The response payload remains PublicationSnapshot with existing per-key versions. No predecessor kind selector exists; only snapshot-owned kinds are requested, and explicit stream selectors are refused as unknown fields. Confirm exact scope authorization, active subscription binding and response correlation echo. Independent publication-snapshot-request.vec fixtures are not real producer output; NSD confirmation remains outstanding.

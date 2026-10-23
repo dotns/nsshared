@@ -270,6 +270,16 @@ encapsulation and overhead are excluded. The
 reporter/profile/sequence/window/part/digest and correlated answers. It adds no
 transport or retry logic.
 
+`EchoReplySend` retains its completed-send meaning: completed synthetic ICMP
+reply message bytes excluding IP headers, for a runtime that can observe
+per-packet send completion. The current gateway candidate emits no `EchoReplySend`
+rows: at frozen nsplane 0.16.0, synthetic replies are delivered but unbilled
+because the normal outbound path provides no per-packet successful-send receipt.
+Queue admission is never completion. `EchoProbeSend` is unchanged; an unmetered
+or failed reply does not erase a completed probe. Reply billing remains deferred
+until a released packet-runtime capability is adopted and qualified. This is an
+outstanding runtime capability, not a contract change or recorded agreement.
+
 `batch_loss_window` is `null` (`Unset`) until measured, or `[duration_ms]`
 (`Measured`) after measurement. Unset is not zero, unlimited, or permission to
 bill guessed bytes. No duration is invented by this candidate. The measurement

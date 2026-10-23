@@ -30,6 +30,16 @@ send (1), echo probe send (2), synthetic echo reply send (3), and preserved
 public-ingress quantity (4). The quantity is always bytes; message counts must never be copied into completed_bytes.
 Batch-loss window stays null until measured; [0] is measured zero.
 
+`EchoReplySend` retains its completed-send meaning: completed synthetic ICMP
+reply message bytes excluding IP headers, for a runtime that can observe
+per-packet send completion. The current gateway candidate emits no `EchoReplySend`
+rows: at frozen nsplane 0.16.0, synthetic replies are delivered but unbilled
+because the normal outbound path provides no per-packet successful-send receipt.
+Queue admission is never completion. `EchoProbeSend` is unchanged; an unmetered
+or failed reply does not erase a completed probe. Reply billing remains deferred
+until a released packet-runtime capability is adopted and qualified. This is an
+outstanding runtime capability, not a contract change or recorded agreement.
+
 A service report row is `[resource, client, provider, operation, unit]`, where
 resource is the existing canonical M6 ServiceRef in a byte string, client and
 provider are full validated identities, and unit is canonical ServiceUsage in
