@@ -82,7 +82,7 @@ of usage history, durable watermarks or received control messages.
 | 8 `relay` — relay directory and participant | `relay-directory-roster` / `directory\|identity-classes` / a named directory or participant roster, separately scoped; neither clears the other | snapshots |
 | 9 `usage` — [typed usage catalogue](profile-publications-candidate.md) and unchanged reports/units | `usage-profile` / `units,reporters,parameters` / one reporter; never clears metering history | none |
 | 10 `node-control` — [typed membership catalogue](profile-publications-candidate.md) and unchanged Node-control channel | `node-control-profile` / `vocabulary,capabilities` / one membership; ACK means at least accepted, persistence may precede ACK | none |
-| 11 `v1-replacement` — replacement of the v1 surface and [policy observation](realm-publication-candidate.md) | `surface-map` / `mappings,retirements` / discovery/envelope verification, admin claims, policy, signed URL, material, reports and snapshot/events vocabulary in one account profile | declarations, listeners, snapshots |
+| 11 `v1-replacement` — replacement of the v1 surface, [policy observation](realm-publication-candidate.md) and [exact Node L3 applied status](node-l3-status-candidate.md) | `surface-map` / `mappings,retirements` / discovery/envelope verification, admin claims, policy, signed URL, material, reports and snapshot/events vocabulary in one account profile | declarations, listeners, snapshots |
 
 The backslash before the table cell's pipe is Markdown escaping; the wire
 string contains only the pipe. Every row has version 1 and candidate owner
@@ -247,8 +247,11 @@ Rules are sorted lexicographically by all six fields and duplicates fail.
 An empty rule set permits no L4 traffic; a missing set fails. Rules are an
 explicit allow set; overlapping ranges mean union. There are no implicit
 wildcards, payer guesses or interface-dependent identities. Compilation and
-address/range ownership enforcement stay in consumers. Native N6, N4 and
-provider-route address views must be resolved to these identities before use.
+address/range ownership enforcement stay in consumers. Ordinary Node-L3 rules
+govern direct identity-derived N6/N4 destinations only. A Subnet mapped-prefix
+destination resolves to its exact resource and selected route, never to a
+Node-L3 destination rule naming the provider. Neither side creates or requires
+a Node-L3 rule for this path. See [route admission and applied status](node-l3-status-candidate.md).
 The candidate bounds scopes/rules/identities per scope to 8,192 and bytes to 1 MiB.
 
 ## Service usage unit
@@ -1130,3 +1133,12 @@ adoption remain outstanding, including independent producer confirmation.
 The review delta is a candidate, never agreement or interoperability evidence.
 No new field, carrier, P-item or dependency edge is introduced; previous delivery
 evidence does not establish this delta or release external cutover acceptance.
+
+## Node L3 applied status
+
+Family 11 snapshot `node-l3` retains its existing bytes and source ownership.
+The confidential `node.l3.status` operation reports only actual application of
+an exact signed inner event. See the [canonical status contract](node-l3-status-candidate.md)
+for request/response bytes, digest, full source fencing and independent vectors.
+An exact Applied empty withdrawal proves removal; rejection and authenticated
+fetch-failure denial never provide permission evidence.

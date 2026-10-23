@@ -2,6 +2,8 @@
 register a new producer by adding its module to PRODUCERS."""
 
 from . import (
+    node_l3_status,
+    node_l3_route_admission,
     service_control_carrier,
     subnet_publication_views,
     profile_publications,
@@ -34,6 +36,8 @@ from . import (
 )
 
 PRODUCERS = [
+    node_l3_status,
+    node_l3_route_admission,
     service_control_carrier,
     subnet_publication_views,
     profile_publications,

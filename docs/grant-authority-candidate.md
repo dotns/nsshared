@@ -155,3 +155,26 @@ The generic publication decision refuses malformed routing payloads before any
 version can advance. Source decisions enforce nodes versus egress ownership.
 `FamilyRegistry::replacement(4, "subnet-routes")` exposes the additional exact
 replacement rule; canonical family registry bytes retain the primary family row.
+
+## Mapped-route admission and direct host authority
+
+Ordinary Node-L3 rules govern direct identity-derived N6/N4 destinations only.
+A Subnet mapped-prefix destination resolves to its exact resource and selected
+route, never to a Node-L3 rule naming the provider. Neither provider nor client
+creates or requires such a rule. Route withdrawal, exclusion or missing coverage
+never falls back to a provider-wide Node rule.
+
+Provider admission joins the current Exit owner's exact resource, authenticated
+client/provider, grant incarnation, payer and expiry, embedded validated route's
+real/mapped selection minus exclusions and SubnetProxyCoverage, and independently
+validated local enablement/binding. Preserve resource-authority/payer joins and
+retirement; a client view alone cannot authorize service.
+
+The client selects only the named resource's selected mapped destinations and
+covered TCP/UDP/echo for that route's provider, comparing client with self and
+provider with the independently installed peer identity/key within the accepted
+source and Network. This grants route selection only; the client receives no
+provider payer/incarnation facts. Bypasses retain their existing routing semantics;
+source/destination and reverse-flow ownership remain unchanged. Direct N6/N4
+requires independent authority. Native IPv6 forwarding and live default Exit
+remain outside this contract. See [applied status](node-l3-status-candidate.md).

@@ -18,6 +18,9 @@ use thiserror::Error;
 /// Confidential authentication configuration request/response operation.
 pub const EDGE_AUTH_CONFIG_GET: &str = "edge.auth.config.get";
 
+/// Confidential exact Node L3 application status operation.
+pub const NODE_L3_STATUS: &str = "node.l3.status";
+
 /// Confidential certificate and client-CA acquisition operation.
 pub const EDGE_MATERIAL_GET: &str = "edge.material.get";
 
