@@ -1,3 +1,14 @@
+## 2026-10-23 [feat]
+
+Add exact Node L3 application-status requests and receipts, signed-inner-event
+digests and retained source/context comparisons. Clarify that mapped Subnet
+routes use exact resource selection without provider-wide Node host permission.
+Existing policy, grant, Subnet and service-control bytes remain unchanged.
+
+Validation: independent route and status vectors and self-check passed with
+527 tests and zero skips. NSD issuance retention and Node runtime application
+and reporting adoption remain outstanding.
+
 ## 2026-10-23 [docs]
 
 Clarify that the current gateway emits no EchoReplySend usage rows because the

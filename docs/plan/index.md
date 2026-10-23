@@ -111,3 +111,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**Define the authenticated M6 control carrier**](20261022-2237-service-control-carrier.md) `2026-10-22`
 - [x] [**Declare local Node naming**](20261023-0317-node-local-naming.md) `2026-10-23`
 - [x] [**Document current echo reply non-emission**](20261023-0324-echo-reply-non-emission.md) `2026-10-23`
+- [x] [**Define Node L3 route admission and applied status**](20261023-0450-node-l3-status.md) `2026-10-23`
