@@ -1194,6 +1194,6 @@ hostname is accepted. The independent `public_edge_protocol_names` sequence
 covers these shapes and conflicts; existing named raw fixtures are regenerated
 to null, while HTTP-only bytes stay unchanged.
 
-Campaign 3 N20 producer adoption remains outstanding. Confirm NSD HTTP public_host
+NSD N20 producer adoption remains outstanding. Confirm NSD HTTP public_host
 and raw protocol/port projection, with producer-owned accepted/refused vectors.
 Independent candidate fixtures are not producer agreement.
