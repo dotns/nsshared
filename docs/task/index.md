@@ -151,3 +151,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**Declare local Node naming**](20261023-0317-node-local-naming.md) `P1`
 - [x] [**Document current echo reply non-emission**](20261023-0324-echo-reply-non-emission.md) `P1`
 - [x] [**Define Node L3 route admission and applied status**](20261023-0450-node-l3-status.md) `P1`
+- [x] [**Update the constant-time utility dependency**](20261023-0918-fix-constant-time-dependency.md) `P1`

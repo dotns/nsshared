@@ -1,3 +1,12 @@
+## 2026-10-23 [fix]
+
+Update ctutils from 0.4.2 to 0.4.4 to resolve RUSTSEC-2026-0385 without
+changing dependency requirements or advisory policy. Only the package version
+and checksum change in the lockfile.
+
+Validation: advisory checks passed; self-check passed with 527 tests and zero
+skips, including compatibility checks and documentation.
+
 ## 2026-10-23 [feat]
 
 Add exact Node L3 application-status requests and receipts, signed-inner-event
