@@ -1,6 +1,6 @@
 # docs: record echo reply non-emission
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-10-23 03:24
 - **approvedAt**: 2026-10-23 03:24
 - **relatedTask**: 20261023-0324-echo-reply-non-emission
@@ -37,3 +37,9 @@ Reply billing remains deferred until a capable runtime is adopted and qualified.
 
 Review the three documents for consistent meaning and non-emission, then run
 formatting, lint and the scoped self-check.
+
+## Outcome
+
+The three documentation updates are complete. Formatting, lint and the scoped
+self-check passed; the acceptance record contains the documentation assertion
+and verification results.
