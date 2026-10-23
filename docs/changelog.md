@@ -1,3 +1,14 @@
+## 2026-10-23 [docs]
+
+Clarify that the current gateway emits no EchoReplySend usage rows because the
+frozen packet runtime provides no per-packet successful-send receipt. Synthetic
+replies remain unbilled; queue admission is never completed sending. Preserve
+EchoProbeSend and all existing contracts, vectors and wire bytes.
+
+Validation: documentation assertions and self-check passed with 521 tests and
+zero skips. Runtime completion receipts and later billing qualification remain
+outstanding.
+
 ## 2026-10-23 [feat]
 
 Declare `node_local_names.v1` through the existing enrollment capability set.

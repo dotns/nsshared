@@ -149,3 +149,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**Define confidential certificate and client-CA acquisition**](20261022-2227-confidential-material.md) `P1`
 - [x] [**Define the authenticated M6 control carrier**](20261022-2237-service-control-carrier.md) `P1`
 - [x] [**Declare local Node naming**](20261023-0317-node-local-naming.md) `P1`
+- [x] [**Document current echo reply non-emission**](20261023-0324-echo-reply-non-emission.md) `P1`
