@@ -1,6 +1,6 @@
 # Candidate handoff
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-10-24 11:15
 - **approvedAt**: 2026-10-24 11:15
 - **relatedTask**: 20261024-1115-candidate-handoff
@@ -36,3 +36,13 @@ files resolve their own dependency graphs and need not equal the shared lockfile
 
 Documentation alone cannot detect changed source or a mismatched lock resolution.
 Running another full QA inside the comparison would duplicate existing checks.
+
+## Acceptance
+
+The handoff, historical/current review distinction, exact consumer comparison and
+focused refusal test are complete. The final source/documentation commit
+`b4f1039c1a5d02d7cbc127af45a91bc241104b9b` passed the complete scoped self-check,
+which selected full QA. Independent comparison, temporary Git refusal cases and
+normal dependency-closure inspection passed. No candidate code, manifest,
+lockfile or vector bytes changed. External adoption and approval remain open;
+only these acceptance records changed after verification.
