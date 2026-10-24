@@ -1,6 +1,6 @@
 # Provider mapping eligibility
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-10-24 16:55
 - **approvedAt**: 2026-10-24 16:55
 
@@ -64,3 +64,12 @@ unchanged, including its valid populated control and direct refusal assertions.
 validation, retaining the distinct wrong-Network membership refusal. New independent
 `provider-mapping-actions.vec` cases keep a valid adjacent Exit grant and verify
 whole-response refusal for malformed inventories through every snapshot entry point.
+
+## Action validation acceptance
+
+- Before the correction, `mapping_actions_require_a_well_formed_inventory` failed with `zero-id: malformed inventory exposed as an action: Replace`.
+- The imported test file, populated control and refusal assertions are unchanged.
+- Preliminary formatting and lint passed. Ten focused tests passed, including the direct decision regression, replacement/isolation sequence, atomic mixed snapshot sequence and existing profile, plain snapshot, correlated response and grant/client-route tests.
+- The complete `just self-check` passed at `4654e86256a6eb46441ea47bba561debb92e3fc4`: 541 tests passed with zero skips, 36 vector fixtures current, API compatibility, doctests and documentation passed. Only these acceptance records changed afterward.
+- Existing report, grant/client-route and provider-mapping fixture bytes are unchanged. Fifteen new independent correlated fixtures include a valid adjacent grant and valid populated/replacement/typed-empty/withdrawal controls.
+- Final inspection found no additional confirmed omission among the four event payload decoder integrations or the common, source, scoped, correlated and plain snapshot action entry points. External adoption and integration remain unestablished.
