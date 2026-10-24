@@ -19,8 +19,14 @@ before merging the candidate into `main` or releasing it.
 
 ## Candidate package
 
-The published candidate revision is
-`41149fe1febf2ecee07f077d68a500e18822442c`. Review these files at that revision:
+The current selected candidate revision is
+`50dc9db5fe106536d0a7d8b113b5bb4a3e210368`. The earlier
+`41149fe1febf2ecee07f077d68a500e18822442c` remains a historical package delivery
+reference. Review the [immutable handoff](l8-candidate-handoff.md) for the complete
+delivered-contract list, P12–P19 additions, vector corrections, exact gateway
+manifest/lockfile comparison and unresolved external adoption. Gateway package
+consumption does not establish external owner forwarding or approval. Review
+these files at the current selected revision:
 
 - [Specification](l8-account-payload-profile.md): schema 1 canonical CBOR and
   local admission JSON schema 2; replacement, lifecycle and byte-unit rules.
@@ -688,7 +694,8 @@ retain the delivery date and any partial answer reference. Outstanding answers
 do not block candidate preparation and do not imply approval. All rows start
 prepared because no external producer delivery or answer has been received.
 These statuses track external producer review; Q18's owner design choice is
-settled while shared definitions and adoption remain pending.
+settled; shared definitions are delivered, while external producer review and
+adoption remain outstanding.
 
 | Reference | Addressee | Status | Sent date (reported by owner) | Answer location |
 | --- | --- | --- | --- | --- |
