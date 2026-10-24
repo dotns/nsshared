@@ -75,7 +75,7 @@ of usage history, durable watermarks or received control messages.
 | 1 `enrollment` — enrollment and own Node binding | `own-node` / `binding,capabilities,endpoints` / one membership | declarations |
 | 2 `realms-peers` — [complete served realms and peers](realm-publication-candidate.md) | `realm-peers` / `realms,peer-contributions` / exact signed issuer/recipient/served_realm/scope collection; omitted contributions removed | snapshots |
 | 3 `egress` — [Egress grants](grant-authority-candidate.md) | `egress-grants` / `resources,grants,payers` / one realm and recipient | declarations, listeners, snapshots |
-| 4 `exit-subnet` — [Exit grants and client routes](grant-authority-candidate.md) | `exit-grants` / `routes,grants,exclusions,bypasses,selection` / provider nodes collection; `subnet-routes` / `routes,exclusions,bypasses,selection` / client nodes collection | listeners, snapshots |
+| 4 `exit-subnet` — [Exit grants and client routes](grant-authority-candidate.md) | `exit-grants` / `routes,grants,exclusions,bypasses,selection` / provider nodes collection; `subnet-routes` / `routes,exclusions,bypasses,selection` / client nodes collection; `provider-mappings` / `mappings` / provider nodes inventory | listeners, snapshots |
 | 5 `payer` — [binary realm/UserId bindings](grant-authority-candidate.md) | `payer-bindings` / `payers` / one resource scope; ambiguity withholds the resource | snapshots |
 | 6 `withdrawal` — [resource authority and retired tokens](grant-authority-candidate.md) | `resource-authority` / `authority,incarnations` / current authority in one recipient/resource scope | snapshots |
 | 7 `public-edge` — [public edge, material and service operations](l8-public-edge-candidate.md) | `public-edge` / `backends,names,aliases,ports,domains,subjects,auth,materials` / exact signed issuer/recipient/served_realm/scope, per-realm contributions; full Node identity backends, explicit no-connector and generation-qualified dependencies | declarations, listeners, snapshots |
@@ -501,7 +501,7 @@ served_realm, scope, family, kind)`; a version never orders different keys.
 | 1 enrollment | `own-node` | stream |
 | 2 realms-peers | `realm-peers` | snapshot |
 | 3 egress | `egress-grants` | snapshot |
-| 4 exit-subnet | `exit-grants`, `subnet-routes` | snapshot |
+| 4 exit-subnet | `exit-grants`, `subnet-routes`, `provider-mappings` | snapshot |
 | 5 payer | `payer-bindings` | snapshot |
 | 6 withdrawal | `resource-authority` | stream |
 | 7 public-edge | `public-edge` | stream |
@@ -1014,7 +1014,7 @@ self-reporting belongs to later ordinary-provider integration.
 
 ## Exit grants and consumer Subnet route views
 
-Family 4 has two snapshot kinds. `exit-grants` carries the existing
+Family 4 has three snapshot kinds. `exit-grants` carries the existing
 GrantPublication `[1, 4, issuer, recipient, revision, grants]`, with recipient equal
 to the provider. Exit details `[1, subnet_publication_bytes]` contain exactly one
 matching route; the embedded recipient equals the client, not the outer provider.
@@ -1197,3 +1197,21 @@ to null, while HTTP-only bytes stay unchanged.
 NSD N20 producer adoption remains outstanding. Confirm NSD HTTP public_host
 and raw protocol/port projection, with producer-owned accepted/refused vectors.
 Independent candidate fixtures are not producer agreement.
+
+## Provider mapping inventory
+
+The [provider mapping specification](l8-public-edge-candidate.md#provider-mapping-eligibility)
+adds family 4 Snapshot kind `provider-mappings`, clears `mappings`, canonical
+`[1, mappings]` with `[nonzero_u32_id, B40_SubnetPrefix]` entries strictly ascending
+by id, at most 256, and a 1 MiB payload bound. It is the complete eligible inventory,
+independent of grants and client routes. Decode alone or nodes enrollment alone
+establishes no eligibility: exact current nodes source, provider recipient/source_node,
+accepted issuer and Network, pending Snapshot context, signatures, version and
+validity must all pass. Newer replacement, typed empty and authenticated withdrawal
+operate only on that exact collection. Existing report/grant/route bytes are unchanged.
+
+The independent `provider_mapping_replacement` consumer sequence proves populated,
+changed/omitted and empty sets and authority/payload refusals with fixture authorities.
+NSD N07/N09 publication and current-source handoff, and ns S25/S11 activation adoption
+remain outstanding requests; no agreement, producer delivery or external adoption is
+inferred. Gateway self-reporting/inventory consumption remains deferred to C06.

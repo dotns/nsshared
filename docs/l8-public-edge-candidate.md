@@ -202,3 +202,37 @@ authority, TLS SNI and confidential material hostnames retain their own rules.
 NSD raw exposure protocol/port supplies null and empty collections; its HTTP
 public_host supplies the HTTP name. Real producer adoption remains outstanding;
 fixture authority does not establish producer agreement.
+
+## Provider mapping eligibility
+
+Family 4 `provider-mappings` is a Snapshot-only complete replacement with clears
+`mappings`. Its canonical CBOR is `[1, mappings]`, entries `[subnet_id, real_cidr]`.
+Ids are nonzero u32, strictly ascending without duplicates, at most 256 entries.
+The payload ceiling is 1 MiB. `real_cidr` is exactly the B40 SubnetPrefix:
+`[4, bstr(4), length]` or `[6, bstr(16), length]`, with network alignment.
+Malformed, noncanonical and oversized input is refused without repair.
+
+The signed outer event supplies version and validity. Independently accepted
+issuer, provider identity, Network membership, current nodes source, pending
+Snapshot context, retained versions and clock establish authority. Binding recipient
+and source_node both equal the provider; event scope is `nodes`. Both actual and
+signed channels must be Snapshot and replacement must be complete. Neither an
+accepted nodes binding alone nor decoded payload alone establishes mapping eligibility.
+
+A newer valid set replaces only its exact issuer/recipient/Network/scope/family/kind
+inventory. Omission removes eligibility. Typed `[1, []]` and authenticated empty
+payload withdrawal clear only this inventory, preserving grants, client routes and
+other providers. Transport failure does not clear still-valid state. Existing expiry,
+source retirement, authenticated failure and replay rules remain unchanged.
+
+NSD committed mapping/provider custody produces eligibility independently of reports,
+selection and grants; existing Node custody supplies the current nodes binding and
+the publication owner persists versions and validity. Providers compare configured
+mapping id and real prefix before offering; Explicit destinations remain within the
+real prefix and Default requires /0. NSD rechecks committed authority on reports.
+No ServiceRef, mapped prefix, selection, grant, payer or permission is added.
+Existing report/allocation and grant/client-route bytes remain unchanged.
+
+Publication, source handoff and activation adoption remain outstanding for NSD
+N07/N09 and ns S25/S11. The gateway retains local Exit configuration and grants;
+its mapping report producer and inventory consumer await the later C06 handoff.

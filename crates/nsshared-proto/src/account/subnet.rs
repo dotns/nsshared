@@ -206,7 +206,7 @@ impl SubnetPrefix {
         Self { address, length }
     }
 
-    fn write(self, out: &mut CborWriter) {
+    pub(super) fn write(self, out: &mut CborWriter) {
         out.array(3);
         match self.address {
             IpAddr::V4(address) => {
@@ -219,7 +219,7 @@ impl SubnetPrefix {
         out.uint(u64::from(self.length));
     }
 
-    fn read(input: &mut CborReader<'_>) -> Result<Self, SubnetError> {
+    pub(super) fn read(input: &mut CborReader<'_>) -> Result<Self, SubnetError> {
         input.array(3)?;
         let address = match input.uint()? {
             4 => IpAddr::V4(Ipv4Addr::from(input.fixed_bytes::<4>()?)),
