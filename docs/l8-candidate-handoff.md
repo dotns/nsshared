@@ -247,3 +247,22 @@ cohorts remain independently owned. No earlier result is promoted by this handof
 
 These assignments define candidate drafting responsibility. They neither transfer
 external runtime ownership into shared code nor record external review approval.
+
+## Provider mapping inventory delivery
+
+The pure `provider-mappings` contract is delivered at
+`110b3d705965a07dd257d5951f44f662850a1756`, with independent
+[provider-mapping.vec](../crates/nsshared-proto/tests/fixtures/vectors/provider-mapping.vec)
+and [provider_mapping_replacement](../crates/nsshared-proto/tests/provider_mapping_replacement.rs).
+It adds the separate family 4 Snapshot inventory and exact `mappings` replacement,
+canonical bounded mapping ids and B40 prefixes, and current nodes-source/context
+verification. Populated, changed/omitted, typed-empty and authenticated withdrawal
+sets remain separate from other providers, grants and client route views.
+The report/allocation and grant/client-route bytes remain unchanged.
+
+This is a new contract revision beyond the historical package comparison above;
+that comparison does not establish consumer adoption of this inventory. NSD
+N07/N09 production and current-source handoff, and ns S25/S11 provider activation
+remain outstanding. Review requests record no agreement. Gateway self-reporting
+and inventory consumption remain deferred to the existing C06 handoff; fixture
+success supplies no evidence of external implementation or live eligibility.
