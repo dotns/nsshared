@@ -45,8 +45,9 @@ own state.
 The pure `nsshared-proto::account` module specifies the [L8 account payload
 profile](l8-account-payload-profile.md), lifecycle distinctions, normalized Node
 L3 input, service usage units and atomic identity/class rosters. M6 objects and
-bytes remain owned by `nsshared-service-control`; neither crate depends on the
-other at this candidate layer. The pure `nsshared-proto::node_control` codec supplies unchanged Node-control v2
+bytes remain owned by `nsshared-service-control`; `nsshared-proto` depends
+on that pure contract crate to reuse the existing M6 types and codecs. The reverse
+dependency is absent. This edge adds no service or Node-control runtime. The pure `nsshared-proto::node_control` codec supplies unchanged Node-control v2
 messages, constants, hashes and endpoint selection for registry family 10.
 Transport, retransmission, persistence and session state remain in consumers.
 
