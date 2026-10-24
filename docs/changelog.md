@@ -1,3 +1,14 @@
+## 2026-10-24 [feat]
+
+Add a separate provider-mappings Snapshot inventory with bounded canonical ids
+and Subnet prefixes, exact nodes-source and membership checks, and isolated
+replacement/withdrawal behavior. Validate typed inventory before exposing actions
+through single-event or whole-snapshot APIs; preserve existing report and route bytes.
+
+Validation: independent replacement and atomic mixed-snapshot vectors, unchanged
+regression assertions and self-check passed with 541 tests and zero skips.
+External producer and activation adoption remain outstanding.
+
 ## 2026-10-24 [docs]
 
 Document the immutable shared candidate, delivered contracts and corrections,

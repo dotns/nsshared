@@ -158,3 +158,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**Update the asynchronous I/O dependency**](20261023-1548-fix-async-io-dependency.md) `P1`
 - [x] [**Define protocol-specific public-edge route names**](20261023-1548-public-edge-protocol-names.md) `P1`
 - [x] [**Prepare the immutable candidate handoff**](20261024-1115-candidate-handoff.md) `P1`
+- [x] [**Define provider mapping eligibility snapshots**](20261024-1655-provider-mapping-eligibility.md) `P1`
