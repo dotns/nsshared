@@ -90,6 +90,17 @@ fn provider_mapping_replacement() {
             now_seconds: 150,
         };
         let decision = decide_source_publication(&states, Some(raw), &current, &pending, &expected);
+        if fields["name"] != "wrong-network" {
+            assert_eq!(
+                matches!(
+                    &decision,
+                    Ok(PublicationDecision::Replace(_) | PublicationDecision::Withdraw(_))
+                ),
+                fields["decision"] == "accept",
+                "{}: unexpected direct decision: {decision:?}",
+                fields["name"]
+            );
+        }
         let result = match &decision {
             Ok(PublicationDecision::Replace(event) | PublicationDecision::Withdraw(event)) => event
                 .validate_routing_context(expected.recipient, &membership)
