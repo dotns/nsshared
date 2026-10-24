@@ -1,3 +1,14 @@
+## 2026-10-24 [docs]
+
+Document the immutable shared candidate, delivered contracts and corrections,
+verified gateway package pins, external adoption gaps and drafting ownership.
+Add a read-only manifest/lock/source/vector comparison with temporary Git tests
+that reject drift. Preserve historical delivery separately from approval.
+
+Validation: all four selected consumer input pairs agree, 251 candidate inputs
+match, and self-check passed with 537 tests and zero skips. External producer
+review, interoperability, main publication and release remain outstanding.
+
 ## 2026-10-23 [feat]
 
 Require canonical hostnames for HTTP routes and null names with empty aliases

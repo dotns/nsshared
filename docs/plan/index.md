@@ -118,3 +118,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**Refuse group labels as policy principals**](20261023-1153-group-label-principals.md) `2026-10-23`
 - [x] [**Update the asynchronous I/O dependency**](20261023-1548-fix-async-io-dependency.md) `2026-10-23`
 - [x] [**Define protocol-specific public-edge route names**](20261023-1548-public-edge-protocol-names.md) `2026-10-23`
+- [x] [**Prepare the immutable candidate handoff**](20261024-1115-candidate-handoff.md) `2026-10-24`

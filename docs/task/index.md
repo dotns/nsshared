@@ -157,3 +157,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**Refuse group labels as policy principals**](20261023-1153-group-label-principals.md) `P1`
 - [x] [**Update the asynchronous I/O dependency**](20261023-1548-fix-async-io-dependency.md) `P1`
 - [x] [**Define protocol-specific public-edge route names**](20261023-1548-public-edge-protocol-names.md) `P1`
+- [x] [**Prepare the immutable candidate handoff**](20261024-1115-candidate-handoff.md) `P1`
