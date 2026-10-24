@@ -210,6 +210,31 @@ NSD and ns adoption tracked by the parallel adoption effort remains unresolved;
 no package pin is inferred for either repository. Each producer must supply its
 own vectors; candidate fixture success cannot close that obligation.
 
+## Later matched external handoffs
+
+NSD D-N1–D-N7, ns D-S1–D-S4 and the released shared-contract handoff remain
+outstanding external artifacts, each requiring its actual owner, revision and
+producer/consumer evidence. No fixture or gateway manifest closes them.
+The explicit dependencies retained for later real-component qualification are:
+
+| Continuation | Required external inputs |
+| --- | --- |
+| C03 direct | NSD D-N1/D-N2 ordinary gateway registration/classification, reciprocal identity WgConfig and eligible Node L3; ns D-S1 |
+| C05 Egress | D-N2/D-N6 and D-N7 service/grant/report and public-edge producers; applicable ns D-S1/D-S3/D-S4 |
+| C06 explicit Exit | D-N2/D-N6 service/grant/report producers; applicable ns D-S1/D-S3/D-S4; P12 ordinary-provider report adoption before gateway self-reporting |
+| C09–C12 relay | NSD D-N3–D-N6 and applicable ns D-S1/D-S3/D-S4; shared P07 participant/directory contract, N10/N13/N26/S17 adoption and C10 interoperability |
+| C08/C12 faults | Matched service or relay inputs of the behavior exercised; fixture lifecycle results do not prove real-component lifecycle |
+| C07/default Exit | Matched ns nesting and later authorized default qualification; no native IPv6 internet Exit activation |
+
+Remaining D-S2 and other D-N/D-S artifacts retain their external owners and
+release deadlines; no unverified revision or delivery date is supplied here.
+Deferred privileged qualification remains unqualified with its failure history;
+source fixes and fixture observations do not establish mechanism success.
+OP09 placement/trust is due before live qualification. OP07 scale inputs,
+OP08/OP10 owner assets and production R1 durable security/registry delivery are
+due before scale/release work. Original report settlement, rollback and release
+cohorts remain independently owned. No earlier result is promoted by this handoff.
+
 ## Five ownership dispositions
 
 | Surface | Shared drafting/delivery owner | External implementation owner / remaining disposition |
