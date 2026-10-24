@@ -1157,3 +1157,21 @@ to null, while HTTP-only bytes stay unchanged.
 NSD N20 producer adoption remains outstanding. Confirm NSD HTTP public_host
 and raw protocol/port projection, with producer-owned accepted/refused vectors.
 Independent candidate fixtures are not producer agreement.
+
+## Provider mapping inventory
+
+The [provider mapping specification](l8-public-edge-candidate.md#provider-mapping-eligibility)
+adds family 4 Snapshot kind `provider-mappings`, clears `mappings`, canonical
+`[1, mappings]` with `[nonzero_u32_id, B40_SubnetPrefix]` entries strictly ascending
+by id, at most 256, and a 1 MiB payload bound. It is the complete eligible inventory,
+independent of grants and client routes. Decode alone or nodes enrollment alone
+establishes no eligibility: exact current nodes source, provider recipient/source_node,
+accepted issuer and Network, pending Snapshot context, signatures, version and
+validity must all pass. Newer replacement, typed empty and authenticated withdrawal
+operate only on that exact collection. Existing report/grant/route bytes are unchanged.
+
+The independent `provider_mapping_replacement` consumer sequence proves populated,
+changed/omitted and empty sets and authority/payload refusals with fixture authorities.
+NSD N07/N09 publication and current-source handoff, and ns S25/S11 activation adoption
+remain outstanding requests; no agreement, producer delivery or external adoption is
+inferred. Gateway self-reporting/inventory consumption remains deferred to C06.

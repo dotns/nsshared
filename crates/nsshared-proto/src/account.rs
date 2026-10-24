@@ -26,6 +26,7 @@ pub mod participant_session;
 mod policy_auth;
 mod policy_subject;
 mod profile_publications;
+mod provider_mapping;
 pub mod provider_subnet_report;
 mod public_edge;
 mod publication;
@@ -86,6 +87,7 @@ pub use policy_subject::{PolicySubject, SubjectAnchor, SubjectBinding};
 pub use profile_publications::{
     NodeControlProfilePublication, ProfilePublicationPayload, UsageProfilePublication,
 };
+pub use provider_mapping::{MAX_PROVIDER_MAPPINGS, ProviderMapping, ProviderMappings};
 pub use public_edge::{
     EdgeProtocol, EdgeRealm, EdgeRoute, EdgeRouteOptions, EdgeSourceIp, EdgeTransport,
     EdgeUpstreamTls, PublicEdge,

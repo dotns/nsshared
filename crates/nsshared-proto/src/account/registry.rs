@@ -186,6 +186,12 @@ impl FamilyRegistry {
     /// The canonical family registry retains each family's primary publication.
     #[must_use]
     pub fn replacement(self, family: u64, kind: &str) -> Option<ReplacementRule> {
+        if (family, kind) == (4, "provider-mappings") {
+            return Some(ReplacementRule {
+                publication: "provider-mappings",
+                clears: "mappings",
+            });
+        }
         if (family, kind) == (4, "subnet-routes") {
             return Some(ReplacementRule {
                 publication: "subnet-routes",

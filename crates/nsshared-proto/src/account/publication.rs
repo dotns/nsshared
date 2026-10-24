@@ -262,6 +262,7 @@ pub fn publication_channel(family: u64, kind: &str) -> Option<PublicationChannel
         | (3, "egress-grants")
         | (4, "exit-grants")
         | (4, "subnet-routes")
+        | (4, "provider-mappings")
         | (5, "payer-bindings")
         | (8, "directory")
         | (11, "node-l3") => Some(PublicationChannel::Snapshot),
@@ -447,6 +448,24 @@ impl<'a> PublicationEvent<'a> {
         Ok(Some(value))
     }
 
+    /// Decodes only the provider inventory kind; decoding conveys no authority.
+    /// Empty carrier withdrawals and unrelated kinds return None.
+    /// # Errors
+    /// Refuses malformed or noncanonical mapping payloads.
+    pub fn decode_provider_mapping_payload(
+        &self,
+    ) -> Result<Option<super::ProviderMappings>, PublicationError> {
+        let content = self.content();
+        if (content.key.family, content.key.kind) != (4, "provider-mappings")
+            || content.payload.is_empty()
+        {
+            return Ok(None);
+        }
+        super::ProviderMappings::decode(content.payload)
+            .map(Some)
+            .map_err(|_| PublicationError::Fields)
+    }
+
     /// Compares routing collections against independently accepted identity and membership.
     /// Source signatures and pending delivery still require the source decision API.
     /// Empty withdrawals retain the same recipient, Network and source-scope fences.
@@ -460,7 +479,7 @@ impl<'a> PublicationEvent<'a> {
         let content = self.content();
         let scope = match (content.key.family, content.key.kind) {
             (3, "egress-grants") => "egress",
-            (4, "exit-grants" | "subnet-routes") => "nodes",
+            (4, "exit-grants" | "subnet-routes" | "provider-mappings") => "nodes",
             _ => return Err(PublicationError::Fields),
         };
         if content.key.recipient != recipient {
@@ -471,6 +490,7 @@ impl<'a> PublicationEvent<'a> {
         {
             return Err(PublicationError::Scope);
         }
+        self.decode_provider_mapping_payload()?;
         if let Some(value) = self.decode_subnet_payload()?
             && (value.recipient != *recipient.as_bytes()
                 || value.nsd_id != membership.nsd_id
@@ -561,6 +581,7 @@ pub fn decide_publication<'a>(
     if event.decode_profile_payload().is_err()
         || event.decode_grant_payload().is_err()
         || event.decode_subnet_payload().is_err()
+        || event.decode_provider_mapping_payload().is_err()
     {
         return PublicationDecision::Refused(PublicationError::Fields);
     }
