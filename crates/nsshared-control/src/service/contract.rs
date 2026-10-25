@@ -3,9 +3,8 @@
 use sha2::{Digest as _, Sha256};
 use thiserror::Error;
 
-use crate::cbor::{CborError, Value, decode_canonical, encode_canonical};
+use nsshared_codec::cbor::value::{Value, ValueError, decode_canonical, encode_canonical};
 
-#[path = "contract_body.rs"]
 mod body;
 
 /// Capability exchanged before M6 messages.
@@ -69,6 +68,7 @@ impl ServiceRef {
 
 /// Stable control-plane errors. The wire form is the lowercase code in [`Self::code`].
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
+#[non_exhaustive]
 pub enum ContractError {
     /// Malformed CBOR.
     #[error("invalid-encoding")]
@@ -105,8 +105,8 @@ impl ContractError {
     }
 }
 
-impl From<CborError> for ContractError {
-    fn from(_: CborError) -> Self {
+impl From<ValueError> for ContractError {
+    fn from(_: ValueError) -> Self {
         Self::InvalidEncoding
     }
 }
@@ -662,7 +662,7 @@ impl ListenerIntent {
 /// # Errors
 /// Returns an error if the value is outside the canonical subset.
 pub fn snapshot_digest(snapshot: &Value) -> Result<Digest, ContractError> {
-    crate::snapshot::Snapshot::from_value(snapshot)?;
+    super::snapshot::Snapshot::from_value(snapshot)?;
     Ok(domain_digest(
         "ns.service.snapshot.v1",
         &encode_canonical(snapshot)?,

@@ -1,16 +1,16 @@
 //! Conversion between typed message bodies and their exact CBOR maps.
 
-use crate::cbor::Value;
-use crate::contract::{
+use super::contract::{
     ContractError, Envelope as RawEnvelope, bytes, exact_map, field, fixed, map, option_bytes,
     option_text, option_uint, optional_fixed, optional_text, optional_uint, port, text, unsigned,
 };
-use crate::message::{
+use super::message::{
     LeaseAcquire, LeaseResult, Message, MessageBody, MessageKind, PortResult, ReadyProof,
     ReportAccepted, ReportBinding, ReportReplace, RuntimeBind, RuntimeFloorResult, ServiceLeaseRef,
     SnapshotAck, SnapshotPush,
 };
-use crate::snapshot::{Snapshot, proposal_from_value, proposal_value};
+use super::snapshot::{Snapshot, proposal_from_value, proposal_value};
+use nsshared_codec::cbor::value::Value;
 
 impl Message {
     /// Encodes an exact schema-1 message. The body variant fixes the wire kind.
@@ -162,7 +162,7 @@ impl MessageBody {
                 };
                 Self::ReportReplace(ReportReplace {
                     report_revision: unsigned(field(fields, "report_revision")?)?,
-                    report: crate::contract::ReportContent::decode(content)?,
+                    report: super::contract::ReportContent::decode(content)?,
                 })
             }
             MessageKind::ReportAccepted => Self::ReportAccepted(report_accepted(fields)?),
@@ -204,7 +204,7 @@ impl MessageBody {
             MessageKind::PortQuery => Self::PortQuery(proposal_from_value(value)?),
             MessageKind::PortQueryResult => Self::PortQueryResult(port_result_from_value(value)?),
             MessageKind::ServiceRetryPort => Self::ServiceRetryPort(
-                crate::contract::ServiceRef::from_value(field(fields, "service_ref")?)?,
+                super::contract::ServiceRef::from_value(field(fields, "service_ref")?)?,
             ),
             MessageKind::Error => Self::Error(text(field(fields, "code")?)?.to_owned()),
         })
@@ -220,7 +220,7 @@ fn fields(value: Value) -> Vec<(String, Value)> {
 }
 
 fn boolean(value: &Value) -> Result<bool, ContractError> {
-    crate::contract::boolean(value)
+    super::contract::boolean(value)
 }
 
 fn service_value(service: &ServiceLeaseRef) -> Value {
@@ -237,7 +237,7 @@ fn service_from_value(value: &Value) -> Result<ServiceLeaseRef, ContractError> {
         &["service_ref", "listener_revision", "intent_digest"],
     )?;
     Ok(ServiceLeaseRef {
-        service_ref: crate::contract::ServiceRef::from_value(field(fields, "service_ref")?)?,
+        service_ref: super::contract::ServiceRef::from_value(field(fields, "service_ref")?)?,
         listener_revision: unsigned(field(fields, "listener_revision")?)?,
         intent_digest: fixed(field(fields, "intent_digest")?)?,
     })
@@ -298,7 +298,7 @@ fn report_accepted(fields: &[(String, Value)]) -> Result<ReportAccepted, Contrac
                 };
                 Ok(ReportBinding {
                     declaration_key: text(field(fields, "declaration_key")?)?.to_owned(),
-                    service_ref: crate::contract::ServiceRef::from_value(field(
+                    service_ref: super::contract::ServiceRef::from_value(field(
                         fields,
                         "service_ref",
                     )?)?,

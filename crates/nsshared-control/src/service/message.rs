@@ -1,6 +1,6 @@
 //! Strongly typed service-control messages. The raw CBOR value is private.
 
-use crate::contract::{Digest, Id, Identity, ReportContent, ServiceRef};
+use super::contract::{Digest, Id, Identity, ReportContent, ServiceRef};
 
 /// Every message kind in schema 1. Unknown kinds are rejected.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -83,9 +83,9 @@ impl MessageKind {
 }
 
 impl TryFrom<&str> for MessageKind {
-    type Error = crate::contract::ContractError;
+    type Error = super::contract::ContractError;
 
-    fn try_from(kind: &str) -> Result<Self, crate::contract::ContractError> {
+    fn try_from(kind: &str) -> Result<Self, super::contract::ContractError> {
         Ok(match kind {
             "runtime.floor" => Self::RuntimeFloor,
             "runtime.floor.result" => Self::RuntimeFloorResult,
@@ -109,7 +109,7 @@ impl TryFrom<&str> for MessageKind {
             "port.query.result" => Self::PortQueryResult,
             "service.retry-port" => Self::ServiceRetryPort,
             "error" => Self::Error,
-            _ => return Err(crate::contract::ContractError::UnsupportedField),
+            _ => return Err(super::contract::ContractError::UnsupportedField),
         })
     }
 }
@@ -284,7 +284,7 @@ pub struct SnapshotAck {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SnapshotPush {
     /// Full snapshot content.
-    pub snapshot: crate::snapshot::Snapshot,
+    pub snapshot: super::snapshot::Snapshot,
 }
 
 /// Complete authenticated envelope exposed to consumers.

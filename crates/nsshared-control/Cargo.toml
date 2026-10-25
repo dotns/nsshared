@@ -1,0 +1,17 @@
+[package]
+name = "nsshared-control"
+description = "NS shared control contracts: M6 service control, Node control v2 and the account payload contracts"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+nsshared-codec.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

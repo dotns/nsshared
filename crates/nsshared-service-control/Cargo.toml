@@ -10,8 +10,7 @@ publish.workspace = true
 
 [dependencies]
 nsshared-codec.workspace = true
-sha2.workspace = true
-thiserror.workspace = true
+nsshared-control.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true

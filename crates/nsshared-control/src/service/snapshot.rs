@@ -1,11 +1,11 @@
 //! Typed full recipient snapshots. Every nested map and collection is validated.
 
-use crate::cbor::{Value, decode_canonical, encode_canonical};
-use crate::contract::{
+use super::contract::{
     ContractError, Digest, Id, Identity, ListenerIntent, Protocols, ServiceRef, bytes,
     domain_digest, exact_map, field, fixed, map, port, unsigned,
 };
-use crate::message::PortProposal;
+use super::message::PortProposal;
+use nsshared_codec::cbor::value::{Value, decode_canonical, encode_canonical};
 
 /// Published service resource visible to an authorized recipient.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -411,7 +411,7 @@ impl Resource {
         };
         Ok(Self {
             service_ref: ServiceRef::from_value(field(fields, "service_ref")?)?,
-            service_label: crate::contract::text(field(fields, "service_label")?)?.to_owned(),
+            service_label: super::contract::text(field(fields, "service_label")?)?.to_owned(),
             publisher_identity: fixed(field(fields, "publisher_identity")?)?,
             listener_revision: nonzero(field(fields, "listener_revision")?)?,
             intent_digest: fixed(field(fields, "intent_digest")?)?,

@@ -779,6 +779,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "nsshared-control"
+version = "0.6.0"
+dependencies = [
+ "nsshared-codec",
+ "sha2",
+ "thiserror",
+]
+
+[[package]]
 name = "nsshared-identity"
 version = "0.6.0"
 dependencies = [
@@ -903,9 +912,8 @@ name = "nsshared-service-control"
 version = "0.6.0"
 dependencies = [
  "nsshared-codec",
+ "nsshared-control",
  "serde_json",
- "sha2",
- "thiserror",
 ]
 
 [[package]]
