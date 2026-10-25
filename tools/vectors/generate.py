@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Writes or checks the NS v2 test vector fixtures.
+"""Writes or checks the test vector fixtures of every crate.
 
     python3 tools/vectors/generate.py          # self-test, then write every fixture
     python3 tools/vectors/generate.py --check  # self-test, then compare with the committed files
@@ -10,6 +10,7 @@ never builds, calls or reads the output of the Rust crates.
 
 import argparse
 import difflib
+import json
 import pathlib
 import sys
 
@@ -23,17 +24,22 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
 def fixture_dir(crate):
-    return ROOT / "crates" / crate / "tests" / "fixtures" / "vectors"
+    return ROOT / "crates" / crate / "tests" / "vectors"
 
 
 def render_all():
     """Maps every generator-owned fixture path to its expected text."""
     files = {}
     for producer in PRODUCERS:
-        path = fixture_dir(producer.CRATE) / f"{producer.GROUP}.vec"
+        if getattr(producer, "FORMAT", "vec") == "json":
+            path = fixture_dir(producer.CRATE) / f"{producer.GROUP}.json"
+            text = json.dumps(producer.document(), indent=2) + "\n"
+        else:
+            path = fixture_dir(producer.CRATE) / f"{producer.GROUP}.vec"
+            text = fixture.render(producer.TITLE, producer.SPEC, producer.EXTERNAL, producer.vectors())
         if path in files:
             raise SystemExit(f"error: two producers write {path}")
-        files[path] = fixture.render(producer.TITLE, producer.SECTIONS, producer.vectors())
+        files[path] = text
     return files
 
 

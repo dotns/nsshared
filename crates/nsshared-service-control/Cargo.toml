@@ -12,8 +12,5 @@ publish.workspace = true
 nsshared-codec.workspace = true
 nsshared-control.workspace = true
 
-[dev-dependencies]
-serde_json.workspace = true
-
 [lints]
 workspace = true

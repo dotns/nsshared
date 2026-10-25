@@ -775,6 +775,7 @@ name = "nsshared-codec"
 version = "0.6.0"
 dependencies = [
  "base64",
+ "proptest",
  "thiserror",
 ]
 
@@ -790,6 +791,7 @@ dependencies = [
  "nsshared-codec",
  "nsshared-identity",
  "nsshared-rendezvous",
+ "nsshared-testkit",
  "proptest",
  "serde",
  "serde_json",
@@ -806,7 +808,10 @@ dependencies = [
  "ed25519-dalek",
  "getrandom 0.4.3",
  "nsshared-codec",
+ "nsshared-testkit",
+ "proptest",
  "serde",
+ "sha2",
  "thiserror",
  "x25519-dalek",
  "zeroize",
@@ -870,20 +875,11 @@ dependencies = [
 name = "nsshared-proto"
 version = "0.6.0"
 dependencies = [
- "base64",
- "blake2",
- "ed25519-dalek",
- "hkdf",
- "hmac",
  "nsshared-codec",
  "nsshared-control",
  "nsshared-identity",
  "nsshared-relay",
  "nsshared-rendezvous",
- "proptest",
- "serde_json",
- "sha2",
- "x25519-dalek",
 ]
 
 [[package]]
@@ -891,9 +887,12 @@ name = "nsshared-relay"
 version = "0.6.0"
 dependencies = [
  "ed25519-dalek",
+ "hkdf",
  "hmac",
  "nsshared-codec",
  "nsshared-identity",
+ "nsshared-testkit",
+ "proptest",
  "sha2",
  "thiserror",
  "x25519-dalek",
@@ -907,6 +906,8 @@ dependencies = [
  "ed25519-dalek",
  "nsshared-codec",
  "nsshared-identity",
+ "nsshared-testkit",
+ "proptest",
  "serde",
  "serde_json",
  "sha2",
@@ -920,7 +921,6 @@ version = "0.6.0"
 dependencies = [
  "nsshared-codec",
  "nsshared-control",
- "serde_json",
 ]
 
 [[package]]
@@ -931,6 +931,14 @@ dependencies = [
  "thiserror",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "nsshared-testkit"
+version = "0.6.0"
+dependencies = [
+ "ed25519-dalek",
+ "nsshared-identity",
 ]
 
 [[package]]

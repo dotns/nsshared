@@ -22,8 +22,18 @@ sha2.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
+base64.workspace = true
+blake2.workspace = true
+ed25519-dalek.workspace = true
+hmac.workspace = true
+nsshared-codec.workspace = true
+nsshared-identity.workspace = true
 nsshared-rendezvous.workspace = true
+nsshared-testkit.workspace = true
 proptest.workspace = true
+serde.workspace = true
+serde_json = { workspace = true, features = ["raw_value"] }
+sha2.workspace = true
 
 [lints]
 workspace = true

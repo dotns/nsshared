@@ -19,5 +19,16 @@ thiserror.workspace = true
 x25519-dalek.workspace = true
 zeroize.workspace = true
 
+[dev-dependencies]
+base64.workspace = true
+blake2.workspace = true
+ed25519-dalek.workspace = true
+nsshared-codec.workspace = true
+nsshared-testkit.workspace = true
+proptest.workspace = true
+serde.workspace = true
+sha2.workspace = true
+x25519-dalek.workspace = true
+
 [lints]
 workspace = true

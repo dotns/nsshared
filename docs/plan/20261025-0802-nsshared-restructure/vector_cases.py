@@ -19,7 +19,10 @@ ROOT = pathlib.Path(subprocess.check_output(["git", "rev-parse", "--show-topleve
 
 
 def is_fixture(path):
-    return path.endswith(".vec") or path.endswith("service-control-v1.json") or path.endswith("/service-control.json")
+    if path.endswith(".vec"):
+        return True
+    return path.endswith("service-control-v1.json") or ("/tests/vectors/" in path and path.endswith(".json")
+                                                       and not path.endswith("/predecessor.json"))
 
 
 def cases(path, text):

@@ -9,6 +9,7 @@ members = [
     "crates/nsshared-rendezvous",
     "crates/nsshared-service-control",
     "crates/nsshared-telemetry",
+    "crates/nsshared-testkit",
     "examples/mock-relay",
     "examples/mock-rendezvous",
     "examples/mock-server",
@@ -46,6 +47,7 @@ nsshared-mock-rendezvous = { path = "examples/mock-rendezvous", version = "0.6.0
 nsshared-proto = { path = "crates/nsshared-proto", version = "0.6.0" }
 nsshared-relay = { path = "crates/nsshared-relay", version = "0.6.0" }
 nsshared-rendezvous = { path = "crates/nsshared-rendezvous", version = "0.6.0" }
+nsshared-testkit = { path = "crates/nsshared-testkit", version = "0.6.0" }
 
 # External crates: latest stable versions as of 2026-10-02.
 base64           = "0.23.1"
