@@ -1,7 +1,7 @@
 #![allow(clippy::unwrap_used)]
 
 use nsshared_service_control::{
-    BackendHost, Declaration, ListenerIntent, Message, MessageBody, PortMode, Protocols,
+    BackendHost, CborError, Declaration, ListenerIntent, Message, MessageBody, PortMode, Protocols,
     ReportContent, ServiceRef, Value, decode_canonical, encode_canonical, snapshot_digest,
 };
 use serde_json::Value as Json;
@@ -12,6 +12,13 @@ fn vectors() -> Json {
 
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+fn decode_hex(text: &str) -> Vec<u8> {
+    (0..text.len())
+        .step_by(2)
+        .map(|index| u8::from_str_radix(&text[index..index + 2], 16).unwrap())
+        .collect()
 }
 
 fn field<'a>(vectors: &'a Json, key: &str) -> &'a str {
@@ -134,6 +141,14 @@ fn independent_snapshot_vector() {
         hex(&snapshot_digest(&snapshot).unwrap()),
         field(&vectors, "snapshot_empty_sha256")
     );
+}
+
+#[test]
+fn declared_lengths_beyond_the_input_are_truncated() {
+    let vectors = vectors();
+    assert_eq!(field(&vectors, "declared_length_error"), "truncated");
+    let input = decode_hex(field(&vectors, "declared_length_cbor"));
+    assert_eq!(decode_canonical(&input), Err(CborError::Truncated));
 }
 
 #[test]

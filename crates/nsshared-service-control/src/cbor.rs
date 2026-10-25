@@ -175,6 +175,12 @@ impl<'a> Cursor<'a> {
         Ok(bytes)
     }
 
+    /// Bounds a container reservation by the members the remaining input can hold,
+    /// each taking at least `member_bytes`.
+    fn capacity(&self, length: usize, member_bytes: usize) -> usize {
+        length.min((self.input.len() - self.offset) / member_bytes)
+    }
+
     fn argument(&mut self, additional: u8) -> Result<u64, CborError> {
         match additional {
             0..=23 => Ok(u64::from(additional)),
@@ -240,7 +246,7 @@ impl<'a> Cursor<'a> {
                 if length > MAX_ITEMS {
                     return Err(CborError::ContainerLimit);
                 }
-                let mut items = Vec::with_capacity(length);
+                let mut items = Vec::with_capacity(self.capacity(length, 1));
                 for _ in 0..length {
                     items.push(self.item(depth + 1)?);
                 }
@@ -250,8 +256,9 @@ impl<'a> Cursor<'a> {
                 if length > MAX_ITEMS {
                     return Err(CborError::ContainerLimit);
                 }
-                let mut entries = Vec::with_capacity(length);
-                let mut seen = HashSet::with_capacity(length);
+                let capacity = self.capacity(length, 2);
+                let mut entries = Vec::with_capacity(capacity);
+                let mut seen = HashSet::with_capacity(capacity);
                 for _ in 0..length {
                     let Value::Text(key) = self.item(depth + 1)? else {
                         return Err(CborError::InvalidText);
@@ -269,5 +276,23 @@ impl<'a> Cursor<'a> {
             }
             _ => Err(CborError::Unsupported),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reservations_are_bounded_by_the_remaining_input() {
+        let input = [0x99, 0x40, 0x00, 0x01, 0x02];
+        let mut cursor = Cursor {
+            input: &input,
+            offset: 0,
+        };
+        cursor.take(3).unwrap();
+        assert_eq!(cursor.capacity(MAX_ITEMS, 1), 2);
+        assert_eq!(cursor.capacity(MAX_ITEMS, 2), 1);
+        assert_eq!(cursor.capacity(1, 1), 1);
     }
 }

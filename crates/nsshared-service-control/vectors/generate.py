@@ -143,6 +143,9 @@ def main(check=False):
         "snapshot_empty_sha256": digest("ns.service.snapshot.v1", {"scope": [publisher, nsd, network], "snapshot_revision": 1, "resources": [], "routes": [], "listeners": [], "grants": [], "withdrawals": []}),
         "snapshot_nonempty_cbor": encode(live_snapshot).hex(),
         "snapshot_nonempty_sha256": digest("ns.service.snapshot.v1", live_snapshot),
+        # 32 nested arrays that each declare 16 384 members and carry none.
+        "declared_length_cbor": (head(4, 16_384) * 32).hex(),
+        "declared_length_error": "truncated",
     }
     destination = Path(__file__).with_name("service-control-v1.json")
     rendered = json.dumps(output, indent=2) + "\n"
