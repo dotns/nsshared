@@ -1,17 +1,18 @@
 //! Relay packet header and the eight body types (quick-v2 §8.1-§8.2, quick-protocol §12.5).
 
-use crate::{
-    constants::{
-        MAX_PRESENCE_TTL_SECONDS, MAX_RELAY_CONTROL_BYTES, MAX_RELAY_DATA_BODY_BYTES,
-        MAX_RELAY_PACKET_BYTES, MIN_PRESENCE_TTL_SECONDS, MIN_RELAY_DATA_BODY_BYTES, NODE_ID_BYTES,
-        NODE_RECORD_VERSION, RELAY_HEADER_BYTES, RELAY_MAGIC, RELAY_REGISTER_CONTEXT,
-    },
-    encoding::{CborError, CborReader, CborWriter},
-    identity::{Identity, NodeId},
-    record::{MAX_NODE_RECORD_RELAYS, NodeRecord},
-    relay::{MAX_RELAY_ID_BYTES, RelayId},
+use crate::constants::{
+    MAX_PRESENCE_TTL_SECONDS, MAX_RELAY_CONTROL_BYTES, MAX_RELAY_DATA_BODY_BYTES,
+    MAX_RELAY_PACKET_BYTES, MIN_PRESENCE_TTL_SECONDS, MIN_RELAY_DATA_BODY_BYTES,
+    RELAY_HEADER_BYTES, RELAY_MAGIC, RELAY_REGISTER_CONTEXT,
 };
 use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
+use nsshared_codec::cbor::{CborError, CborReader, CborWriter};
+use nsshared_identity::{
+    constants::{NODE_ID_BYTES, NODE_RECORD_VERSION},
+    identity::{Identity, NodeId},
+    record::{MAX_NODE_RECORD_RELAYS, NodeRecord},
+    relay_id::{MAX_RELAY_ID_BYTES, RelayId},
+};
 use sha2::{Digest, Sha256};
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use thiserror::Error;
@@ -283,7 +284,7 @@ impl From<ObservedAddr> for SocketAddr {
 /// (quick-v2 §8.2-§8.3).
 ///
 /// The record is kept as its exact nested canonical array; it is only structurally
-/// checked here, its validity and signature are checked by [`crate::relay::check_register`].
+/// checked here, its validity and signature are checked by [`crate::check_register`].
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Register {
     record: Vec<u8>,

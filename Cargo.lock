@@ -859,6 +859,8 @@ dependencies = [
  "idna",
  "nsshared-codec",
  "nsshared-identity",
+ "nsshared-relay",
+ "nsshared-rendezvous",
  "nsshared-service-control",
  "proptest",
  "serde",
@@ -866,6 +868,33 @@ dependencies = [
  "sha2",
  "thiserror",
  "x25519-dalek",
+]
+
+[[package]]
+name = "nsshared-relay"
+version = "0.6.0"
+dependencies = [
+ "ed25519-dalek",
+ "hmac",
+ "nsshared-codec",
+ "nsshared-identity",
+ "sha2",
+ "thiserror",
+ "x25519-dalek",
+]
+
+[[package]]
+name = "nsshared-rendezvous"
+version = "0.6.0"
+dependencies = [
+ "blake2",
+ "ed25519-dalek",
+ "nsshared-codec",
+ "nsshared-identity",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror",
  "zeroize",
 ]
 

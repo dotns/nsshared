@@ -1,18 +1,16 @@
 //! Relay session key and control / reply MACs (quick-v2 §8.3, quick-protocol §12.5).
 
 use super::packet::{RelayPacket, RelayType};
-use crate::{
-    constants::{
-        MAX_RELAY_CONTROL_BYTES, RELAY_CTL_CONTEXT, RELAY_MAGIC, RELAY_REPLY_CONTEXT,
-        RELAY_SESSION_CONTEXT,
-    },
-    encoding::CborWriter,
-    identity::NodeId,
+use crate::constants::{
+    MAX_RELAY_CONTROL_BYTES, RELAY_CTL_CONTEXT, RELAY_MAGIC, RELAY_REPLY_CONTEXT,
+    RELAY_SESSION_CONTEXT,
 };
 use hmac::{
     Hmac, KeyInit, Mac,
     digest::{Output, array::Array},
 };
+use nsshared_codec::cbor::CborWriter;
+use nsshared_identity::identity::NodeId;
 use sha2::Sha256;
 use std::fmt;
 use thiserror::Error;

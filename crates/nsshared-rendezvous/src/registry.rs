@@ -4,25 +4,23 @@
 //! relay-side acceptance against [`RecordMarks`] (quick-v2 §3.3, §7.2), `lookup_node`
 //! (quick-v2 §7.2) and the client check of a lookup result (quick-v2 §7.5).
 
-use crate::rendezvous::{
+use crate::constants::{REGISTRY_LOOKUP_MAX, REGISTRY_SHARD_REPLICAS};
+use crate::{
     capability, crypto,
     directory::{Directory, RelayEntry},
     error::ErrorCode,
     message::{DnsPublication, PublishRequest, Published, RecordResult},
 };
-use crate::{
-    NodeId, NodeRecord, RelayId,
-    constants::REGISTRY_LOOKUP_MAX,
-    constants::REGISTRY_SHARD_REPLICAS,
-    encoding::{CborError, CborReader, CborWriter},
-    identity::Identity,
-    record::NodeRecordError,
-    record::{
-        IdentityMismatch, MAX_RECORD_STATE_BYTES, MarksDecodeError, RecordDecision, RecordExpired,
-        RecordMarks,
-    },
-};
 use ed25519_dalek::{Signer, SigningKey};
+use nsshared_codec::cbor::{CborError, CborReader, CborWriter};
+use nsshared_identity::{
+    identity::{Identity, NodeId},
+    record::{
+        IdentityMismatch, MAX_RECORD_STATE_BYTES, MarksDecodeError, NodeRecord, NodeRecordError,
+        RecordDecision, RecordExpired, RecordMarks,
+    },
+    relay_id::RelayId,
+};
 use std::cmp::Reverse;
 use thiserror::Error;
 

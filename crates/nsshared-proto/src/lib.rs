@@ -24,11 +24,11 @@ pub mod constants;
 pub mod encoding;
 pub mod node_control;
 pub mod relay;
-pub mod rendezvous;
 
 pub use identity::NodeId;
 pub use keys::{IdentityKey, IdentitySecret, WgSessionKey, WgSessionSecret};
 pub use nsshared_identity::realm::{RealmId, RealmIdError};
 pub use nsshared_identity::{discovery, identity, keys, record};
+pub use nsshared_rendezvous as rendezvous;
 pub use record::NodeRecord;
 pub use relay::RelayId;

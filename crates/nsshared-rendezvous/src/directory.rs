@@ -5,8 +5,8 @@
 //! `ips` and `capabilities` but never removes an id, reassigns a code or reuses a retired
 //! one. Every change needs a higher version and an equal version must be identical.
 
-use crate::relay::RelayId;
-use crate::rendezvous::{capability::Capabilities, error::ErrorCode, transport::Object};
+use crate::{capability::Capabilities, error::ErrorCode, transport::Object};
+use nsshared_identity::relay_id::RelayId;
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeSet, net::IpAddr, str::FromStr};
 use thiserror::Error;

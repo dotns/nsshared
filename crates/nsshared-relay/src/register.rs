@@ -4,11 +4,11 @@ use super::{
     crypto::{SessionKey, ZeroSharedSecret, derive_session_key, ephemeral_public},
     packet::{BadRegisterSignature, Register, RelayBody, RelayPacket, RelayPacketError, RelayType},
 };
-use crate::{
-    constants::REGISTER_TS_WINDOW_SECONDS,
+use crate::constants::REGISTER_TS_WINDOW_SECONDS;
+use nsshared_identity::{
     identity::NodeId,
     record::{NodeRecord, NodeRecordError, RecordDecision, RecordExpired, RecordMarks},
-    relay::RelayId,
+    relay_id::RelayId,
 };
 use thiserror::Error;
 

@@ -4,14 +4,14 @@
 //! Byte strings are unpadded base64url (rendezvous §3) and integers are exact JSON
 //! numbers; floats and negatives are rejected. Every field is required, `null` included.
 
-use crate::rendezvous::{
+use crate::{
     limits::{
         DIGITS_LEN, MAILBOX_ID_BYTES, MAX_CANDIDATES, MAX_DATA_BYTES, MAX_INTRO_BYTES,
         MAX_TTL_SECONDS, MAX_UNACKED_MESSAGES, MAX_WAIT_MS, MIN_CANDIDATES, MIN_TTL_SECONDS,
     },
     transport::{self, Object},
 };
-use crate::{constants::MAX_NODE_RECORD_BYTES, constants::NODE_ID_BYTES};
+use nsshared_identity::constants::{MAX_NODE_RECORD_BYTES, NODE_ID_BYTES};
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error as _};
 use std::fmt;
 use thiserror::Error;

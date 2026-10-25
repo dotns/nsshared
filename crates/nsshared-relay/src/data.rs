@@ -1,7 +1,7 @@
 //! DATA forwarding helpers (quick-v2 §8.4).
 
 use super::packet::{RelayBody, RelayPacket, RelayType};
-use crate::identity::NodeId;
+use nsshared_identity::identity::NodeId;
 use thiserror::Error;
 
 /// The WireGuard message type of a handshake initiation (quick-v2 §8.4).

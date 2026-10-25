@@ -5,7 +5,7 @@
 //! returns an error leaves the mailbox unchanged. No transition ever changes `expires`
 //! (rendezvous §5.3).
 
-use crate::rendezvous::{
+use crate::{
     error::ErrorCode,
     limits::{
         CLOSING_GRACE_SECONDS, INACTIVITY_SECONDS, MAX_CANDIDATES, MAX_DATA_BYTES, MAX_INTRO_BYTES,

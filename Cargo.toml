@@ -4,6 +4,8 @@ members = [
     "crates/nsshared-codec",
     "crates/nsshared-identity",
     "crates/nsshared-proto",
+    "crates/nsshared-relay",
+    "crates/nsshared-rendezvous",
     "crates/nsshared-service-control",
     "crates/nsshared-telemetry",
     "examples/mock-relay",
@@ -40,6 +42,8 @@ nsshared-identity = { path = "crates/nsshared-identity", version = "0.6.0" }
 nsshared-mock-relay = { path = "examples/mock-relay", version = "0.6.0" }
 nsshared-mock-rendezvous = { path = "examples/mock-rendezvous", version = "0.6.0" }
 nsshared-proto = { path = "crates/nsshared-proto", version = "0.6.0" }
+nsshared-relay = { path = "crates/nsshared-relay", version = "0.6.0" }
+nsshared-rendezvous = { path = "crates/nsshared-rendezvous", version = "0.6.0" }
 
 # External crates: latest stable versions as of 2026-10-02.
 base64           = "0.23.1"

@@ -7,19 +7,17 @@
 //! The size limit is checked before parsing.
 
 use crate::{
-    encoding::{decode_base64url, encode_base64url},
-    rendezvous::{
-        auth::{Challenge, Hello},
-        directory::Directory,
-        error::ErrorCode,
-        limits,
-        message::{
-            AdmitRequest, CloseRequest, Digits, Found, JoinRequest, LookupNodeRequest, MailboxView,
-            OpenRequest, Opened, PublishRequest, Published, RecordResult, RecvRequest,
-            RejectRequest, SendRequest, Sent,
-        },
+    auth::{Challenge, Hello},
+    directory::Directory,
+    error::ErrorCode,
+    limits,
+    message::{
+        AdmitRequest, CloseRequest, Digits, Found, JoinRequest, LookupNodeRequest, MailboxView,
+        OpenRequest, Opened, PublishRequest, Published, RecordResult, RecvRequest, RejectRequest,
+        SendRequest, Sent,
     },
 };
+use nsshared_codec::base64::{decode_base64url, encode_base64url};
 use serde::{
     Deserialize, Deserializer, Serialize, Serializer,
     de::{DeserializeOwned, Error as _},

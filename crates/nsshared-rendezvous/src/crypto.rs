@@ -79,12 +79,12 @@ mod tests {
     fn blake2s_keyed_matches_the_node_id() {
         let identity = [9; 32];
         let derived: [u8; 12] = blake2s_keyed(
-            crate::constants::NODE_ID_LABEL,
+            nsshared_identity::constants::NODE_ID_LABEL,
             &[&identity[..16], &identity[16..]],
         );
         assert_eq!(
             &derived,
-            crate::identity::NodeId::derive(&identity).as_bytes()
+            nsshared_identity::identity::NodeId::derive(&identity).as_bytes()
         );
         // An over-long key never panics.
         assert_eq!(blake2s_keyed::<4>(&[1; 33], &[b"x"]), [0; 4]);

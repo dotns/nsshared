@@ -1,8 +1,8 @@
 //! Connection challenge and actor `hello` (rendezvous §3, §4).
 
-use crate::relay::RelayId;
-use crate::rendezvous::{capability::Capabilities, crypto, error::ErrorCode, transport};
+use crate::{capability::Capabilities, crypto, error::ErrorCode, transport};
 use ed25519_dalek::{Signer, SigningKey};
+use nsshared_identity::relay_id::RelayId;
 use serde::{Deserialize, Deserializer, Serialize, de::Error as _};
 use thiserror::Error;
 
@@ -125,7 +125,7 @@ fn nonzero_nonce<'de, D: Deserializer<'de>>(deserializer: D) -> Result<[u8; 32],
 
 /// Serde for a canonical [`RelayId`] string (quick-v2 §8.6).
 pub(crate) mod relay_id {
-    use crate::relay::RelayId;
+    use nsshared_identity::relay_id::RelayId;
     use serde::{Deserialize, Deserializer, Serializer, de::Error as _};
 
     pub(crate) fn serialize<S: Serializer>(
