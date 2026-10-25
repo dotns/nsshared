@@ -1,0 +1,16 @@
+[package]
+name = "nsshared-testkit"
+description = "Test support for the NS shared crates: the vector fixture reader, hex helpers and seeded fixture identities"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+ed25519-dalek.workspace = true
+nsshared-identity.workspace = true
+
+[lints]
+workspace = true
