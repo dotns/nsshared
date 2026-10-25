@@ -121,4 +121,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**Prepare the immutable candidate handoff**](20261024-1115-candidate-handoff.md) `2026-10-24`
 - [x] [**Define provider mapping eligibility snapshots**](20261024-1655-provider-mapping-eligibility.md) `2026-10-24`
 - [x] [**Record review delivery and registration lifecycle placeholders**](20261025-0157-review-request-delivery.md) `2026-10-25`
-- [-] [**20261025-0802-nsshared-restructure Restructure the shared crates and apply the review revisions**](20261025-0802-nsshared-restructure.md) `2026-10-25`
+- [x] [**20261025-0802-nsshared-restructure Restructure the shared crates and apply the review revisions**](20261025-0802-nsshared-restructure.md) `2026-10-25`

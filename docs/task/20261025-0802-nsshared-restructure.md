@@ -1,6 +1,6 @@
 # 20261025-0802-nsshared-restructure Restructure the shared crates and apply the review revisions
 
-- **status**: in_progress
+- **status**: completed
 - **priority**: P1
 - **owner**: restructure/20261025
 - **createdAt**: 2026-10-25 08:02
@@ -40,3 +40,5 @@ Restructuring the shared crates
 ## Notes
 
 Owner decisions of 2026-10-25 approve the scope; see the plan annotations.
+
+- complete: All phases done; final gates passed: qa, vectors, case comparison, facade API surface, consumer paths, base tests.
