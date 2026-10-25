@@ -38,8 +38,12 @@ How a consumer moves from `nsshared_proto::account` (revision `1bc1d39e`) to
 What the script rewrites:
 
 - `use` statements at any nesting depth, including brace groups and nested
-  groups; non-account members of a mixed group stay with `nsshared_proto`;
-- fully qualified `nsshared_proto::account::...` paths outside `use`;
+  groups; non-account members of a mixed group stay with `nsshared_proto`.
+  Attributes and doc comments of the statement (`#[cfg(test)]`, `#[allow(..)]`,
+  `///`) are repeated on every statement it is split into;
+- fully qualified `nsshared_proto::account::...` paths outside `use`, including
+  absolute `::nsshared_proto::...` paths and paths inside macro invocations
+  (`json!`, `matches!`, `assert_eq!`, ...), whatever token precedes them;
 - paths relative to an imported old module (`use nsshared_proto::account;`
   then `account::X`, or `use ...::control_exchange;` then
   `control_exchange::X`): the module is imported as its new area under the old
@@ -47,13 +51,26 @@ What the script rewrites:
   their full path;
 - glob imports: replaced by explicit imports of the old items the file and its
   out-of-line child modules name, so the area module names (`control`, `node`,
-  ...) never enter scope;
+  ...) never enter scope. Old modules a glob brings into scope are followed:
+  their paths in the file, `use` statements relative to them
+  (`use control_exchange::CONFIG_STREAM;` becomes a full path) and the same
+  paths in child modules that `use super::*`. `use nsshared_proto::*;` keeps the
+  glob and adds `use nsshared_control::account;` when the file uses `account::`;
 - renamed items imported by `use` are aliased to their old name
   (`... as validate_snapshot`) and listed; rename the uses and drop the alias
   when convenient.
 
 A `use` statement containing an unmapped or manual item is left whole and
-listed, so nothing half-migrates.
+listed, so nothing half-migrates. Outside `use`, these are left in place and
+listed as well: a path group or glob inside a macro
+(`m!(nsshared_proto::account::{A, B})`), an old path behind another path
+(`other::nsshared_proto::account::X`), and a glob of a module the map does not
+know. After rewriting, every old account path still in a file is listed, so
+none is skipped silently.
+
+Not followed: a consumer's own re-export of the crate
+(`pub use nsshared_proto as shared;` then `shared::account::...`). Point the
+re-export at the new crate, or rewrite those paths by hand.
 
 ## Cargo change
 

@@ -10,12 +10,18 @@ Cargo manifests, and prints the dependency change each affected manifest needs.
 Mapping comes from docs/review/account-migration.json. Moved and renamed items get
 their new path; a renamed item imported by `use` is aliased to its old name so the code
 using it keeps compiling (listed for cleanup). A glob import becomes explicit imports
-of the old items the file names. A module split across areas is imported as the area
-holding most of its items, and its other items are rewritten to full paths. Items
-marked manual (participant frame kind constants, the usage digest domain), split
-modules without a majority area, and anything not in the map are left untouched and
-listed, together with each `use` statement that contains one of them. Error variants
-that changed are listed with their successors.
+of the old items the file and its child modules name; old modules a glob brings into
+scope are followed in paths, in `use` statements relative to them and in child modules
+that `use super::*`, and `nsshared_proto::*` brings `account` along. A module split
+across areas is imported as the area holding most of its items, and its other items are
+rewritten to full paths. Attributes and doc comments of a `use` statement are repeated
+on every statement it is split into. Paths in macro invocations are rewritten like any
+other path. Items marked manual (participant frame kind constants, the usage digest
+domain), split modules without a majority area, path groups inside macros, old paths
+behind another path, and anything not in the map are left untouched and listed,
+together with each `use` statement that contains one of them; any old account path
+still present afterwards is listed too. Error variants that changed are listed with
+their successors.
 """
 
 import argparse
@@ -29,9 +35,13 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 OLD = "nsshared_proto::account"
 NEW = "nsshared_control::account"
-USE = re.compile(r"^(?P<indent>[ \t]*)(?P<vis>pub(?:\([^)]*\))? )?use (?P<tree>(?:::)?nsshared_proto\b[^;]*);",
-                 re.M | re.S)
-INLINE = re.compile(r"(?<![\w:])nsshared_proto::account(?:::[A-Za-z_][A-Za-z0-9_]*)*")
+ATTRS = r"(?:(?:#\[(?:[^\[\]]|\[[^\[\]]*\])*\][ \t]*\n?|///[^\n]*\n)[ \t]*)*"
+STATEMENT = re.compile(rf"^(?P<indent>[ \t]*)(?P<attrs>{ATTRS})(?P<vis>pub(?:\([^)]*\))?\s+)?use\s+(?P<tree>[^;]*);",
+                       re.M | re.S)
+IDENT = r"[A-Za-z_][A-Za-z0-9_]*"
+INLINE = re.compile(rf"(?<![\w$])(?P<lead>::\s*)?nsshared_proto\s*::\s*account(?!\w)(?P<rest>(?:\s*::\s*{IDENT})*)"
+                    r"(?P<group>\s*::\s*[{*])?")
+LEFTOVER = re.compile(r"(?<![\w$])nsshared_proto\s*::\s*account(?!\w)")
 
 
 class Map:
@@ -91,6 +101,8 @@ def flatten(tree):
     depth = 0
     for index, char in enumerate(tree):
         if char == "{" and depth == 0:
+            if "}" not in tree:
+                return []
             prefix = split(tree[:index].strip().rstrip(":"))
             body = tree[index + 1: tree.rindex("}")]
             parts, current, level = [], "", 0
@@ -131,11 +143,12 @@ def nest(members):
     return ordered[0] if len(ordered) == 1 else "{" + ", ".join(ordered) + "}"
 
 
-def render(pairs, indent, vis):
+def render(pairs, indent, vis, attrs=""):
+    """One `use` statement per root, each carrying the original attributes."""
     groups = collections.OrderedDict()
     for segments, alias in pairs:
         groups.setdefault(segments[0], []).append((segments[1:], alias))
-    return "\n".join(f"{indent}{vis}use {root}::{nest(members)};" for root, members in groups.items())
+    return "\n".join(f"{indent}{attrs}{vis}use {root}::{nest(members)};" for root, members in groups.items())
 
 
 class Report:
@@ -149,8 +162,10 @@ class Report:
         self.manifests = collections.defaultdict(set)
 
 
-def map_use(mapping, segments, alias, report, location, used=frozenset()):
-    """Maps one flattened `nsshared_proto::account...` path; None when unmappable."""
+def map_use(mapping, segments, alias, report, location, used=frozenset(), globbed=None):
+    """Maps one flattened `nsshared_proto::account...` path; None when unmappable.
+
+    Old modules a glob brings into scope are recorded in `globbed` by name."""
     path = "::".join(segments)
     rest = segments[2:]
     if path == OLD:
@@ -158,10 +173,13 @@ def map_use(mapping, segments, alias, report, location, used=frozenset()):
     if rest and rest[-1] == "*":
         module = "::".join(segments[:-1])
         if module != OLD and module not in mapping.modules:
+            report.unmapped.append((location, path, "glob of a module not in the migration map"))
             return None
         pairs, aliases = [], {}
         for child in mapping.children(module):
             name = child.rsplit("::", 1)[1]
+            if child in mapping.modules and globbed is not None:
+                globbed[name] = child
             if f"{name}::" not in used and (child in mapping.modules or name not in used):
                 continue
             mapped = map_use(mapping, split(child), None, report, location, used)
@@ -196,7 +214,7 @@ def map_use(mapping, segments, alias, report, location, used=frozenset()):
     return [(split(target), alias)], {}
 
 
-ANY_USE = re.compile(r"^[ \t]*(?:pub(?:\([^)]*\))? )?use [^;]*;", re.M | re.S)
+ANY_USE = STATEMENT
 
 
 def outside_uses(text, transform):
@@ -212,26 +230,32 @@ def outside_uses(text, transform):
 
 def identifiers(text):
     """Unqualified names outside `use` statements and line comments; `name::` marks a path root."""
-    code = "".join(re.sub(r"//[^\n]*", "", part) for part in ANY_USE.split(text))
+    code = re.sub(r"//[^\n]*", "", STATEMENT.sub(" ", text))
     names = set()
-    for match in re.finditer(r"(?<![\w:.])([A-Za-z_][A-Za-z0-9_]*)(\s*::)?", code):
+    for match in re.finditer(rf"(?<![\w.$])(?<!::)({IDENT})(\s*::)?", code):
         names.add(match.group(1) + ("::" if match.group(2) else ""))
     return names
 
 
 def imported(text):
-    """Names bound by `use` statements that do not import from nsshared_proto::account."""
-    names = set()
-    for match in ANY_USE.finditer(text):
-        tree = re.sub(r"^\s*(?:pub(?:\([^)]*\))?\s+)?use\s+", "", match.group(0)).rstrip(";")
-        for segments, alias in flatten(tree):
-            if segments[:2] != ["nsshared_proto", "account"] and segments and segments[-1] != "*":
+    """Names bound by `use` statements that do not import from nsshared_proto, and local modules."""
+    names = set(re.findall(rf"^\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+({IDENT})\b", text, re.M))
+    for match in STATEMENT.finditer(text):
+        for segments, alias in flatten(match.group("tree")):
+            if segments[:1] != ["nsshared_proto"] and segments and segments[-1] != "*":
                 names.add(alias or segments[-1])
     return names
 
 
 def child_modules(path):
     """Files of the out-of-line modules a source file declares, recursively."""
+    for child in direct_children(path):
+        yield child
+        yield from child_modules(child)
+
+
+def direct_children(path):
+    """Files of the out-of-line modules a source file declares."""
     text = path.read_text(errors="surrogateescape")
     root = (path.name in ("lib.rs", "main.rs", "mod.rs", "build.rs")
             or path.parent.name in ("tests", "examples", "benches")
@@ -241,72 +265,122 @@ def child_modules(path):
         for candidate in (directory / f"{name}.rs", directory / name / "mod.rs"):
             if candidate.exists():
                 yield candidate
-                yield from child_modules(candidate)
                 break
 
 
-def rewrite(text, mapping, report, file, descendants=()):
-    modules = {}
+def rewrite(text, mapping, report, file, descendants=(), inherited=None, scope=None):
+    """Rewrites one source file.
+
+    `inherited` holds the module scope of the parent module when this file does
+    `use super::*`; `scope`, when given, receives this file's module scope."""
+    modules, globbed = {}, {}
     changed = False
     used = identifiers(text)
     for other in descendants:
         used |= identifiers(other)
     shadowed = imported(text)
     used -= shadowed | {f"{name}::" for name in shadowed}
+    inherited = inherited or {"modules": {}, "globbed": {}}
+    outer = {name: value for name, value in inherited["modules"].items() if name not in shadowed}
+    outer_globbed = {name: value for name, value in inherited["globbed"].items() if name not in shadowed}
+
+    def location(match):
+        return f"{file}:{text.count(chr(10), 0, base + match.start('tree')) + 1}"
 
     def replace_use(match):
         nonlocal changed
         tree = match.group("tree")
         pairs = flatten(tree)
-        if not any(s[:2] == ["nsshared_proto", "account"] for s, _ in pairs):
+        if not pairs or not pairs[0][0] or pairs[0][0][0] != "nsshared_proto":
             return match.group(0)
-        line = text.count("\n", 0, match.start()) + 1
-        out, local, count = [], {}, 0
+        proto_glob = "account::" in used and any(s == ["nsshared_proto", "*"] for s, _ in pairs)
+        if not proto_glob and not any(s[:2] == ["nsshared_proto", "account"] for s, _ in pairs):
+            return match.group(0)
+        out, local, found, count = [], {}, {}, 0
         for segments, alias in pairs:
             if segments[:2] != ["nsshared_proto", "account"]:
                 out.append((segments, alias))
                 continue
-            mapped = map_use(mapping, segments, alias, report, f"{file}:{line}", used)
+            mapped = map_use(mapping, segments, alias, report, location(match), used, found)
             if mapped is None:
                 return match.group(0)
             new_pairs, aliases = mapped
             out.extend(new_pairs)
             local.update(aliases)
             count += 1
+        if proto_glob and "account" not in local:
+            out.append((split(NEW), None))
+            local["account"] = ("account", OLD)
+            count += 1
         report.paths += count
         modules.update(local)
+        globbed.update(found)
         changed = True
         if not out:
             return ""
-        return render(out, match.group("indent"), match.group("vis") or "")
+        return render(out, match.group("indent"), match.group("vis") or "", match.group("attrs"))
 
-    text = USE.sub(replace_use, text)
+    base = 0
+    text = STATEMENT.sub(replace_use, text)
+    relative_roots = {name: old for name, (_, old) in {**outer, **modules}.items() if old}
+    relative_roots = {**outer_globbed, **globbed, **relative_roots}
+
+    def replace_relative_use(match):
+        nonlocal changed
+        pairs = flatten(match.group("tree"))
+        if not any(len(s) > 1 and s[0] in relative_roots for s, _ in pairs):
+            return match.group(0)
+        out, count = [], 0
+        for segments, alias in pairs:
+            if len(segments) < 2 or segments[0] not in relative_roots:
+                out.append((segments, alias))
+                continue
+            old = split(relative_roots[segments[0]]) + segments[1:]
+            mapped = map_use(mapping, old, alias, report, location(match), used)
+            if mapped is None:
+                return match.group(0)
+            out.extend(mapped[0])
+            modules.update(mapped[1])
+            count += 1
+        report.paths += count
+        changed = True
+        return render(out, match.group("indent"), match.group("vis") or "", match.group("attrs"))
+
+    text = STATEMENT.sub(replace_relative_use, text)
 
     def replace_inline(match):
         nonlocal changed
-        path = match.group(0)
         line = text.count("\n", 0, base + match.start()) + 1
+        where = f"{file}:{line}"
+        lead = "::" if match.group("lead") else ""
+        path = "nsshared_proto::account" + re.sub(r"\s+", "", match.group("rest"))
+        before = match.string[:match.start()]
+        if not lead and re.search(r"::\s*$", before):
+            report.unmapped.append((where, path, "old path behind another path; migrate by hand"))
+            return match.group(0)
+        if match.group("group"):
+            report.unmapped.append((where, path + "::" + match.group("group").strip()[-1],
+                                    "path group or glob outside a use statement; migrate by hand"))
+            return match.group(0)
         if path == OLD:
-            report.paths += 1
-            changed = True
-            return NEW
-        target, entry = mapping.item(path)
-        if not entry or entry.get("manual"):
-            report.unmapped.append((f"{file}:{line}", path, entry.get("note") if entry else "not in the migration map"))
-            return path
+            target, entry = NEW, {}
+        else:
+            target, entry = mapping.item(path)
+            if not entry or entry.get("manual"):
+                report.unmapped.append((where, path, entry.get("note") if entry else "not in the migration map"))
+                return match.group(0)
         report.paths += 1
         changed = True
-        return target
+        return lead + target
 
     def inline(part, offset):
         nonlocal base
         base = offset
         return INLINE.sub(replace_inline, part)
 
-    base = 0
     text = outside_uses(text, inline)
-    for name, (target, old_module) in modules.items():
-        pattern = re.compile(rf"(?<![\w:]){re.escape(name)}::([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)")
+    for name, (target, old_module) in {**outer, **modules}.items():
+        pattern = re.compile(rf"(?<![\w$.])(?<!::){re.escape(name)}::({IDENT}(?:::{IDENT})*)")
 
         def replace_relative(match, old_module=old_module, name=name, target=target):
             nonlocal changed
@@ -337,10 +411,25 @@ def rewrite(text, mapping, report, file, descendants=()):
             return pattern.sub(replace, part)
 
         text = outside_uses(text, relative)
+
+    listed = {row[0] for row in report.unmapped}
+
+    def leftover(part, offset):
+        for found in LEFTOVER.finditer(part):
+            where = f"{file}:{text.count(chr(10), 0, offset + found.start()) + 1}"
+            if where not in listed:
+                listed.add(where)
+                report.unmapped.append((where, found.group(0), "old account path left in place; migrate by hand"))
+        return part
+
+    outside_uses(text, leftover)
     for (enum, variant), successor in mapping.variants.items():
         for found in re.finditer(rf"\b{enum}::{variant}\b", text):
             line = text.count("\n", 0, found.start()) + 1
             report.variants.append((f"{file}:{line}", f"{enum}::{variant}", successor))
+    if scope is not None:
+        scope["modules"] = {**outer, **modules}
+        scope["globbed"] = {**outer_globbed, **globbed}
     return text, changed
 
 
@@ -395,15 +484,40 @@ def main():
     mapping = Map(json.loads(options.map.read_text()))
     repository = options.repository.resolve()
     report = Report()
-    for path in sorted(repository.rglob("*.rs")):
-        if "target" in path.relative_to(repository).parts:
-            continue
+    sources = [path for path in sorted(repository.rglob("*.rs"))
+               if "target" not in path.relative_to(repository).parts]
+    parents = {child: path for path in sources for child in direct_children(path)}
+    scopes = {}
+
+    def inherited(path):
+        parent = parents.get(path)
+        text = path.read_text(errors="surrogateescape")
+        if parent is None or not re.search(r"\buse\s+super::\*\s*;", text):
+            return None
+        return scope_of(parent)
+
+    def scope_of(path):
+        if path not in scopes:
+            scopes[path] = {"modules": {}, "globbed": {}}
+            outer = inherited(path)
+            text = path.read_text(errors="surrogateescape")
+            if "nsshared_proto" in text:
+                scope = {}
+                descendants = [child.read_text(errors="surrogateescape") for child in child_modules(path)]
+                rewrite(text, mapping, Report(), path.relative_to(repository), descendants, outer, scope)
+                scopes[path] = scope
+            elif outer:
+                scopes[path] = outer
+        return scopes[path]
+
+    for path in sources:
         original = path.read_text(errors="surrogateescape")
-        if "nsshared_proto" not in original and "account::" not in original:
+        outer = inherited(path)
+        if "nsshared_proto" not in original and "account::" not in original and not outer:
             continue
         relative = path.relative_to(repository)
         descendants = [child.read_text(errors="surrogateescape") for child in child_modules(path)]
-        updated, changed = rewrite(original, mapping, report, relative, descendants)
+        updated, changed = rewrite(original, mapping, report, relative, descendants, outer)
         if not changed or updated == original:
             continue
         report.files += 1

@@ -32,6 +32,8 @@ DOCUMENT = {
          "new": f"{NEW}::publication::SourceSnapshot"},
         {"old": f"{OLD}::source_binding::SOURCE_DOMAIN", "kind": "const", "status": "moved",
          "new": f"{NEW}::domains::SOURCE_DOMAIN"},
+        {"old": f"{OLD}::source_binding::SOURCE_FRAME", "kind": "const", "status": "changed",
+         "new": f"{NEW}::publication::FrameKind::Source", "manual": True, "note": "frame kind"},
         {"old": f"{OLD}::USAGE_PART_DOMAIN", "kind": "const", "status": "changed",
          "new": f"{NEW}::domains::USAGE_PART_DIGEST_DOMAIN", "manual": True, "note": "text domain"},
         {"old": f"{OLD}::AccountError", "kind": "enum", "status": "changed", "new": f"{NEW}::AccountError"},
@@ -119,7 +121,124 @@ class Rewrites(unittest.TestCase):
         self.assertEqual(report.variants[0][1:], ("AccountError::InvalidField", "AccountError::Field"))
 
 
+class Attributes(unittest.TestCase):
+    def test_attributes_are_kept_on_every_emitted_statement(self):
+        updated, _ = run("#[cfg(test)]\nuse nsshared_proto::{IdentityKey, account::Roster};\n")
+        self.assertEqual(updated, "#[cfg(test)]\nuse nsshared_proto::IdentityKey;\n"
+                                  "#[cfg(test)]\nuse nsshared_control::account::relay::Roster;\n")
+
+    def test_indented_stacked_and_same_line_attributes(self):
+        updated, _ = run("mod t {\n    #[cfg(test)]\n    #[allow(unused_imports)]\n"
+                         "    pub(crate) use nsshared_proto::{IdentityKey, account::Roster};\n}\n")
+        self.assertEqual(updated.count("    #[cfg(test)]\n    #[allow(unused_imports)]\n    pub(crate) use "), 2)
+        updated, _ = run("#[cfg(feature = \"x\")] use nsshared_proto::{IdentityKey, account::Roster};\n")
+        self.assertEqual(updated, "#[cfg(feature = \"x\")] use nsshared_proto::IdentityKey;\n"
+                                  "#[cfg(feature = \"x\")] use nsshared_control::account::relay::Roster;\n")
+
+    def test_doc_comments_are_repeated(self):
+        updated, _ = run("/// Shared types.\npub use nsshared_proto::{IdentityKey, account::Roster};\n")
+        self.assertEqual(updated.count("/// Shared types.\npub use "), 2)
+
+    def test_prose_in_doc_comments_is_not_a_statement(self):
+        source = "/// Holds the lock through use of the result {\nfn f() {}\n/// use nsshared_proto::account::Roster;\nfn g() {}\n"
+        updated, report = run(source)
+        self.assertEqual(updated, source.replace("nsshared_proto::account::Roster", "nsshared_control::account::relay::Roster"))
+        self.assertEqual(report.unmapped, [])
+
+    def test_untouched_statement_keeps_its_attribute_and_paths(self):
+        source = "#[cfg(test)] use nsshared_proto::account::{Roster, USAGE_PART_DOMAIN};\n"
+        updated, report = run(source)
+        self.assertEqual(updated, source)
+        self.assertEqual(len(report.unmapped), 1)
+
+    def test_removed_statement_takes_its_attribute(self):
+        updated, _ = run("#[cfg(test)]\nuse nsshared_proto::account::*;\nfn f() {}\n")
+        self.assertNotIn("cfg(test)", updated)
+
+
+class GlobModules(unittest.TestCase):
+    def test_proto_glob_brings_account_into_scope(self):
+        updated, report = run("use nsshared_proto::*;\nfn f(r: account::Roster) {}\n")
+        self.assertIn("use nsshared_proto::*;", updated)
+        self.assertIn("use nsshared_control::account;", updated)
+        self.assertIn("r: account::relay::Roster", updated)
+        self.assertEqual(report.unmapped, [])
+        updated, _ = run("use nsshared_proto::*;\nmod account;\nfn f(r: account::Roster) {}\n")
+        self.assertNotIn("nsshared_control", updated)
+
+    def test_relative_use_through_a_glob_imported_module(self):
+        updated, report = run("use nsshared_proto::account::*;\nuse control_exchange::CONFIG_STREAM;\n"
+                              "use source_binding::{SOURCE_DOMAIN, SourceBinding};\nfn f(b: SourceBinding) {}\n")
+        self.assertIn("use nsshared_control::account::control::CONFIG_STREAM;", updated)
+        self.assertIn("use nsshared_control::account::{domains::SOURCE_DOMAIN, publication::SourceBinding};", updated)
+        self.assertNotIn("as control_exchange", updated)
+        self.assertNotIn("nsshared_proto", updated)
+        updated, report = run("use nsshared_proto::account::*;\nuse source_binding::SOURCE_FRAME;\n")
+        self.assertIn("use source_binding::SOURCE_FRAME;", updated)
+        self.assertEqual(report.unmapped[0][1], f"{OLD}::source_binding::SOURCE_FRAME")
+
+    def test_glob_of_an_unknown_module_is_listed(self):
+        source = "use nsshared_proto::account::retired::*;\n"
+        updated, report = run(source)
+        self.assertEqual(updated, source)
+        self.assertEqual(report.unmapped[0][1], f"{OLD}::retired::*")
+
+
+class Macros(unittest.TestCase):
+    def test_paths_inside_macro_token_trees_are_rewritten(self):
+        updated, report = run("fn f() -> Value { json!({\"op\":nsshared_proto::account::control_exchange::CONFIG_STREAM,"
+                              " \"r\": ::nsshared_proto::account::Roster::NAME,"
+                              " \"s\": format!(\"{}\", nsshared_proto :: account :: Lifecycle::Active)}) }\n")
+        self.assertIn("\"op\":nsshared_control::account::control::CONFIG_STREAM,", updated)
+        self.assertIn("::nsshared_control::account::relay::Roster::NAME", updated)
+        self.assertIn("nsshared_control::account::node::Lifecycle::Active", updated)
+        self.assertEqual(report.unmapped, [])
+        self.assertEqual(report.paths, 3)
+
+    def test_module_relative_paths_inside_macros(self):
+        updated, _ = run("use nsshared_proto::account;\nconst V: Value = json!({\"r\":account::Roster::NAME});\n")
+        self.assertIn("\"r\":account::relay::Roster::NAME", updated)
+
+    def test_ambiguous_or_unmappable_macro_paths_are_listed(self):
+        source = ("m!(other::nsshared_proto::account::Roster);\n"
+                  "m!(nsshared_proto::account::{Roster, Lifecycle});\n"
+                  "json!({\"d\":nsshared_proto::account::USAGE_PART_DOMAIN});\n")
+        updated, report = run(source)
+        self.assertEqual(updated, source)
+        self.assertEqual([row[0] for row in report.unmapped], ["lib.rs:1", "lib.rs:2", "lib.rs:3"])
+
+
+def tree(files):
+    directory = tempfile.TemporaryDirectory()
+    root = pathlib.Path(directory.name)
+    for name, text in files.items():
+        (root / name).parent.mkdir(parents=True, exist_ok=True)
+        (root / name).write_text(text)
+    mapping = root / "map.json"
+    mapping.write_text(__import__("json").dumps(DOCUMENT))
+    output = subprocess.run([sys.executable, "-B", str(SCRIPT), str(root), "--map", str(mapping), "--apply"],
+                            capture_output=True, text=True, check=True).stdout
+    return directory, root, output
+
+
 class CommandLine(unittest.TestCase):
+    def test_child_modules_follow_the_parent_glob(self):
+        directory, root, output = tree({
+            "src/parent.rs": "use nsshared_proto::account::*;\nmod child;\n",
+            "src/parent/child.rs": "use super::*;\nuse control_exchange::CONFIG_STREAM;\n"
+                                   "fn f(b: source_binding::SourceBinding) -> &'static str { source_binding::SOURCE_DOMAIN }\n"
+                                   "const K: u8 = source_binding::SOURCE_FRAME;\n",
+        })
+        with directory:
+            self.assertEqual((root / "src" / "parent.rs").read_text(),
+                             "use nsshared_control::account::publication as source_binding;\nmod child;\n")
+            child = (root / "src" / "parent" / "child.rs").read_text()
+            self.assertIn("use nsshared_control::account::control::CONFIG_STREAM;", child)
+            self.assertIn("b: source_binding::SourceBinding", child)
+            self.assertIn("{ nsshared_control::account::domains::SOURCE_DOMAIN }", child)
+            self.assertIn("const K: u8 = source_binding::SOURCE_FRAME;", child)
+            self.assertIn("src/parent/child.rs:4 | source_binding::SOURCE_FRAME", output)
+
     def test_globs_keep_items_used_by_child_modules(self):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
