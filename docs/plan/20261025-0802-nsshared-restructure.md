@@ -254,5 +254,5 @@ push, merge or tag without the owner's word.
 | P3 | done | 97b8da4 | qa 0, vectors 0, cases 0, api_surface proto 0 x3, service-control: only the 2 intended lines, consumer paths 0, base tests 287/287 |
 | P4 | done | df723a4 | qa 0, vectors 0, cases 0 (account fixtures moved to nsshared-control), api_surface proto 0 x3, service-control: 4 missing lines = intended `#[non_exhaustive]` on `CborError` and `ContractError` (two paths each), consumer paths 0, base tests 287/287 |
 | P5 | done | 859d199 | qa 0, vectors 0 (42 files), cases 0 (all 2714 base cases at mapped paths, 9 additions), api_surface proto 0 x3, service-control: only the 4 intended lines, consumer paths 0, base tests 287/287; 545 tests in 7 binaries (was 75) |
-| P6 | pending | | |
+| P6 | done | e5830e0 | qa 0 (`just semver`: proto api_surface 0 missing vs v0.6.0, telemetry semver-checks clean, new crates skipped), vectors 0, cases 0, api_surface proto 0 x3, service-control: only the 4 intended lines, consumer paths 0, base tests 287/287; mocks build on the defining crates |
 | D | pending | | |
