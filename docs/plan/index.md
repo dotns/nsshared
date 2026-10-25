@@ -120,3 +120,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**Define protocol-specific public-edge route names**](20261023-1548-public-edge-protocol-names.md) `2026-10-23`
 - [x] [**Prepare the immutable candidate handoff**](20261024-1115-candidate-handoff.md) `2026-10-24`
 - [x] [**Define provider mapping eligibility snapshots**](20261024-1655-provider-mapping-eligibility.md) `2026-10-24`
+- [x] [**Record review delivery and registration lifecycle placeholders**](20261025-0157-review-request-delivery.md) `2026-10-25`

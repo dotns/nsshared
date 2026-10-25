@@ -1,3 +1,14 @@
+## 2026-10-25 [docs]
+
+Record review request delivery and the verified immutable package/consumer pair.
+Clarify registration-only zero incarnation placeholders, preserve independent
+grant and reporter custody, and add five canonical transition vectors without
+changing crate sources or codecs.
+
+Validation: immutable comparison matched 259 package inputs and four consumer
+manifest/lock pairs; self-check passed with 542 tests and zero skips. Review
+replies, producer adoption and live interoperability remain outstanding.
+
 ## 2026-10-24 [feat]
 
 Add a separate provider-mappings Snapshot inventory with bounded canonical ids
