@@ -3,7 +3,7 @@
   "base": "1bc1d39ef51d3e60a88a01d67244afc68ebd795c",
   "dependency": {
     "add": "nsshared-control",
-    "note": "keep nsshared-proto for its other modules; pin nsshared-control to the same revision"
+    "note": "keep nsshared-proto for its other modules; pin nsshared-control to the same revision with features = [\"unstable-account\"], which gates the candidate account module"
   },
   "statuses": [
     "moved",

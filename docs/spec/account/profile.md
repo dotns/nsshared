@@ -4,7 +4,10 @@ The account contracts (`nsshared_control::account`) carry the account-plane payl
 between NSD, Nodes and gateways: enrollment, publications of every family, the control
 exchanges and reports, and their local admission state. This profile holds the rules
 they share: encoding, placement and M6 reuse, scope text, signature domains and the
-family registry. Each layer and family is specified separately:
+family registry. The account contracts are a candidate: the module is built only with
+the `unstable-account` feature of `nsshared-control`, is not covered by semver and may
+change incompatibly before the gate is removed and a release is made. Each layer and
+family is specified separately:
 
 | Specification | Contracts |
 | --- | --- |

@@ -1,3 +1,25 @@
+## 2026-10-25 [feat]
+
+Version 0.7.0 (unreleased; no tag). The workspace version moves from 0.6.0 to
+0.7.0: the facades are deprecated and the defining crates are new.
+
+- New crates: `nsshared-codec`, `nsshared-identity`, `nsshared-relay`,
+  `nsshared-rendezvous`, `nsshared-control` and the development-only
+  `nsshared-testkit`. `nsshared-proto` and `nsshared-service-control` are
+  deprecated facades that keep their 0.6 paths.
+- `nsshared_control::account` is a candidate contract behind the new
+  `unstable-account` feature of `nsshared-control` (default off). It is not
+  covered by semver and may change incompatibly before the gate is removed and a
+  release is made. `service`, `node_control` and both facades build and behave
+  the same without it; the dependencies only `account` needs (`base64`,
+  `ed25519-dalek`, `hmac`, `idna`, `serde`, `serde_json`) are optional.
+- `just qa` runs clippy, tests, doctests and documentation with and without the
+  feature, and the scoped self-check does too when `nsshared-control` is
+  affected. The account test binary requires the feature. `just semver` checks
+  default features only.
+- The account migration map, rewrite script and guide name the feature; the
+  rewrite script's dependency advice adds it.
+
 ## 2026-10-25 [refactor]
 
 Split the shared crates and reorganize the account contracts without changing

@@ -14,10 +14,16 @@ It contains these library crates (all pure: no I/O, async runtime or TLS):
 | `nsshared-identity` | Identities and typed keys (generation, canonical text and binary forms, node ID, `node6` / `node4`), canonical realm ids, relay ids, `NodeRecord` and its ordering rules, public DNS discovery of records (quick-v2 §11.2) |
 | `nsshared-relay` | Relay packets v2: header and bodies, REGISTER, session key, MACs, DATA admission, budget defaults (docs `ns/quick-v2.md` §8) |
 | `nsshared-rendezvous` | The `/rendezvous/v1` messages: transport, capabilities, actor `hello`, relay directory v2, mailbox phase rules, node registry (docs `ns/rendezvous.md`) |
-| `nsshared-control` | `service`: the M6 private service control contract; `node_control`: Node-control v2 messages; `account`: the account payload contracts by layer and family (specifications in `docs/spec/`) |
+| `nsshared-control` | `service`: the M6 private service control contract; `node_control`: Node-control v2 messages; `account`: the candidate account payload contracts by layer and family, behind the `unstable-account` feature (specifications in `docs/spec/`) |
 | `nsshared-telemetry` | `tracing` subscriber setup (text or JSON, env filter with a default) and redaction helpers; no exporter |
 | `nsshared-proto` | Deprecated facade: the 0.6 module paths (`keys`, `identity`, `record`, `discovery`, `encoding`, `constants`, `relay`, `rendezvous`, `node_control` and the root types), re-exported from the crates above |
 | `nsshared-service-control` | Deprecated facade: the M6 contract at its existing paths, re-exported from `nsshared-control` |
+
+`account` is a candidate contract behind the `unstable-account` feature of `nsshared-control` (default off): it is not covered by semver and may change incompatibly before the gate is removed and a release is made. `service`, `node_control` and the facades build without it:
+
+```toml
+nsshared-control = { git = "...", rev = "...", features = ["unstable-account"] }
+```
 
 Development and test support (`publish = false`):
 

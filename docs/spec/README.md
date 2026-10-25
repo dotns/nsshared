@@ -24,5 +24,10 @@ The M6 private service control contract is described in
 [`crates/nsshared-service-control/README.md`](../../crates/nsshared-service-control/README.md)
 and implemented by `nsshared_control::service`.
 
+The account specifications describe a candidate contract: `nsshared_control::account`
+is built only with the `unstable-account` feature of `nsshared-control`, is not
+covered by semver and may change incompatibly before the gate is removed and a
+release is made.
+
 Review and adoption state of these contracts (questions to producers, consumer
 adoption, delivered revisions) is kept apart in [docs/review](../review/README.md).

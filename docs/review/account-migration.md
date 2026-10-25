@@ -75,15 +75,21 @@ re-export at the new crate, or rewrite those paths by hand.
 ## Cargo change
 
 Add `nsshared-control` from the same source and revision as `nsshared-proto`,
-and bump both to a revision that contains `nsshared-control`:
+with the `unstable-account` feature, and bump both to a revision that contains
+`nsshared-control`:
 
 ```toml
 [workspace.dependencies]
 nsshared-proto = { git = "<nsshared source>", rev = "<rev>" }
-nsshared-control = { git = "<nsshared source>", rev = "<rev>" }
+nsshared-control = { git = "<nsshared source>", rev = "<rev>", features = ["unstable-account"] }
 ```
 
-Then `nsshared-control.workspace = true` in each member the report names. Keep
+`account` exists only with that feature. It is a candidate contract: not covered
+by semver, and it may change incompatibly before the gate is removed and a
+release is made, so pin a revision rather than a version range.
+
+Then `nsshared-control.workspace = true` in each member the report names (the
+feature comes from the workspace entry). Keep
 `nsshared-proto` for its other modules. Pin every nsshared crate, including the
 mocks and `nsshared-service-control`, to the same revision: a second revision
 duplicates `nsshared-codec` and `nsshared-identity`, and `AccountError::Cbor` or

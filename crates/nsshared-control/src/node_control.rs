@@ -1,6 +1,6 @@
 //! The pure Node-control message codec (quick-v2 §9, §12.1).
 //!
-//! Implements account registry family [`crate::account::publication::FamilyId::NodeControl`].
+//! Implements the account registry family `NodeControl` (`account::publication::FamilyId`).
 //! ACK means at least accepted; persistence before ACK is conforming.
 //! Transport, persistence, retransmission and sessions remain consumer-owned.
 //!

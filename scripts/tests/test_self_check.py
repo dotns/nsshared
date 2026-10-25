@@ -218,6 +218,18 @@ class SelectionTests(unittest.TestCase):
             packages = [command[i + 1] for i, arg in enumerate(command) if arg == "--package"]
             self.assertEqual(packages, selection["affected"])
 
+    def test_gated_feature_sets_are_tested_when_their_package_is_affected(self):
+        selection = {"full": False, "reason": "", "changed": ["nsshared-control"],
+                     "affected": ["nsshared-control", "nsshared-proto"]}
+        commands = self_check.commands(selection)
+        flags = ["--features", "nsshared-control/unstable-account"]
+        gated = [command for command in commands if "nsshared-control/unstable-account" in command]
+        self.assertEqual(len(gated), 3)
+        self.assertEqual(gated[0], ["cargo", "nextest", "run", "--workspace", "--locked", *flags,
+                                    "-E", "rdeps(nsshared-control)"])
+        selection = dict(selection, changed=["nsshared-relay"], affected=["nsshared-proto", "nsshared-relay"])
+        self.assertFalse(any("nsshared-control/unstable-account" in c for c in self_check.commands(selection)))
+
     def test_scoped_commands_run_real_tests_and_documentation(self):
         self.write("crates/core/src/lib.rs", "pub fn value() -> u8 { 2 }\n")
         commands = self_check.commands(self.selection())

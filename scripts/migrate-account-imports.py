@@ -5,7 +5,8 @@
 
 Without --apply it prints a unified diff of every change (dry run). With --apply it
 writes the Rust sources. It reads only `*.rs` files outside `target/`, never changes
-Cargo manifests, and prints the dependency change each affected manifest needs.
+Cargo manifests, and prints the dependency change each affected manifest needs
+(`nsshared-control` with its `unstable-account` feature, which gates `account`).
 
 Mapping comes from docs/review/account-migration.json. Moved and renamed items get
 their new path; a renamed item imported by `use` is aliased to its old name so the code
@@ -33,6 +34,7 @@ import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+FEATURE = "unstable-account"
 OLD = "nsshared_proto::account"
 NEW = "nsshared_control::account"
 ATTRS = r"(?:(?:#\[(?:[^\[\]]|\[[^\[\]]*\])*\][ \t]*\n?|///[^\n]*\n)[ \t]*)*"
@@ -453,14 +455,19 @@ def dependency_advice(repository, manifests):
     pin = None
     match = re.search(r"^nsshared-proto\s*=\s*(\{[^}\n]*\})", root_text, re.M)
     if match:
-        pin = re.sub(r",?\s*default-features\s*=\s*false", "", match.group(1)).strip()
+        pin = re.sub(r",?\s*(?:default-features\s*=\s*false|features\s*=\s*\[[^\]]*\])", "", match.group(1)).strip()
     lines = ["Dependency changes (not applied):"]
     wanted = sorted(set().union(*manifests.values())) if manifests else []
     for crate in wanted:
         if pin and not declared(root_text, crate):
             source = re.sub(r"(path\s*=\s*\"[^\"]*/)nsshared-proto\"", rf'\g<1>{crate}"', pin)
+            if crate == "nsshared-control":
+                source = source[:-1].rstrip() + f', features = ["{FEATURE}"] }}'
             lines.append(f"- {root.relative_to(repository)} [workspace.dependencies]: {crate} = {source} "
                          "(the same source; pin a revision that contains it)")
+        elif crate == "nsshared-control" and declared(root_text, crate) and FEATURE not in root_text:
+            lines.append(f"- {root.relative_to(repository)} [workspace.dependencies]: enable "
+                         f'features = ["{FEATURE}"] on nsshared-control')
     for manifest, needs in sorted(manifests.items()):
         text = manifest.read_text() if manifest.exists() else ""
         missing = sorted(c for c in needs if not declared(text, c))

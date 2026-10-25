@@ -18,8 +18,9 @@ consumer reviewer. Every question and requested change was sent on that date (se
 [Disposition](#disposition)). Content added after the delivered revision is listed
 in [Changes after delivery](#changes-after-delivery). No answer has been received. Silence approves nothing. NSD independently owns
 producer vectors and implementation. Unreceived answers remain outstanding and
-do not block the candidate. Review remains required before merging the candidate
-into `main` or releasing it.
+do not block the candidate. The candidate is merged into `main` behind the
+`unstable-account` feature; review is still required before the gate is removed or a
+release is made.
 
 ## Candidate package
 

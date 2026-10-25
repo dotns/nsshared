@@ -169,8 +169,8 @@ def normalize(lines):
     return out
 
 
-def listing(root, package, target):
-    return api_surface.listing(root, package, target)
+def listing(root, package, target, features=()):
+    return api_surface.listing(root, package, target, features)
 
 
 def build(base):
@@ -179,7 +179,8 @@ def build(base):
         api_surface.export(revision, directory)
         old_lines = listing(pathlib.Path(directory), "nsshared-proto",
                             ROOT / "target" / "api-surface" / revision[:12])
-    new_lines = listing(ROOT, "nsshared-control", ROOT / "target" / "api-surface" / "current")
+    new_lines = listing(ROOT, "nsshared-control", ROOT / "target" / "api-surface" / "current",
+                        ["nsshared-control/unstable-account"])
     old = parse(old_lines, OLD)
     new = parse(new_lines, NEW)
     by_name = {}
@@ -307,7 +308,8 @@ def document(base):
         "base": revision,
         "dependency": {
             "add": "nsshared-control",
-            "note": "keep nsshared-proto for its other modules; pin nsshared-control to the same revision",
+            "note": "keep nsshared-proto for its other modules; pin nsshared-control to the same revision "
+                    "with features = [\"unstable-account\"], which gates the candidate account module",
         },
         "statuses": ["moved", "renamed", "changed", "split", "removed"],
         "items": entries,

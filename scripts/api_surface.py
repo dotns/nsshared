@@ -35,8 +35,8 @@ def workspace_packages(root):
     return {p["name"] for p in metadata["packages"]}
 
 
-def build_docs(root, package, target):
-    """Builds rustdoc JSON for PACKAGE and its workspace dependencies."""
+def build_docs(root, package, target, features=()):
+    """Builds rustdoc JSON for PACKAGE and its workspace dependencies (default features plus FEATURES)."""
     env = dict(os.environ, RUSTC_BOOTSTRAP="1", CARGO_TARGET_DIR=str(target),
                RUSTDOCFLAGS="-Z unstable-options --output-format json")
     env.pop("RUSTC_WRAPPER", None)
@@ -56,7 +56,8 @@ def build_docs(root, package, target):
     docs = {}
     for package_id in sorted(wanted):
         name = members[package_id]["name"]
-        subprocess.run(["cargo", "doc", "--no-deps", "--locked", "-q", "-p", name],
+        own = [f"--features={feature}" for feature in features if feature.startswith(name + "/")]
+        subprocess.run(["cargo", "doc", "--no-deps", "--locked", "-q", "-p", name, *own],
                        cwd=root, env=env, check=True)
         crate = name.replace("-", "_")
         docs[crate] = json.loads((target / "doc" / f"{crate}.json").read_text())
@@ -356,8 +357,8 @@ def ty(value):
     return json.dumps(value, sort_keys=True)
 
 
-def listing(root, package, target):
-    docs = build_docs(root, package, target)
+def listing(root, package, target, features=()):
+    docs = build_docs(root, package, target, features)
     crate = package.replace("-", "_")
     doc = docs[crate]
     surface = Surface(docs)
