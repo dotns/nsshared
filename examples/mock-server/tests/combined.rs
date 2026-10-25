@@ -6,19 +6,18 @@
 #![allow(clippy::unwrap_used, clippy::panic, reason = "test fixture helpers")]
 
 use futures_util::{SinkExt, StreamExt};
+use nsshared_identity::{constants::NODE_ID_BYTES, keys::IdentitySecret, relay_id::RelayId};
 use nsshared_mock_relay::{Carrier, testing::TestNode};
 use nsshared_mock_rendezvous::Config;
 use nsshared_mock_server::MockServer;
-use nsshared_proto::rendezvous::{
-    auth::Challenge,
-    message::DnsPublication,
-    message::{LookupNodeRequest, RecordResult},
-    registry,
-    transport::{PATH, Request, Response, SUBPROTOCOL, decode_response, encode_request},
+use nsshared_relay::{
+    RelayBody, constants::MAX_RELAY_PACKET_BYTES, constants::RELAY_WSS_PATH,
+    constants::RELAY_WSS_SUBPROTOCOL,
 };
-use nsshared_proto::{
-    IdentitySecret, RelayId, constants::MAX_RELAY_PACKET_BYTES, constants::NODE_ID_BYTES,
-    constants::RELAY_WSS_PATH, constants::RELAY_WSS_SUBPROTOCOL, relay::RelayBody,
+use nsshared_rendezvous::{
+    auth::Challenge, message::DnsPublication, message::LookupNodeRequest, message::RecordResult,
+    registry, transport::PATH, transport::Request, transport::Response, transport::SUBPROTOCOL,
+    transport::decode_response, transport::encode_request,
 };
 use rustls::{
     ClientConfig, RootCertStore,

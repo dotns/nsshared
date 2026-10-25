@@ -11,18 +11,15 @@
 
 use ed25519_dalek::SigningKey;
 use futures_util::{SinkExt, StreamExt};
+use nsshared_identity::relay_id::RelayId;
 use nsshared_mock_rendezvous::{Config, Limits, RendezvousServer};
-use nsshared_proto::RelayId;
-use nsshared_proto::rendezvous::{
-    auth::{Challenge, Hello},
-    error::ErrorCode,
-    message::{
-        CloseRequest, Digits, Found, JoinRequest, MailboxId, MailboxView, OpenRequest, Opened,
-        RecvRequest, SendRequest, Sent,
-    },
-    transport::{
-        MAX_MESSAGE_BYTES, PATH, Request, Response, SUBPROTOCOL, decode_response, encode_request,
-    },
+use nsshared_rendezvous::{
+    auth::Challenge, auth::Hello, error::ErrorCode, message::CloseRequest, message::Digits,
+    message::Found, message::JoinRequest, message::MailboxId, message::MailboxView,
+    message::OpenRequest, message::Opened, message::RecvRequest, message::SendRequest,
+    message::Sent, transport::MAX_MESSAGE_BYTES, transport::PATH, transport::Request,
+    transport::Response, transport::SUBPROTOCOL, transport::decode_response,
+    transport::encode_request,
 };
 use rustls::{
     ClientConfig, RootCertStore,

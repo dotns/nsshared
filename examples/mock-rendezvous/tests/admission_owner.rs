@@ -6,10 +6,9 @@
 
 mod support;
 
-use nsshared_proto::rendezvous::{
-    error::ErrorCode,
-    message::{Admission, AdmitRequest, Kind, OpenRequest, RejectRequest, Stage},
-    transport::Request,
+use nsshared_rendezvous::{
+    error::ErrorCode, message::Admission, message::AdmitRequest, message::Kind,
+    message::OpenRequest, message::RejectRequest, message::Stage, transport::Request,
 };
 use std::time::Duration;
 use support::{Mock, key, relaxed_limits};

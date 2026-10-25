@@ -6,11 +6,10 @@
 
 use futures_util::{SinkExt, StreamExt};
 use nsshared_mock_rendezvous::{Config, RendezvousServer};
-use nsshared_proto::rendezvous::{
-    capability,
-    transport::{
-        MAX_MESSAGE_BYTES, PATH, Request, Response, SUBPROTOCOL, decode_response, encode_request,
-    },
+use nsshared_rendezvous::{
+    capability, transport::MAX_MESSAGE_BYTES, transport::PATH, transport::Request,
+    transport::Response, transport::SUBPROTOCOL, transport::decode_response,
+    transport::encode_request,
 };
 use rustls::{
     ClientConfig, RootCertStore,

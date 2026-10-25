@@ -6,9 +6,9 @@ use nsshared_mock_relay::{
     MockRelay, MockRelayConfig,
     testing::{NodeSession, TestNode},
 };
-use nsshared_proto::{
-    constants::MAX_RELAY_PACKET_BYTES, constants::RELAY_WSS_PATH, constants::RELAY_WSS_SUBPROTOCOL,
-    relay::Registered, relay::RelayBody,
+use nsshared_relay::{
+    Registered, RelayBody, constants::MAX_RELAY_PACKET_BYTES, constants::RELAY_WSS_PATH,
+    constants::RELAY_WSS_SUBPROTOCOL,
 };
 use rustls::{
     ClientConfig, RootCertStore,

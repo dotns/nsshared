@@ -18,7 +18,8 @@ path = "src/main.rs"
 [dependencies]
 futures-util.workspace = true
 getrandom.workspace = true
-nsshared-proto.workspace = true
+nsshared-identity.workspace = true
+nsshared-rendezvous.workspace = true
 rand_core.workspace = true
 rcgen.workspace = true
 rustls.workspace = true

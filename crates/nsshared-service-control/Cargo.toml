@@ -1,6 +1,6 @@
 [package]
 name = "nsshared-service-control"
-description = "Canonical M6 private service control contract"
+description = "Deprecated facade: the M6 private service control contract at its existing paths, re-exported from nsshared-control and nsshared-codec"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

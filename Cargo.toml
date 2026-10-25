@@ -44,7 +44,6 @@ nsshared-control = { path = "crates/nsshared-control", version = "0.6.0" }
 nsshared-identity = { path = "crates/nsshared-identity", version = "0.6.0" }
 nsshared-mock-relay = { path = "examples/mock-relay", version = "0.6.0" }
 nsshared-mock-rendezvous = { path = "examples/mock-rendezvous", version = "0.6.0" }
-nsshared-proto = { path = "crates/nsshared-proto", version = "0.6.0" }
 nsshared-relay = { path = "crates/nsshared-relay", version = "0.6.0" }
 nsshared-rendezvous = { path = "crates/nsshared-rendezvous", version = "0.6.0" }
 nsshared-testkit = { path = "crates/nsshared-testkit", version = "0.6.0" }

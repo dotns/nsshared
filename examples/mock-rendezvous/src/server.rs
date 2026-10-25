@@ -25,20 +25,14 @@ use crate::{
 };
 use futures_util::{SinkExt, StreamExt};
 use getrandom::SysRng;
-use nsshared_proto::rendezvous::{
-    auth::Challenge,
-    capability,
-    directory::{Directory, RelayEntry},
-    error::ErrorCode,
-    limits::SWEEP_INTERVAL_SECONDS,
-    message::RecvRequest,
-    phase::{Actor, check_pending_recv_within},
-    transport::{
-        MAX_MESSAGE_BYTES, Operation, PATH, Request, Response, SUBPROTOCOL, decode_request,
-        encode_response,
-    },
+use nsshared_identity::{identity::Identity, relay_id::RelayId};
+use nsshared_rendezvous::{
+    auth::Challenge, capability, directory::Directory, directory::RelayEntry, error::ErrorCode,
+    limits::SWEEP_INTERVAL_SECONDS, message::RecvRequest, phase::Actor,
+    phase::check_pending_recv_within, transport::MAX_MESSAGE_BYTES, transport::Operation,
+    transport::PATH, transport::Request, transport::Response, transport::SUBPROTOCOL,
+    transport::decode_request, transport::encode_response,
 };
-use nsshared_proto::{RelayId, identity::Identity};
 use rand_core::TryRng;
 use std::{
     io,

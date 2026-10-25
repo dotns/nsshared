@@ -4,10 +4,10 @@
 
 use futures_util::{SinkExt, StreamExt};
 use nsshared_mock_relay::{MockRelay, MockRelayConfig, testing::TestNode};
-use nsshared_proto::rendezvous::capability;
-use nsshared_proto::{
+use nsshared_relay::{
     constants::MAX_RELAY_PACKET_BYTES, constants::RELAY_WSS_PATH, constants::RELAY_WSS_SUBPROTOCOL,
 };
+use nsshared_rendezvous::capability;
 use rustls::{
     ClientConfig, RootCertStore,
     crypto::aws_lc_rs,
@@ -349,8 +349,11 @@ async fn shutdown_closes_open_wss_connections() {
 async fn owned_udp_socket_serves_queued_register_and_releases_on_shutdown() {
     let owned = UdpSocket::bind("127.0.0.1:0").await.unwrap();
     let address = owned.local_addr().unwrap();
-    let identity =
-        nsshared_proto::RelayId::parse(&format!("relay.example.test:{}", address.port())).unwrap();
+    let identity = nsshared_identity::relay_id::RelayId::parse(&format!(
+        "relay.example.test:{}",
+        address.port()
+    ))
+    .unwrap();
     let node = TestNode::new([7; 32], &identity, unix_now() - 60).unwrap();
     let attempt = node.register(&identity, 1, unix_now(), [1; 32]).unwrap();
     let client = UdpSocket::bind("127.0.0.1:0").await.unwrap();
@@ -385,7 +388,7 @@ async fn owned_udp_socket_serves_queued_register_and_releases_on_shutdown() {
 #[tokio::test]
 async fn owned_udp_socket_preserves_explicit_identity() {
     let owned = UdpSocket::bind("127.0.0.1:0").await.unwrap();
-    let identity = nsshared_proto::RelayId::parse("custom.example.test:4433").unwrap();
+    let identity = nsshared_identity::relay_id::RelayId::parse("custom.example.test:4433").unwrap();
     let relay = MockRelay::start_with_udp_socket(
         MockRelayConfig {
             relay_id: Some(identity.clone()),

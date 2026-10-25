@@ -1,4 +1,4 @@
-//! Node-side test helpers built only on `nsshared-proto`: a signed record, a signed
+//! Node-side test helpers built only on `nsshared-identity` and `nsshared-relay`: a signed record, a signed
 //! REGISTER, the node session key and sealed PRESENCE / REFLECT / REVOKE packets
 //! (quick-v2 §3.1, §8.2-§8.3).
 //!
@@ -16,12 +16,14 @@
 //! [`TestRng`] is a deterministic random source for [`crate::Relay`] in tests.
 
 use ed25519_dalek::SigningKey;
-use nsshared_proto::{
-    NodeId, NodeRecord, RelayId, identity::Identity, record::NodeRecordError,
-    record::NodeRecordFields, relay::Presence, relay::RELAY_SLOT, relay::Reflect, relay::Register,
-    relay::Registered, relay::RelayBody, relay::RelayMacError, relay::RelayPacket,
-    relay::RelayPacketError, relay::Revoke, relay::RevokeReason, relay::SessionKey,
-    relay::SignerMismatch, relay::ZeroSharedSecret, relay::ephemeral_public,
+use nsshared_identity::{
+    identity::Identity, identity::NodeId, record::NodeRecord, record::NodeRecordError,
+    record::NodeRecordFields, relay_id::RelayId,
+};
+use nsshared_relay::{
+    Presence, RELAY_SLOT, Reflect, Register, Registered, RelayBody, RelayMacError, RelayPacket,
+    RelayPacketError, Revoke, RevokeReason, SessionKey, SignerMismatch, ZeroSharedSecret,
+    ephemeral_public,
 };
 use rand_core::{Infallible, TryCryptoRng, TryRng};
 use thiserror::Error;
