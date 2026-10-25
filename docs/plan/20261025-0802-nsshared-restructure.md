@@ -137,32 +137,47 @@ Gate tools (in [this plan's directory](20261025-0802-nsshared-restructure/)):
   `nsshared_service_control` paths used by consumer sources and writes a crate that
   imports each one. At the consumer pin `aba1c5d5` all 238 collected paths resolve.
 
-### Account layout inside nsshared-control (P4)
+### Account layout inside nsshared-control (P4, as implemented)
 
 ```
+account.rs      AccountError, SCHEMA, MAX_BYTES, MAX_IDENTITIES, contract_error! macro
 account/
-  mod.rs        error type, flat re-exports of the public contract types
-  codec.rs      private: reader/writer helpers, ordered sets, optional fields,
-                ServiceRef round trip, bounded text
-  limits.rs     private: shared bounds
-  methods.rs    method names and paths of the control exchange
-  signing.rs    private: one domain-separated sign and verify helper
-  domains.rs    signature domains (bytes unchanged)
-  node/         lifecycle, enrollment, l3, l3 authority
-  control/      bootstrap, envelope, signed request, exchange, machine token,
-                reports, route command, node L3 status, service control carrier
-  publication/  envelope, registry, source binding, source publication,
-                subscription, snapshot request
-  families/
-    realm/      peers, policy subject, subject rules, policy claims
-    grants/     grants, payers, resource authority
-    subnet/     views, provider mapping, provider subnet report
-    edge/       routing, declaration, material, confidential auth, certificate
-    relay/      roster, participant roster, participant session, directory binding
-    usage/      usage, report, answer, relay usage, profile publications
+  codec.rs      private: require/ensure, ascending/ascending_by, reader, bounded, identity,
+                realm, token and data text rules, text lists, optional texts and integers,
+                M6 references, hostname, issuer URL, hex, JWK thumbprint
+  limits.rs     private: MAX_TEXT_BYTES, MAX_ITEMS, REALM_TEXT_BYTES, MAX_HOSTNAME_BYTES,
+                MAX_CREDENTIAL_BYTES
+  signing.rs    private: signing_input and strict verify, used by every signed contract
+  domains.rs    public: every signature and digest domain (bytes unchanged)
+  node/         lifecycle, enrollment, l3, l3_authority
+  control/      bootstrap, envelope, signed_request, exchange, methods, machine_token,
+                reports, route_command, node_l3_status, service_control
+  publication/  envelope, payloads, registry, source_binding, source_publication,
+                subscription, snapshot_request
+  families/     (private directory; areas are re-exported at account::)
+    realm/      peers, subject, rules, claims
+    grants/     grant, payer, authority
+    subnet/     views, mapping, report
+    edge/       routing, declaration, material, material_request, auth, auth/values
+    relay/      roster, participant_roster, session, directory
+    usage/      service, report, answer, relay, catalog
 ```
 
-Exact module names are settled during P4 and recorded here.
+Export rule: every public item has exactly one path. Area modules (`account::node`,
+`account::control`, `account::publication`, `account::realm`, `account::grants`,
+`account::subnet`, `account::edge`, `account::relay`, `account::usage`) re-export the
+public items of their private files; `account::domains` and the account root hold the
+shared items. The same rule holds in every new crate (`nsshared_relay` flattens its
+private files into the root beside the public `budget` and `constants` modules).
+
+Section B changes: every account error enum is `#[non_exhaustive]`; shared refusals are
+`Contract(AccountError)` and one macro implements the CBOR conversion (grants and Node
+L3 authority keep a separate `Encoding(CborError)` because their vectors distinguish
+outer encoding from embedded policy refusals; bootstrap keeps its bound
+classification); variant names `Field`, `Stale`, `Signature`, `Issuer`, `Recipient`;
+`RouteError` and `L3AuthorityError` replace borrowed variants; `AccountError` messages
+no longer name the participant roster; `validate_admission_snapshot`,
+`ServiceDirection`, `FrameKind`.
 
 ### Module mapping
 
@@ -219,7 +234,7 @@ push, merge or tag without the owner's word.
 | P1 | done | 42c4810 | qa 0, vectors 0, cases 0, api_surface proto 0 x3, service-control 2 missing lines = intended `#[non_exhaustive]` on `CborError`, consumer paths 0, base tests 287/287 |
 | P2 | done | dc7e9ff | qa 0 (after dropping proto's unused `getrandom`), vectors 0, cases 0, api_surface proto 0 x3, service-control: only the 2 intended lines, consumer paths 0, base tests 287/287; `RecordMarks::write`/`read` became public for the registry state |
 | P3 | done | 97b8da4 | qa 0, vectors 0, cases 0, api_surface proto 0 x3, service-control: only the 2 intended lines, consumer paths 0, base tests 287/287 |
-| P4 | pending | | |
+| P4 | done | df723a4 | qa 0, vectors 0, cases 0 (account fixtures moved to nsshared-control), api_surface proto 0 x3, service-control: 4 missing lines = intended `#[non_exhaustive]` on `CborError` and `ContractError` (two paths each), consumer paths 0, base tests 287/287 |
 | P5 | pending | | |
 | P6 | pending | | |
 | D | pending | | |
