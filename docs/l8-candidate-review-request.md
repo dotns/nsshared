@@ -11,25 +11,25 @@ Signed usage bytes and the historical payer pair remain unchanged.
 
 
 Status: delivered through the owner route on 2026-10-25 (UTC), at revision
-`958da3f9b31e70f419035b974977f8d0d2895471`. The owner forwarded the candidate
-review package to the NSD owner as producer and the ns owner as consumer reviewer.
-No answer has been received. Silence approves nothing. NSD independently owns
+`958da3f9b31e70f419035b974977f8d0d2895471`. This is the only record of the
+delivered revision; the profile and the handoff refer to it. The owner forwarded
+the candidate review package to the NSD owner as producer and the ns owner as
+consumer reviewer. Every question and requested change was sent on that date (see
+[Disposition](#disposition)). Content added after the delivered revision is listed
+in [Changes after delivery](#changes-after-delivery). No answer has been received. Silence approves nothing. NSD independently owns
 producer vectors and implementation. Unreceived answers remain outstanding and
 do not block the candidate. Review remains required before merging the candidate
 into `main` or releasing it.
 
 ## Candidate package
 
-The current selected candidate revision is
-`958da3f9b31e70f419035b974977f8d0d2895471`. The prior selection
-`50dc9db5fe106536d0a7d8b113b5bb4a3e210368` remains historical comparison
-evidence in the handoff. The earlier
-`41149fe1febf2ecee07f077d68a500e18822442c` remains a historical package delivery
-reference. Review the [immutable handoff](l8-candidate-handoff.md) for the complete
+The package is the delivered revision named in the status above; earlier
+package selections are historical comparison evidence in the handoff. Review the
+[immutable handoff](l8-candidate-handoff.md) for the complete
 delivered-contract list, P12–P19 additions, vector corrections, exact gateway
 manifest/lockfile comparison and unresolved external adoption. Gateway package
 consumption does not establish external owner forwarding or approval. Review
-these files at the current selected revision:
+these files at the delivered revision:
 
 - [Specification](l8-account-payload-profile.md): schema 1 canonical CBOR and
   local admission JSON schema 2; replacement, lifecycle and byte-unit rules.
@@ -56,6 +56,23 @@ live interoperability. Every family's producer vectors must be generated
 independently by NSD; node and gateway consumers check those bytes separately.
 The contracts remain pure types, codecs, validation, constants and vectors.
 Sessions, runtime effects, policy compilation and v1 adapters stay in consumers.
+
+## Changes after delivery
+
+These changes follow the delivered revision and were not part of the package
+that was sent:
+
+- [Q07](#q07-identity-lifecycle--node-owner-with-nsd-confirmation): registration-only
+  lifecycle placeholders and the `enrollment_consumer_vectors` extension; no schema
+  or codec change.
+- Scope text: every family applies one rule to opaque authority scope text, 1 to
+  256 UTF-8 bytes without whitespace or control characters (see the profile's
+  [scope text rule](l8-account-payload-profile.md#scope-text)). Publication
+  content previously checked only emptiness and length, and subscription, snapshot
+  request, source binding and authentication source selection previously allowed
+  whitespace; those inputs are now refused. Refusal vectors were added to the
+  publication, subscription, snapshot request, source selection and control
+  exchange fixtures. No accepted fixture changes.
 
 ## Family state
 
@@ -451,7 +468,7 @@ and floor are provider-local and have no wire field. Egress wire floor is unchan
 Name NSD vectors for nested default/specific routes, range ownership and empty
 selection; preserve the existing M6 route/listener boundaries.
 
-The prepared [Subnet selection candidate](l8-account-payload-profile.md#subnet-selection)
+The [Subnet selection candidate](l8-account-payload-profile.md#subnet-selection)
 uses standalone client-recipient `subnet-routes` snapshots with complete
 `[1, 4, nsd_id, network_id, recipient, revision, routes]` payloads and canonical M6
 ServiceRef bytes. This kind is separate from provider-recipient `exit-grants`;
@@ -549,7 +566,7 @@ correlation in authenticated confidential envelopes only. Please review
 confidential_auth_generation and supply NSD-owned positive and refusal vectors,
 including current dependency changes and rotation. NSD producer confirmation
 remains outstanding; no agreement, live interoperability or public-ingress usage
-changes are claimed; Q17 remains prepared pending delivery and response.
+changes are claimed; Q17 was sent on 2026-10-25; its answer is outstanding.
 
 ### Q18: Relay directory and participant payload — NSD owner
 
@@ -670,7 +687,8 @@ two-byte length prefix, inclusive 60-second skew and 120-second replay retention
 Please provide independent NSD carrier producer vectors for both domains,
 issuer/recipient, kind, signature, local intersection, time/replay and byte-limit
 boundaries, nonminimal/trailing encodings and every downgrade refusal. Candidate
-Python vectors remain preparation; these questions retain `prepared` disposition.
+Python vectors are fixtures, not producer output; these questions were sent on
+2026-10-25 and their answers are outstanding.
 
 The publication candidate reuses `[content_bytes, signature_64]` with distinct
 `ns.account.publication.v1\0` signing domain and content
@@ -684,7 +702,7 @@ Please supply independent NSD canonical signed producer vectors at exactly that
 size and one byte over, malformed/truncated declared lengths, unknown kinds,
 wrong channels, issuer/recipient/scope/signature/freshness refusals and atomic
 snapshot rejection. Existing M6 payload bytes remain unchanged. These additions
-retain `prepared` disposition; candidate fixture signatures are not NSD output.
+were sent on 2026-10-25; candidate fixture signatures are not NSD output.
 
 ### Q22: Independent family producer vectors — NSD owner
 
@@ -738,39 +756,39 @@ new cases must not rename or copy the M6 fixture into the account vectors.
 delivery, with its actual date. Record `answered` with the answer's durable
 location. Use `outstanding` for an unresolved or unreceived answer after delivery;
 retain the delivery date and any partial answer reference. Outstanding answers
-do not block candidate preparation and do not imply approval. All rows start
-prepared because no external producer delivery or answer has been received.
+do not block candidate preparation and do not imply approval. The owner reported
+delivery of every row on 2026-10-25; no answer has been received.
 These statuses track external producer review; Q18's owner design choice is
 settled; shared definitions are delivered, while external producer review and
 adoption remain outstanding.
 
 | Reference | Addressee | Status | Sent date (reported by owner) | Answer location |
 | --- | --- | --- | --- | --- |
-| Q01 | NSD and node | prepared | — | — |
-| Q02 | NSD and node | prepared | — | — |
-| Q03 | NSD and node | prepared | — | — |
-| Q04 | NSD and node | prepared | — | — |
-| Q05 | NSD | prepared | — | — |
-| Q06 | NSD | prepared | — | — |
-| Q07 | Node, with NSD | prepared | — | — |
-| Q08 | NSD and node | prepared | — | — |
-| Q09 | NSD and node | prepared | — | — |
-| Q10 | NSD | prepared | — | — |
-| Q11 | NSD | prepared | — | — |
-| Q12 | NSD | prepared | — | — |
-| Q13 | NSD | prepared | — | — |
-| Q14 | NSD | prepared | — | — |
-| Q15 | NSD | prepared | — | — |
-| Q16 | NSD | prepared | — | — |
-| Q17 | NSD | prepared | — | — |
-| Q18 | NSD | prepared | — | — |
-| Q19 | NSD | prepared | — | — |
-| Q20 | Node and NSD | prepared | — | — |
-| Q21 | NSD and node | prepared | — | — |
-| Q22 | NSD | prepared | — | — |
-| Q23 | NSD and node | prepared | — | — |
-| M01 | M6 contract owner, through owner | prepared | — | — |
-| M02 | M6 contract owner, through owner | prepared | — | — |
+| Q01 | NSD and node | sent | 2026-10-25 | — |
+| Q02 | NSD and node | sent | 2026-10-25 | — |
+| Q03 | NSD and node | sent | 2026-10-25 | — |
+| Q04 | NSD and node | sent | 2026-10-25 | — |
+| Q05 | NSD | sent | 2026-10-25 | — |
+| Q06 | NSD | sent | 2026-10-25 | — |
+| Q07 | Node, with NSD | sent | 2026-10-25 | — |
+| Q08 | NSD and node | sent | 2026-10-25 | — |
+| Q09 | NSD and node | sent | 2026-10-25 | — |
+| Q10 | NSD | sent | 2026-10-25 | — |
+| Q11 | NSD | sent | 2026-10-25 | — |
+| Q12 | NSD | sent | 2026-10-25 | — |
+| Q13 | NSD | sent | 2026-10-25 | — |
+| Q14 | NSD | sent | 2026-10-25 | — |
+| Q15 | NSD | sent | 2026-10-25 | — |
+| Q16 | NSD | sent | 2026-10-25 | — |
+| Q17 | NSD | sent | 2026-10-25 | — |
+| Q18 | NSD | sent | 2026-10-25 | — |
+| Q19 | NSD | sent | 2026-10-25 | — |
+| Q20 | Node and NSD | sent | 2026-10-25 | — |
+| Q21 | NSD and node | sent | 2026-10-25 | — |
+| Q22 | NSD | sent | 2026-10-25 | — |
+| Q23 | NSD and node | sent | 2026-10-25 | — |
+| M01 | M6 contract owner, through owner | sent | 2026-10-25 | — |
+| M02 | M6 contract owner, through owner | sent | 2026-10-25 | — |
 
 ## Policy, subject and admin claim review delta
 
@@ -779,7 +797,7 @@ and independent [policy-claims vectors](../crates/nsshared-proto/tests/fixtures/
 The Python producer is `tools/vectors/nsvec/producers/policy_claims.py`; the
 independent Rust consumer is `tests/policy_claim_vectors.rs`. These are labelled
 candidate fixture bytes, not NSD producer confirmation or live interoperability.
-This addition remains `prepared`; no delivery or owner agreement is recorded.
+This addition was sent on 2026-10-25; no owner agreement is recorded.
 
 The values add no publication kind. Existing NodeL3Authority retains full Node
 L3 authority, public-edge/visitor/auth values embed in family 7 under its owner,
@@ -983,8 +1001,8 @@ control state survive replacement and withdrawal. The source-bound fixture seque
 is available for gateway adoption using the same independent bytes.
 
 NSD/ns review, producer-owned canonical/refusal vectors and producer adoption
-remain outstanding. This delta is prepared for review; no external delivery,
-answer or live interoperability is recorded by candidate fixture acceptance.
+remain outstanding. This delta was sent on 2026-10-25; no answer or live
+interoperability is recorded by candidate fixture acceptance.
 
 ## Inner publication producer addition
 

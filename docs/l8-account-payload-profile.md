@@ -15,11 +15,9 @@ is an additive module of `nsshared-proto` at the workspace minor-release version
 It defines no runtime, transport session, policy compiler or v1 adapter.
 The [account payload record](task/20261019-0029-l8-account-payload-profile.md)
 owns every candidate registry entry; detailed family payloads follow separately.
-The published candidate revision is
-`41149fe1febf2ecee07f077d68a500e18822442c`. The
-[NSD and node review request](l8-candidate-review-request.md) packages that
-revision, family states, producer questions and requested M6 changes for the
-owner to forward. Preparation does not imply delivery or approval.
+The [NSD and node review request](l8-candidate-review-request.md) records the
+delivered revision, family states, producer questions and requested M6 changes.
+Delivery does not imply approval.
 
 ## Placement and M6 reuse
 
@@ -55,6 +53,14 @@ All families reuse `identities`, `messages` and `vectors` when carrying service
 work. Additional groups are listed below. The registry's `m6` list contains
 these exact group names in this order: identities, declarations, listeners,
 snapshots, messages, vectors (omitting groups not applicable).
+
+## Scope text
+
+Every opaque authority scope text (publication keys, subscription and snapshot
+request scopes, source bindings, authentication source selection, public-edge,
+material and confidential configuration requests) is 1 to 256 UTF-8 bytes and
+contains no whitespace and no control characters. Encoders and decoders apply the
+same rule; a scope outside it is refused, never normalized.
 
 ## Family registry and replacement
 
@@ -540,7 +546,7 @@ and nonce do not express complete per-kind versions or actual validity.
 | outcome / payload | NSD supplies 0 complete data or 1 authenticated ACL fetch failure and exact opaque owning-family bytes; fixture supplies labelled data/failure bytes |
 | signature | NSD signs all content fields; the independent Python fixture signer signs candidate bytes only |
 
-Realm is canonical 26-character RealmId text. Scope and kind are nonempty UTF-8 strings of at most 256 bytes each.
+Realm is canonical 26-character RealmId text. Scope follows the [scope text rule](#scope-text); kind is a nonempty UTF-8 string of at most 256 bytes.
 Recipient is mandatory. The consumer supplies the trusted expected issuer,
 recipient, authorized `(served_realm, scope)` pairs, actual receiving channel,
 clock and last accepted version for each key. No signed field substitutes for

@@ -1,6 +1,7 @@
 # L8 immutable candidate handoff
 
-Selected shared package: `958da3f9b31e70f419035b974977f8d0d2895471`.
+Selected shared package: the delivered revision recorded in the
+[review request status](l8-candidate-review-request.md) (`DELIVERED_REVISION` below).
 Verified gateway consumer inputs: `e70a90abb1a53567bfb6eb28f6ee057d7b9f0dc8`.
 All three delivered library packages have version `0.6.0`.
 
@@ -136,8 +137,7 @@ The current comparison selects these gateway inputs at
 | `e2e/r3/authority/Cargo.toml` | `e2e/r3/authority/Cargo.lock` | proto | 2 |
 | `e2e/r3/control-authority/Cargo.toml` | `e2e/r3/control-authority/Cargo.lock` | proto, service-control | 2 |
 
-All four manifests pin their shared inputs to
-`958da3f9b31e70f419035b974977f8d0d2895471`. Every shared lock source
+All four manifests pin their shared inputs to the delivered revision. Every shared lock source
 query and resolved commit matches that exact revision; all shared resolved
 versions are `0.6.0`. No branch, tag or path input substitutes. Lockfiles include
 transitive shared packages, hence different counts. Their external dependency
@@ -157,10 +157,10 @@ Run the separate tool test from the current shared repository.
 
 ```bash
 set -o pipefail
-git archive 958da3f9b31e70f419035b974977f8d0d2895471 | tar -x -C "$SELECTED_EXPORT"
+git archive "$DELIVERED_REVISION" | tar -x -C "$SELECTED_EXPORT"
 printf 'gitdir: %s\n' "$(git rev-parse --absolute-git-dir)" > "$SELECTED_EXPORT/.git"
 python3 -B "$SELECTED_EXPORT/tools/candidate_handoff.py" \
-  --candidate 958da3f9b31e70f419035b974977f8d0d2895471 \
+  --candidate "$DELIVERED_REVISION" \
   --consumer "$GATEWAY_CHECKOUT" \
   --consumer-revision e70a90abb1a53567bfb6eb28f6ee057d7b9f0dc8
 python3 -B tools/test_candidate_handoff.py
@@ -197,7 +197,7 @@ and the aligned gateway inputs above at the immutable export boundary.
 The intermediate gateway revision
 `96fa0dca57c3af5e96ab9f72d710f2cbe6d8cf93` also remains historical failure
 evidence. Before the placeholder vector extension, comparison with selected
-shared package `958da3f9b31e70f419035b974977f8d0d2895471` confirmed 259
+shared package at the delivered revision confirmed 259
 identical shared inputs and three workspace lock resolutions, then failed with
 `manifest pin differs: nsshared-proto` at direct-peer. Its authority manifest
 also retained the old proto pin. The aligned revision supersedes that consumer
@@ -215,10 +215,9 @@ introduced by this handoff. Package equality is not a new whole-source purity pr
 ## Unresolved producer, consumer and review obligations
 
 All Q01–Q23 and M01–M02 in the [review request](l8-candidate-review-request.md)
-retain their individually recorded prepared/unanswered state and named addressees.
+retain their individually recorded sent/unanswered state and named addressees.
 The [review request delivery](l8-candidate-review-request.md) was completed
-through the owner route on 2026-10-25 (UTC), at revision
-`958da3f9b31e70f419035b974977f8d0d2895471`. The owner forwarded the candidate
+through the owner route on 2026-10-25 (UTC), at the delivered revision. The owner forwarded the candidate
 review package to the NSD owner as producer and the ns owner as consumer reviewer.
 No answer has been received. Silence approves nothing. Q18's separate design
 choice is settled; shared P07 definitions are delivered, while producer
