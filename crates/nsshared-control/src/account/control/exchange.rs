@@ -466,7 +466,9 @@ impl InformationRequest {
     /// Canonical empty request tuple.
     #[must_use]
     pub fn canonical(&self) -> Vec<u8> {
-        vec![0x81, 1]
+        let mut out = CborWriter::default();
+        out.array(1).uint(SCHEMA);
+        out.into_bytes()
     }
     /// Decodes exactly one empty request.
     /// # Errors

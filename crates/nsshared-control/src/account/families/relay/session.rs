@@ -1,7 +1,7 @@
 //! Pure participant frames and supplied-authorization checks on verified TLS.
 
 use crate::{
-    account::AccountError, account::domains::PARTICIPANT_PROOF_DOMAIN,
+    account::AccountError, account::MAX_BYTES, account::domains::PARTICIPANT_PROOF_DOMAIN,
     account::signing::signing_input, account::signing::verify,
 };
 use std::fmt;
@@ -12,8 +12,9 @@ use thiserror::Error;
 
 use nsshared_identity::keys::IdentityKey;
 
-/// Maximum body bytes, preserving the existing roster/report frame bound.
-pub const MAX_FRAME_BODY: usize = 1_048_576;
+/// Maximum body bytes: the account contract bound, so a frame carries any roster,
+/// report or answer.
+pub const MAX_FRAME_BODY: usize = MAX_BYTES;
 /// Participant frame kinds; the discriminant is the wire kind byte.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 #[repr(u8)]

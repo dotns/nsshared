@@ -13,7 +13,12 @@ use nsshared_codec::cbor::CborWriter;
 
 use std::collections::BTreeSet;
 
-const ANONYMOUS_SELECTOR: &[u8] = &[0x82, 0x01, 0x03];
+/// The anonymous selector bytes: canonical CBOR `[1, 3]`.
+fn anonymous_selector() -> Vec<u8> {
+    let mut out = CborWriter::default();
+    out.array(2).uint(1).uint(3);
+    out.into_bytes()
+}
 
 /// A rule selector, distinct from a credential or signed identity subject.
 ///
@@ -119,7 +124,7 @@ impl SubjectPolicy {
                         require(!subject.is_group() || group_keys.contains(&bytes))?;
                         bytes
                     }
-                    SubjectSelector::Anonymous => ANONYMOUS_SELECTOR.to_vec(),
+                    SubjectSelector::Anonymous => anonymous_selector(),
                 };
                 require(previous.as_ref().is_none_or(|last| last < &bytes))?;
                 previous = Some(bytes.clone());
@@ -165,7 +170,7 @@ impl SubjectPolicy {
                     SubjectSelector::AnyVerified
                 } else {
                     let bytes = input.bytes_up_to(MAX_BYTES)?;
-                    if bytes == ANONYMOUS_SELECTOR {
+                    if bytes == anonymous_selector() {
                         SubjectSelector::Anonymous
                     } else {
                         SubjectSelector::Subject(PolicySubject::decode(bytes)?)

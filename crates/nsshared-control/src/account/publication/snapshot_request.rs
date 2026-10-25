@@ -12,16 +12,19 @@ use crate::{
     account::publication::source_binding::SourceBinding,
     account::publication::source_binding::SourceError,
     account::publication::source_publication::decide_source_snapshot_scopes,
+    account::publication::subscription::MAX_SUBSCRIPTION_BYTES,
+    account::publication::subscription::MAX_SUBSCRIPTION_SCOPES,
     account::publication::subscription::SubscriptionScope,
 };
 use nsshared_codec::{cbor::CborReader, cbor::CborWriter};
 use nsshared_identity::keys::IdentityKey;
 use thiserror::Error;
 
-/// Maximum exact requested authority scopes.
-pub const MAX_SNAPSHOT_SCOPES: usize = 32;
-/// Maximum encoded request payload, excluding the signed carrier.
-pub const MAX_SNAPSHOT_REQUEST_BYTES: usize = 8192;
+/// Maximum exact requested authority scopes, the subscription bound.
+pub const MAX_SNAPSHOT_SCOPES: usize = MAX_SUBSCRIPTION_SCOPES;
+/// Maximum encoded request payload, excluding the signed carrier; the subscription
+/// bound.
+pub const MAX_SNAPSHOT_REQUEST_BYTES: usize = MAX_SUBSCRIPTION_BYTES;
 
 /// Typed refusal without changing accepted authority or retained versions.
 #[derive(Debug, Error)]
