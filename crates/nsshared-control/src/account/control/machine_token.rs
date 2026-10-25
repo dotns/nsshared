@@ -1,11 +1,13 @@
 //! Public RS256 claim/key values; signature verification and custody remain external.
 
-use crate::{account::AccountError, account::MAX_BYTES, account::codec::require};
+use crate::{
+    account::AccountError, account::MAX_BYTES, account::codec::hex, account::codec::jwk_thumbprint,
+    account::codec::require,
+};
 use nsshared_codec::{base64::decode_base64url, base64::encode_base64url};
 use nsshared_identity::keys::IdentityKey;
 use nsshared_identity::realm::RealmId;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest as _, Sha256};
 use thiserror::Error;
 
 /// Audience of the distinct NSD machine-token verifier.
@@ -146,11 +148,7 @@ impl MachineClaims {
         if self.sub != subject {
             return Err(TokenError::Subject);
         }
-        let key: String = identity
-            .as_bytes()
-            .iter()
-            .map(|b| format!("{b:02x}"))
-            .collect();
+        let key = hex(identity.as_bytes());
         if !allow_unbound && (self.mid_kty != "ed25519" || self.mid_pub != key) {
             return Err(TokenError::SelfBinding);
         }
@@ -256,8 +254,8 @@ impl RsaJwk {
         self.validate()?;
         let e = serde_json::to_string(&self.e).map_err(AccountError::from)?;
         let n = serde_json::to_string(&self.n).map_err(AccountError::from)?;
-        Ok(encode_base64url(&Sha256::digest(
-            format!("{{\"e\":{e},\"kty\":\"RSA\",\"n\":{n}}}").as_bytes(),
+        Ok(jwk_thumbprint(&format!(
+            "{{\"e\":{e},\"kty\":\"RSA\",\"n\":{n}}}"
         )))
     }
 }

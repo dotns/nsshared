@@ -1,7 +1,7 @@
 //! Existing account envelope and secret-free signed URL canonical input.
 
 use crate::{
-    account::AccountError, account::codec::require, account::codec::token,
+    account::AccountError, account::codec::hex, account::codec::require, account::codec::token,
     account::control::BootstrapEnvelope, account::control::BootstrapError,
     account::control::EnvelopeDirection, account::limits::MAX_CREDENTIAL_BYTES,
 };
@@ -166,8 +166,7 @@ impl SignedUrlScope<'_> {
     /// Rejects invalid request facts; no key is read and no signature is verified.
     pub fn signing_input(&self) -> Result<String, AccountError> {
         let request = self.canonical_request()?;
-        let digest = Sha256::digest(request.as_bytes());
-        let hash: String = digest.iter().map(|byte| format!("{byte:02x}")).collect();
+        let hash = hex(&Sha256::digest(request.as_bytes()));
         Ok(format!(
             "NSGW-HMAC-SHA256\n{}\n{}/{}/nsgw_signed_url\n{hash}",
             self.expires_seconds, self.realm, self.route

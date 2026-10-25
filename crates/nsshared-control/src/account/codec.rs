@@ -1,7 +1,11 @@
 //! Reader, writer and validation helpers shared by the account contracts.
 
-use nsshared_codec::cbor::{CborReader, CborWriter};
+use nsshared_codec::{
+    base64::encode_base64url,
+    cbor::{CborReader, CborWriter},
+};
 use nsshared_identity::{keys::IdentityKey, realm::RealmId};
+use sha2::{Digest as _, Sha256};
 
 use std::net::Ipv6Addr;
 
@@ -237,4 +241,15 @@ pub(in crate::account) fn issuer_url(value: &str) -> Result<(), AccountError> {
         require(number > 0 && number.to_string() == port)?;
     }
     Ok(())
+}
+
+/// Lowercase hexadecimal text of `bytes`.
+pub(in crate::account) fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+/// RFC 7638 thumbprint of a JWK given as its canonical member JSON: unpadded
+/// base64url of the SHA-256 digest.
+pub(in crate::account) fn jwk_thumbprint(canonical_members: &str) -> String {
+    encode_base64url(&Sha256::digest(canonical_members.as_bytes()))
 }

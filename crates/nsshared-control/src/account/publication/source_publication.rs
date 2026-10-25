@@ -2,21 +2,19 @@
 
 use crate::{
     account::codec::require, account::control::MAX_CONTROL_BODY,
-    account::control::MAX_PUBLICATION_BYTES, account::publication::AcceptedPublication,
-    account::publication::PublicationChannel, account::publication::PublicationDecision,
-    account::publication::PublicationError, account::publication::PublicationEvent,
-    account::publication::PublicationExpectation, account::publication::decide_publication,
+    account::control::MAX_PUBLICATION_BYTES, account::domains::SOURCE_PUBLICATION_DOMAIN,
+    account::publication::AcceptedPublication, account::publication::PublicationChannel,
+    account::publication::PublicationDecision, account::publication::PublicationError,
+    account::publication::PublicationEvent, account::publication::PublicationExpectation,
+    account::publication::decide_publication,
     account::publication::source_binding::DeliveryContext,
     account::publication::source_binding::MAX_SOURCE_BYTES,
     account::publication::source_binding::SignedSourceBinding,
     account::publication::source_binding::SourceBinding,
-    account::publication::source_binding::SourceError,
-    account::publication::source_binding::verify_signature,
+    account::publication::source_binding::SourceError, account::signing::signing_input,
+    account::signing::verify,
 };
 use nsshared_codec::{cbor::CborReader, cbor::CborWriter};
-
-/// Mandatory outer signature domain; unbound event signatures cannot substitute.
-pub const SOURCE_PUBLICATION_DOMAIN: &[u8] = b"ns.account.source-publication.v1\0";
 
 /// Borrowed exact signed wrapper; no authority is inferred by decoding.
 #[derive(Debug)]
@@ -66,9 +64,7 @@ impl<'a> SourcePublication<'a> {
     /// Exact outer signing input for independent producers.
     #[must_use]
     pub fn signing_input(&self) -> Vec<u8> {
-        let mut bytes = SOURCE_PUBLICATION_DOMAIN.to_vec();
-        bytes.extend_from_slice(self.content);
-        bytes
+        signing_input(SOURCE_PUBLICATION_DOMAIN, self.content)
     }
     /// Unauthenticated inner facts; only the decision API validates authority.
     /// # Errors
@@ -101,12 +97,13 @@ impl<'a> SourcePublication<'a> {
         current.canonical()?;
         pending.canonical()?;
         self.binding.verify(expected.issuer)?;
-        verify_signature(
+        verify(
             expected.issuer,
             SOURCE_PUBLICATION_DOMAIN,
             self.content,
             &self.signature,
-        )?;
+        )
+        .map_err(|_| SourceError::Signature)?;
         if &self.binding.binding != current
             || current.nsd != expected.issuer
             || current.recipient != expected.recipient
@@ -162,9 +159,7 @@ pub fn source_publication_signing_input(
     if carrier.into_bytes().len() > MAX_PUBLICATION_BYTES {
         return Err(PublicationError::Bounds.into());
     }
-    let mut message = SOURCE_PUBLICATION_DOMAIN.to_vec();
-    message.extend_from_slice(&content);
-    Ok(message)
+    Ok(signing_input(SOURCE_PUBLICATION_DOMAIN, &content))
 }
 
 /// Encodes the exact new form using a producer-supplied outer signature.

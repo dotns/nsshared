@@ -30,10 +30,12 @@ pub(crate) use contract_error;
 
 mod codec;
 pub mod control;
+pub mod domains;
 mod families;
 mod limits;
 pub mod node;
 pub mod publication;
+mod signing;
 
 pub use families::{edge, grants, realm, relay, subnet, usage};
 

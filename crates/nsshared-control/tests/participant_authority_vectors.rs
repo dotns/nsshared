@@ -6,9 +6,10 @@
 
 mod support;
 use nsshared_control::{
-    account::relay::Authorization, account::relay::BindingDecision, account::relay::EXPORTER_LABEL,
+    account::domains::PARTICIPANT_EXPORTER_LABEL, account::domains::PARTICIPANT_PROOF_DOMAIN,
+    account::relay::Authorization, account::relay::BindingDecision,
     account::relay::EnrollmentProvision, account::relay::Frame, account::relay::FrameKind,
-    account::relay::PROOF_DOMAIN, account::relay::PendingResponse, account::relay::SessionError,
+    account::relay::PendingResponse, account::relay::SessionError,
     account::relay::SignedDirectoryBinding, account::relay::exporter_context,
     account::relay::proof_input, account::relay::verify_participant_roster,
     account::usage::UsageAnswer, account::usage::UsageReport, account::usage::UsageRows,
@@ -45,10 +46,16 @@ fn authorization(enabled: bool) -> Authorization {
 
 #[test]
 fn participant_authority_independent_vectors() {
-    assert_eq!(EXPORTER_LABEL, b"EXPORTER-nsgw-participant-candidate-v1");
-    assert_eq!(PROOF_DOMAIN, b"nsgw-participant-candidate-v1\0");
+    assert_eq!(
+        PARTICIPANT_EXPORTER_LABEL,
+        b"EXPORTER-nsgw-participant-candidate-v1"
+    );
+    assert_eq!(PARTICIPANT_PROOF_DOMAIN, b"nsgw-participant-candidate-v1\0");
     assert_eq!(&exporter_context(key(1), key(2))[..32], key(1).as_bytes());
-    assert_eq!(&proof_input(&[4; 32])[PROOF_DOMAIN.len()..], &[4; 32]);
+    assert_eq!(
+        &proof_input(&[4; 32])[PARTICIPANT_PROOF_DOMAIN.len()..],
+        &[4; 32]
+    );
     let provision = EnrollmentProvision {
         issuer: key(1),
         participant: key(2),

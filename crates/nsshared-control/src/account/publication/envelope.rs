@@ -2,18 +2,15 @@
 
 use crate::{
     account::codec::is_token, account::control::MAX_CONTROL_BODY,
-    account::control::exchange::MAX_PUBLICATION_BYTES, account::limits::MAX_TEXT_BYTES,
+    account::control::exchange::MAX_PUBLICATION_BYTES, account::domains::PUBLICATION_DOMAIN,
+    account::limits::MAX_TEXT_BYTES, account::signing::signing_input, account::signing::verify,
 };
 use nsshared_identity::realm::RealmId;
 
-use ed25519_dalek::{Signature, VerifyingKey};
 use thiserror::Error;
 
 use nsshared_codec::{cbor::CborReader, cbor::CborWriter};
 use nsshared_identity::keys::IdentityKey;
-
-/// Ed25519 publication domain, including the final zero separator.
-pub const PUBLICATION_SIGNATURE_DOMAIN: &[u8] = b"ns.account.publication.v1\0";
 
 /// The independent channel carrying a kind's authority.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -157,10 +154,7 @@ impl PublicationContent<'_> {
     /// # Errors
     /// Refuses the same invalid content and complete-event bounds as canonical.
     pub fn signing_input(&self) -> Result<Vec<u8>, PublicationError> {
-        let content = self.canonical()?;
-        let mut bytes = PUBLICATION_SIGNATURE_DOMAIN.to_vec();
-        bytes.extend_from_slice(&content);
-        Ok(bytes)
+        Ok(signing_input(PUBLICATION_DOMAIN, &self.canonical()?))
     }
 }
 
@@ -362,9 +356,7 @@ impl<'a> PublicationEvent<'a> {
     /// Exact signature input, without re-encoding or establishing authenticity.
     #[must_use]
     pub fn signing_input(&self) -> Vec<u8> {
-        let mut bytes = PUBLICATION_SIGNATURE_DOMAIN.to_vec();
-        bytes.extend_from_slice(self.signing_bytes);
-        bytes
+        signing_input(PUBLICATION_DOMAIN, self.signing_bytes)
     }
 
     /// Exact received signature; decoding alone does not authenticate it.
@@ -534,16 +526,13 @@ impl<'a> PublicationEvent<'a> {
         {
             return Err(PublicationError::Validity);
         }
-        // Carrier overhead exceeds the domain length: this single allocation
-        // is smaller than the already bounded measured signed input.
-        let mut message =
-            Vec::with_capacity(PUBLICATION_SIGNATURE_DOMAIN.len() + self.signing_bytes.len());
-        message.extend_from_slice(PUBLICATION_SIGNATURE_DOMAIN);
-        message.extend_from_slice(self.signing_bytes);
-        let key = VerifyingKey::from_bytes(expected.issuer.as_bytes())
-            .map_err(|_| PublicationError::Signature)?;
-        key.verify_strict(&message, &Signature::from_bytes(&self.signature))
-            .map_err(|_| PublicationError::Signature)
+        verify(
+            expected.issuer,
+            PUBLICATION_DOMAIN,
+            self.signing_bytes,
+            &self.signature,
+        )
+        .map_err(|_| PublicationError::Signature)
     }
 }
 

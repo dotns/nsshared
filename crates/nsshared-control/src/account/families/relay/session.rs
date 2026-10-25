@@ -1,19 +1,17 @@
 //! Pure participant frames and supplied-authorization checks on verified TLS.
 
+use crate::{
+    account::AccountError, account::domains::PARTICIPANT_PROOF_DOMAIN,
+    account::signing::signing_input, account::signing::verify,
+};
 use std::fmt;
 
-use ed25519_dalek::{Signature, VerifyingKey};
 use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 use thiserror::Error;
 
-use crate::account::AccountError;
 use nsshared_identity::keys::IdentityKey;
 
-/// Regular completed-handshake TLS exporter label, including resumed handshakes.
-pub const EXPORTER_LABEL: &[u8] = b"EXPORTER-nsgw-participant-candidate-v1";
-/// Existing Ed25519 proof domain, including the zero separator.
-pub const PROOF_DOMAIN: &[u8] = b"nsgw-participant-candidate-v1\0";
 /// Maximum body bytes, preserving the existing roster/report frame bound.
 pub const MAX_FRAME_BODY: usize = 1_048_576;
 /// Participant frame kinds; the discriminant is the wire kind byte.
@@ -114,9 +112,7 @@ pub fn exporter_context(issuer: IdentityKey, participant: IdentityKey) -> [u8; 6
 /// Existing proof preimage; caller obtains fresh exporter bytes after each handshake.
 #[must_use]
 pub fn proof_input(exporter: &[u8; 32]) -> Vec<u8> {
-    let mut input = PROOF_DOMAIN.to_vec();
-    input.extend_from_slice(exporter);
-    input
+    signing_input(PARTICIPANT_PROOF_DOMAIN, exporter)
 }
 
 /// Current NSD authorization supplied independently of presented authentication.
@@ -417,11 +413,12 @@ impl Frame {
         exporter: &[u8; 32],
         offset: usize,
     ) -> Result<(), SessionError> {
-        let signature = Signature::from_slice(self.body.get(offset..).ok_or(SessionError::Proof)?)
-            .map_err(|_| SessionError::Proof)?;
-        VerifyingKey::from_bytes(participant.as_bytes())
-            .map_err(|_| SessionError::Proof)?
-            .verify_strict(&proof_input(exporter), &signature)
+        let signature: &[u8; 64] = self
+            .body
+            .get(offset..)
+            .and_then(|bytes| bytes.try_into().ok())
+            .ok_or(SessionError::Proof)?;
+        verify(participant, PARTICIPANT_PROOF_DOMAIN, exporter, signature)
             .map_err(|_| SessionError::Proof)
     }
     /// Compare independently provisioned enrollment authority and verify connection possession.

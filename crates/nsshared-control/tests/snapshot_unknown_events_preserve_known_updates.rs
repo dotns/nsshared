@@ -7,8 +7,8 @@ use nsshared_codec::{base64::encode_base64url, cbor::CborWriter};
 use nsshared_control::{
     account::control::BootstrapEnvelope, account::control::CONFIG_SNAPSHOT,
     account::control::EnvelopeDirection, account::control::EnvelopeExpectation,
-    account::control::EnvelopePins, account::publication::DeliveryContext,
-    account::publication::PUBLICATION_SIGNATURE_DOMAIN, account::publication::PublicationChannel,
+    account::control::EnvelopePins, account::domains::PUBLICATION_DOMAIN,
+    account::publication::DeliveryContext, account::publication::PublicationChannel,
     account::publication::PublicationDecision, account::publication::PublicationExpectation,
     account::publication::PublicationScope, account::publication::PublicationSnapshotRequest,
     account::publication::SignedSourceBinding, account::publication::SubscriptionScope,
@@ -38,7 +38,7 @@ fn event(signer: &SigningKey, recipient: IdentityKey, family: u64, kind: &str) -
         .uint(0)
         .bytes(b"fixture-data");
     let content = content.into_bytes();
-    let mut message = PUBLICATION_SIGNATURE_DOMAIN.to_vec();
+    let mut message = PUBLICATION_DOMAIN.to_vec();
     message.extend_from_slice(&content);
     let mut wire = CborWriter::default();
     wire.array(2)

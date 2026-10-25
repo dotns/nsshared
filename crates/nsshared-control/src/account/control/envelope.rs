@@ -3,16 +3,13 @@
 use crate::{
     account::control::bootstrap::BootstrapError, account::control::bootstrap::ControlBoundary,
     account::control::bootstrap::EnvelopePins, account::control::bootstrap::MAX_CONTROL_BODY,
-    account::control::bootstrap::validate_control_input, account::limits::MAX_TEXT_BYTES,
+    account::control::bootstrap::validate_control_input, account::domains::ACCOUNT_REQUEST_DOMAIN,
+    account::domains::ACCOUNT_RESPONSE_DOMAIN, account::limits::MAX_TEXT_BYTES,
+    account::signing::SignatureFailure, account::signing::signing_input, account::signing::verify,
 };
-use ed25519_dalek::{Signature, VerifyingKey};
 use nsshared_codec::{cbor::CborReader, cbor::CborWriter};
 use nsshared_identity::keys::IdentityKey;
 
-/// Request signature domain, including its zero separator.
-pub const ACCOUNT_REQUEST_DOMAIN: &[u8] = b"ns.account.call.request.v1\0";
-/// Response signature domain, including its zero separator.
-pub const ACCOUNT_RESPONSE_DOMAIN: &[u8] = b"ns.account.call.response.v1\0";
 /// Inclusive absolute timestamp skew in seconds.
 pub const CONTROL_CLOCK_SKEW_SECONDS: u64 = 60;
 /// Inclusive nonce observation retention in seconds.
@@ -103,9 +100,7 @@ impl BootstrapEnvelope {
     /// # Errors
     /// Rejects invalid kind or oversized opaque payload.
     pub fn signing_input(&self) -> Result<Vec<u8>, BootstrapError> {
-        let mut message = self.direction.domain().to_vec();
-        message.extend_from_slice(&self.content()?);
-        Ok(message)
+        Ok(signing_input(self.direction.domain(), &self.content()?))
     }
 
     /// Encodes the canonical signed carrier without changing opaque payload bytes.
@@ -197,11 +192,16 @@ impl BootstrapEnvelope {
         if self.unix_seconds.abs_diff(expected.now_seconds) > CONTROL_CLOCK_SKEW_SECONDS {
             return Err(BootstrapError::Clock);
         }
-        let message = self.signing_input()?;
-        let key =
-            VerifyingKey::from_bytes(self.signer.as_bytes()).map_err(|_| BootstrapError::Signer)?;
-        key.verify_strict(&message, &Signature::from_bytes(&self.signature))
-            .map_err(|_| BootstrapError::Signature)?;
+        verify(
+            self.signer,
+            self.direction.domain(),
+            &self.content()?,
+            &self.signature,
+        )
+        .map_err(|failure| match failure {
+            SignatureFailure::Key => BootstrapError::Signer,
+            SignatureFailure::Signature => BootstrapError::Signature,
+        })?;
         if expected.previous_acceptance_seconds.is_some_and(|seen| {
             expected.now_seconds.saturating_sub(seen) <= CONTROL_REPLAY_WINDOW_SECONDS
         }) {

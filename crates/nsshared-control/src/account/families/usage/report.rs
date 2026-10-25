@@ -1,19 +1,16 @@
 use crate::{
     account::AccountError, account::MAX_BYTES, account::MAX_IDENTITIES, account::SCHEMA,
     account::codec::bounded, account::codec::identity, account::codec::reader,
-    account::grants::GrantError, account::grants::ServiceGrant, account::grants::grant as grants,
+    account::domains::USAGE_PART_DOMAIN, account::grants::GrantError,
+    account::grants::ServiceGrant, account::grants::grant as grants,
     account::node::ReporterIncarnation, account::usage::RelayUsage,
     account::usage::ServiceBoundary, account::usage::ServiceDirection,
-    account::usage::ServiceUsage, service::ServiceRef,
+    account::usage::ServiceUsage, service::ServiceRef, service::domain_digest,
 };
-use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 use nsshared_codec::{cbor::CborReader, cbor::CborWriter};
 use nsshared_identity::keys::IdentityKey;
-
-/// Domain separator for the complete immutable part preimage.
-pub const USAGE_PART_DOMAIN: &[u8] = b"ns.account.usage.part.v1\0";
 
 /// Typed usage refusal; no error is an acknowledgement.
 #[derive(Debug, Error)]
@@ -296,10 +293,7 @@ impl UsageReport {
     /// # Errors
     /// Refuses invalid scope, profile, fields, references or bounds.
     pub fn computed_digest(&self) -> Result<[u8; 32], UsageError> {
-        let mut hash = Sha256::new();
-        hash.update(USAGE_PART_DOMAIN);
-        hash.update(self.encode(false)?);
-        Ok(hash.finalize().into())
+        Ok(domain_digest(USAGE_PART_DOMAIN, &self.encode(false)?))
     }
 
     /// Encodes a report whose digest commits all its exact fields.

@@ -4,11 +4,11 @@ use crate::{
     account::AccountError, account::codec::identity, account::codec::is_token,
     account::codec::realm, account::codec::require, account::control::BootstrapEnvelope,
     account::control::BootstrapError, account::control::EnvelopeDirection,
-    account::control::EnvelopeExpectation, account::limits::MAX_TEXT_BYTES,
-    account::publication::PublicationChannel, account::publication::PublicationError,
-    account::subnet::SubnetError,
+    account::control::EnvelopeExpectation, account::domains::SOURCE_BINDING_DOMAIN,
+    account::limits::MAX_TEXT_BYTES, account::publication::PublicationChannel,
+    account::publication::PublicationError, account::signing::signing_input,
+    account::signing::verify, account::subnet::SubnetError,
 };
-use ed25519_dalek::{Signature, VerifyingKey};
 use thiserror::Error;
 
 use nsshared_codec::{cbor::CborReader, cbor::CborWriter};
@@ -16,8 +16,6 @@ use nsshared_identity::{keys::IdentityKey, realm::RealmId};
 
 /// Inclusive encoded ceiling for source bindings and route commands.
 pub const MAX_SOURCE_BYTES: usize = 16_384;
-/// Signature domain for durable NSD source authority.
-pub const SOURCE_BINDING_DOMAIN: &[u8] = b"ns.account.source-binding.v1\0";
 
 /// Assigned enrollment profile; no predecessor profile conversion exists.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -63,18 +61,6 @@ crate::account::contract_error!(SourceError);
 
 pub(in crate::account) fn nonzero(value: &[u8; 16]) -> Result<(), SourceError> {
     Ok(require(*value != [0; 16])?)
-}
-pub(in crate::account) fn verify_signature(
-    issuer: IdentityKey,
-    domain: &[u8],
-    bytes: &[u8],
-    signature: &[u8; 64],
-) -> Result<(), SourceError> {
-    let key = VerifyingKey::from_bytes(issuer.as_bytes()).map_err(|_| SourceError::Signature)?;
-    let mut message = domain.to_vec();
-    message.extend_from_slice(bytes);
-    key.verify_strict(&message, &Signature::from_bytes(signature))
-        .map_err(|_| SourceError::Signature)
 }
 
 /// Exact durable source authority, distinct from record or local attachment generation.
@@ -163,9 +149,10 @@ impl SignedSourceBinding {
     /// # Errors
     /// Refuses invalid constructed binding fields.
     pub fn signing_input(&self) -> Result<Vec<u8>, SourceError> {
-        let mut bytes = SOURCE_BINDING_DOMAIN.to_vec();
-        bytes.extend_from_slice(&self.binding.canonical()?);
-        Ok(bytes)
+        Ok(signing_input(
+            SOURCE_BINDING_DOMAIN,
+            &self.binding.canonical()?,
+        ))
     }
     /// Exact signed form, without signing or acquiring authority.
     /// # Errors
@@ -195,12 +182,13 @@ impl SignedSourceBinding {
         if self.binding.nsd != nsd {
             return Err(SourceError::Authority);
         }
-        verify_signature(
+        verify(
             nsd,
             SOURCE_BINDING_DOMAIN,
             &self.binding.canonical()?,
             &self.signature,
         )
+        .map_err(|_| SourceError::Signature)
     }
 }
 

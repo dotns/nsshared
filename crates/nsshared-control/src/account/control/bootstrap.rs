@@ -1,11 +1,11 @@
 //! Canonical discovery and trust facts authenticated by the caller's HTTPS WebPKI.
 
+use crate::account::codec::jwk_thumbprint;
 use nsshared_codec::{
     base64::decode_base64url, base64::encode_base64url, cbor::CborError, cbor::CborReader,
     cbor::CborWriter,
 };
 use nsshared_identity::keys::IdentityKey;
-use sha2::{Digest, Sha256};
 use std::{
     collections::BTreeSet,
     net::{Ipv4Addr, Ipv6Addr},
@@ -357,8 +357,7 @@ impl EnvelopePins {
     pub(in crate::account) fn trusts(&self, signer: IdentityKey) -> bool {
         let x = encode_base64url(signer.as_bytes());
         let jwk = format!("{{\"crv\":\"Ed25519\",\"kty\":\"OKP\",\"x\":\"{x}\"}}");
-        let pin = encode_base64url(&Sha256::digest(jwk.as_bytes()));
-        self.0.contains(&pin)
+        self.0.contains(&jwk_thumbprint(&jwk))
     }
 }
 

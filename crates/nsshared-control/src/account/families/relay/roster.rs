@@ -1,9 +1,8 @@
 use crate::{
     account::AccountError, account::MAX_BYTES, account::MAX_IDENTITIES, account::SCHEMA,
     account::codec::bounded, account::codec::identity, account::codec::reader,
-    account::codec::require,
+    account::codec::require, account::domains::ROSTER_DOMAIN, account::signing::verify,
 };
-use ed25519_dalek::{Signature, VerifyingKey};
 use nsshared_codec::{cbor::CborReader, cbor::CborWriter};
 use nsshared_identity::keys::IdentityKey;
 use serde::{
@@ -14,8 +13,6 @@ use std::{collections::BTreeSet, fmt, marker::PhantomData, str::FromStr};
 
 /// Minimum signed roster lifetime: 24 hours, in milliseconds.
 pub const MIN_ROSTER_VALIDITY_MS: u64 = 86_400_000;
-/// Domain prefix for signed roster content, including its terminating zero separator.
-pub const ROSTER_SIGNATURE_DOMAIN: &[u8] = b"ns.account.roster.v1\0";
 
 /// Strictly increasing within one issuer/participant scope; also the attribution epoch.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -283,12 +280,7 @@ impl SignedRoster {
         {
             return Err(AccountError::Authority);
         }
-        let mut message = Vec::with_capacity(ROSTER_SIGNATURE_DOMAIN.len() + content.len());
-        message.extend_from_slice(ROSTER_SIGNATURE_DOMAIN);
-        message.extend_from_slice(&content);
-        let key =
-            VerifyingKey::from_bytes(issuer.as_bytes()).map_err(|_| AccountError::Signature)?;
-        key.verify_strict(&message, &Signature::from_bytes(&self.signature))
+        verify(issuer, ROSTER_DOMAIN, &content, &self.signature)
             .map_err(|_| AccountError::Signature)
     }
 }

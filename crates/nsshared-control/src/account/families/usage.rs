@@ -12,7 +12,6 @@ pub use catalog::{
 };
 pub use relay::{RelayBilling, RelayDirection, RelayUsage};
 pub use report::{
-    ServiceOperation, ServiceUsageRow, USAGE_PART_DOMAIN, UsageError, UsageProfile, UsageReport,
-    UsageRows,
+    ServiceOperation, ServiceUsageRow, UsageError, UsageProfile, UsageReport, UsageRows,
 };
 pub use service::{BatchLossWindow, ServiceBoundary, ServiceDirection, ServiceUsage};

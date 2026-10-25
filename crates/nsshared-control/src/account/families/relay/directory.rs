@@ -3,16 +3,12 @@
 use crate::{
     account::AccountError, account::MAX_BYTES, account::MAX_IDENTITIES, account::codec::ascending,
     account::codec::identity, account::codec::reader, account::codec::realm,
-    account::codec::require,
+    account::codec::require, account::domains::DIRECTORY_BINDING_DOMAIN, account::signing::verify,
 };
-use ed25519_dalek::{Signature, VerifyingKey};
 use thiserror::Error;
 
 use nsshared_codec::{cbor::CborReader, cbor::CborWriter};
 use nsshared_identity::{keys::IdentityKey, realm::RealmId};
-
-/// Domain separation from rosters, publications and connection proofs.
-pub const DIRECTORY_BINDING_DOMAIN: &[u8] = b"ns.account.directory-binding.v1\0";
 
 /// Invalid content grants no new eligibility and never represents withdrawal.
 #[derive(Debug, Error)]
@@ -133,9 +129,10 @@ impl SignedDirectoryBinding {
     /// # Errors
     /// Refuses invalid constructed content.
     pub fn signing_input(&self) -> Result<Vec<u8>, BindingError> {
-        let mut bytes = DIRECTORY_BINDING_DOMAIN.to_vec();
-        bytes.extend_from_slice(&self.content.canonical()?);
-        Ok(bytes)
+        Ok(crate::account::signing::signing_input(
+            DIRECTORY_BINDING_DOMAIN,
+            &self.content.canonical()?,
+        ))
     }
     /// Exact signed carrier within the shared bound.
     /// # Errors
@@ -167,11 +164,13 @@ impl SignedDirectoryBinding {
         if self.content.issuer != issuer || self.content.relay_id != relay_id {
             return Err(BindingError::Authority);
         }
-        let input = self.signing_input()?;
-        VerifyingKey::from_bytes(issuer.as_bytes())
-            .map_err(|_| BindingError::Signature)?
-            .verify_strict(&input, &Signature::from_bytes(&self.signature))
-            .map_err(|_| BindingError::Signature)?;
+        verify(
+            issuer,
+            DIRECTORY_BINDING_DOMAIN,
+            &self.content.canonical()?,
+            &self.signature,
+        )
+        .map_err(|_| BindingError::Signature)?;
         if now_ms < self.content.issued_at_unix_ms || now_ms >= self.content.expires_at_unix_ms {
             return Err(BindingError::Time);
         }

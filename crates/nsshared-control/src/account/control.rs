@@ -17,8 +17,8 @@ pub use bootstrap::{
     validate_control_input,
 };
 pub use envelope::{
-    ACCOUNT_REQUEST_DOMAIN, ACCOUNT_RESPONSE_DOMAIN, BootstrapEnvelope, CONTROL_CLOCK_SKEW_SECONDS,
-    CONTROL_REPLAY_WINDOW_SECONDS, EnvelopeDirection, EnvelopeExpectation,
+    BootstrapEnvelope, CONTROL_CLOCK_SKEW_SECONDS, CONTROL_REPLAY_WINDOW_SECONDS,
+    EnvelopeDirection, EnvelopeExpectation,
 };
 pub use exchange::{
     AuthenticationRequest, AuthenticationResponse, AuthenticationSourceScope,
