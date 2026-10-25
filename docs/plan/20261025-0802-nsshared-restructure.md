@@ -179,6 +179,24 @@ classification); variant names `Field`, `Stale`, `Signature`, `Issuer`, `Recipie
 no longer name the participant roster; `validate_admission_snapshot`,
 `ServiceDirection`, `FrameKind`.
 
+### Tests and vectors (P5, as implemented)
+
+- One integration test binary per crate area: `nsshared-codec/tests/codec`,
+  `nsshared-identity/tests/identity`, `nsshared-relay/tests/relay`,
+  `nsshared-rendezvous/tests/rendezvous`, `nsshared-control/tests/{account,node_control,service}`.
+- A test module that checks vectors reads `crates/<crate>/tests/vectors/<module path>.vec`
+  through `nsshared_testkit::vectors!` or `vector_fields!`; its producer is
+  `tools/vectors/nsvec/producers/<crate>/<module path>.py`. Example:
+  `account::edge::routing` ↔ `tests/vectors/account/edge/routing.vec` ↔
+  `producers/control/account/edge/routing.py`.
+- `account.vec` is split by producer into `account/profile`, `account/control/envelope`,
+  `account/node/enrollment`, `account/relay/participant-roster`,
+  `account/subnet/selection` and `account/publication/envelope`.
+- The M6 vectors are `nsshared-control/tests/vectors/service/canonical.json`, produced by
+  `producers/control/service/canonical.py` on the shared CBOR module (`encode_value`).
+- `vector-map.json` maps every base fixture to its new path; `vector_cases.py` proves every
+  base case unchanged.
+
 ### Module mapping
 
 | Current | Target |
@@ -235,6 +253,6 @@ push, merge or tag without the owner's word.
 | P2 | done | dc7e9ff | qa 0 (after dropping proto's unused `getrandom`), vectors 0, cases 0, api_surface proto 0 x3, service-control: only the 2 intended lines, consumer paths 0, base tests 287/287; `RecordMarks::write`/`read` became public for the registry state |
 | P3 | done | 97b8da4 | qa 0, vectors 0, cases 0, api_surface proto 0 x3, service-control: only the 2 intended lines, consumer paths 0, base tests 287/287 |
 | P4 | done | df723a4 | qa 0, vectors 0, cases 0 (account fixtures moved to nsshared-control), api_surface proto 0 x3, service-control: 4 missing lines = intended `#[non_exhaustive]` on `CborError` and `ContractError` (two paths each), consumer paths 0, base tests 287/287 |
-| P5 | pending | | |
+| P5 | done | 859d199 | qa 0, vectors 0 (42 files), cases 0 (all 2714 base cases at mapped paths, 9 additions), api_surface proto 0 x3, service-control: only the 4 intended lines, consumer paths 0, base tests 287/287; 545 tests in 7 binaries (was 75) |
 | P6 | pending | | |
 | D | pending | | |
