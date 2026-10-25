@@ -1,6 +1,6 @@
 use crate::{
     account::AccountError, account::SCHEMA, account::codec::reader, account::codec::require,
-    account::limits::MAX_TEXT_BYTES,
+    account::limits::MAX_TEXT_BYTES, account::publication::envelope::PublicationChannel,
 };
 use nsshared_codec::cbor::CborWriter;
 
@@ -250,5 +250,28 @@ impl FamilyRegistry {
         }
         input.finish()?;
         Ok(Self)
+    }
+}
+
+/// The delivery channel that owns a family kind; unknown pairs confer no authority.
+#[must_use]
+pub fn publication_channel(family: u64, kind: &str) -> Option<PublicationChannel> {
+    match (family, kind) {
+        (1, "own-node")
+        | (6, "resource-authority")
+        | (7, "public-edge")
+        | (8, "identity-classes")
+        | (9, "usage-profile")
+        | (10, "node-control-profile")
+        | (11, "policy-version") => Some(PublicationChannel::Stream),
+        (2, "realm-peers")
+        | (3, "egress-grants")
+        | (4, "exit-grants")
+        | (4, "subnet-routes")
+        | (4, "provider-mappings")
+        | (5, "payer-bindings")
+        | (8, "directory")
+        | (11, "node-l3") => Some(PublicationChannel::Snapshot),
+        _ => None,
     }
 }

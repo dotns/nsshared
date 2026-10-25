@@ -1,6 +1,7 @@
 //! Signed publication events and snapshots, the family registry, source bindings and source publications, subscriptions and snapshot requests.
 
 pub(in crate::account) mod envelope;
+pub(in crate::account) mod payloads;
 pub(in crate::account) mod registry;
 pub(in crate::account) mod snapshot_request;
 pub(in crate::account) mod source_binding;
@@ -11,10 +12,11 @@ pub use envelope::{
     AcceptedPublication, PublicationChannel, PublicationContent, PublicationDecision,
     PublicationError, PublicationEvent, PublicationExpectation, PublicationKey, PublicationOutcome,
     PublicationScope, PublicationSnapshot, decide_publication, decide_publication_snapshot,
-    encode_publication, publication_channel,
+    encode_publication,
 };
 pub use registry::{
     FAMILIES, FamilyId, FamilyRegistration, FamilyRegistry, M6Reuse, ReplacementRule,
+    publication_channel,
 };
 pub use snapshot_request::{
     MAX_SNAPSHOT_REQUEST_BYTES, MAX_SNAPSHOT_SCOPES, PublicationSnapshotRequest,
