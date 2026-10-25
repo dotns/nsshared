@@ -3,8 +3,8 @@
 use crate::{
     account::AccountError, account::control::BootstrapEnvelope, account::control::BootstrapError,
     account::control::EnvelopeDirection, account::control::EnvelopeExpectation,
-    account::control::MAX_CONTROL_BODY, account::control::exchange::SERVICE_CONTROL,
-    service::ContractError, service::Id, service::Message, service::MessageBody,
+    account::control::MAX_CONTROL_BODY, account::control::SERVICE_CONTROL, service::ContractError,
+    service::Id, service::Message, service::MessageBody,
 };
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use nsshared_codec::{cbor::CborReader, cbor::CborWriter};

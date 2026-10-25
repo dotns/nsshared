@@ -4,6 +4,7 @@ use crate::{
     account::AccountError, account::codec::identity, account::codec::require,
     account::control::BootstrapEnvelope, account::control::BootstrapError,
     account::control::EnvelopeDirection, account::control::EnvelopeExpectation,
+    account::control::methods::NODE_ROUTE_CLEAR, account::control::methods::NODE_ROUTE_SELECT,
     account::publication::source_binding::MAX_SOURCE_BYTES,
     account::publication::source_binding::SignedSourceBinding,
     account::publication::source_binding::SourceBinding,
@@ -44,11 +45,6 @@ pub enum RouteError {
 }
 
 crate::account::contract_error!(RouteError);
-
-/// Confidential Node/route selection operation.
-pub const NODE_ROUTE_SELECT: &str = "node.route.select";
-/// Confidential exact selection withdrawal operation.
-pub const NODE_ROUTE_CLEAR: &str = "node.route.clear";
 
 /// Command intent, not an assertion that routing has been applied.
 #[derive(Clone, Debug, Eq, PartialEq)]

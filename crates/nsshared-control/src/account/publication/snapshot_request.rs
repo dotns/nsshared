@@ -152,7 +152,7 @@ impl PublicationSnapshotRequest {
     ) -> Result<Self, SnapshotRequestError> {
         envelope.verify(expected)?;
         if envelope.direction != EnvelopeDirection::Request
-            || envelope.kind != crate::account::control::exchange::CONFIG_SNAPSHOT
+            || envelope.kind != crate::account::control::CONFIG_SNAPSHOT
         {
             return Err(BootstrapError::Kind.into());
         }
@@ -193,7 +193,7 @@ impl PublicationSnapshotRequest {
         self.canonical()?;
         envelope.verify(carrier)?;
         if envelope.direction != EnvelopeDirection::Response
-            || envelope.kind != crate::account::control::exchange::CONFIG_SNAPSHOT
+            || envelope.kind != crate::account::control::CONFIG_SNAPSHOT
         {
             return Err(BootstrapError::Kind.into());
         }

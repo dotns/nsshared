@@ -2,7 +2,8 @@
 
 use crate::{
     account::MAX_BYTES, account::control::BootstrapEnvelope, account::control::EnvelopeDirection,
-    account::control::EnvelopeExpectation, account::publication::source_binding::MAX_SOURCE_BYTES,
+    account::control::EnvelopeExpectation, account::control::methods::NODE_SUBNET_REPORT,
+    account::publication::source_binding::MAX_SOURCE_BYTES,
     account::publication::source_binding::SignedSourceBinding,
     account::publication::source_binding::SourceError,
     account::publication::source_binding::nonzero, account::subnet::SubnetError,
@@ -15,8 +16,6 @@ use thiserror::Error;
 use nsshared_codec::{cbor::CborError, cbor::CborReader, cbor::CborWriter};
 use nsshared_identity::keys::IdentityKey;
 
-/// Confidential ordinary Node provider report operation, in both directions.
-pub const NODE_SUBNET_REPORT: &str = "node.subnet.report";
 /// Maximum mappings in one complete report or response.
 pub const MAX_SUBNET_OFFERS: usize = 256;
 

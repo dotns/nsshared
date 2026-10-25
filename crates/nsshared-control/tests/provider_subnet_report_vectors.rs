@@ -4,7 +4,7 @@ mod support;
 use nsshared_control::{
     account::MAX_BYTES, account::control::BootstrapEnvelope, account::control::EnvelopeDirection,
     account::control::EnvelopeExpectation, account::control::EnvelopePins,
-    account::publication::SignedSourceBinding, account::subnet::NODE_SUBNET_REPORT,
+    account::control::NODE_SUBNET_REPORT, account::publication::SignedSourceBinding,
     account::subnet::NodeSubnetRouteReport, account::subnet::NodeSubnetRouteReportResponse,
     account::subnet::RetainedSubnetReport, account::subnet::SubnetAllocationHistory,
     account::subnet::SubnetMappingAuthority, account::subnet::SubnetPrefix,

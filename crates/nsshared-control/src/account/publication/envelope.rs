@@ -2,7 +2,7 @@
 
 use crate::{
     account::codec::is_token, account::control::MAX_CONTROL_BODY,
-    account::control::exchange::MAX_PUBLICATION_BYTES, account::domains::PUBLICATION_DOMAIN,
+    account::control::MAX_PUBLICATION_BYTES, account::domains::PUBLICATION_DOMAIN,
     account::limits::MAX_TEXT_BYTES, account::signing::signing_input, account::signing::verify,
 };
 use nsshared_identity::realm::RealmId;

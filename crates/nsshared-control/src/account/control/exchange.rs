@@ -5,11 +5,12 @@ use crate::{
     account::codec::realm, account::codec::require, account::codec::token,
     account::control::BootstrapDiscovery, account::control::BootstrapEnvelope,
     account::control::BootstrapError, account::control::EnvelopeDirection,
-    account::control::EnvelopeExpectation, account::limits::MAX_CREDENTIAL_BYTES,
-    account::limits::MAX_TEXT_BYTES, account::node::Enrollment, account::node::EnrollmentDecision,
-    account::node::EnrollmentError, account::node::Lifecycle, account::node::NodeBinding,
-    account::node::RebindAuthorization, account::node::decide_enrollment,
-    account::publication::source_binding::MAX_SOURCE_BYTES,
+    account::control::EnvelopeExpectation, account::control::methods::MACHINE_AUTH,
+    account::control::methods::MACHINE_AUTH_PURPOSE, account::control::methods::MACHINE_REGISTER,
+    account::limits::MAX_CREDENTIAL_BYTES, account::limits::MAX_TEXT_BYTES,
+    account::node::Enrollment, account::node::EnrollmentDecision, account::node::EnrollmentError,
+    account::node::Lifecycle, account::node::NodeBinding, account::node::RebindAuthorization,
+    account::node::decide_enrollment, account::publication::source_binding::MAX_SOURCE_BYTES,
     account::publication::source_binding::SignedSourceBinding,
     account::publication::source_binding::SourceEnrollmentExpectation,
     account::publication::source_binding::SourceError, service::Id,
@@ -17,70 +18,6 @@ use crate::{
 use nsshared_codec::{cbor::CborReader, cbor::CborWriter};
 use nsshared_identity::realm::RealmId;
 use thiserror::Error;
-
-/// Confidential authentication configuration request/response operation.
-pub const EDGE_AUTH_CONFIG_GET: &str = "edge.auth.config.get";
-
-/// Confidential exact Node L3 application status operation.
-pub const NODE_L3_STATUS: &str = "node.l3.status";
-
-/// Confidential certificate and client-CA acquisition operation.
-pub const EDGE_MATERIAL_GET: &str = "edge.material.get";
-
-/// Registration operation inside the signed carrier.
-pub const MACHINE_REGISTER: &str = "machine.register";
-/// Authentication operation inside the signed carrier.
-pub const MACHINE_AUTH: &str = "machine.auth";
-/// Signed information operation.
-pub const INFO_GET: &str = "info.get";
-/// Signed process heartbeat operation.
-pub const MACHINE_HEARTBEAT: &str = "machine.heartbeat";
-/// Signed gateway observation report operation.
-pub const GATEWAY_REPORT: &str = "gateway.report";
-/// Signed complete local service and Exit floor operation.
-pub const GATEWAY_SERVICES_REPORT: &str = "gateway.services_report";
-/// Signed immutable usage part operation.
-pub const GATEWAY_USAGE_REPORT: &str = "gateway.usage_report";
-/// Signed exact material installation status operation.
-pub const GATEWAY_MATERIAL_STATUS: &str = "gateway.material_status";
-/// Confidential M6 unary operation and signed stream event name.
-pub const SERVICE_CONTROL: &str = "service.control.v1";
-/// Authenticated publication subscription operation.
-pub const CONFIG_STREAM: &str = "config.stream";
-/// Confidential authenticated publication stream endpoint.
-pub const CONFIG_STREAM_PATH: &str = "/api/v1/config/stream";
-/// Publication SSE event containing one complete SourcePublication, never a B43 envelope.
-pub const CONFIG_PUBLICATION_EVENT: &str = "config-envelope.v1";
-/// Query parameter containing the canonical unpadded Base64 signed subscription.
-pub const CONFIG_STREAM_REQUEST_PARAM: &str = "request";
-/// Inclusive complete decoded SourcePublication ceiling N, independent of framing.
-pub const MAX_PUBLICATION_BYTES: usize = MAX_BYTES;
-/// Canonical unpadded Base64 length E(N) = 4 * floor(N/3) + remainder + 1
-/// for a nonzero remainder, otherwise 4 * floor(N/3): 1,398,102 bytes.
-pub const MAX_PUBLICATION_ENCODED_BYTES: usize = 4 * (MAX_PUBLICATION_BYTES / 3)
-    + if MAX_PUBLICATION_BYTES.is_multiple_of(3) {
-        0
-    } else {
-        MAX_PUBLICATION_BYTES % 3 + 1
-    };
-/// Inclusive complete SSE event ceiling: E(N) + event-name length + 19.
-/// The 19 bytes are `event: `, `data: ` and three CRLF endings, totaling
-/// 1,398,139 bytes; LF is three bytes shorter. Consumers measure each event
-/// and terminate on either this bound or the independent decoded bound.
-pub const MAX_PUBLICATION_FRAMED_BYTES: usize =
-    MAX_PUBLICATION_ENCODED_BYTES + CONFIG_PUBLICATION_EVENT.len() + 19;
-/// Independently polled publication snapshot operation.
-pub const CONFIG_SNAPSHOT: &str = "config.snapshot";
-/// Existing confidential signed operation endpoint for snapshot polls.
-pub const CONFIG_SNAPSHOT_PATH: &str = CONTROL_ENVELOPE_PATH;
-/// Machine-control token purpose.
-pub const MACHINE_AUTH_PURPOSE: &str = "control";
-/// Confidential signed operation endpoint.
-pub const CONTROL_ENVELOPE_PATH: &str = "/api/v1/control";
-/// WebPKI discovery endpoint.
-pub const DISCOVERY_PATH: &str = "/api/v1/info";
-/// Confidential machine key-set endpoint.
-pub const JWKS_PATH: &str = "/.well-known/jwks.json";
 
 /// Explicit membership owner; identities are shared across its served realms.
 #[derive(Clone, Debug, Eq, PartialEq)]

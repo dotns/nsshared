@@ -4,7 +4,7 @@ use crate::{
     account::AccountError, account::MAX_BYTES, account::codec::bounded, account::codec::identity,
     account::codec::reader, account::codec::realm, account::codec::require,
     account::control::BootstrapEnvelope, account::control::EnvelopeDirection,
-    account::control::EnvelopeExpectation, account::control::exchange::NODE_L3_STATUS,
+    account::control::EnvelopeExpectation, account::control::NODE_L3_STATUS,
     account::limits::MAX_TEXT_BYTES, account::node::NodeL3Authority,
     account::publication::PublicationChannel, account::publication::PublicationEvent,
     account::publication::PublicationKey, account::publication::PublicationOutcome,
