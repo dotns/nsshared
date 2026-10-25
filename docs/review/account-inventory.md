@@ -1,162 +1,14 @@
-# Candidate control exchange
+# Account inventory
 
-Membership realm identities follow the [canonical RealmId contract](canonical-realm-identity.md).
-Affected text positions retain text but require the exact uppercase 26-character
-spelling and decode to RealmId; binary positions retain their exact 16 bytes.
-This incompatible candidate delta refuses arbitrary realm labels without fallback.
-NSD/ns producer and consumer updates, including the other active consumer delivery,
-remain outstanding. Encoding equality is not authentication. Discovery realm hints,
-external provider subject namespaces and opaque scopes retain their meanings.
-Signed usage bytes and the historical payer pair remain unchanged.
+Predecessor and consumer inventory dispositions: how existing gateway, NSD and node
+fields, operations and code revisions map to the account contracts. They were part of
+the specification documents and are kept here verbatim; the current rules are in
+[docs/spec](../spec/README.md).
+
+## Control
 
 
-This pure candidate extends enrollment and bootstrap, and the existing claim
-values. It adds no transport, session, credential custody, key acquisition or
-pin-store I/O. Producers independently review these bytes before live adoption.
-
-## Operations and carriers
-
-The constants in `account::control_exchange` define `machine.register`,
-`machine.auth`, `info.get`, `/api/v1/control`, `/api/v1/info` and
-`/.well-known/jwks.json` once. All signed operations use the control endpoint.
-Discovery uses the information endpoint and machine signing keys use the key-set
-endpoint. No JSON fallback or plaintext carrier is supported.
-
-Requests and answers are payload bytes of BootstrapEnvelope. A caller must use
-a confidential authenticated BootstrapDiscovery carrier and verify the envelope
-with EnvelopeExpectation before interpreting payloads. Registration requests
-must be signed by the presented enrollment binding's I. Answers must be signed
-by the trusted authority, response directed, with the matching operation and
-recipient. Nonces, skew, replay observations and signing domains remain exactly
-the bootstrap contract. `BootstrapEnvelope::signing_input()` is the sole public
-pure domain-plus-canonical-content encoder; signing and private keys stay outside.
-
-## Canonical tuples
-
-All tuples use shortest definite CBOR, schema 1, no trailing bytes, and the
-existing account size limit. Nested contracts are exact canonical byte strings.
-Membership realm text is exactly the canonical 26-character RealmId spelling. Other text fields are nonempty control-free UTF-8 of at most 256 bytes. Capabilities
-reuse Enrollment's sorted unique bounded identifier set. No normalization occurs.
-
-- Membership scope: `[nsd_id_16, network_id_16]`.
-- Registration request: `[1, scope, enrollment_bytes, profile, credential_bytes,
-  lifecycle_bytes_or_null]`. Credential is opaque, nonempty and at most 16 KiB;
-  it is interpreted only by the provisioned authority. No auth-key/OAuth inference
-  occurs. Lifecycle is absent for initial enrollment and otherwise reuses Lifecycle.
-  Its last two mandatory 16-byte slots are registration-only placeholders:
-  the requesting Node supplies sixteen zero bytes in each, including without
-  grants or a reporter. Receivers decode them structurally and ignore values,
-  including historical nonzero fixtures; no response or token acquisition
-  produces them. They are neither authority nor transition inputs or custody.
-- Registration acceptance: `[1, scope, enrollment_bytes, profile, decision, source_binding_bytes]`.
-  Decision is 0 initial, 1 equal, 2 identity replacement, 3 record rotation.
-  Matching compares scope, the entire binding (I/K/version/generation), exact
-  capabilities and profile, then recomputes decide_enrollment against the prior
-  committed binding, supplied lifecycle and explicit rebind authorization.
-  Typed mismatch never commits a new binding; a receipt or token is insufficient.
-- Authentication request: `[1, scope, binding, purpose, [served_realm, publication_scope]]`; purpose is `control`.
-  Signer must equal binding I. No retired WebSocket leg or gateway role is carried.
-- Authentication response: `[1, compact_token, source_binding_bytes]`. Token is opaque bounded ASCII;
-  decoding is not signature verification, trust or acceptance.
-- Information request: `[1]`.
-- Information response: `[1, discovery_bytes, instance_realm_hint, provider, version,
-  auth_methods, capabilities]`. Auth methods are sorted unique `auth_key`,
-  `device_flow`, `oauth2`; capabilities use the existing enrollment rules.
-  The realm hint is instance-level display metadata, not tenant authority.
-  Discovery retains exact ordered endpoints and separate envelope/transport pins.
-
-The pure registration acceptance comparison takes the response envelope and its
-EnvelopeExpectation as well as the staged request and prior binding. It verifies
-all envelope expectations and exact payload equality before deciding enrollment.
-Request validation likewise verifies the request envelope and checks its signer
-against the presented I. Pure helpers never store authority.
-
-For a differing registration binding, NSD compares provisioned membership
-authority and authenticated presented I with the accepted membership binding;
-Lifecycle.before must equal that complete accepted binding and Lifecycle.after
-must equal the presented enrollment binding. IdentityReplacement increases
-membership version and changes both I and K, allowing generation to restart
-under the new I. RecordRotation keeps I and membership version, changes K and
-increases generation, with explicit reviewed producer-profile RebindAuthorization.
-Initial enrollment has no lifecycle, Equal compares the complete binding, and
-rollback, authentication and scope refusals remain. Zero placeholders grant no
-rebind authorization; ordinary self-initiated stable-I rebind remains disabled.
-
-The ns or gateway consumer compares its retained binding for the exact membership
-and signing authority. Authenticated acceptance must match the staged membership,
-complete binding, profile, capabilities and locally computed EnrollmentDecision,
-with existing response correlation, recipient and nodes-source checks. Rejection
-or mismatch preserves committed identity. Accepted history and selected-acceptance
-custody remain authoritative; placeholders are not persisted, compared with grant
-or usage tokens, or stored as lifecycle/retirement state.
-
-Grant and reporter token production and custody follow the
-[separate lifecycle contracts](l8-account-payload-profile.md#registration-only-incarnation-placeholders).
-Identity replacement fences old resources and never transfers grants; NSD
-produces fresh incarnations for new grants and publishes K-only binding changes
-through Node L3. A K rotation alone does not change identity-keyed grants.
-The reporter owns its durable reporter token; pending usage keeps original
-attribution and settlement custody. Neither registration transition assigns or
-retires those tokens. Existing nonzero fixtures are structural receiver coverage,
-not a registration producer form. Schema, codecs and comparator remain unchanged.
-
-## Machine claims and key sets
-
-Machine JWTs remain compact RS256. Public `MachineClaims` JSON retains `iss`
-(default empty), required `sub`, `realm`, `iat`, `exp`, `jti`, optional `aud`
-(string or string array), `mid_kty` and `mid_pub` (default empty). Legacy role,
-gateway-id and gateway peer-key claims are inert unknown JSON members; they
-create no authority. Subject remains the exact registered machine identifier;
-ordinary Node consumers supply their accepted identity-derived identifier. No
-string-to-binary payer conversion occurs. Admin claims and PolicySubject reuse
-the existing types; machine claims do not duplicate admin scopes.
-
-After external RS256 signature and qualified-key verification, the gateway
-predicate always compares sub. Unless explicitly allowed by consumer policy,
-mid_kty must equal `ed25519` and mid_pub the lowercase hex of accepted I. It
-refuses expiry only when supplied now > exp + 30; arithmetic uses i128. Refresh
-is needed for missing expiry or exp-now <= 300 seconds. Failed authentication
-or refresh preserves the previously verified bearer in consumer custody.
-
-The gateway does **not** compare aud: absent, unrelated single and array
-values retain their existing outcome. The distinct NSD machine-audience verifier
-requires the single string `nsd-machine-control`; its typed claims reject
-array-shaped aud even when an element matches. Wrong-audience vectors are
-labelled `nsd-audience`; they are not gateway refusals. Whether a later gateway
-candidate should require machine audience remains an open owner-review item.
-NSD's JWT library expiry leeway is separately 60 seconds; the gateway's 30-second
-predicate must not be replaced by it. This package exposes the NSD audience
-comparison alone, not an imitation of its complete verifier or external OIDC.
-
-RsaJwk JSON has kty, optional kid/alg/use, n/e; JwkSet has keys in source order.
-Unsupported object descriptions are discarded in source order; scalar members,
-duplicate key lists and malformed/trailing JSON refuse.
-Usable keys require RSA, RS256, nonempty kid/n/e, use absent or `sig`, and strict
-base64url n/e. Leading zero component bytes retain their existing qualification
-outcome; cryptographic RSA verification remains external. Wrong `enc` use refuses. RFC 7638
-thumbprints hash exact JSON `{"e":"E","kty":"RSA","n":"N"}`. The
-pure qualifier discards unsupported members, filters by effective pins and
-refuses no usable or no trusted keys. Duplicate kid selection retains first
-source-order match. Missing kid selects exactly one qualified key; no keys
-refuses missing kid and multiple keys refuse ambiguity. Unknown kid is a typed
-miss; the consumer performs at most one paced refresh then repeats selection.
-
-Pin ownership is exact realm plus key-set address after trimming outer whitespace
-and trailing slashes. Static pins bypass persisted first-use pins. Without static
-pins, matching-owner stored pins are authoritative; absent stored pins learn all
-usable fetched keys once. Existing pins never append advertised rotations.
-Rotation may add/remove keys only inside the effective pin set; substitution
-without a matching pin refuses. Qualified keys and newly learned pins are returned
-as values; consumers durably persist first-use pins before publishing them.
-Envelope signer pins are a separate trust purpose and never token-key pins.
-
-Runtime retains a 300-second successful receipt cache (strictly younger), an
-8-second forced-refresh quiet period, replaced-observation sharing, and a
-31-second acquisition deadline. Failed acquisition preserves last complete keys
-and their original receipt, publishes diagnostic failure and never extends
-freshness. These are documented consumer obligations, not shared timers.
-
-## Complete pinned consumer disposition
+### control-exchange-candidate.md: Complete pinned consumer disposition
 
 Inventory source: gateway `deps/v1-consumers.toml` at
 `17264f418884227674737c0cda8acb3553c9b7e8`. Each of the 264 control-trust
@@ -435,7 +287,7 @@ no implicit OAuth/auth-key fallback survives.
 | `crates/nsgw-control/tests/unary_responses_preserve_optional_recipient.rs` | `vocabulary::core::INFO_GET` | control_exchange constants retain exact operation and endpoint values. |
 | `crates/nsgw-control/tests/unary_responses_preserve_optional_recipient.rs` | `vocabulary::transport::CONTROL_ENVELOPE_PATH` | control_exchange constants retain exact operation and endpoint values. |
 
-## Producer checklist and outstanding review
+### control-exchange-candidate.md: Producer checklist and outstanding review
 
 The pinned producer distinguishes provisioned enrollment from signature ownership:
 approval credentials authorize ordinary Node membership, while the request signer
@@ -460,7 +312,7 @@ remain mandatory even when a consumer explicitly permits unbound machine claims.
 NSD confirmation of the exact candidate tuples and independent producer vectors
 remains outstanding. This checklist does not claim current producer compatibility.
 
-## Retained predicate sources
+### control-exchange-candidate.md: Retained predicate sources
 
 Gateway source revision is `17264f418884227674737c0cda8acb3553c9b7e8`.
 `crates/nsgw-control/src/client/auth.rs` supplies RS256-before-key-selection,
@@ -484,86 +336,189 @@ dispatches information, enrollment and authentication; `handlers.rs` reuses
 strict discovery and emits the RS256 machine-control token. Their existing
 handlers are a producer checklist, not confirmation of this candidate encoding.
 
-## Control reports
+### control-report-candidate.md: Heartbeat and gateway observations (predecessor sender fields)
 
-[Control report exchanges](control-report-candidate.md) defines heartbeat, gateway
-observations, services, usage and material status on the same confidential endpoint.
-The constants stay in control_exchange. No auth configuration acquisition is defined
-by the report contract. NSD producer confirmation remains outstanding.
-## Authenticated publication subscription
+| Predecessor sender field | Candidate disposition |
+| --- | --- |
+| uptime_secs, local_ips, policy_version | HeartbeatRequest; preserve absent counter and empty address list |
+| gateway_id, wg_pubkey, wg_endpoint, wg_tunnel_ip | Ordinary accepted Node identity, signed NodeRecord and family 10 ENDPOINTS/RECORD/ACK; no second gateway identity or IPv4-only assigned-address authority |
+| wss_endpoint | Retired legacy connector transport; ordinary Node confidential carriers replace it; no listener is inferred |
+| legacy_datagram_endpoint, relay_capacity | Old zero-trust datagram relay is retired; retained sender already omits both; independent relay contracts own admission and metering |
+| nsgw_version, git_sha | GatewayReport software_version/source_revision, optional exact observations |
+| nsc_connections | GatewayReport connections; preserve optional zero and unknown; does not claim a legacy connector listener exists |
+| nsn_service_terminate_enabled | GatewayReport terminate_enabled; observed local intent |
+| envoy_http_public_port, public_ingress_internal_http_port | GatewayReport public/internal HTTP ports; no public route authorization |
+| draining, capabilities, public_ingress_scopes | GatewayReport corresponding observations; grants remain separately authenticated |
+| certificate_statuses cert_id/hostnames/issuer/not_after/fingerprint/gateway_ack_generation/last_error_code | Certificate tuple in that order; never installation authority |
+| HeartbeatResponse.features | HeartbeatResponse features; unknown strings remain inert data |
 
-`control_exchange::CONFIG_STREAM` is `config.stream` and
-`control_exchange::CONFIG_STREAM_PATH` is `/api/v1/config/stream`.
-`account::publication_subscription::PublicationSubscriptionRequest` is the
-candidate request. Its canonical CBOR tuple is:
+### control-report-candidate.md: Services and floor metadata (local floor predecessor fields)
 
-`[1, subscriber_I, scopes, capabilities, public_ingress, boot_nonce, attempt_counter, service_control]`.
+| Local floor predecessor field | Retained candidate meaning |
+| --- | --- |
+| service_ref, protocol, target_host, target_port, enabled | Supplied unchanged M6 Declaration declaration_key, protocols, backend_host/backend_port and enabled; no address-derived Resource reference |
+| service capabilities, policy_labels | Exact per-declaration EdgeServiceMetadata; never policy/grant authority |
+| profile_ref, scope, enabled | EdgeExitProfile reference, existing SubnetSelection/Prefix values and local enabled intent |
+| Exit capabilities, policy_labels | Exact per-profile metadata; never permission or effective route authority |
+| services, exit_profiles | Complete kind 1 floor collections; valid empty withdraws the declared floor |
+| accepted_services, accepted_exit_profiles, rejected | Exact correlated outcomes below; rejection reasons retained explicitly |
 
-Each scope is `[issuer_I, recipient_I, served_realm, scope]`: full 32-byte
-identities, canonical 26-character RealmId text and a nonempty opaque scope of
-at most 256 UTF-8 bytes without control characters. Entries are strictly sorted by those four values and unique;
-every recipient equals subscriber_I. There are at most 32 entries. These are
-exact requested PublicationScope pairs bound to their issuer/recipient, never
-wildcards or grants. The producer must compare them against externally
-provisioned/accepted authority before sending publications.
+### control-report-candidate.md: Complete pinned control-report consumer disposition
 
-Capabilities retain the predecessor's understanding-only meaning and the existing
-enrollment rule: at most 64 sorted unique tokens, 1..64 ASCII bytes matching
-`[a-z0-9._-]+`. Public ingress is a strictly increasing array of at most 32
-zero-based indices into scopes. Each index requests family 7 `public-edge` for
-that exact issuer/recipient/realm/scope. It grants no exposure or material
-readiness. Unlike predecessor bare strings, indices cannot lose realm/issuer
-qualification. Empty arrays request no corresponding scopes or capabilities.
+Inventory: gateway `582c1a4eb8c7ed1fd85f0c17e4fdc7954e00e01e`.
+All allocated sender, test, transport and fixture rows are explicit candidate mappings;
+this is not deployed equivalence or producer agreement.
 
-The predecessor stream_session becomes two required correlation fields: a
-nonzero 16-byte boot_nonce and a positive u32 attempt_counter. The caller supplies
-a fresh nonce each restart, begins at one, reuses the pair across endpoint
-fallbacks and increments without wrapping for each outer reconnect. Exhaustion
-fails closed. The codec validates parts but cannot prove restart uniqueness.
-No optional/unbound subscription is retained. The pair does not establish a
-session runtime, acceptance state, replay exemption, version reset or replacement
-for per-PublicationKey versions and withdrawal/failure tombstones.
+| Source path | Item | Candidate disposition |
+| --- | --- | --- |
+| `crates/nsgw-contract-v1/tests/fixtures/reports/producer/usage-sequence-gap.json` | `reports::usage::UsageWatermark` | Existing UsageReport/UsageAnswer; immutable original profile and exact correlation; conflict/repair never ACK |
+| `crates/nsgw-contract-v1/tests/fixtures/reports/producer/usage-window-overlap.json` | `reports::usage::UsageWatermark` | Existing UsageReport/UsageAnswer; immutable original profile and exact correlation; conflict/repair never ACK |
+| `crates/nsgw-control/src/client/heartbeat_support.rs` | `api::auth::AuthResponse` | Existing control_exchange authentication and machine_token verifier; no duplicate report credential model |
+| `crates/nsgw-control/src/client/heartbeat_support.rs` | `api::support` | Per-type canonical/decode methods; no generic permissive account codec |
+| `crates/nsgw-control/src/client/heartbeat_support.rs` | `api::support::to_cbor` | Per-type canonical/decode methods; no generic permissive account codec |
+| `crates/nsgw-control/src/client/heartbeat_support.rs` | `claims::machine::MachineClaims` | Existing control_exchange authentication and machine_token verifier; no duplicate report credential model |
+| `crates/nsgw-control/src/client/heartbeat_support.rs` | `envelope::pins::JwkSet` | Existing machine_token key-set qualification and separate envelope signer pins |
+| `crates/nsgw-control/src/client/heartbeat_support.rs` | `envelope::pins::RsaJwk` | Existing machine_token key-set qualification and separate envelope signer pins |
+| `crates/nsgw-control/src/client/heartbeat_support.rs` | `envelope::wrapper::ControlEnvelope` | Existing BootstrapEnvelope and sole signing_input API; confidential authenticated report request/response |
+| `crates/nsgw-control/src/client/heartbeat_support.rs` | `envelope::wrapper::DOMAIN_REQUEST` | Existing BootstrapEnvelope and sole signing_input API; confidential authenticated report request/response |
+| `crates/nsgw-control/src/client/heartbeat_support.rs` | `envelope::wrapper::DOMAIN_RESPONSE` | Existing BootstrapEnvelope and sole signing_input API; confidential authenticated report request/response |
+| `crates/nsgw-control/src/client/heartbeat_support.rs` | `reports::heartbeat::HeartbeatResponse` | control_reports::HeartbeatResponse; exact pending id and inert feature tokens |
+| `crates/nsgw-control/src/client/heartbeat_support.rs` | `rules::envelope::SignatureInput` | Existing BootstrapEnvelope and sole signing_input API; confidential authenticated report request/response |
+| `crates/nsgw-control/src/client/heartbeat_support.rs` | `rules::envelope::build_signature_input` | Existing BootstrapEnvelope and sole signing_input API; confidential authenticated report request/response |
+| `crates/nsgw-control/src/client/heartbeat_support.rs` | `rules::pins::ed25519_pubkey_to_okp_thumbprint` | Existing machine_token key-set qualification and separate envelope signer pins |
+| `crates/nsgw-control/src/client/heartbeat_support.rs` | `rules::pins::rsa_jwk_thumbprint` | Existing machine_token key-set qualification and separate envelope signer pins |
+| `crates/nsgw-control/src/client/heartbeat_support.rs` | `vocabulary::core::MACHINE_AUTH` | Existing control_exchange authentication and machine_token verifier; no duplicate report credential model |
+| `crates/nsgw-control/src/client/heartbeat_support.rs` | `vocabulary::core::MACHINE_HEARTBEAT` | control_reports::HeartbeatRequest and MACHINE_HEARTBEAT; uptime, local addresses and observed policy counter |
+| `crates/nsgw-control/src/client/heartbeat_tests.rs` | `api::support` | Per-type canonical/decode methods; no generic permissive account codec |
+| `crates/nsgw-control/src/client/heartbeat_tests.rs` | `api::support::from_cbor` | Per-type canonical/decode methods; no generic permissive account codec |
+| `crates/nsgw-control/src/client/heartbeat_tests.rs` | `api::support::to_cbor` | Per-type canonical/decode methods; no generic permissive account codec |
+| `crates/nsgw-control/src/client/heartbeat_tests.rs` | `envelope::wrapper::ControlEnvelope` | Existing BootstrapEnvelope and sole signing_input API; confidential authenticated report request/response |
+| `crates/nsgw-control/src/client/heartbeat_tests.rs` | `reports::heartbeat::HeartbeatRequest` | control_reports::HeartbeatRequest and MACHINE_HEARTBEAT; uptime, local addresses and observed policy counter |
+| `crates/nsgw-control/src/client/heartbeat_tests.rs` | `reports::heartbeat::HeartbeatResponse` | control_reports::HeartbeatResponse; exact pending id and inert feature tokens |
+| `crates/nsgw-control/src/client/heartbeat_tests.rs` | `vocabulary::core::MACHINE_AUTH` | Existing control_exchange authentication and machine_token verifier; no duplicate report credential model |
+| `crates/nsgw-control/src/client/heartbeat_tests.rs` | `vocabulary::core::MACHINE_HEARTBEAT` | control_reports::HeartbeatRequest and MACHINE_HEARTBEAT; uptime, local addresses and observed policy counter |
+| `crates/nsgw-control/src/client/heartbeat_tests.rs` | `vocabulary::transport::CONTROL_ENVELOPE_PATH` | Existing control_exchange endpoint constants; report operations all use CONTROL_ENVELOPE_PATH |
+| `crates/nsgw-control/src/client/report_tests.rs` | `api::support` | Per-type canonical/decode methods; no generic permissive account codec |
+| `crates/nsgw-control/src/client/report_tests.rs` | `api::support::from_cbor` | Per-type canonical/decode methods; no generic permissive account codec |
+| `crates/nsgw-control/src/client/report_tests.rs` | `api::support::to_cbor` | Per-type canonical/decode methods; no generic permissive account codec |
+| `crates/nsgw-control/src/client/report_tests.rs` | `envelope::wrapper::ControlEnvelope` | Existing BootstrapEnvelope and sole signing_input API; confidential authenticated report request/response |
+| `crates/nsgw-control/src/client/report_tests.rs` | `envelope::wrapper::DOMAIN_RESPONSE` | Existing BootstrapEnvelope and sole signing_input API; confidential authenticated report request/response |
+| `crates/nsgw-control/src/client/report_tests.rs` | `reports::gateway::GatewayCertificateStatus` | control_reports::GatewayCertificateObservation; all nonsecret activation observations |
+| `crates/nsgw-control/src/client/report_tests.rs` | `reports::gateway::GatewayReportRequest` | control_reports::GatewayReport and GATEWAY_REPORT; explicit predecessor field dispositions above |
+| `crates/nsgw-control/src/client/report_tests.rs` | `reports::gateway::GatewayReportResponse` | control_reports::GatewayReportResponse; exact pending observation id |
+| `crates/nsgw-control/src/client/report_tests.rs` | `rules::envelope::SignatureInput` | Existing BootstrapEnvelope and sole signing_input API; confidential authenticated report request/response |
+| `crates/nsgw-control/src/client/report_tests.rs` | `rules::envelope::build_signature_input` | Existing BootstrapEnvelope and sole signing_input API; confidential authenticated report request/response |
+| `crates/nsgw-control/src/client/report_tests.rs` | `rules::pins::ed25519_pubkey_to_okp_thumbprint` | Existing machine_token key-set qualification and separate envelope signer pins |
+| `crates/nsgw-control/src/client/report_tests.rs` | `vocabulary::core::CAPABILITY_GATEWAY_PUBLIC_EDGE_V1` | Existing confidential BootstrapEnvelope and control_exchange contracts; report payloads selected by exact operation |
+| `crates/nsgw-control/src/client/report_tests.rs` | `vocabulary::core::GATEWAY_REPORT` | control_reports::GatewayReport and GATEWAY_REPORT; explicit predecessor field dispositions above |
+| `crates/nsgw-control/src/client/report_tests.rs` | `vocabulary::core::PUBLIC_EDGE_SCOPE_GATEWAY_HTTP_CONFIG` | Existing confidential BootstrapEnvelope and control_exchange contracts; report payloads selected by exact operation |
+| `crates/nsgw-control/src/heartbeat.rs` | `reports::heartbeat::HeartbeatRequest` | control_reports::HeartbeatRequest and MACHINE_HEARTBEAT; uptime, local addresses and observed policy counter |
+| `crates/nsgw-control/src/heartbeat.rs` | `reports::heartbeat::HeartbeatResponse` | control_reports::HeartbeatResponse; exact pending id and inert feature tokens |
+| `crates/nsgw-control/src/heartbeat.rs` | `vocabulary::core::MACHINE_HEARTBEAT` | control_reports::HeartbeatRequest and MACHINE_HEARTBEAT; uptime, local addresses and observed policy counter |
+| `crates/nsgw-control/src/reports.rs` | `reports::gateway::GatewayCertificateStatus` | control_reports::GatewayCertificateObservation; all nonsecret activation observations |
+| `crates/nsgw-control/src/reports.rs` | `reports::gateway::GatewayReportRequest` | control_reports::GatewayReport and GATEWAY_REPORT; explicit predecessor field dispositions above |
+| `crates/nsgw-control/src/reports.rs` | `reports::gateway::GatewayReportResponse` | control_reports::GatewayReportResponse; exact pending observation id |
+| `crates/nsgw-control/src/reports.rs` | `vocabulary::core::GATEWAY_REPORT` | control_reports::GatewayReport and GATEWAY_REPORT; explicit predecessor field dispositions above |
+| `crates/nsgw-control/src/services_floor.rs` | `reports::services::GatewayServicesAck` | Extended EdgeServiceRequest/Response kind 1; exact M6 service bytes, metadata, Exit declarations and per-reference outcomes |
+| `crates/nsgw-control/src/services_floor.rs` | `reports::services::GatewayServicesReport` | Extended EdgeServiceRequest/Response kind 1; exact M6 service bytes, metadata, Exit declarations and per-reference outcomes |
+| `crates/nsgw-control/src/services_floor.rs` | `reports::services::GatewayServicesReportRequest` | Extended EdgeServiceRequest/Response kind 1; exact M6 service bytes, metadata, Exit declarations and per-reference outcomes |
+| `crates/nsgw-control/src/services_floor.rs` | `reports::services::GatewayServicesReportResponse` | Extended EdgeServiceRequest/Response kind 1; exact M6 service bytes, metadata, Exit declarations and per-reference outcomes |
+| `crates/nsgw-control/src/services_floor.rs` | `vocabulary::core` | Existing confidential BootstrapEnvelope and control_exchange contracts; report payloads selected by exact operation |
+| `crates/nsgw-control/src/services_floor.rs` | `vocabulary::core::GATEWAY_SERVICES_REPORT` | Extended EdgeServiceRequest/Response kind 1; exact M6 service bytes, metadata, Exit declarations and per-reference outcomes |
+| `crates/nsgw-control/src/transport/error.rs` | `reports::usage::UsageWatermark` | Existing UsageReport/UsageAnswer; immutable original profile and exact correlation; conflict/repair never ACK |
+| `crates/nsgw-control/src/transport/framing.rs` | `reports::usage::ACCEPTED_THROUGH_SEQ` | Existing UsageReport/UsageAnswer; immutable original profile and exact correlation; conflict/repair never ACK |
+| `crates/nsgw-control/src/transport/framing.rs` | `reports::usage::REPLAY_DETECTED` | Existing UsageReport/UsageAnswer; immutable original profile and exact correlation; conflict/repair never ACK |
+| `crates/nsgw-control/src/transport/framing.rs` | `reports::usage::UsageWatermark` | Existing UsageReport/UsageAnswer; immutable original profile and exact correlation; conflict/repair never ACK |
+| `crates/nsgw-control/src/transport/framing.rs` | `reports::usage::usage_watermark` | Existing UsageReport/UsageAnswer; immutable original profile and exact correlation; conflict/repair never ACK |
+| `crates/nsgw-control/src/transport/framing.rs` | `vocabulary::core::GATEWAY_USAGE_REPORT` | Existing UsageReport/UsageAnswer; immutable original profile and exact correlation; conflict/repair never ACK |
+| `crates/nsgw-control/src/transport/https.rs` | `reports::usage::REPLAY_DETECTED` | Existing UsageReport/UsageAnswer; immutable original profile and exact correlation; conflict/repair never ACK |
+| `crates/nsgw-control/src/transport/noise.rs` | `vocabulary::core::MACHINE_HEARTBEAT` | control_reports::HeartbeatRequest and MACHINE_HEARTBEAT; uptime, local addresses and observed policy counter |
+| `crates/nsgw-control/src/usage.rs` | `reports::usage::GatewayUsageReportRequest` | Existing UsageReport/UsageAnswer; immutable original profile and exact correlation; conflict/repair never ACK |
+| `crates/nsgw-control/src/usage.rs` | `reports::usage::GatewayUsageReportResponse` | Existing UsageReport/UsageAnswer; immutable original profile and exact correlation; conflict/repair never ACK |
+| `crates/nsgw-control/src/usage.rs` | `reports::usage::UsageStatus` | Existing UsageReport/UsageAnswer; immutable original profile and exact correlation; conflict/repair never ACK |
+| `crates/nsgw-control/src/usage.rs` | `reports::usage::UsageWatermark` | Existing UsageReport/UsageAnswer; immutable original profile and exact correlation; conflict/repair never ACK |
+| `crates/nsgw-control/src/usage.rs` | `reports::usage::classify_usage_status` | Existing UsageReport/UsageAnswer; immutable original profile and exact correlation; conflict/repair never ACK |
+| `crates/nsgw-control/src/usage.rs` | `vocabulary::core::GATEWAY_USAGE_REPORT` | Existing UsageReport/UsageAnswer; immutable original profile and exact correlation; conflict/repair never ACK |
+| `crates/nsgw-control/tests/client.rs` | `reports::heartbeat::HeartbeatResponse` | control_reports::HeartbeatResponse; exact pending id and inert feature tokens |
+| `crates/nsgw-control/tests/client.rs` | `vocabulary::core::MACHINE_HEARTBEAT` | control_reports::HeartbeatRequest and MACHINE_HEARTBEAT; uptime, local addresses and observed policy counter |
+| `crates/nsgw-control/tests/fixtures/predecessor/heartbeat.hex` | `reports::heartbeat::HeartbeatRequest` | control_reports::HeartbeatRequest and MACHINE_HEARTBEAT; uptime, local addresses and observed policy counter |
+| `crates/nsgw-control/tests/fixtures/predecessor/report.hex` | `reports::gateway::GatewayReportRequest` | control_reports::GatewayReport and GATEWAY_REPORT; explicit predecessor field dispositions above |
+| `crates/nsgw-control/tests/heartbeat.rs` | `envelope::wrapper::ControlEnvelope` | Existing BootstrapEnvelope and sole signing_input API; confidential authenticated report request/response |
+| `crates/nsgw-control/tests/heartbeat.rs` | `vocabulary::core::MACHINE_HEARTBEAT` | control_reports::HeartbeatRequest and MACHINE_HEARTBEAT; uptime, local addresses and observed policy counter |
+| `crates/nsgw-control/tests/heartbeat.rs` | `vocabulary::transport::CONTROL_ENVELOPE_PATH` | Existing control_exchange endpoint constants; report operations all use CONTROL_ENVELOPE_PATH |
+| `crates/nsgw-control/tests/heartbeat.rs` | `vocabulary::transport::DISCOVERY_PATH` | Existing control_exchange endpoint constants; report operations all use CONTROL_ENVELOPE_PATH |
+| `crates/nsgw-control/tests/heartbeat.rs` | `vocabulary::transport::JWKS_PATH` | Existing control_exchange endpoint constants; report operations all use CONTROL_ENVELOPE_PATH |
+| `crates/nsgw-control/tests/heartbeat_rejects_byte_string_acknowledgements.rs` | `reports::heartbeat::HeartbeatResponse` | control_reports::HeartbeatResponse; exact pending id and inert feature tokens |
+| `crates/nsgw-control/tests/heartbeat_rejects_byte_string_acknowledgements.rs` | `vocabulary::core::MACHINE_HEARTBEAT` | control_reports::HeartbeatRequest and MACHINE_HEARTBEAT; uptime, local addresses and observed policy counter |
+| `crates/nsgw-control/tests/noise.rs` | `vocabulary::core::MACHINE_HEARTBEAT` | control_reports::HeartbeatRequest and MACHINE_HEARTBEAT; uptime, local addresses and observed policy counter |
+| `crates/nsgw-control/tests/reports.rs` | `envelope::wrapper::ControlEnvelope` | Existing BootstrapEnvelope and sole signing_input API; confidential authenticated report request/response |
+| `crates/nsgw-control/tests/reports.rs` | `vocabulary::core::GATEWAY_REPORT` | control_reports::GatewayReport and GATEWAY_REPORT; explicit predecessor field dispositions above |
+| `crates/nsgw-control/tests/reports.rs` | `vocabulary::transport::CONTROL_ENVELOPE_PATH` | Existing control_exchange endpoint constants; report operations all use CONTROL_ENVELOPE_PATH |
+| `crates/nsgw-control/tests/reports.rs` | `vocabulary::transport::DISCOVERY_PATH` | Existing control_exchange endpoint constants; report operations all use CONTROL_ENVELOPE_PATH |
+| `crates/nsgw-control/tests/services_floor.rs` | `api::support` | Per-type canonical/decode methods; no generic permissive account codec |
+| `crates/nsgw-control/tests/services_floor.rs` | `api::support::ExitScope` | Per-type canonical/decode methods; no generic permissive account codec |
+| `crates/nsgw-control/tests/services_floor.rs` | `api::support::from_cbor` | Per-type canonical/decode methods; no generic permissive account codec |
+| `crates/nsgw-control/tests/services_floor.rs` | `api::support::to_cbor` | Per-type canonical/decode methods; no generic permissive account codec |
+| `crates/nsgw-control/tests/services_floor.rs` | `envelope::wrapper::ControlEnvelope` | Existing BootstrapEnvelope and sole signing_input API; confidential authenticated report request/response |
+| `crates/nsgw-control/tests/services_floor.rs` | `reports::services::GatewayExitProfileDeclaration` | Extended EdgeServiceRequest/Response kind 1; exact M6 service bytes, metadata, Exit declarations and per-reference outcomes |
+| `crates/nsgw-control/tests/services_floor.rs` | `reports::services::GatewayServiceDeclaration` | Extended EdgeServiceRequest/Response kind 1; exact M6 service bytes, metadata, Exit declarations and per-reference outcomes |
+| `crates/nsgw-control/tests/services_floor.rs` | `reports::services::GatewayServicesAck` | Extended EdgeServiceRequest/Response kind 1; exact M6 service bytes, metadata, Exit declarations and per-reference outcomes |
+| `crates/nsgw-control/tests/services_floor.rs` | `reports::services::GatewayServicesReport` | Extended EdgeServiceRequest/Response kind 1; exact M6 service bytes, metadata, Exit declarations and per-reference outcomes |
+| `crates/nsgw-control/tests/services_floor.rs` | `vocabulary::core::GATEWAY_SERVICES_REPORT` | Extended EdgeServiceRequest/Response kind 1; exact M6 service bytes, metadata, Exit declarations and per-reference outcomes |
+| `crates/nsgw-control/tests/services_floor.rs` | `vocabulary::core::Protocol` | Existing confidential BootstrapEnvelope and control_exchange contracts; report payloads selected by exact operation |
+| `crates/nsgw-control/tests/services_floor.rs` | `vocabulary::transport::CONTROL_ENVELOPE_PATH` | Existing control_exchange endpoint constants; report operations all use CONTROL_ENVELOPE_PATH |
+| `crates/nsgw-control/tests/services_floor.rs` | `vocabulary::transport::DISCOVERY_PATH` | Existing control_exchange endpoint constants; report operations all use CONTROL_ENVELOPE_PATH |
+| `crates/nsgw-control/tests/silent_endpoint_deadline.rs` | `reports::usage::UsageWatermark` | Existing UsageReport/UsageAnswer; immutable original profile and exact correlation; conflict/repair never ACK |
+| `crates/nsgw-control/tests/silent_endpoint_deadline.rs` | `vocabulary::core::GATEWAY_USAGE_REPORT` | Existing UsageReport/UsageAnswer; immutable original profile and exact correlation; conflict/repair never ACK |
+| `crates/nsgw-control/tests/silent_endpoint_deadline.rs` | `vocabulary::core::MACHINE_HEARTBEAT` | control_reports::HeartbeatRequest and MACHINE_HEARTBEAT; uptime, local addresses and observed policy counter |
+| `crates/nsgw-control/tests/usage.rs` | `api::support::to_cbor` | Per-type canonical/decode methods; no generic permissive account codec |
+| `crates/nsgw-control/tests/usage.rs` | `envelope::bootstrap::CONTROL_TRUST_VERSION` | Existing BootstrapDiscovery trust version and confidential carrier; no downgrade |
+| `crates/nsgw-control/tests/usage.rs` | `envelope::wrapper::ControlEnvelope` | Existing BootstrapEnvelope and sole signing_input API; confidential authenticated report request/response |
+| `crates/nsgw-control/tests/usage.rs` | `reports::usage::ACCEPTED_THROUGH_SEQ` | Existing UsageReport/UsageAnswer; immutable original profile and exact correlation; conflict/repair never ACK |
+| `crates/nsgw-control/tests/usage.rs` | `reports::usage::CURRENT_EPOCH` | Existing UsageReport/UsageAnswer; immutable original profile and exact correlation; conflict/repair never ACK |
+| `crates/nsgw-control/tests/usage.rs` | `reports::usage::GatewayUsageReportRequest` | Existing UsageReport/UsageAnswer; immutable original profile and exact correlation; conflict/repair never ACK |
+| `crates/nsgw-control/tests/usage.rs` | `reports::usage::GatewayUsageReportResponse` | Existing UsageReport/UsageAnswer; immutable original profile and exact correlation; conflict/repair never ACK |
+| `crates/nsgw-control/tests/usage.rs` | `reports::usage::REPLAY_DETECTED` | Existing UsageReport/UsageAnswer; immutable original profile and exact correlation; conflict/repair never ACK |
+| `crates/nsgw-control/tests/usage.rs` | `reports::usage::UsageRow` | Existing UsageReport/UsageAnswer; immutable original profile and exact correlation; conflict/repair never ACK |
+| `crates/nsgw-control/tests/usage.rs` | `reports::usage::UsageWatermark` | Existing UsageReport/UsageAnswer; immutable original profile and exact correlation; conflict/repair never ACK |
+| `crates/nsgw-control/tests/usage.rs` | `vocabulary::core::GATEWAY_USAGE_REPORT` | Existing UsageReport/UsageAnswer; immutable original profile and exact correlation; conflict/repair never ACK |
+| `crates/nsgw-control/tests/usage.rs` | `vocabulary::core::INFO_GET` | Existing confidential BootstrapEnvelope and control_exchange contracts; report payloads selected by exact operation |
+| `crates/nsgw-control/tests/usage.rs` | `vocabulary::core::MACHINE_REGISTER` | Existing confidential BootstrapEnvelope and control_exchange contracts; report payloads selected by exact operation |
+| `crates/nsgw-control/tests/usage.rs` | `vocabulary::reports::PathClass` | Existing confidential BootstrapEnvelope and control_exchange contracts; report payloads selected by exact operation |
+| `crates/nsgw-control/tests/usage.rs` | `vocabulary::transport::CONTROL_ENVELOPE_PATH` | Existing control_exchange endpoint constants; report operations all use CONTROL_ENVELOPE_PATH |
+| `crates/nsgw-control/tests/usage_conflict_rejects_non_http_length_whitespace.rs` | `envelope::bootstrap::CONTROL_TRUST_VERSION` | Existing BootstrapDiscovery trust version and confidential carrier; no downgrade |
+| `crates/nsgw-control/tests/usage_conflict_rejects_non_http_length_whitespace.rs` | `reports::usage::ACCEPTED_THROUGH_SEQ` | Existing UsageReport/UsageAnswer; immutable original profile and exact correlation; conflict/repair never ACK |
+| `crates/nsgw-control/tests/usage_conflict_rejects_non_http_length_whitespace.rs` | `reports::usage::GatewayUsageReportRequest` | Existing UsageReport/UsageAnswer; immutable original profile and exact correlation; conflict/repair never ACK |
+| `crates/nsgw-control/tests/usage_conflict_rejects_non_http_length_whitespace.rs` | `reports::usage::REPLAY_DETECTED` | Existing UsageReport/UsageAnswer; immutable original profile and exact correlation; conflict/repair never ACK |
+| `crates/nsgw-control/tests/usage_conflict_rejects_non_http_length_whitespace.rs` | `reports::usage::UsageWatermark` | Existing UsageReport/UsageAnswer; immutable original profile and exact correlation; conflict/repair never ACK |
+| `crates/nsgw-control/tests/usage_conflict_rejects_non_http_length_whitespace.rs` | `vocabulary::core::GATEWAY_USAGE_REPORT` | Existing UsageReport/UsageAnswer; immutable original profile and exact correlation; conflict/repair never ACK |
+| `crates/nsgw-control/tests/usage_conflict_rejects_non_http_length_whitespace.rs` | `vocabulary::core::INFO_GET` | Existing confidential BootstrapEnvelope and control_exchange contracts; report payloads selected by exact operation |
+| `crates/nsgw-control/tests/usage_conflict_rejects_non_http_length_whitespace.rs` | `vocabulary::core::MACHINE_REGISTER` | Existing confidential BootstrapEnvelope and control_exchange contracts; report payloads selected by exact operation |
+| `crates/nsgw-control/tests/usage_heads_ending_in_a_bare_cr_return_framing_errors.rs` | `envelope::bootstrap::CONTROL_TRUST_VERSION` | Existing BootstrapDiscovery trust version and confidential carrier; no downgrade |
+| `crates/nsgw-control/tests/usage_heads_ending_in_a_bare_cr_return_framing_errors.rs` | `reports::usage::GatewayUsageReportRequest` | Existing UsageReport/UsageAnswer; immutable original profile and exact correlation; conflict/repair never ACK |
+| `crates/nsgw-control/tests/usage_heads_ending_in_a_bare_cr_return_framing_errors.rs` | `reports::usage::UsageWatermark` | Existing UsageReport/UsageAnswer; immutable original profile and exact correlation; conflict/repair never ACK |
+| `crates/nsgw-control/tests/usage_heads_ending_in_a_bare_cr_return_framing_errors.rs` | `vocabulary::core::GATEWAY_USAGE_REPORT` | Existing UsageReport/UsageAnswer; immutable original profile and exact correlation; conflict/repair never ACK |
+| `crates/nsgw-control/tests/usage_heads_ending_in_a_bare_cr_return_framing_errors.rs` | `vocabulary::core::INFO_GET` | Existing confidential BootstrapEnvelope and control_exchange contracts; report payloads selected by exact operation |
 
-The request payload is bounded to 8192 bytes before decoding. Fixed tuple arity,
-minimal CBOR, no trailing bytes and bounded arrays reject unknown fields,
-noncanonical encodings and oversized declarations before allocation.
-The existing BootstrapEnvelope carries the exact payload and operation in request
-direction; BootstrapEnvelope::signing_input supplies the unchanged domain plus
-canonical content bytes. The signer equals subscriber_I and the mandatory carrier
-recipient equals every requested issuer. The authenticated ingress also checks
-the configured subscriber/authority and authorized exact scope set; decoding
-alone confers no authority. Existing confidential HTTPS/Noise/QUIC carriers and
-encoded-subscription bounds apply; no plaintext, empty unsigned request or JSON
-fallback is introduced. HTTP carries the complete signed subscription envelope as canonical URL-safe
-unpadded Base64 in the `request` query parameter; URL encoding and stream I/O remain consumer work.
-Stream and independently polled snapshot authority keep their existing kind
-ownership; a subscription never moves a snapshot kind to the stream.
+### service-control-carrier-candidate.md: Lifecycle reference
 
-Independent publication-subscription vectors cover accepted empty and populated
-sets, exact bytes, capability and attempt boundaries, wrong recipient, duplicate
-and unsorted sets, oversized declarations, unknown fields and nonminimal bytes.
-NSD confirmation of this exact candidate and producer vectors is outstanding;
-the current predecessor handler is a checklist, not interoperability evidence.
+The lifecycle reference is repository `ns`,
+`docs/plan/20261017-m6-service-contract.md` at
+`0e5adc17c9b05ae7fa351de00a5184a57b92e584`, sections 1–6 and 10.
+Its historical ControlEnvelope/JSON carrier is replaced by this mapping.
+
+### l8-account-payload-profile.md: M6 service control carrier (family surface table)
+
+| Existing family surface | Candidate delta | External status |
+| --- | --- | --- |
+| Bootstrap / v1 replacement | Exact M6 unary, receipt and bound signed-event validation | NSD carrier adoption and real producer vectors outstanding |
+| Public edge / service integration | Reuses unchanged declaration, snapshot, listener, lease and port messages | Consumer lifecycle and NSD interoperability remain separate |
+| Publication subscription | Breaking eight-field tuple with optional exact per-Network M6 session | Producer and consumer adoption required; no old-arity fallback |
+
+## Publication
 
 
-### Publication stream framing
-
-`control_exchange::CONFIG_PUBLICATION_EVENT` is `config-envelope.v1`;
-`CONFIG_STREAM_REQUEST_PARAM` is `request`. Each event has one `data: ` line:
-canonical URL-safe unpadded Base64 of exactly one complete SourcePublication,
-never a B43 Response envelope. Producers use LF; consumers accept LF and CRLF.
-For N = MAX_PUBLICATION_BYTES = 1,048,576, E(N) = 4 * floor(N / 3) +
-(0 when N mod 3 = 0, otherwise N mod 3 + 1) = 1,398,102.
-MAX_PUBLICATION_ENCODED_BYTES is E(N). MAX_PUBLICATION_FRAMED_BYTES is
-E(N) + len(`config-envelope.v1`) + 19 = 1,398,139, inclusive, accounting for
-`event: `, `data: ` and three CRLF endings. LF uses three fewer bytes.
-Measure each complete event including framing, independently of network reads;
-retain bounded standalone keepalives. Exceeding the framed bound or the independent
-decoded N bound terminates the stream without installing that event; never drop
-and continue. Runtime parsing remains consumer work. The separate
-`service.control.v1` event keeps its B43/M6 encoding and limits.
-
-## Independent publication snapshot poll
+### control-exchange-candidate.md: Independent publication snapshot poll
 
 | Predecessor | Candidate | Meaning |
 |---|---|---|
@@ -584,120 +539,23 @@ The predecessor's whole realm-list omission removal is replaced by complete
 Snapshot container omission itself retains state under the existing publication
 rules; it cannot clear another authority scope.
 
-The operation is `config.snapshot`, defined with the other control exchange
-constants. Its endpoint aliases the existing confidential `/api/v1/control`
-endpoint. HTTPS, Noise and QUIC keep their current confidentiality and trust
-requirements. The request tuple is
-`[1, subscriber_I, scopes, boot_nonce, attempt_counter, correlation]`.
-Each scope has the subscription's existing four-field shape and ordering,
-canonical 26-character RealmId text and a nonempty opaque scope bounded to
-256 UTF-8 bytes without control characters.
-The canonical request ceiling is 8192 bytes. Response validation enforces this
-complete pending-request ceiling even for publicly constructed requests and
-authenticated empty responses; individual scope bounds do not replace it. Both nonce and correlation are
-nonzero 16-byte strings; attempt is a positive u32 with no wrapping. Callers
-retain the active subscription pair and supply a distinct correlation per poll.
-No scope wildcard, capability grant, optional unbound session or kind selector
-is added. Unknown fields (including a stream-kind selector), unsorted/duplicate
-scopes, nonminimal CBOR and trailing input are refused.
+### control-exchange-candidate.md: Authenticated publication subscription (predecessor notes)
 
-The existing BootstrapEnvelope signs the request through signing_input. Its
-signer is the subscriber, mandatory recipient is every requested issuer and
-nonce equals correlation. The authority checks the requested exact scopes and
-active subscription facts against its own state. The response uses the same
-operation, response direction, mandatory subscriber recipient and nonce equal
-to the pending correlation. Its only payload form is canonical
-`[1, [bstr(SourcePublication), ...]]`; plain PublicationEvent and mixed containers
-are refused, with no fallback or second poll mode. Every entry, including family 8
-`directory` and authenticated unknown Snapshot kinds, uses Snapshot delivery
-`[1, boot_nonce, attempt_counter, correlation]`. The pure response validator checks
-the exact pending scope set against independently accepted current source bindings,
-then validates every entry with the request-derived delivery context before exposing
-any decision. One invalid entry rejects the complete poll. Each complete outer entry
-is bounded by 1,048,576 bytes; the container and signed B43 carrier retain
-MAX_CONTROL_BODY. Snapshot entries have no SSE/Base64 framing limit. Directory
-payloads, numeric registrations and separate discovery binding/eligibility are unchanged. The verifier checks carrier trust, every event's
-recipient, exact requested scope and declared snapshot channel. A known
-stream-owned pair is refused even when it declares the snapshot channel.
-An unknown family/kind pair is an extension, not known stream ownership:
-after the existing snapshot validator authenticates its issuer, signature,
-recipient, scope and validity, it yields UnknownKind without authority or state
-changes. Known valid updates in the same ordered snapshot remain available.
-An unknown event with a bad signature, wrong scope/recipient or declared stream
-channel still refuses the entire poll; correlation checks apply to its carrier.
-Complete replacement and per-key version decisions remain in the existing
-snapshot validator. Pending requests never reset versions or tombstones.
+- Capabilities retain the predecessor's understanding-only meaning and the existing enrollment rule.
+- Unlike predecessor bare strings, indices cannot lose realm/issuer qualification.
+- The predecessor stream_session becomes two required correlation fields: a nonzero 16-byte boot_nonce and a positive u32 attempt_counter.
+- No optional/unbound subscription is retained.
 
-Independent fixture producers and consumers establish candidate bytes only.
-NSD confirmation of the active subscription binding, operation, exact scope
-selection and response nonce echo, plus independent real producer vectors,
-remains outstanding.
+### l8-account-payload-profile.md: Publication snapshot poll request (predecessor notes)
 
-## Required source authority in responses
+- The predecessor has no kind selector; stream selectors are unknown fields and refused.
 
-The response extension is incompatible: every successful registration decision,
-including Equal, and every successful authentication requires the canonical byte
-string of SignedSourceBinding. Standalone SourceAcceptance is retired with no
-old-shape fallback. Operations, existing field encodings, refusal semantics and
-confidential carriers are unchanged. See [source authority](source-selection-candidate.md)
-for independent enrolled NSD, recipient, realm/scope, assigned profile and full
-source Node comparisons and nested signature verification. The enclosing nonce
-must equal the pending request id; no payload request-id field is added.
-Registration retains all staged enrollment and lifecycle comparisons. Authentication
-retains consumer token signature, claims and custody checks and never grants
-registration acceptance. NSD N04 adoption and producer review remain outstanding.
+## Node and Subnet
 
-## Explicit authentication source selection
 
-AuthenticationRequest is exactly `[1, membership_scope, NodeBinding, "control",
-[served_realm, publication_scope]]`. The selector is required, with no default or
-old-shape fallback. Realm text is canonical 26-character RealmId; scope uses the
-existing nonempty, control-free UTF-8 encoding bounded to 256 bytes. This is an
-incompatible candidate request delta. AuthenticationResponse and SignedSourceBinding
-encodings and signing domains are unchanged. NSD N04 adoption remains outstanding.
+### l8-account-payload-profile.md and control-exchange-candidate.md: R3 local Node naming and legacy registration retirement
 
-Registration, including pending gateway enrollment and Equal, returns nodes authority
-in the accepted registration Network. Recipient and source_node equal the enrolled
-identity. The contribution field is the NSD-allocated Node source record in this
-scope; it grants no gateway contribution, service resource or M6 admission.
-
-Nodes authentication selects the enrollment Network; egress selects an independently
-accepted contribution Network, including home. Consumers retain the exact pending
-realm/scope and nonce, compare returned authority against that pair and independently
-accepted NSD, recipient, profile and source Node facts, and verify both signatures
-and the normal token. Unknown or unauthorized selectors are refused, never replaced
-with another binding. Retain each accepted scope independently. Fixture vectors
-cover pending registration, Equal and nodes/egress authentication in one Network,
-including swapped-scope and swapped-realm refusal.
-
-## M6 service control candidate
-
-The [service control carrier specification](service-control-carrier-candidate.md)
-defines `service.control.v1` on the existing confidential control endpoint,
-unchanged Message bytes, exact unary pairs, signed zero-byte carrier receipts,
-bootstrap/failure correlation, singleton leases and bound signed stream events.
-PublicationSubscriptionRequest now has eight elements: the appended
-service_control is null or a typed seven-element admitted-session tuple.
-Its runtime_id and session_request_id are nonzero M6 IDs on construction,
-decoding and authenticated ingress; NSD/Network zero-ID encoding semantics are
-unchanged. This is
-breaking for existing consumers; the old seven-element request is refused.
-Existing scopes, capabilities, public ingress, boot nonce and attempt meanings
-remain unchanged. Stream events admit only SnapshotPush, PortCancel and
-PortQuery, with pure exact reverse-result comparison. No new publication family,
-M6 schema, runtime or admission state is introduced. Current source ownership,
-content floors, persistent proposal and lease timing checks remain consumer work.
-NSD adoption and independent real producer confirmation remain outstanding.
-
-## R3 local Node naming and legacy registration retirement
-
-R3 enrollment declares `node_local_names.v1` using the public
-`account::NODE_LOCAL_NAMES_V1` constant in the existing Enrollment.capabilities
-set. Omission does not negotiate a legacy response or fallback. This declares
-naming mode only, not service permission or permission to publish DNS.
-NSD accepts the declaration through authenticated registration without allocating
-or requiring a legacy Node label. Capability encoding and all existing exact
-exchange tuples remain unchanged.
+The table is identical in both sources.
 
 | Retired registration value | R3 disposition and retained meaning |
 |---|---|
@@ -706,41 +564,116 @@ exchange tuples remain unchanged.
 | `network_token` | No R3 registration producer, carrier or pinned-value comparison. NSD's committed Network naming state retains this token internally for existing Subnet suffix consumers; it is not an enrollment identifier or new shared field. Any existing Subnet name remains owned by its own authenticated projection, not inferred from the Node name. |
 | `node_name` | No R3 registration producer, carrier or pinned-value comparison. Retire the NSD-allocated immutable compact Node label. Manual nicknames remain local and never published as registration authority; they do not alter the identity-derived canonical Node name. |
 
-RegistrationAcceptance, AuthenticationResponse and InformationResponse carry
-none of `domain_base`, `dns_root`, `network_token` or `node_name`. There is no
-substitute naming publication or shared legacy-value decoder. An R3 consumer
-refuses any response or adapter supplying these values; it must not silently
-accept them or compare an old pin. The legacy `dns_config.short_dns_v2`
-tuple-bound snapshot supplies no R3 naming authority. Existing exact tuple
-validation remains the shared boundary; adapter refusal belongs to consumers.
+## Realm and grants
 
-The staged Node Enrollment produces the capability set; authenticated registration
-acceptance must carry the exact same bytes, binding and declared profile.
-Consumers compare membership, full binding, capabilities, trusted authority and
-source binding before committing. Missing capability or mismatched acceptance
-never switches naming mode. After acceptance, `node_dns_name` derives
-`<node id>.n.ns.io` from the accepted NodeBinding identity and `NODE_DNS_ZONE`.
-Verified NodeRecord identity/name/address comparison remains discovery, not
-authorization. M6 `Resource.service_label` remains the sole source of service
-labels through the authenticated recipient/Network snapshot. Public domains
-remain in authenticated public-edge publication with its existing ownership
-checks. `InformationResponse.realm` remains a display hint.
 
-The consumer owns old-pin cutover: at the authenticated R3 commit it removes all
-four naming pins and tuple-bound Short DNS authority from active R3 state,
-without feeding absent values through the legacy first-wins setter. Pins are
-never compared, converted into identity or recovered after restart. Failure
-before commit preserves the prior selected profile. Original-profile records
-remain isolated and preserved under existing custody rules; no deletion,
-deployment or re-enrollment is authorized here. Startup uses accepted binding
-and mode. Registration history and lifecycle comparisons remain unchanged.
-Retired compact Node names are not promised as aliases. Subnet names, service
-labels, public-edge names and authorization retain their existing contracts.
+### Source: l8-account-payload-profile.md, "Inventory disposition and carrier boundary"
 
-The external R3 runtime consumer owns cutover and its commit/restart regression:
-matching acceptance must drop every active old pin and Short DNS authority; mismatched acceptance or supplied legacy values must leave the prior
-profile intact. NSD N04/N09 producer adoption and ns S05/S06/S11 consumer/cutover
-adoption remain outstanding, including independent producer confirmation.
-The review delta is a candidate, never agreement or interoperability evidence.
-No new field, carrier, P-item or dependency edge is introduced; previous delivery
-evidence does not establish this delta or release external cutover acceptance.
+
+| Inventoried values | Canonical value or disposition | Carrier |
+| --- | --- | --- |
+| AclPolicy.rules, AclRule.action/subject/dst/proto | SubjectPolicy rules; accept is implicit, deny actions retired | Public-edge fragments embed in EdgeRoute.policy; other aggregate carriers open |
+| AclPolicy.groups | Explicit qualified groups and members | EdgeRoute.policy for public-edge groups; other aggregates open |
+| AclBindings.wg_peer | NodeL3Authority bindings retain I/K authority; address/key-derived subjects retired | Existing family 11 node-l3 |
+| AclBindings.machine | SubjectBinding with explicit Node or credential anchor | Family 7 EdgeAuth.bindings for public-edge credentials; other aggregates open |
+| AclPolicy.hosts, tests | Gateway destination alias resolution and self-test inputs remain evaluator-owned; no contract equivalence claimed | Open carrier item |
+| AclPolicy.gateway_roster, service_floor | Not subject authority; roster classification and service-floor metadata stay in their existing contracts/local configuration | No policy carrier added |
+| AdminClaims, AdminScope, require_admin_scope | AdminTokenClaims, AdminScope, require_scope | Authenticated admin token |
+| MachineClaims, TokenAudience, verify_machine_claims | Machine token/key-set contract remains separately owned; no duplicate claims | Existing token owner |
+| GatewayAuthConsumer.subject and credential-to-consumer joins | PolicySubject, SubjectBinding; enabled/expiry retained | Embedded family 7 EdgeAuth |
+| GatewayAuthJwtConsumerBinding | JwtSubjectBinding plus existing subject binding; credential id is the anchor, consumer resolution belongs to the enclosing family | Embedded family 7 EdgeAuth |
+| GatewayAuthJwtAuthority and legacy issuer metadata | Authority reference retained by JwtSubjectBinding; issuer/audience/key source remain family 7 values; no trust inferred | Family 7 EdgeJwtAuthority; NSD producer confirmation pending |
+| SignedSubjectHeaderPolicy | Explicit typed header configuration | Embedded family 7 EdgeRoute.headers |
+| SignedUrlScope and canonical request/query/string-to-sign | SignedUrlScope deterministic public signing input | Existing SignedUrlScope request input plus realm-qualified auth material reference |
+| EnvelopeDirection, signed account requests | SignedAccountRequest reuses BootstrapEnvelope and its domains | Existing authenticated call carrier |
+| OIDC claims, organization/role subject projection, provider/cookie configuration | OIDC token verification and label construction remain consumer-owned, referencing qualified PolicySubject | Confidential AuthConfiguration values; OIDC runtime and label construction remain external; NSD confirmation outstanding |
+| Policy compilation, VerifiedSubjectSet, verifier readiness and admission results | Consumer state/evaluation, not new wire claims | No carrier added |
+
+No evaluator moves into shared contracts. Existing NodeL3Authority is neither
+wrapped nor duplicated. Family 7 owns complete replacement of embedded visitor,
+auth and public-edge values. Service targets continue to use existing M6
+ServiceRef and grant/Payer contracts rather than a policy-specific service claim.
+Diagnostic `policy-version` remains an observation owned separately; it never
+carries this policy or establishes an authorization revision. Unplaced inventory
+items stay open until an enclosing family or a later design assigns a carrier;
+no new kind or implicit policy publication is defined here.
+
+### Source: realm-publication-candidate.md, "Predecessor field mapping"
+
+
+| Predecessor field | Candidate disposition |
+| --- | --- |
+| WgConfig.ip_address | Retired gateway device address; NodeId/N6/N4 derive from I |
+| WgConfig.listen_port | Retired gateway device port; no membership authority meaning |
+| WgConfig.peers | Complete realm contributions with full I, authorized K and signed NodeRecord |
+| PeerConfig.public_key | NodeBinding.K, checked against NodeRecord |
+| PeerConfig.endpoint | Retired direct gateway carrier endpoint; existing NodeRecord relay discovery applies |
+| PeerConfig.allowed_ips | Retired arbitrary device routes; Node addressing derives from I; routing and grants remain separate |
+| PeerConfig.persistent_keepalive | Retired gateway device tuning; no membership field |
+| GatewayConfig.gateways | Retired gateway-specific endpoint collection; ordinary NodeRecord relay contract applies |
+| last_seen_policy | Observation-only policy-version counter under its exact publication key |
+
+## Edge
+
+
+### Inventory disposition (from docs/l8-public-edge-candidate.md)
+
+| Existing surface | Candidate field, reused definition or disposition |
+|---|---|
+| routing RouteEntry/RoutingConfig, dns DnsRecord/DnsConfig | EdgeRealm.routes; id/name/aliases/domains, ServiceRef, backend, virtual_port, protocol; service DNS labels resolved from snapshot Resource |
+| ServiceBackendKind/PublicEdgeBackendKind::NsnBacked | Full Node backend identity; address-derived identity retired because addresses cannot establish publisher authority |
+| GatewayEgress/GatewayExit backend variants, capture routes | Existing grant/Subnet families, not public-edge backend authority; no public exposure inferred |
+| GatewayHttpConfig/GatewayHttpRoute, GatewayL4Map/GatewayL4Route | EdgeRealm/routes; HTTP/TCP/UDP/public_port; per-realm complete replacement |
+| PublicEdgeRouteIdentity/AclRef/PolicyRevision | Route id, ServiceRef, SubjectPolicy, signed publication version; gateway/internal listener ids stay consumer-local; rollback metadata cannot override monotonic signed version |
+| PublicEdgeTransportPolicy and upstream TLS policy | EdgeRouteOptions.transport/upstream_authority/upstream_tls, with explicit TLS trust choice; no implicit fallback |
+| HttpExternalIdentityImport/ExternalIdentityProviderRef/Kind, GatewayAuthProvider/Kind/OrganizationMode | [AuthConfiguration](../spec/account/edge.md): complete provider/import, cookie, redirect, template and organization values on confidential authenticated control transport; NSD confirmation outstanding |
+| HttpMiddlewarePolicy/SourceIpAdmissionPolicy, EdgeLimitPolicy/HttpTransformPolicy/EdgeAuditPolicy/L4Policy | EdgeRouteOptions explicit policy references, body bounds, source_ip and audit_metadata; referenced policy implementations remain consumer-owned |
+| SignedSubjectHeaderPolicy, AclPolicy rules/groups | Exact reused SignedSubjectHeaderPolicy and SubjectPolicy bytes |
+| GatewayAuthConsumer, credential-to-consumer joins | Exact SubjectBinding; display names are presentation only |
+| GatewayAuthJwtConsumerBinding/JwtAuthority/JwtKeySource/JwtIssuer | JwtSubjectBinding plus EdgeJwtAuthority issuer/audiences/auth key reference; actual key acquisition and trust qualification remain external |
+| GatewayAuthConfig/Generation and Credentials (API key, Basic, signed URL, mTLS, webhook), SecretSet/SecretVersion | AuthConfigRequest/Response and AuthConfiguration supply exact realm/reference/generation and actual secret/verifier values confidentially; existing bindings reused; unsupported webhook reservation retired explicitly |
+| rules::signed_url and its constants/helpers | Existing SignedUrlScope canonical_request/signing_input, no second canonicalization |
+| CertificateRef/Source/Policy/ChallengePreference, CertificateBundle | Certificate material reference/generation; private key bytes are excluded; fetch/ACME/source configuration remains owned by the material consumer, not identity authority |
+| ClientCaBundle/ClientCaDependency, AuthDependency/CertificateDependency | Client-CA/auth/certificate references and exact generation joins plus correlated EdgeMaterialAck |
+| GatewayServiceDeclaration/ServicesReport/Request/Response/Ack | EdgeServiceRequest/Response; unchanged M6 objects, complete floor metadata and exact per-kind reference outcomes with explicit reasons |
+| GatewayExitProfileDeclaration | EdgeServiceRequest kind 1 exit_profiles reuse SubnetSelection/Prefix semantics as declarations, never Subnet route authority |
+| service_fqdn and standalone service-label inputs | Resolve Resource.service_label via M6 ServiceRef; standalone inputs excluded and open pending M01/M02, owned by the M6 contract owner through owner-mediated review |
+
+### Predecessor field disposition (from docs/confidential-auth-candidate.md)
+
+| Source | Retained meaning or retirement |
+| --- | --- |
+| GatewayAuthConfig.realm_id/generation | Binary realm and positive generation; reference comes from echoed EdgeMaterialRef |
+| default_provider_ref/providers/cookie_keys | Explicit optional default, complete providers, actual current/previous cookie values |
+| GatewayAuthProvider.provider_ref/kind/issuer/client_id/client_secret/scopes/audience | AuthProvider exact counterparts; only OIDC kind |
+| subject_template/idp_template/subject_realm | Exact AuthProvider data; label construction and PolicySubject qualification remain external |
+| organization_id/organization_mode/redirect_base_url | Explicit AuthProvider organization data and HTTPS redirect; null generic or Logto marker |
+| GatewayAuthSecretVersion.ref/version/expires_at/value, SecretSet.current/previous | AuthSecretVersion and AuthSecretSet retain rotation versions, real deadlines and confidential values |
+| GatewayAuthConsumer.consumer_ref/subject/enabled/display_name | AuthConsumer explicit subject; no credential-derived subject synthesis |
+| Credentials.consumer_ref/credential_id/enabled/expires_at/scopes | Consumer join, SubjectBinding credential anchor/enabled/expiry and ordered opaque scopes |
+| API key key_id/verifier_hash, Basic username/phc_hash | AuthVerifier actual verifier values; plaintext API/password values are never projected |
+| Signed URL kid/hmac_keys | AuthVerifier actual rotating HMAC keyset; existing SignedUrlScope signing input unchanged |
+| mTLS spiffe_id/trust_ref | AuthVerifier SPIFFE data and exact client-CA material generation; CA bytes remain separately confidential |
+| JWT authorities authority_ref/issuer/audiences/enabled/key_source | Reused EdgeJwtAuthority plus AuthKeySource; discovery/URI/inline source and enabled state retained |
+| JWT consumer binding claim_name/claim_value and common credential fields | Existing JwtSubjectBinding with exact strings plus explicit AuthJwtConsumer reference join |
+| Legacy JWT issuer jwks/consumer_claim and common fields | Existing authority + inline source + JwtSubjectBinding, with explicit producer-supplied claim value; no legacy wire clone or inferred claim |
+| webhook_hmac.secret_ref | Retired unsupported verifier reservation; no implemented catalog verification or producer value; auth consumer owns any later contract |
+| HttpExternalIdentityImport.providers/anonymous_bypass/fail_closed | AuthRouteImport exact method order and flags, with explicit route id |
+| ExternalIdentityProviderRef.kind/ref_id/redirect_base_url | AuthImportMethod typed kind/reference/optional OIDC redirect; OAuth2 reservation retired |
+| API key last4 | Retired presentation hint; not consumed by the verifier |
+| NSD provider management credentials/directory settings | Not projected; remain NSD-only, never gateway auth material |
+
+## Relay and usage
+
+
+### Usage fixture migration (from docs/usage-contract-candidate.md, "Independent consumers and migration")
+
+The older account usage fixtures migrate from a 32-byte identity subject to a
+16-byte ULID subject, with version and tuple arity unchanged. The review request
+records the incompatible predecessor.
+
+### Participant authority and profile publications
+
+The sources docs/participant-authority-candidate.md, docs/profile-publications-candidate.md
+and the folded sections of docs/l8-account-payload-profile.md contain no predecessor
+or consumer inventory disposition table.

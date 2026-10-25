@@ -1,4 +1,5 @@
-//! Pure confidential material acquisition; see `docs/confidential-material-candidate.md`.
+//! Pure confidential certificate and client-CA material acquisition; see
+//! `docs/spec/account/edge.md`.
 
 use crate::{
     account::AccountError, account::MAX_BYTES, account::codec::ascending, account::codec::bounded,

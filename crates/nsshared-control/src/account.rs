@@ -1,4 +1,4 @@
-//! Account payload contracts; see `docs/l8-account-payload-profile.md`.
+//! Account payload contracts; see `docs/spec/account/profile.md`.
 //!
 //! | Module | Contents |
 //! | --- | --- |

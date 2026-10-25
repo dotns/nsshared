@@ -1,4 +1,4 @@
-"""Independent candidate exchange tuples and machine verifier boundary inputs."""
+"""Independent exchange tuples and machine verifier boundary inputs."""
 import base64
 import hashlib
 import json

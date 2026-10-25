@@ -1,4 +1,4 @@
-"""Independent service grant, payer, retirement and Node authority candidates."""
+"""Independent service grant, payer, retirement and Node authority cases."""
 
 import copy
 import json

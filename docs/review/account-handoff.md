@@ -1,7 +1,7 @@
 # L8 immutable candidate handoff
 
 Selected shared package: the delivered revision recorded in the
-[review request status](l8-candidate-review-request.md) (`DELIVERED_REVISION` below).
+[review request status](account-review-request.md) (`DELIVERED_REVISION` below).
 Verified gateway consumer inputs: `e70a90abb1a53567bfb6eb28f6ee057d7b9f0dc8`.
 All three delivered library packages have version `0.6.0`.
 
@@ -28,34 +28,34 @@ package consumption, not successful execution of those runtime acceptance cases.
 
 | Contract | Delivered surface | Shared implementation revision | Independent fixture / Rust consumer |
 | --- | --- | --- | --- |
-| P02 | Control exchange | `d118947ac53376b4849530734f72411b9322b92d` | [control-exchange.vec](../crates/nsshared-proto/tests/fixtures/vectors/control-exchange.vec) / [control_exchange_vectors](../crates/nsshared-proto/tests/control_exchange_vectors.rs) |
-| P03 | Realm publication and policy version | `f7e7faab5f9086e806184269d0a64c25b4ba68cc` | [realm-publication.vec](../crates/nsshared-proto/tests/fixtures/vectors/realm-publication.vec) / [realm_publication_vectors](../crates/nsshared-proto/tests/realm_publication_vectors.rs) |
-| P04 | Confidential authentication configuration | `5fdeff356d49de6b1ec6f1fe33d2e96abb4e52ee` | [confidential-auth.vec](../crates/nsshared-proto/tests/fixtures/vectors/confidential-auth.vec) / [confidential_auth_vectors](../crates/nsshared-proto/tests/confidential_auth_vectors.rs) |
-| P05 | Canonical RealmId | `43dc4fb116fb0ecf081cd07364bc98a0af995a75` | [realm-identity-membership.vec](../crates/nsshared-proto/tests/fixtures/vectors/realm-identity-membership.vec) / [realm_identity_membership](../crates/nsshared-proto/tests/realm_identity_membership.rs) |
-| P06 | Signed source and route commands | `8a19c87c938bae9c6a03a1b1dedc7c47087ef5d7` | [source-selection.vec](../crates/nsshared-proto/tests/fixtures/vectors/source-selection.vec) / [source_selection_vectors](../crates/nsshared-proto/tests/source_selection_vectors.rs) |
-| P07 | Participant credentials and directory binding | `0135ed72888374fcbcc186d2e4fd38f129f637c7` | [participant-authority.vec](../crates/nsshared-proto/tests/fixtures/vectors/participant-authority.vec) / [participant_authority_vectors](../crates/nsshared-proto/tests/participant_authority_vectors.rs) |
-| P08 | Gateway participant adoption: shared support only | `50dc9db5fe106536d0a7d8b113b5bb4a3e210368` | [participant-authority.vec](../crates/nsshared-proto/tests/fixtures/vectors/participant-authority.vec) / [participant_authority_vectors](../crates/nsshared-proto/tests/participant_authority_vectors.rs) |
-| P09 | Protocol-qualified grants and renewal | `1c23bbaf67db27461de5f8b038b974ceb33ba535` | [grant-authority.vec](../crates/nsshared-proto/tests/fixtures/vectors/grant-authority.vec) / [grant_authority_vectors](../crates/nsshared-proto/tests/grant_authority_vectors.rs) |
-| P10 | Gateway per-Network sessions: shared support only | `50dc9db5fe106536d0a7d8b113b5bb4a3e210368` | [service-control-carrier.vec](../crates/nsshared-proto/tests/fixtures/vectors/service-control-carrier.vec) / [service_control_carrier_vectors](../crates/nsshared-proto/tests/service_control_carrier_vectors.rs) |
-| P11 | Scoped usage and Node-control profiles | `752e1591169d326567d756075e31fc1edaaf1be7` | [profile-publications.vec](../crates/nsshared-proto/tests/fixtures/vectors/profile-publications.vec) / [profile_publication_vectors](../crates/nsshared-proto/tests/profile_publication_vectors.rs) |
-| P12 | Ordinary-provider Subnet reports | `997c693d78a9cc1052f684535448521e139cce01` | [provider-subnet-report.vec](../crates/nsshared-proto/tests/fixtures/vectors/provider-subnet-report.vec) / [provider_subnet_report_vectors](../crates/nsshared-proto/tests/provider_subnet_report_vectors.rs) |
-| P13 | Exit grants and client subnet-routes | `83a8e603e3982551ccae0d8fd4c858e8180a85e1` | [subnet-publication-views.vec](../crates/nsshared-proto/tests/fixtures/vectors/subnet-publication-views.vec) / [subnet_publication_views](../crates/nsshared-proto/tests/subnet_publication_views.rs) |
-| P14 | Confidential certificate/client-CA acquisition | `f435616c613219fda0f31c5fbcaf0a64d5775b87` | [confidential-material.vec](../crates/nsshared-proto/tests/fixtures/vectors/confidential-material.vec) / [confidential_material_vectors](../crates/nsshared-proto/tests/confidential_material_vectors.rs) |
-| P15 | Unary and bound-stream M6 carrier | `52075779946dfe1327c341cd6d7a3830fa5b1ad2` | [service-control-carrier.vec](../crates/nsshared-proto/tests/fixtures/vectors/service-control-carrier.vec) / [service_control_carrier_vectors](../crates/nsshared-proto/tests/service_control_carrier_vectors.rs) |
-| P16 | Node-L3 admission and applied status | `d851101e145650cc85529651ea768f340a7d1ab6` | [node-l3-status.vec](../crates/nsshared-proto/tests/fixtures/vectors/node-l3-status.vec) / [node_l3_status_vectors](../crates/nsshared-proto/tests/node_l3_status_vectors.rs) |
-| P17 | SSE and source-bound snapshot delivery | `b4bf192a2d88a37a6de7a33d9c7ae3cfc5bd58a5` | [publication-delivery.vec](../crates/nsshared-proto/tests/fixtures/vectors/publication-delivery.vec) / [publication_delivery_vectors](../crates/nsshared-proto/tests/publication_delivery_vectors.rs) |
-| P18 | Explicit anonymous policy selector | `5c0e45dc64fcc123ff01e29ddc65e3c803002b0b` | [anonymous-public-edge.vec](../crates/nsshared-proto/tests/fixtures/vectors/anonymous-public-edge.vec) / [anonymous_public_edge_vectors](../crates/nsshared-proto/tests/anonymous_public_edge_vectors.rs) |
-| P19 | Protocol-specific public-edge names | `e0dac1ed216d81db3988109c8837fb3a42db9d6f` | [public-edge.vec](../crates/nsshared-proto/tests/fixtures/vectors/public-edge.vec) / [public_edge_vectors](../crates/nsshared-proto/tests/public_edge_vectors.rs) |
-| B38 | Enrollment and identity lifecycle | `c98b38123b64d28fdbe842f3b021904e912099f9` | [account.vec](../crates/nsshared-proto/tests/fixtures/vectors/account.vec) / [enrollment_vectors](../crates/nsshared-proto/tests/enrollment_vectors.rs) |
-| B39 | Grants, payer and Node L3 | `09dcebb0ad598287eb5477729853c33a4a0ff8ac` | [grant-authority.vec](../crates/nsshared-proto/tests/fixtures/vectors/grant-authority.vec) / [grant_authority_vectors](../crates/nsshared-proto/tests/grant_authority_vectors.rs) |
-| B40 | Subnet selection and coverage | `3b93b9bd26e206ac9c0d4fc68f6b49b30ef317c0` | [account.vec](../crates/nsshared-proto/tests/fixtures/vectors/account.vec) / [subnet_selection_vectors](../crates/nsshared-proto/tests/subnet_selection_vectors.rs) |
-| B41 | Participant roster and lifetime | `c425e777b8382aefb85386d91d1314ebca573dc3` | [account.vec](../crates/nsshared-proto/tests/fixtures/vectors/account.vec) / [participant_roster_vectors](../crates/nsshared-proto/tests/participant_roster_vectors.rs) |
-| B42 | Service I/O and historical relay usage | `05ee100f4eba547cd1e7025c92860a20f79fefc2` | [usage.vec](../crates/nsshared-proto/tests/fixtures/vectors/usage.vec) / [usage_vectors](../crates/nsshared-proto/tests/usage_vectors.rs) |
-| B43 | Bootstrap and confidential envelopes | `6fbb1eccd34516ced170c043b538db815fbe003a` | [account.vec](../crates/nsshared-proto/tests/fixtures/vectors/account.vec) / [bootstrap_envelope_vectors](../crates/nsshared-proto/tests/bootstrap_envelope_vectors.rs) |
-| B44 | Signed scoped publications | `53cbc4c11abd9963d9d8165b034dd7668fa1f000` | [account.vec](../crates/nsshared-proto/tests/fixtures/vectors/account.vec) / [publication_decoder_vectors](../crates/nsshared-proto/tests/publication_decoder_vectors.rs) |
-| B45 | Policy, subject and admin claims | `5ce1e6fc2052a3e7da358dfa61668f37b38e0fa3` | [policy-claims.vec](../crates/nsshared-proto/tests/fixtures/vectors/policy-claims.vec) / [policy_claim_vectors](../crates/nsshared-proto/tests/policy_claim_vectors.rs) |
-| B46 | Public edge, material and declarations | `673f5fc6ca8d793b9dbaf777669ff5e90918124a` | [public-edge.vec](../crates/nsshared-proto/tests/fixtures/vectors/public-edge.vec) / [public_edge_vectors](../crates/nsshared-proto/tests/public_edge_vectors.rs) |
-| B47 | Identical Node-control v2 | `52ac36af5e2565c41f33054a91d90820535b1735` | [node_control.vec](../crates/nsshared-proto/tests/fixtures/vectors/node_control.vec) / [vectors_node_control](../crates/nsshared-proto/tests/vectors_node_control.rs) |
+| P02 | Control exchange | `d118947ac53376b4849530734f72411b9322b92d` | [control-exchange.vec](../../crates/nsshared-control/tests/vectors/account/control/exchange.vec) / [control_exchange_vectors](../../crates/nsshared-control/tests/account/control/exchange.rs) |
+| P03 | Realm publication and policy version | `f7e7faab5f9086e806184269d0a64c25b4ba68cc` | [realm-publication.vec](../../crates/nsshared-control/tests/vectors/account/realm/peers.vec) / [realm_publication_vectors](../../crates/nsshared-control/tests/account/realm/peers.rs) |
+| P04 | Confidential authentication configuration | `5fdeff356d49de6b1ec6f1fe33d2e96abb4e52ee` | [confidential-auth.vec](../../crates/nsshared-control/tests/vectors/account/edge/auth.vec) / [confidential_auth_vectors](../../crates/nsshared-control/tests/account/edge/auth.rs) |
+| P05 | Canonical RealmId | `43dc4fb116fb0ecf081cd07364bc98a0af995a75` | [realm-identity-membership.vec](../../crates/nsshared-control/tests/vectors/account/realm/membership.vec) / [realm_identity_membership](../../crates/nsshared-control/tests/account/realm/membership.rs) |
+| P06 | Signed source and route commands | `8a19c87c938bae9c6a03a1b1dedc7c47087ef5d7` | [source-selection.vec](../../crates/nsshared-control/tests/vectors/account/publication/source-selection.vec) / [source_selection_vectors](../../crates/nsshared-control/tests/account/publication/source_selection.rs) |
+| P07 | Participant credentials and directory binding | `0135ed72888374fcbcc186d2e4fd38f129f637c7` | [participant-authority.vec](../../crates/nsshared-control/tests/vectors/account/relay/session.vec) / [participant_authority_vectors](../../crates/nsshared-control/tests/account/relay/session.rs) |
+| P08 | Gateway participant adoption: shared support only | `50dc9db5fe106536d0a7d8b113b5bb4a3e210368` | [participant-authority.vec](../../crates/nsshared-control/tests/vectors/account/relay/session.vec) / [participant_authority_vectors](../../crates/nsshared-control/tests/account/relay/session.rs) |
+| P09 | Protocol-qualified grants and renewal | `1c23bbaf67db27461de5f8b038b974ceb33ba535` | [grant-authority.vec](../../crates/nsshared-control/tests/vectors/account/grants/grant-authority.vec) / [grant_authority_vectors](../../crates/nsshared-control/tests/account/grants/grant_authority.rs) |
+| P10 | Gateway per-Network sessions: shared support only | `50dc9db5fe106536d0a7d8b113b5bb4a3e210368` | [service-control-carrier.vec](../../crates/nsshared-control/tests/vectors/account/control/service-control.vec) / [service_control_carrier_vectors](../../crates/nsshared-control/tests/account/control/service_control.rs) |
+| P11 | Scoped usage and Node-control profiles | `752e1591169d326567d756075e31fc1edaaf1be7` | [profile-publications.vec](../../crates/nsshared-control/tests/vectors/account/usage/catalog.vec) / [profile_publication_vectors](../../crates/nsshared-control/tests/account/usage/catalog.rs) |
+| P12 | Ordinary-provider Subnet reports | `997c693d78a9cc1052f684535448521e139cce01` | [provider-subnet-report.vec](../../crates/nsshared-control/tests/vectors/account/subnet/report.vec) / [provider_subnet_report_vectors](../../crates/nsshared-control/tests/account/subnet/report.rs) |
+| P13 | Exit grants and client subnet-routes | `83a8e603e3982551ccae0d8fd4c858e8180a85e1` | [subnet-publication-views.vec](../../crates/nsshared-control/tests/vectors/account/subnet/views.vec) / [subnet_publication_views](../../crates/nsshared-control/tests/account/subnet/views.rs) |
+| P14 | Confidential certificate/client-CA acquisition | `f435616c613219fda0f31c5fbcaf0a64d5775b87` | [confidential-material.vec](../../crates/nsshared-control/tests/vectors/account/edge/material-request.vec) / [confidential_material_vectors](../../crates/nsshared-control/tests/account/edge/material_request.rs) |
+| P15 | Unary and bound-stream M6 carrier | `52075779946dfe1327c341cd6d7a3830fa5b1ad2` | [service-control-carrier.vec](../../crates/nsshared-control/tests/vectors/account/control/service-control.vec) / [service_control_carrier_vectors](../../crates/nsshared-control/tests/account/control/service_control.rs) |
+| P16 | Node-L3 admission and applied status | `d851101e145650cc85529651ea768f340a7d1ab6` | [node-l3-status.vec](../../crates/nsshared-control/tests/vectors/account/control/node-l3-status.vec) / [node_l3_status_vectors](../../crates/nsshared-control/tests/account/control/node_l3_status.rs) |
+| P17 | SSE and source-bound snapshot delivery | `b4bf192a2d88a37a6de7a33d9c7ae3cfc5bd58a5` | [publication-delivery.vec](../../crates/nsshared-control/tests/vectors/account/publication/delivery.vec) / [publication_delivery_vectors](../../crates/nsshared-control/tests/account/publication/delivery.rs) |
+| P18 | Explicit anonymous policy selector | `5c0e45dc64fcc123ff01e29ddc65e3c803002b0b` | [anonymous-public-edge.vec](../../crates/nsshared-control/tests/vectors/account/edge/anonymous.vec) / [anonymous_public_edge_vectors](../../crates/nsshared-control/tests/account/edge/anonymous.rs) |
+| P19 | Protocol-specific public-edge names | `e0dac1ed216d81db3988109c8837fb3a42db9d6f` | [public-edge.vec](../../crates/nsshared-control/tests/vectors/account/edge/routing.vec) / [public_edge_vectors](../../crates/nsshared-control/tests/account/edge/routing.rs) |
+| B38 | Enrollment and identity lifecycle | `c98b38123b64d28fdbe842f3b021904e912099f9` | [account.vec](../../crates/nsshared-control/tests/vectors/account/node/enrollment.vec) / [enrollment_vectors](../../crates/nsshared-control/tests/account/node/enrollment.rs) |
+| B39 | Grants, payer and Node L3 | `09dcebb0ad598287eb5477729853c33a4a0ff8ac` | [grant-authority.vec](../../crates/nsshared-control/tests/vectors/account/grants/grant-authority.vec) / [grant_authority_vectors](../../crates/nsshared-control/tests/account/grants/grant_authority.rs) |
+| B40 | Subnet selection and coverage | `3b93b9bd26e206ac9c0d4fc68f6b49b30ef317c0` | [account.vec](../../crates/nsshared-control/tests/vectors/account/subnet/selection.vec) / [subnet_selection_vectors](../../crates/nsshared-control/tests/account/subnet/selection.rs) |
+| B41 | Participant roster and lifetime | `c425e777b8382aefb85386d91d1314ebca573dc3` | [account.vec](../../crates/nsshared-control/tests/vectors/account/relay/participant-roster.vec) / [participant_roster_vectors](../../crates/nsshared-control/tests/account/relay/participant_roster.rs) |
+| B42 | Service I/O and historical relay usage | `05ee100f4eba547cd1e7025c92860a20f79fefc2` | [usage.vec](../../crates/nsshared-control/tests/vectors/account/usage/reports.vec) / [usage_vectors](../../crates/nsshared-control/tests/account/usage/reports.rs) |
+| B43 | Bootstrap and confidential envelopes | `6fbb1eccd34516ced170c043b538db815fbe003a` | [account.vec](../../crates/nsshared-control/tests/vectors/account/control/envelope.vec) / [bootstrap_envelope_vectors](../../crates/nsshared-control/tests/account/control/envelope.rs) |
+| B44 | Signed scoped publications | `53cbc4c11abd9963d9d8165b034dd7668fa1f000` | [account.vec](../../crates/nsshared-control/tests/vectors/account/publication/envelope.vec) / [publication_decoder_vectors](../../crates/nsshared-control/tests/account/publication/envelope.rs) |
+| B45 | Policy, subject and admin claims | `5ce1e6fc2052a3e7da358dfa61668f37b38e0fa3` | [policy-claims.vec](../../crates/nsshared-control/tests/vectors/account/realm/claims.vec) / [policy_claim_vectors](../../crates/nsshared-control/tests/account/realm/claims.rs) |
+| B46 | Public edge, material and declarations | `673f5fc6ca8d793b9dbaf777669ff5e90918124a` | [public-edge.vec](../../crates/nsshared-control/tests/vectors/account/edge/routing.vec) / [public_edge_vectors](../../crates/nsshared-control/tests/account/edge/routing.rs) |
+| B47 | Identical Node-control v2 | `52ac36af5e2565c41f33054a91d90820535b1735` | [node_control.vec](../../crates/nsshared-control/tests/vectors/node_control/messages.vec) / [vectors_node_control](../../crates/nsshared-control/tests/node_control/messages.rs) |
 
 P16 additionally uses `node-l3-route-admission.vec` and
 `node_l3_route_admission_vectors.rs`: a mapped service route grants no ordinary
@@ -214,9 +214,9 @@ introduced by this handoff. Package equality is not a new whole-source purity pr
 
 ## Unresolved producer, consumer and review obligations
 
-All Q01–Q23 and M01–M02 in the [review request](l8-candidate-review-request.md)
+All Q01–Q23 and M01–M02 in the [review request](account-review-request.md)
 retain their individually recorded sent/unanswered state and named addressees.
-The [review request delivery](l8-candidate-review-request.md) was completed
+The [review request delivery](account-review-request.md) was completed
 through the owner route on 2026-10-25 (UTC), at the delivered revision. The owner forwarded the candidate
 review package to the NSD owner as producer and the ns owner as consumer reviewer.
 No answer has been received. Silence approves nothing. Q18's separate design
@@ -292,8 +292,8 @@ external runtime ownership into shared code nor record external review approval.
 
 The pure `provider-mappings` contract is delivered at
 `110b3d705965a07dd257d5951f44f662850a1756`, with independent
-[provider-mapping.vec](../crates/nsshared-proto/tests/fixtures/vectors/provider-mapping.vec)
-and [provider_mapping_replacement](../crates/nsshared-proto/tests/provider_mapping_replacement.rs).
+[provider-mapping.vec](../../crates/nsshared-control/tests/vectors/account/subnet/mapping.vec)
+and [provider_mapping_replacement](../../crates/nsshared-control/tests/account/subnet/mapping.rs).
 It adds the separate family 4 Snapshot inventory and exact `mappings` replacement,
 canonical bounded mapping ids and B40 prefixes, and current nodes-source/context
 verification. Populated, changed/omitted, typed-empty and authenticated withdrawal
@@ -309,8 +309,8 @@ success supplies no evidence of external implementation or live eligibility.
 
 ## Registration lifecycle clarification after the selected package
 
-The [registration-only placeholder profile](l8-account-payload-profile.md#registration-only-incarnation-placeholders)
-and [registration exchange](control-exchange-candidate.md#canonical-tuples)
+The [registration-only placeholder profile](../spec/account/node.md#registration-only-placeholders)
+and [registration exchange](../spec/account/control.md)
 clarify the existing six-element lifecycle without changing schema, codec or
 comparator. The requesting Node emits sixteen zero bytes in each final slot;
 receivers structurally decode and ignore both values. They supply neither

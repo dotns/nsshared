@@ -1,4 +1,4 @@
-"""Independent Subnet selection candidate; CIDR arithmetic uses Python ipaddress."""
+"""Independent Subnet selection; CIDR arithmetic uses Python ipaddress."""
 
 import copy
 import ipaddress

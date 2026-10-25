@@ -1,3 +1,32 @@
+## 2026-10-25 [refactor]
+
+Split the shared crates and reorganize the account contracts without changing
+wire bytes.
+
+- New crates: `nsshared-codec` (one canonical CBOR implementation with the NS
+  array profile and the M6 value profile, strict base64), `nsshared-identity`,
+  `nsshared-relay`, `nsshared-rendezvous`, `nsshared-control` (M6 `service`,
+  `node_control`, `account`) and the development-only `nsshared-testkit`.
+- `nsshared-proto` and `nsshared-service-control` are deprecated facades that keep
+  their existing public paths; `nsshared-proto` no longer exports the unreleased
+  `account` module, now `nsshared_control::account`. The M6 `CborError` and
+  `ContractError` are non-exhaustive.
+- Account contracts are organized by layer (node, control, publication) and family
+  (realm, grants, subnet, edge, relay, usage) with one public path per item, shared
+  private codec, limits and signing helpers, all signature domains in
+  `account::domains` (bytes unchanged), consistent non-exhaustive error types and
+  renamed generic items (`validate_admission_snapshot`, `ServiceDirection`,
+  `FrameKind`, `RouteError`, `L3AuthorityError`).
+- Tests are one binary per crate area on the testkit; vectors live in
+  `crates/<crate>/tests/vectors/` named after their test modules and producers;
+  every base case is byte-identical (checked case by case against the base).
+- Specifications are folded into `docs/spec/`; review, handoff, adoption and
+  inventory state moved to `docs/review/`.
+- `just semver` covers every library crate present at the release tag, checking
+  the facades with `scripts/api_surface.py`.
+
+The only behaviour change is the stricter scope text rule recorded below.
+
 ## 2026-10-25 [fix]
 
 Apply one scope text rule to every opaque authority scope: 1 to 256 UTF-8 bytes

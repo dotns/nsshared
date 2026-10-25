@@ -1,4 +1,4 @@
-"""Independent complete membership and diagnostic observation candidates."""
+"""Independent complete membership and diagnostic observation cases."""
 
 import copy
 

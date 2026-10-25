@@ -1,4 +1,4 @@
-"""Independent M6 maps and candidate signed carrier fixtures; no Rust output."""
+"""Independent M6 maps and signed carrier fixtures; no Rust output."""
 import base64
 import copy
 import hashlib

@@ -1,4 +1,4 @@
-"""Independent completed-I/O, historical DATA and correlated answer candidates."""
+"""Independent completed-I/O, historical DATA and correlated answer cases."""
 
 import copy
 import hashlib

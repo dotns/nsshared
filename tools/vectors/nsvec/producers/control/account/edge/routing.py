@@ -1,4 +1,4 @@
-"""Independent public-edge and material/service candidate fixture producer."""
+"""Independent public-edge and material/service fixture producer."""
 
 import copy
 import hashlib

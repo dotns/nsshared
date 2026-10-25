@@ -1,6 +1,6 @@
 # L8 candidate review request for NSD and node owners
 
-Membership realm identities follow the [canonical RealmId contract](canonical-realm-identity.md).
+Membership realm identities follow the [canonical RealmId contract](../spec/realm-id.md).
 Affected text positions retain text but require the exact uppercase 26-character
 spelling and decode to RealmId; binary positions retain their exact 16 bytes.
 This incompatible candidate delta refuses arbitrary realm labels without fallback.
@@ -25,24 +25,24 @@ into `main` or releasing it.
 
 The package is the delivered revision named in the status above; earlier
 package selections are historical comparison evidence in the handoff. Review the
-[immutable handoff](l8-candidate-handoff.md) for the complete
+[immutable handoff](account-handoff.md) for the complete
 delivered-contract list, P12–P19 additions, vector corrections, exact gateway
 manifest/lockfile comparison and unresolved external adoption. Gateway package
 consumption does not establish external owner forwarding or approval. Review
 these files at the delivered revision:
 
-- [Specification](l8-account-payload-profile.md): schema 1 canonical CBOR and
+- [Specification](../spec/account/profile.md): schema 1 canonical CBOR and
   local admission JSON schema 2; replacement, lifecycle and byte-unit rules.
-- [Family registry](../crates/nsshared-proto/src/account/registry.rs): all eleven
+- [Family registry](../../crates/nsshared-control/src/account/publication/registry.rs): all eleven
   identifiers, publication scopes, cleared kinds and M6 reuse groups.
-- [Candidate vectors](../crates/nsshared-proto/tests/fixtures/vectors/account.vec):
+- [Candidate vectors](../../crates/nsshared-control/tests/vectors/account/profile.vec):
   independent Python-generated fixtures, including `family-registry`,
   `identity-replacement`, `record-rotation`, `l3-scoped-rules`,
   `l3-empty-withdrawal`, `usage-unset`, `usage-measured-zero`, `signed-roster`,
   `local-roster`, `local-empty-withdrawal` and malformed-input refusals.
-- [Lifecycle](../crates/nsshared-proto/src/account/lifecycle.rs),
-  [normalized L3](../crates/nsshared-proto/src/account/l3.rs) and
-  [roster carriers](../crates/nsshared-proto/src/account/roster.rs): typed
+- [Lifecycle](../../crates/nsshared-control/src/account/node/lifecycle.rs),
+  [normalized L3](../../crates/nsshared-control/src/account/node/l3.rs) and
+  [roster carriers](../../crates/nsshared-control/src/account/families/relay/roster.rs): typed
   validation boundaries accompanying the specification.
 - [Gateway consumer inventory summary](#gateway-consumer-inventory-summary):
   repository `nsgw`, immutable commit `51c278cdc63c`,
@@ -67,12 +67,19 @@ that was sent:
   or codec change.
 - Scope text: every family applies one rule to opaque authority scope text, 1 to
   256 UTF-8 bytes without whitespace or control characters (see the profile's
-  [scope text rule](l8-account-payload-profile.md#scope-text)). Publication
+  [scope text rule](../spec/account/profile.md#scope-text)). Publication
   content previously checked only emptiness and length, and subscription, snapshot
   request, source binding and authentication source selection previously allowed
   whitespace; those inputs are now refused. Refusal vectors were added to the
   publication, subscription, snapshot request, source selection and control
   exchange fixtures. No accepted fixture changes.
+- Repository layout, without wire changes: the account contracts are
+  `nsshared_control::account`, organized by layer and family with renamed generic
+  items and consistent error types; the M6 contract is `nsshared_control::service`;
+  the specifications are under [docs/spec](../spec/README.md); tests and vectors are
+  under `crates/nsshared-control/tests/`. Every vector case is byte-identical. The
+  delivered revision keeps the paths it was delivered with; links in this request
+  point to the current paths.
 
 ## Family state
 
@@ -311,7 +318,7 @@ payload. Confirm complete empty withdrawal, shared-peer contribution retention,
 separate directory/roster scope and preservation of usage history/watermarks.
 Provide scoped-empty, partial and malformed-publication producer cases.
 
-The [signed publication event candidate](l8-account-payload-profile.md#signed-publication-events)
+The [signed publication event candidate](../spec/account/publication.md)
 adds signed per-key complete/version/validity and typed ACL failure decisions.
 Confirm the exact family/kind ownership table, separate stream versus snapshot
 authority, complete empty withdrawal, absent retention and immediate denial for
@@ -322,7 +329,7 @@ decision, including unrelated scopes and absent/empty/failure distinctions.
 
 ### Q09: Normalized Node L3 schema — NSD and node owners
 
-The delivered [complete Node L3 authority](l8-account-payload-profile.md#normalized-node-l3-form)
+The delivered [complete Node L3 authority](../spec/account/node.md#normalized-node-l3-form)
 is `[1, bindings, policy_bytes]`. Each binding is `[full_identity_I, authorized_WireGuard_K]`:
 I is a validated full Ed25519 identity, K is a nonzero 32-byte string, bindings
 are strictly ordered by I and distinct identities cannot share K. Every identity
@@ -370,11 +377,11 @@ outstanding runtime capability, not a contract change or recorded agreement.
 
 ### Q11: Enrollment payload — NSD owner
 
-Confirm the [independent snapshot poll candidate](control-exchange-candidate.md#independent-publication-snapshot-poll): PublicationSnapshotRequest, config.snapshot on the existing confidential control endpoint, exact sorted scopes, retained active subscription boot nonce/attempt and signed response nonce correlation. The only response is a signed B43 Response with canonical `[1, [bstr(SourcePublication), ...]]` payload, request-derived Snapshot delivery and independently accepted exact source for each requested scope, retaining existing per-key versions. Plain and mixed entries reject the whole poll; snapshot entries have no SSE/Base64 framing limit. No predecessor kind selector exists; only snapshot-owned kinds are requested, and explicit stream selectors are refused as unknown fields. Confirm exact scope authorization, active subscription binding and response correlation echo. Independent publication-snapshot-request.vec fixtures are not real producer output; NSD confirmation remains outstanding.
+Confirm the [independent snapshot poll candidate](../spec/account/control.md): PublicationSnapshotRequest, config.snapshot on the existing confidential control endpoint, exact sorted scopes, retained active subscription boot nonce/attempt and signed response nonce correlation. The only response is a signed B43 Response with canonical `[1, [bstr(SourcePublication), ...]]` payload, request-derived Snapshot delivery and independently accepted exact source for each requested scope, retaining existing per-key versions. Plain and mixed entries reject the whole poll; snapshot entries have no SSE/Base64 framing limit. No predecessor kind selector exists; only snapshot-owned kinds are requested, and explicit stream selectors are refused as unknown fields. Confirm exact scope authorization, active subscription binding and response correlation echo. Independent publication-snapshot-request.vec fixtures are not real producer output; NSD confirmation remains outstanding.
 
-Confirm the exact [publication subscription candidate](control-exchange-candidate.md#authenticated-publication-subscription): PublicationSubscriptionRequest, config.stream, /api/v1/config/stream, full issuer/recipient/realm/scope entries, enrollment capability syntax, family 7 public ingress indices and required nonzero boot nonce/positive u32 attempt counter. Confirm `request` as the subscription query parameter, `config-envelope.v1` as the single SourcePublication Base64 event, the shared inclusive 1,398,139-byte framing ceiling and independent decoded 1,048,576-byte ceiling. Confirm producer bytes and external scope authorization, confidential signed carrier use and unchanged publication versions/channel ownership. NSD confirmation remains outstanding; independent fixture vectors do not constitute producer agreement.
+Confirm the exact [publication subscription candidate](../spec/account/control.md): PublicationSubscriptionRequest, config.stream, /api/v1/config/stream, full issuer/recipient/realm/scope entries, enrollment capability syntax, family 7 public ingress indices and required nonzero boot nonce/positive u32 attempt counter. Confirm `request` as the subscription query parameter, `config-envelope.v1` as the single SourcePublication Base64 event, the shared inclusive 1,398,139-byte framing ceiling and independent decoded 1,048,576-byte ceiling. Confirm producer bytes and external scope authorization, confidential signed carrier use and unchanged publication versions/channel ownership. NSD confirmation remains outstanding; independent fixture vectors do not constitute producer agreement.
 
-The [complete control exchange candidate](control-exchange-candidate.md) specifies
+The [complete control exchange candidate](../spec/account/control.md) specifies
 RegistrationRequest/RegistrationAcceptance, AuthenticationRequest/Response and
 InformationRequest/Response and their exact tuple fields and constants. Confirm
 the provisioned membership/credential join, accepted profile/capabilities and
@@ -383,7 +390,7 @@ are independently generated in `control-exchange.vec`, not NSD producer output.
 Confirmation and producer-owned vectors remain outstanding; no agreement is recorded.
 
 
-The [Enrollment section](l8-account-payload-profile.md#enrollment) adds the
+The [Enrollment section](../spec/account/node.md#enrollment) adds the
 binding/capability publication and acceptance decisions beyond the published
 candidate revision; the family table above retains that revision's state.
 
@@ -401,7 +408,7 @@ Q07's restart refusal, separate account/signed K generation, missing refresh tag
 and u64/u32 derivation width before live producer use. The endpoint and
 authenticated envelope candidates below still need independent producer confirmation.
 
-The [bootstrap and envelope trust candidate](l8-account-payload-profile.md#bootstrap-and-envelope-trust)
+The [bootstrap and envelope trust candidate](../spec/account/control.md)
 now details family 11 discovery as `[1, 1, https_origin, [1], endpoints,
 noise_key_or_null, quic_spki_pins, envelope_pins]`. Endpoints retain preference
 order and permit HTTPS/Noise/QUIC only. Confirm canonical origins, WebPKI source,
@@ -411,7 +418,7 @@ missing trust, empty intersections, noncanonical/duplicate pins and downgrades.
 
 ### Q12: Realm and peer payload — NSD owner
 
-The [realm publication candidate](realm-publication-candidate.md) now specifies
+The [realm publication candidate](../spec/account/realm.md) now specifies
 `[1, 2, contributions]`: complete served-realm collections with full NodeBinding
 and signed NodeRecord I/K/generation checks, strict realm/member ordering, global
 identity/key uniqueness and bounded sizes. Existing Node contracts derive NodeId
@@ -433,7 +440,7 @@ work includes mapping string machine/owner identifiers and the NodeL3Config
 resource graph to full identities. Candidate fixture success does not establish
 producer confirmation; no producer reply has been received.
 
-The [source authority candidate](source-selection-candidate.md) now adds signed
+The [source authority candidate](../spec/account/publication.md) now adds signed
 NSD/recipient/realm/scope/profile/source/contribution/epoch/generation binding and
 exact subscription boot/attempt or poll context inside new source-publication
 signed bytes. These are additional exact fences before existing full-key versions,
@@ -449,7 +456,7 @@ references, address view, protocol/virtual port, authorized client, paying realm
 and subject, fresh grant incarnation and realm limits? Name NSD vectors for
 valid grants, scope mismatch and withdrawn authority.
 
-The [delivered pure candidate](grant-authority-candidate.md) specifies
+The [delivered pure candidate](../spec/account/grants.md) specifies
 `[1, 3, issuer, provider_recipient, revision, grants]`, with canonical M6 resource,
 full client/provider, exact local floor reference and projected name, concrete
 protocol/virtual port, optional positive alias generation, one binary payer
@@ -468,7 +475,7 @@ and floor are provider-local and have no wire field. Egress wire floor is unchan
 Name NSD vectors for nested default/specific routes, range ownership and empty
 selection; preserve the existing M6 route/listener boundaries.
 
-The [Subnet selection candidate](l8-account-payload-profile.md#subnet-selection)
+The [Subnet selection candidate](../spec/account/subnet.md)
 uses standalone client-recipient `subnet-routes` snapshots with complete
 `[1, 4, nsd_id, network_id, recipient, revision, routes]` payloads and canonical M6
 ServiceRef bytes. This kind is separate from provider-recipient `exit-grants`;
@@ -485,7 +492,7 @@ overlapping prefixes, noncanonical/misaligned prefixes, mixed selection, unknown
 discriminants and malformed/nonminimal/trailing bytes? Grants, payer and
 incarnation remain separate; this candidate does not change M6 listener semantics.
 
-The delivered [Exit grant candidate](grant-authority-candidate.md) wraps exactly
+The delivered [Exit grant candidate](../spec/account/grants.md) wraps exactly
 one validated Subnet route per grant, preserving all existing real/mapped,
 exclusion/bypass and selection semantics. Resource/client/provider must agree
 with the enclosing grant; the provider receives the grant publication, while
@@ -495,7 +502,7 @@ CIDR output. Payer is a binary realm/UserId pair and incarnation and expiry
 are explicit. Local floor and Linux binding remain consumer facts. Outstanding:
 NSD grant/route composition, payer assignment and independently owned vectors.
 
-The [Node route command candidate](source-selection-candidate.md#route-commands-and-immutable-receipts)
+The [Node route command candidate](../spec/account/publication.md)
 adds `node.route.select` and `node.route.clear` on the confidential signed control carrier,
 with full provider I, stable M6 ServiceRef, existing default/explicit scope, exact
 source/profile, request and selection identities. NSD-signed committed receipts
@@ -513,7 +520,7 @@ paying realm/subject and ambiguous cross-realm grants are withheld? Name NSD
 vectors for explicit payer, ambiguity and payer change without packet-derived
 realm inference.
 
-The [delivered payer candidate](grant-authority-candidate.md) defines complete
+The [delivered payer candidate](../spec/account/grants.md) defines complete
 family-5 assignments keyed by full M6 resource, client and discriminator,
 with the exact grant incarnation.
 Each has exactly one `[payer_realm, payer_subject]` pair of 16-byte strings;
@@ -532,7 +539,7 @@ current incarnation, real deadlines and payer/binding changes? Name NSD vectors
 for immediate removal, expiry and identical-content regrant with a fresh token;
 withdrawal must not wait behind relay snapshots.
 
-The [delivered resource authority candidate](grant-authority-candidate.md)
+The [delivered resource authority candidate](../spec/account/grants.md)
 contains active claims and retained resource-scoped retired tokens. Pure
 successor validation requires unchanged scope, increasing revision, preserved
 history and retirement of removed/replaced claims. Independent consumers prove
@@ -546,7 +553,7 @@ outstanding; candidate fixtures do not assert deployed interoperability.
 
 ### Q17: Public-edge payload — NSD owner
 
-The delivered [candidate specification](l8-public-edge-candidate.md) defines
+The delivered [candidate specification](../spec/account/edge.md) defines
 PublicEdge complete realm contributions under the existing signed family 7
 stream scope, exact material generations and correlated installation ACKs,
 embedded shared subject/JWT/header values and EdgeServiceRequest/Response using
@@ -559,7 +566,7 @@ and supply NSD producer-owned vectors; Python fixture authority is not NSD outpu
 
 Service DNS labels resolve from the authenticated M6 Resource via ServiceRef.
 Standalone labels remain excluded pending M01/M02 with the M6 contract owner.
-The [confidential authentication contract](confidential-auth-candidate.md) closes
+The [confidential authentication contract](../spec/account/edge.md) closes
 the provider/import, cookie, organization, template and redirect candidate carriers.
 It retains actual verifier/secret values and exact realm/reference/generation
 correlation in authenticated confidential envelopes only. Please review
@@ -576,7 +583,7 @@ existing format remain unchanged. Relay clients, independent participants and
 gateway Nodes retain distinct authority; directory hints or gateway Node
 credentials do not establish participant authorization.
 
-The shared [participant authority definition](participant-authority-candidate.md)
+The shared [participant authority definition](../spec/account/relay.md)
 and independent `participant-authority.vec` vectors deliver participant
 enrollment, authentication, renewal, revocation and separate signed directory
 bindings. Gateway runtime adoption remains pending. The source-binding and Node
@@ -603,7 +610,7 @@ its header, counted once at accepting ingress. Name NSD vectors for delayed
 history, duplicate delivery, repair and gateway-associated billing once against
 gateway service usage, without converting relay bytes to the service unit.
 
-The [usage candidate](usage-contract-candidate.md) now defines service and relay
+The [usage candidate](../spec/account/usage.md) now defines service and relay
 report parts and exact correlated ACK/conflict/permanent/unknown-mapping answers.
 Independent fixture consumers are `service_usage_vectors`, `relay_usage_vectors`,
 `usage_report_vectors` and `usage_answer_vectors`. The same UserId in two realms
@@ -634,14 +641,14 @@ nine pinned gateway fixtures and the node's known bytes and unkeyed ACK hash.
 `tests/node_control.rs` ports the ten codec tests present at node revision
 `50f8e3fd95fac8bbc72aea9b132459103c3b206a`; `tests/vectors_node_control.rs`
 checks the independently generated bytes and refusals. See the
-[codec specification](l8-account-payload-profile.md#node-control-codec).
+[codec specification](../spec/node-control.md).
 Please confirm the delivered contract and supply independent producer/consumer
 review results. This candidate does not claim live interoperability; transport,
 persistence, retransmission and state machines remain in consumers.
 
 ### Q21: Complete v1 replacement map — NSD and node owners
 
-The [source/selection candidate](source-selection-candidate.md) records the
+The [source/selection candidate](../spec/account/publication.md) records the
 assigned `explicit-gateway-profile` vocabulary and mandatory source/profile
 comparisons. New signed forms refuse retired gateway-ID selections, carrier
 credentials and old-profile receipts without compatibility translation. The
@@ -651,9 +658,9 @@ keeps A's original clear receipt and B's selection intact across restart. NSD/ns
 retained-cohort inventory and retirement decisions, producer review and adoption
 remain outstanding. This is candidate delivery, not approval or interoperability.
 
-Confirm the exact [publication subscription candidate](control-exchange-candidate.md#authenticated-publication-subscription): PublicationSubscriptionRequest, config.stream, /api/v1/config/stream, full issuer/recipient/realm/scope entries, enrollment capability syntax, family 7 public ingress indices and required nonzero boot nonce/positive u32 attempt counter. Confirm `request` as the subscription query parameter, `config-envelope.v1` as the single SourcePublication Base64 event, the shared inclusive 1,398,139-byte framing ceiling and independent decoded 1,048,576-byte ceiling. Confirm producer bytes and external scope authorization, confidential signed carrier use and unchanged publication versions/channel ownership. NSD confirmation remains outstanding; independent fixture vectors do not constitute producer agreement.
+Confirm the exact [publication subscription candidate](../spec/account/control.md): PublicationSubscriptionRequest, config.stream, /api/v1/config/stream, full issuer/recipient/realm/scope entries, enrollment capability syntax, family 7 public ingress indices and required nonzero boot nonce/positive u32 attempt counter. Confirm `request` as the subscription query parameter, `config-envelope.v1` as the single SourcePublication Base64 event, the shared inclusive 1,398,139-byte framing ceiling and independent decoded 1,048,576-byte ceiling. Confirm producer bytes and external scope authorization, confidential signed carrier use and unchanged publication versions/channel ownership. NSD confirmation remains outstanding; independent fixture vectors do not constitute producer agreement.
 
-The [control exchange delta](control-exchange-candidate.md#complete-pinned-consumer-disposition)
+The [control exchange delta](../spec/account/control.md)
 maps all 264 pinned control-trust/enrollment inventory rows. Four internal
 fixture records remain historical records, not migrated consumers. Confirm the
 RS256 claims/JWK forms, key-use refusal, realm/address pin ownership, qualified
@@ -675,7 +682,7 @@ envelope verification, admin claim, policy, signed URL, material declaration,
 report, snapshot and event item? Supply the mapping and NSD vectors for retained
 semantics and refusals; inventory ownership alone does not prove wire equivalence.
 
-The family 11 [bootstrap and envelope trust candidate](l8-account-payload-profile.md#bootstrap-and-envelope-trust)
+The family 11 [bootstrap and envelope trust candidate](../spec/account/control.md)
 adds `[content_bytes, signature]`, with content `[1, direction, signer_I,
 recipient_I_or_null, kind, unix_seconds, nonce_16, opaque_payload_bytes]`.
 Confirm exact domains `ns.account.call.request.v1\0` and
@@ -792,8 +799,8 @@ adoption remain outstanding.
 
 ## Policy, subject and admin claim review delta
 
-Review the [pure policy and claim values](l8-account-payload-profile.md#policy-and-claim-values)
-and independent [policy-claims vectors](../crates/nsshared-proto/tests/fixtures/vectors/policy-claims.vec).
+Review the [pure policy and claim values](../spec/account/realm.md)
+and independent [policy-claims vectors](../../crates/nsshared-control/tests/vectors/account/realm/claims.vec).
 The Python producer is `tools/vectors/nsvec/producers/policy_claims.py`; the
 independent Rust consumer is `tests/policy_claim_vectors.rs`. These are labelled
 candidate fixture bytes, not NSD producer confirmation or live interoperability.
@@ -930,7 +937,7 @@ JWKS stale refusal remain unchanged in consumers.
 
 ## Protocol-qualified grant and renewal delta
 
-The [grant authority specification](grant-authority-candidate.md) changes family 5
+The [grant authority specification](../spec/account/grants.md) changes family 5
 bindings to `[resource_bytes, client, incarnation, payers, discriminator]` and
 family 6 active claims to `[resource_bytes, client, incarnation, discriminator]`.
 Discriminators are `[0, 6]`, `[0, 17]`, `[1]` for TCP, UDP, Exit. Ordering,
@@ -952,8 +959,8 @@ decision, bstr(SignedSourceBinding)]`, including Equal. Successful authenticatio
 requires `[1, token, bstr(SignedSourceBinding)]`. This incompatible candidate
 extension retires standalone SourceAcceptance and refuses old response arities.
 Existing operations, confidential carrier, field encodings and refusals remain.
-The [control exchange](control-exchange-candidate.md) and
-[source authority](source-selection-candidate.md) specify envelope trust, exact
+The [control exchange](../spec/account/control.md) and
+[source authority](../spec/account/publication.md) specify envelope trust, exact
 pending nonce correlation, nested signature and independent enrollment comparisons.
 Independent fixture vectors precede the pure codecs; fixtures are not NSD output.
 NSD N04 adoption, producer-owned vectors and real interoperability remain outstanding.
@@ -985,7 +992,7 @@ including swapped-scope and swapped-realm refusal.
 
 ## Usage and Node-control catalogue payload delivery
 
-Review the new [profile payload specification](profile-publications-candidate.md)
+Review the new [profile payload specification](../spec/account/usage.md)
 and independent `profile-publications.vec` producer/consumer fixtures. Family 9
 now carries `[1, reporter, profiles]`; family 10 carries
 `[1, membership_scope, 2, capabilities]`. These are explicit new candidate payloads,
@@ -1035,7 +1042,7 @@ remain outstanding.
 
 Review the additive `node.subnet.report` operation in both directions on the
 confidential BootstrapEnvelope under the
-[provider report specification](provider-subnet-report-candidate.md).
+[provider report specification](../spec/account/subnet.md).
 NSD enrollment supplies exact signed nodes authority; committed mapping custody
 supplies provider, Network and real-prefix eligibility. NSD supplies stable M6
 references; the provider carries intent and retains the pending report/response.
@@ -1051,7 +1058,7 @@ integration. Prepared shared contracts do not demonstrate external adoption.
 ## Exit grant and client route view review addition
 
 Review the two family 4 snapshot kinds and their distinct payloads in the
-[grant specification](grant-authority-candidate.md#exit-grants-and-consumer-subnet-route-views).
+[grant specification](../spec/account/grants.md).
 Confirm provider exit-grants and client subnet-routes use their recipient's nodes
 source, while Egress retains its egress contribution source. Confirm no Exit wire
 floor is produced; Egress floor remains unchanged. Confirm independent membership,
@@ -1063,7 +1070,7 @@ installation/adoption remain outstanding; fixture acceptance is not interoperabi
 
 ## M6 carrier and subscription review delta
 
-Review the [canonical M6 carrier](service-control-carrier-candidate.md), its pure
+Review the [canonical M6 carrier](../spec/account/control.md), its pure
 `account::service_control` APIs and independent `service-control-carrier.vec`
 fixtures. Confirm all legal unary pairs, signed empty receipts for snapshot.ack,
 port.result, port.query.result and service.retry-port, Error/bootstrap runtime
@@ -1095,7 +1102,7 @@ reverse-event, receipt and singleton-lease mapping before live interoperability.
 
 ## Confidential certificate and client-CA acquisition addition
 
-Review the [canonical material contract](confidential-material-candidate.md) and
+Review the [canonical material contract](../spec/account/edge.md) and
 `confidential_edge_material_generation` consumer vectors for `edge.material.get`.
 The seven-field acquisition request uses the existing encodings, permits only
 Certificate/ClientCa, and is echoed in full canonical bytes. Successful values
@@ -1170,7 +1177,7 @@ evidence does not establish this delta or release external cutover acceptance.
 
 ## Node L3 route admission and applied status review delta
 
-The [status specification](node-l3-status-candidate.md) defines the confidential
+The [status specification](../spec/account/control.md) defines the confidential
 `node.l3.status` request, exact signed-inner-event digest, current issuance/source
 comparisons and exact echoed receipt. Only enforcement application produces
 Applied; complete-empty Applied proves removal. Independent shared vectors cover
@@ -1193,8 +1200,8 @@ SubjectRule now uses SubjectSelector: AnyVerified retains sole null, Subject
 retains canonical PolicySubject bytes, and Anonymous is the byte string
 `43 82 01 03` containing canonical `[1, 3]`. Anonymous can coexist with ordered
 explicit subjects; null remains exclusive. Older consumers reject the extension.
-See the [profile matching table](l8-account-payload-profile.md#anonymous-selector-consumption)
-and [family 7 consumption rules](l8-public-edge-candidate.md#anonymous-authorization).
+See the [profile matching table](../spec/account/profile.md)
+and [family 7 consumption rules](../spec/account/edge.md).
 The independent `anonymous-public-edge.vec` fixtures distinguish anonymous,
 verified user, Node and group matching, malformed selectors, and no-Auth
 HTTP/TCP/UDP routes. They are consumer fixtures, not external producer evidence.
@@ -1225,7 +1232,7 @@ Independent candidate fixtures are not producer agreement.
 
 ## Provider mapping inventory
 
-The [provider mapping specification](l8-public-edge-candidate.md#provider-mapping-eligibility)
+The [provider mapping specification](../spec/account/edge.md)
 adds family 4 Snapshot kind `provider-mappings`, clears `mappings`, canonical
 `[1, mappings]` with `[nonzero_u32_id, B40_SubnetPrefix]` entries strictly ascending
 by id, at most 256, and a 1 MiB payload bound. It is the complete eligible inventory,

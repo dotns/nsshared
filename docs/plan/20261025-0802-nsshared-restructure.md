@@ -243,6 +243,21 @@ Owner decisions (2026-10-25) approve this scope: separate worktree branch from
 existing consumer paths; wire bytes unchanged except the stricter A2 scope text; no
 push, merge or tag without the owner's word.
 
+Owner decisions (2026-10-25, after phase A): phase A and the design calls are
+accepted (no `account` re-export from `nsshared-proto`; mocks stay examples under
+their package names, the testkit gets the vector reader and fixture identities;
+facades deprecated in documentation and description only; A2 uses the strictest
+rule). Continue P1-P6 and D without waiting between phases.
+
+Implementation notes:
+
+- cargo-semver-checks cannot follow re-exports into other workspace crates and
+  reports every moved item as removed. `scripts/api_surface.py` lists public paths,
+  signatures, fields, variants and trait impls from rustdoc JSON across workspace
+  crates; `just semver` uses it for the facades.
+- Grants and Node L3 authority keep a separate `Encoding(CborError)` variant: their
+  vectors classify outer encoding refusals apart from embedded policy refusals.
+
 ## Progress
 
 | Phase | Status | Head | Notes |

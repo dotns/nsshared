@@ -1,4 +1,4 @@
-"""Independent confidential material candidate producer; fixture values only."""
+"""Independent confidential material producer; fixture values only."""
 import copy
 import base64
 import hashlib
