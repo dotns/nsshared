@@ -272,7 +272,10 @@ Implementation notes:
 | P6 | done | e5830e0 | qa 0 (`just semver`: proto api_surface 0 missing vs v0.6.0, telemetry semver-checks clean, new crates skipped), vectors 0, cases 0, api_surface proto 0 x3, service-control: only the 4 intended lines, consumer paths 0, base tests 287/287; mocks build on the defining crates |
 | D | done | 9830756 | specifications folded into docs/spec (profile, realm-id, node-control, nine account areas), review, handoff, adoption and inventory state in docs/review, links and anchors checked; gates as P6 |
 | review | done | 8b20433 | independent review: no wire or behaviour regression; fixed: `USAGE_PART_DIGEST_DOMAIN` rename, api_surface compares constant values, discriminants, impl associated types and foreign-type impls. Final gates: qa 0 (545 tests), vectors 0, cases 0 (2714 unchanged, 9 added), api_surface proto 0 missing x3, service-control 4 intended lines, consumer paths 238/238, base tests 287/287 |
+| migration kit | done | 93add27 | `docs/review/account-migration.json`: 355 items (moved 303, changed 29, renamed 16, split 7) and 21 error sections, `just account-migration-check` 0 (every old item and variant once); `scripts/migrate-account-imports.py` with 11 unit tests; guide `docs/review/account-migration.md`. Dry runs on archive copies of the current consumer feature branches: nsgw 288 files, 2251 paths, 23 unmapped sites in 11 files (22 FrameKind constants, 1 `USAGE_PART_DOMAIN`), 13 aliased, 9 error-variant sites; ns 107 files, 844 paths, 0 unmapped, 2 aliased, 10 error-variant sites; nsd 201 files, 1259 paths, 54 unmapped sites in 9 files (all FrameKind constants), 4 aliased, 5 error-variant sites. ns applied with path dependencies on this branch: after the script and `cargo fmt`, `cargo check --workspace --all-targets` failed only on listed manual items (`RouteError`/`L3AuthorityError` conversions, renamed and non-exhaustive error variants); after 6 files of manual fixes (about 48 lines) it passed and fmt was clean. Scratch copies deleted. qa 0 (545 tests, 56 script tests) |
 
-Open question for the owner: `GatewayReport.public_ingress_scopes` is validated as data
-text (whitespace allowed), as before. If these values are scopes, the scope text rule
-would also apply to them; that would be a further behaviour change and was not made.
+Decided by the owner (2026-10-25): `GatewayReport.public_ingress_scopes` stays validated
+as data text (whitespace allowed); there is no second behaviour change. Whether these
+values are publication scopes is open for NSD as Q24 in
+[the review request](../review/account-review-request.md#q24-gateway-report-ingress-scopes--nsd-owner);
+if confirmed, the scope text rule would apply in a later revision with refusal vectors.

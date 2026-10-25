@@ -72,7 +72,8 @@ that was sent:
   request, source binding and authentication source selection previously allowed
   whitespace; those inputs are now refused. Refusal vectors were added to the
   publication, subscription, snapshot request, source selection and control
-  exchange fixtures. No accepted fixture changes.
+  exchange fixtures. No accepted fixture changes. `GatewayReport.public_ingress_scopes`
+  keeps the data text rule pending [Q24](#q24-gateway-report-ingress-scopes--nsd-owner).
 - Repository layout, without wire changes: the account contracts are
   `nsshared_control::account`, organized by layer and family with renamed generic
   items and consistent error types; the M6 contract is `nsshared_control::service`;
@@ -728,6 +729,16 @@ change, identify the affected type, message or vector, family and concrete need
 so the owner can forward it to the M6 contract owner. No additional M6 schema
 change is established by this frame; standalone label validation is requested below.
 
+### Q24: Gateway report ingress scopes — NSD owner
+
+Are the `public_ingress_scopes` values of `GatewayReport` (see the
+[gateway observations](../spec/account/control.md#gateway-observations)) publication
+scopes, or report-only labels? They are validated as bounded data text, so
+whitespace is accepted, and they authorize nothing. If they are publication scopes,
+the scope text rule (1 to 256 UTF-8 bytes without whitespace or control characters)
+would apply to them in a later revision, with refusal vectors; until then they keep
+the data text rule.
+
 ## Requested M6 changes for agreement
 
 The owner forwards M01 and M02 to the `nsshared-service-control` contract owner.
@@ -794,6 +805,7 @@ adoption remain outstanding.
 | Q21 | NSD and node | sent | 2026-10-25 | — |
 | Q22 | NSD | sent | 2026-10-25 | — |
 | Q23 | NSD and node | sent | 2026-10-25 | — |
+| Q24 | NSD | open, not sent | — | — |
 | M01 | M6 contract owner, through owner | sent | 2026-10-25 | — |
 | M02 | M6 contract owner, through owner | sent | 2026-10-25 | — |
 
