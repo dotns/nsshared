@@ -20,7 +20,6 @@
 
 /// Pure L8 account payload candidate contracts and admission validators.
 pub mod account;
-mod codec;
 pub mod constants;
 pub mod discovery;
 pub mod encoding;

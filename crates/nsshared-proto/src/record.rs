@@ -1,10 +1,10 @@
 //! Node records, their validity and the per-identity ordering state (quick-v2 §3).
 
 use crate::{
-    codec::{CborError, CborReader, CborWriter},
     constants::{
         MAX_NODE_RECORD_BYTES, MAX_RECORD_SERVICE_SECONDS, NODE_RECORD_CONTEXT, NODE_RECORD_VERSION,
     },
+    encoding::{CborError, CborReader, CborWriter},
     identifier::{RelayId, RelayIdError},
     identity::{Identity, NodeId},
 };

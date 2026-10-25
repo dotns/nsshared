@@ -1,12 +1,12 @@
 //! Relay packet header and the eight body types (quick-v2 §8.1-§8.2, quick-protocol §12.5).
 
 use crate::{
-    codec::{CborError, CborReader, CborWriter},
     constants::{
         MAX_PRESENCE_TTL_SECONDS, MAX_RELAY_CONTROL_BYTES, MAX_RELAY_DATA_BODY_BYTES,
         MAX_RELAY_PACKET_BYTES, MIN_PRESENCE_TTL_SECONDS, MIN_RELAY_DATA_BODY_BYTES, NODE_ID_BYTES,
         NODE_RECORD_VERSION, RELAY_HEADER_BYTES, RELAY_MAGIC, RELAY_REGISTER_CONTEXT,
     },
+    encoding::{CborError, CborReader, CborWriter},
     identifier::{MAX_RELAY_ID_BYTES, RelayId},
     identity::{Identity, NodeId},
     record::{MAX_NODE_RECORD_RELAYS, NodeRecord},

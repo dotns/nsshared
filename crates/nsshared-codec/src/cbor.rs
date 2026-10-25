@@ -1,11 +1,15 @@
-//! Canonical CBOR reader and writer (quick-v2 §12.1).
+//! Canonical CBOR (RFC 8949 §4.2.1) in two profiles sharing one head encoding.
 //!
-//! Only the deterministic subset of RFC 8949 §4.2.1 used by NS is accepted: definite-length
-//! arrays, shortest-form unsigned integers, byte and UTF-8 text strings, `null` and booleans.
-//! Floats, tags, maps, negative integers, other simple values, indefinite lengths,
-//! non-shortest heads and trailing bytes are rejected.
+//! - NS array profile (quick-v2 §12.1), [`CborReader`] and [`CborWriter`]: definite-length
+//!   arrays, shortest-form unsigned integers, byte and UTF-8 text strings, `null` and
+//!   booleans. Floats, tags, maps, negative integers, other simple values, indefinite
+//!   lengths, non-shortest heads and trailing bytes are rejected.
+//! - M6 value profile, [`value`]: the same items plus maps with unique ASCII text keys in
+//!   length-then-bytewise order, decoded into a [`value::Value`] tree.
 
 use thiserror::Error;
+
+pub mod value;
 
 const MAJOR_UINT: u8 = 0;
 const MAJOR_NEGATIVE: u8 = 1;
@@ -19,6 +23,56 @@ const MAJOR_SIMPLE: u8 = 7;
 const FALSE: u8 = 0xf4;
 const TRUE: u8 = 0xf5;
 const NULL: u8 = 0xf6;
+
+/// Appends the shortest head of `major` with argument `value`.
+fn write_head(output: &mut Vec<u8>, major: u8, value: u64) {
+    let major = major << 5;
+    match value {
+        0..=23 => output.push(major | value as u8),
+        24..=0xff => output.extend_from_slice(&[major | 24, value as u8]),
+        0x100..=0xffff => {
+            output.push(major | 25);
+            output.extend_from_slice(&(value as u16).to_be_bytes());
+        }
+        0x1_0000..=0xffff_ffff => {
+            output.push(major | 26);
+            output.extend_from_slice(&(value as u32).to_be_bytes());
+        }
+        _ => {
+            output.push(major | 27);
+            output.extend_from_slice(&value.to_be_bytes());
+        }
+    }
+}
+
+/// A head argument that cannot be read.
+enum ArgumentError {
+    /// The argument bytes are missing.
+    Truncated,
+    /// Additional information 31: indefinite length or break.
+    Indefinite,
+    /// Additional information 28-30.
+    Reserved,
+}
+
+/// Reads the argument for `additional` from the start of `input`; returns the value,
+/// the smallest value its width may encode canonically and the bytes used.
+fn read_argument(additional: u8, input: &[u8]) -> Result<(u64, u64, usize), ArgumentError> {
+    fn bytes<const N: usize>(input: &[u8]) -> Result<[u8; N], ArgumentError> {
+        let mut output = [0; N];
+        output.copy_from_slice(input.get(..N).ok_or(ArgumentError::Truncated)?);
+        Ok(output)
+    }
+    match additional {
+        0..=23 => Ok((u64::from(additional), 0, 0)),
+        24 => Ok((u64::from(bytes::<1>(input)?[0]), 24, 1)),
+        25 => Ok((u64::from(u16::from_be_bytes(bytes(input)?)), 0x100, 2)),
+        26 => Ok((u64::from(u32::from_be_bytes(bytes(input)?)), 0x1_0000, 4)),
+        27 => Ok((u64::from_be_bytes(bytes(input)?), 0x1_0000_0000, 8)),
+        31 => Err(ArgumentError::Indefinite),
+        _ => Err(ArgumentError::Reserved),
+    }
+}
 
 /// A non-canonical or malformed CBOR input (quick-v2 §12.1).
 #[derive(Clone, Copy, Debug, Eq, Error, PartialEq)]
@@ -248,25 +302,18 @@ impl<'a> CborReader<'a> {
             }
             _ => {}
         }
-        let (value, minimum) = match additional {
-            0..=23 => (u64::from(additional), 0),
-            24 => (u64::from(self.take()?), 24),
-            25 => (u64::from(u16::from_be_bytes(self.array_bytes()?)), 0x100),
-            26 => (u64::from(u32::from_be_bytes(self.array_bytes()?)), 0x1_0000),
-            27 => (u64::from_be_bytes(self.array_bytes()?), 0x1_0000_0000),
-            31 => return Err(CborError::IndefiniteLength),
-            _ => return Err(CborError::Reserved),
-        };
+        let rest = self.input.get(self.position..).unwrap_or_default();
+        let (value, minimum, used) =
+            read_argument(additional, rest).map_err(|error| match error {
+                ArgumentError::Truncated => CborError::Truncated,
+                ArgumentError::Indefinite => CborError::IndefiniteLength,
+                ArgumentError::Reserved => CborError::Reserved,
+            })?;
+        self.position += used;
         if value < minimum {
             return Err(CborError::NonShortest);
         }
         Ok((major, value))
-    }
-
-    fn array_bytes<const N: usize>(&mut self) -> Result<[u8; N], CborError> {
-        let mut output = [0; N];
-        output.copy_from_slice(self.slice(N)?);
-        Ok(output)
     }
 
     fn slice(&mut self, length: usize) -> Result<&'a [u8], CborError> {
@@ -352,23 +399,7 @@ impl CborWriter {
     }
 
     fn head(&mut self, major: u8, value: u64) -> &mut Self {
-        let major = major << 5;
-        match value {
-            0..=23 => self.output.push(major | value as u8),
-            24..=0xff => self.output.extend_from_slice(&[major | 24, value as u8]),
-            0x100..=0xffff => {
-                self.output.push(major | 25);
-                self.output.extend_from_slice(&(value as u16).to_be_bytes());
-            }
-            0x1_0000..=0xffff_ffff => {
-                self.output.push(major | 26);
-                self.output.extend_from_slice(&(value as u32).to_be_bytes());
-            }
-            _ => {
-                self.output.push(major | 27);
-                self.output.extend_from_slice(&value.to_be_bytes());
-            }
-        }
+        write_head(&mut self.output, major, value);
         self
     }
 }
@@ -424,6 +455,31 @@ mod tests {
             [0x86, 0x07, 0xf5, 0xf6, 0x62, b'o', b'k', 0x42, 1, 2, 0xf6]
         );
         assert_eq!(read_all(&encoded), Ok(()));
+    }
+
+    #[test]
+    fn profiles_encode_shared_items_identically() {
+        use value::{Value, decode_canonical, encode_canonical};
+        for number in [0, 23, 24, 0xff, 0x100, 0xffff, 0x1_0000, u64::MAX] {
+            let mut writer = CborWriter::default();
+            writer
+                .array(5)
+                .uint(number)
+                .bytes(&[7; 30])
+                .text("text")
+                .boolean(false)
+                .null();
+            let value = Value::Array(vec![
+                Value::UInt(number),
+                Value::Bytes(vec![7; 30]),
+                Value::Text("text".into()),
+                Value::Bool(false),
+                Value::Null,
+            ]);
+            let encoded = writer.into_bytes();
+            assert_eq!(encode_canonical(&value).unwrap(), encoded);
+            assert_eq!(decode_canonical(&encoded).unwrap(), value);
+        }
     }
 
     #[test]

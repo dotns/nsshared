@@ -2,11 +2,11 @@
 
 use super::packet::{RelayPacket, RelayType};
 use crate::{
-    codec::CborWriter,
     constants::{
         MAX_RELAY_CONTROL_BYTES, RELAY_CTL_CONTEXT, RELAY_MAGIC, RELAY_REPLY_CONTEXT,
         RELAY_SESSION_CONTEXT,
     },
+    encoding::CborWriter,
     identity::NodeId,
 };
 use hmac::{
