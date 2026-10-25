@@ -57,3 +57,9 @@ The new `enrollment_consumer_vectors` test initially failed on the missing indep
 Formatting, lint, vector regeneration and `just self-check feat/l8-account-profile` passed at `0c7bddfdea2913f407dce8590cfa6503e70ee31f`; only these records change afterward. Production crate sources, schemas, codecs and tools outside vector generation remain unchanged. The review delivery assertion still passes. The profile and independent fixture extension are complete, with NSD N24/N26 and ns S17 adoption outstanding.
 
 Complete handoff qualification remains blocked pending a named immutable gateway revision with all four manifest/lock pairs aligned. The previously supplied revision retains the two historical fixture pins documented above. The selected package predates this vector addition; any selected-package equality comparison must also distinguish the immutable delivered snapshot from the later fixture extension rather than claim that the new fixture bytes existed in that package.
+
+## Aligned consumer reference
+
+Gateway revision `e70a90abb1a53567bfb6eb28f6ee057d7b9f0dc8` supersedes the intermediate consumer selection. Immutable reads of its root, control-authority, direct-peer and authority manifests and locks confirm all direct shared pins and all shared lock source queries/commits select `958da3f9b31e70f419035b974977f8d0d2895471`, with shared versions `0.6.0`. Update the handoff reference and command, retain both earlier comparison failures as historical evidence, and leave snapshot-boundary qualification pending.
+
+The five added vectors, existing nonzero fixtures, transition refusals and outstanding adoption dispositions require no changes. The selected shared package and comparison tool remain unchanged; input differences are not suppressed. The remaining qualification step is to settle the immutable snapshot boundary before running and recording the complete comparison at the approved boundary.

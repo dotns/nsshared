@@ -1,7 +1,7 @@
 # L8 immutable candidate handoff
 
 Selected shared package: `958da3f9b31e70f419035b974977f8d0d2895471`.
-Verified gateway consumer inputs: `96fa0dca57c3af5e96ab9f72d710f2cbe6d8cf93`.
+Verified gateway consumer inputs: `e70a90abb1a53567bfb6eb28f6ee057d7b9f0dc8`.
 All three delivered library packages have version `0.6.0`.
 
 The earlier `41149fe1febf2ecee07f077d68a500e18822442c` package remains a
@@ -126,8 +126,8 @@ fallback. Earlier delivery evidence does not prove these changed bytes.
 
 ## Exact consumer inputs and comparison
 
-The current comparison examines these gateway inputs at
-`96fa0dca57c3af5e96ab9f72d710f2cbe6d8cf93`:
+The current comparison selects these gateway inputs at
+`e70a90abb1a53567bfb6eb28f6ee057d7b9f0dc8`:
 
 | Manifest | Matching lockfile | Direct shared inputs | Shared lock resolutions |
 | --- | --- | --- | --- |
@@ -136,14 +136,14 @@ The current comparison examines these gateway inputs at
 | `e2e/r3/authority/Cargo.toml` | `e2e/r3/authority/Cargo.lock` | proto | 2 |
 | `e2e/r3/control-authority/Cargo.toml` | `e2e/r3/control-authority/Cargo.lock` | proto, service-control | 2 |
 
-The workspace and control-authority manifests pin shared inputs to
-`958da3f9b31e70f419035b974977f8d0d2895471`. The direct-peer and authority
-manifests still pin proto to historical revision
-`50dc9db5fe106536d0a7d8b113b5bb4a3e210368`; this prevents the complete
-comparison from passing. The shared package versions remain `0.6.0`.
-No branch, tag or path input substitutes. Lockfiles include transitive shared
-packages, hence different counts. Their external dependency graphs belong to
-consumers and need not equal the shared workspace's `Cargo.lock` byte for byte.
+All four manifests pin their shared inputs to
+`958da3f9b31e70f419035b974977f8d0d2895471`. Every shared lock source
+query and resolved commit matches that exact revision; all shared resolved
+versions are `0.6.0`. No branch, tag or path input substitutes. Lockfiles include
+transitive shared packages, hence different counts. Their external dependency
+graphs belong to consumers and need not equal the shared workspace's
+`Cargo.lock` byte for byte. These verified pins do not establish complete
+snapshot qualification or external producer adoption.
 
 Frozen `e2e/r1/client/Cargo.toml` pins proto and the three mocks to
 `fc1c884dd9d27d4b2238961b0e64d9442baf8ad8`. These are historical pre-adoption
@@ -155,20 +155,20 @@ Run from this repository, supplying the read-only gateway checkout:
 python3 -B tools/candidate_handoff.py \
   --candidate 958da3f9b31e70f419035b974977f8d0d2895471 \
   --consumer "$GATEWAY_CHECKOUT" \
-  --consumer-revision 96fa0dca57c3af5e96ab9f72d710f2cbe6d8cf93
+  --consumer-revision e70a90abb1a53567bfb6eb28f6ee057d7b9f0dc8
 python3 -B tools/test_candidate_handoff.py
 ```
 
-The current comparison confirms 259 identical candidate package/lock/API/vector
-inputs and three matching workspace shared lock resolutions, then fails with
-`manifest pin differs: nsshared-proto` at direct-peer. The authority manifest
-also retains the historical proto pin. Full consumer qualification remains
-outstanding until an immutable gateway revision supplies matching inputs for
-all four pairs. The comparison checks current files against immutable candidate
-blobs, including Cargo.lock, workspace/package manifests, complete library source
-and tests, both vector producers and fixtures. Missing, added or changed inputs
-fail. It reads consumers only with `git show`; it never fetches, builds or edits
-the gateway.
+Snapshot-boundary qualification remains pending. The registration placeholder
+producer, test and fixture extension postdates selected package
+`958da3f9b31e70f419035b974977f8d0d2895471`. The command compares current
+files with immutable candidate blobs, including Cargo.lock, workspace/package
+manifests, complete library source and tests, both vector producers and fixtures.
+Matching gateway pins alone cannot make later test/fixture bytes part of the
+selected package. No input difference is suppressed and no complete comparison
+pass is claimed. The comparison boundary must be settled before qualifying the
+selected immutable snapshot with the verified gateway inputs. The tool reads
+consumers only with `git show`; it never fetches, builds or edits the gateway.
 The focused test uses temporary Git inputs and refuses mismatched manifest pins,
 lock commits/versions, missing packages, floating branches and changed/added files.
 
@@ -179,7 +179,16 @@ evidence: 251 inputs and four manifest/lock pairs agreed at that package.
 Rechecking that historical selection against the later shared tree failed on
 `crates/nsshared-proto/src/account.rs`; that failure is preserved and is not
 reclassified as a pass. The current comparison selects the delivered package
-and the newer gateway inputs above without claiming that all pins match.
+and the aligned gateway inputs above, with snapshot qualification still pending.
+
+The intermediate gateway revision
+`96fa0dca57c3af5e96ab9f72d710f2cbe6d8cf93` also remains historical failure
+evidence. Before the placeholder vector extension, comparison with selected
+shared package `958da3f9b31e70f419035b974977f8d0d2895471` confirmed 259
+identical shared inputs and three workspace lock resolutions, then failed with
+`manifest pin differs: nsshared-proto` at direct-peer. Its authority manifest
+also retained the old proto pin. The aligned revision supersedes that consumer
+selection; the previous failure remains a failure.
 
 Independent checks remain `just vectors-check`, `just semver`, and the existing
 format/lint/dependency/test/documentation checks through `just self-check` / `just qa`.
