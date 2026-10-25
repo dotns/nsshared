@@ -21,7 +21,9 @@ into `main` or releasing it.
 ## Candidate package
 
 The current selected candidate revision is
-`50dc9db5fe106536d0a7d8b113b5bb4a3e210368`. The earlier
+`958da3f9b31e70f419035b974977f8d0d2895471`. The prior selection
+`50dc9db5fe106536d0a7d8b113b5bb4a3e210368` remains historical comparison
+evidence in the handoff. The earlier
 `41149fe1febf2ecee07f077d68a500e18822442c` remains a historical package delivery
 reference. Review the [immutable handoff](l8-candidate-handoff.md) for the complete
 delivered-contract list, P12–P19 additions, vector corrections, exact gateway
