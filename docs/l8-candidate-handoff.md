@@ -179,10 +179,14 @@ introduced by this handoff. Package equality is not a new whole-source purity pr
 
 All Q01–Q23 and M01–M02 in the [review request](l8-candidate-review-request.md)
 retain their individually recorded prepared/unanswered state and named addressees.
-There is no recorded owner-forwarding date or received producer answer. Q18's
-separate design choice is settled; shared P07 definitions are delivered, while
-producer review/adoption remains open. Gateway manifest delivery is established
-only for the four pairs above. Silence supplies no agreement.
+The [review request delivery](l8-candidate-review-request.md) was completed
+through the owner route on 2026-10-25 (UTC), at revision
+`958da3f9b31e70f419035b974977f8d0d2895471`. The owner forwarded the candidate
+review package to the NSD owner as producer and the ns owner as consumer reviewer.
+No answer has been received. Silence approves nothing. Q18's separate design
+choice is settled; shared P07 definitions are delivered, while producer
+review/adoption remains open. Gateway manifest delivery is established only
+for the four pairs above.
 
 | Surface | Outstanding external delivery / review |
 | --- | --- |
