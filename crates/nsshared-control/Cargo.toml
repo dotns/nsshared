@@ -9,7 +9,9 @@ authors.workspace = true
 publish.workspace = true
 
 [dependencies]
+blake2.workspace = true
 nsshared-codec.workspace = true
+nsshared-identity.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
 

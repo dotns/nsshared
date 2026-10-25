@@ -10,11 +10,11 @@ publish.workspace = true
 
 [dependencies]
 nsshared-codec.workspace = true
+nsshared-control.workspace = true
 nsshared-identity.workspace = true
 nsshared-relay.workspace = true
 nsshared-rendezvous.workspace = true
 base64.workspace = true
-blake2.workspace = true
 ed25519-dalek.workspace = true
 hmac.workspace = true
 idna = "1.1.0"
@@ -25,6 +25,7 @@ sha2.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
+blake2.workspace = true
 hkdf.workspace = true
 proptest.workspace = true
 x25519-dalek.workspace = true

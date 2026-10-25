@@ -1,6 +1,6 @@
 //! The pure Node-control message codec (quick-v2 §9, §12.1).
 //!
-//! Implements account registry [`crate::account::FamilyId::NodeControl`].
+//! Implements the account registry family `NodeControl`.
 //! ACK means at least accepted; persistence before ACK is conforming.
 //! Transport, persistence, retransmission and sessions remain consumer-owned.
 //!
@@ -14,14 +14,13 @@ use std::{
     net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
 };
 
-use crate::{
-    NodeRecord, RelayId,
-    constants::MAX_NODE_RECORD_BYTES,
-    encoding::{CborError, CborReader, CborWriter},
-    record::{MAX_NODE_RECORD_RELAYS, NodeRecordError},
-    relay::RelayIdError,
-};
 use blake2::{Blake2s, Digest, digest::consts::U16};
+use nsshared_codec::cbor::{CborError, CborReader, CborWriter};
+use nsshared_identity::{
+    constants::MAX_NODE_RECORD_BYTES,
+    record::{MAX_NODE_RECORD_RELAYS, NodeRecord, NodeRecordError},
+    relay_id::{RelayId, RelayIdError},
+};
 
 /// The control message version.
 pub const VERSION: u8 = 2;
