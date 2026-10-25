@@ -8,13 +8,13 @@ mod data;
 mod packet;
 mod register;
 
-pub use crate::identifier::{MAX_RELAY_ID_BYTES, RelayId, RelayIdError};
 pub use crypto::{
     RelayMacError, SessionKey, ZeroSharedSecret, derive_session_key, ephemeral_public,
 };
 pub use data::{
     DataRejection, WIREGUARD_HANDSHAKE_INITIATION, accept_relayed_data, is_handshake_initiation,
 };
+pub use nsshared_identity::relay_id::{MAX_RELAY_ID_BYTES, RelayId, RelayIdError};
 pub use packet::{
     BadRegisterSignature, MAX_RELAY_NAME_BYTES, ObservedAddr, Presence, RELAY_SLOT, Reflect,
     Reflected, Register, Registered, RelayBody, RelayDirection, RelayHeader, RelayPacket,

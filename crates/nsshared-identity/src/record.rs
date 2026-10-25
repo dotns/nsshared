@@ -4,11 +4,11 @@ use crate::{
     constants::{
         MAX_NODE_RECORD_BYTES, MAX_RECORD_SERVICE_SECONDS, NODE_RECORD_CONTEXT, NODE_RECORD_VERSION,
     },
-    encoding::{CborError, CborReader, CborWriter},
-    identifier::{RelayId, RelayIdError},
     identity::{Identity, NodeId},
+    relay_id::{RelayId, RelayIdError},
 };
 use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
+use nsshared_codec::cbor::{CborError, CborReader, CborWriter};
 use thiserror::Error;
 
 /// Maximum relays in a NodeRecord (quick-v2 §3.1).
@@ -588,7 +588,9 @@ impl RecordMarks {
         writer.into_bytes()
     }
 
-    pub(crate) fn write(&self, writer: &mut CborWriter) {
+    /// Writes `RecordState` as one item of an enclosing value, such as the registry
+    /// state (quick-v2 §7.6).
+    pub fn write(&self, writer: &mut CborWriter) {
         writer
             .array(4)
             .uint(RECORD_STATE_VERSION)
@@ -615,7 +617,13 @@ impl RecordMarks {
         Ok(state)
     }
 
-    pub(crate) fn read(reader: &mut CborReader<'_>) -> Result<Self, MarksDecodeError> {
+    /// Reads and validates `RecordState` as one item of an enclosing value, with the
+    /// rules of [`Self::decode`].
+    ///
+    /// # Errors
+    ///
+    /// [`MarksDecodeError`] naming the first violated rule.
+    pub fn read(reader: &mut CborReader<'_>) -> Result<Self, MarksDecodeError> {
         reader.array(4)?;
         if reader.uint()? != RECORD_STATE_VERSION {
             return Err(MarksDecodeError::Version);

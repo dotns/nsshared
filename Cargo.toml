@@ -2,6 +2,7 @@
 resolver = "3"
 members = [
     "crates/nsshared-codec",
+    "crates/nsshared-identity",
     "crates/nsshared-proto",
     "crates/nsshared-service-control",
     "crates/nsshared-telemetry",
@@ -35,6 +36,7 @@ publish = false
 [workspace.dependencies]
 # Internal crates.
 nsshared-codec = { path = "crates/nsshared-codec", version = "0.6.0" }
+nsshared-identity = { path = "crates/nsshared-identity", version = "0.6.0" }
 nsshared-mock-relay = { path = "examples/mock-relay", version = "0.6.0" }
 nsshared-mock-rendezvous = { path = "examples/mock-rendezvous", version = "0.6.0" }
 nsshared-proto = { path = "crates/nsshared-proto", version = "0.6.0" }

@@ -11,8 +11,8 @@
 //! non-canonical trailing bits are rejected, so every key has exactly one text form.
 //! Secrets have no `Display`, print a redacted `Debug` and are zeroized on drop.
 //!
-//! The WireGuard types carry a `Wg` prefix because [`SessionKey`](crate::relay::SessionKey) already
-//! names the relay session key `sk` (quick-v2 §8.3).
+//! The WireGuard types carry a `Wg` prefix because the relay `SessionKey` already names
+//! the relay session key `sk` (quick-v2 §8.3).
 //!
 //! # Replaces in ns
 //!

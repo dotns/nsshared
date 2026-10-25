@@ -7,9 +7,9 @@ use crate::{
         NODE_RECORD_VERSION, RELAY_HEADER_BYTES, RELAY_MAGIC, RELAY_REGISTER_CONTEXT,
     },
     encoding::{CborError, CborReader, CborWriter},
-    identifier::{MAX_RELAY_ID_BYTES, RelayId},
     identity::{Identity, NodeId},
     record::{MAX_NODE_RECORD_RELAYS, NodeRecord},
+    relay::{MAX_RELAY_ID_BYTES, RelayId},
 };
 use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 use sha2::{Digest, Sha256};

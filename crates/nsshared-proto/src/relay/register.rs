@@ -6,9 +6,9 @@ use super::{
 };
 use crate::{
     constants::REGISTER_TS_WINDOW_SECONDS,
-    identifier::RelayId,
     identity::NodeId,
     record::{NodeRecord, NodeRecordError, RecordDecision, RecordExpired, RecordMarks},
+    relay::RelayId,
 };
 use thiserror::Error;
 

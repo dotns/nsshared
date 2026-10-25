@@ -10,10 +10,10 @@ publish.workspace = true
 
 [dependencies]
 nsshared-codec.workspace = true
+nsshared-identity.workspace = true
 base64.workspace = true
 blake2.workspace = true
 ed25519-dalek.workspace = true
-getrandom.workspace = true
 hmac.workspace = true
 idna = "1.1.0"
 nsshared-service-control = { path = "../nsshared-service-control", version = "0.6.0" }

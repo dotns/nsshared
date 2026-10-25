@@ -21,19 +21,14 @@
 /// Pure L8 account payload candidate contracts and admission validators.
 pub mod account;
 pub mod constants;
-pub mod discovery;
 pub mod encoding;
-mod identifier;
-pub mod identity;
-pub mod keys;
 pub mod node_control;
-mod realm_id;
-pub mod record;
 pub mod relay;
 pub mod rendezvous;
 
 pub use identity::NodeId;
 pub use keys::{IdentityKey, IdentitySecret, WgSessionKey, WgSessionSecret};
-pub use realm_id::{RealmId, RealmIdError};
+pub use nsshared_identity::realm::{RealmId, RealmIdError};
+pub use nsshared_identity::{discovery, identity, keys, record};
 pub use record::NodeRecord;
 pub use relay::RelayId;

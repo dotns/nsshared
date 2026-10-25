@@ -779,6 +779,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "nsshared-identity"
+version = "0.6.0"
+dependencies = [
+ "base64",
+ "blake2",
+ "ed25519-dalek",
+ "getrandom 0.4.3",
+ "nsshared-codec",
+ "serde",
+ "thiserror",
+ "x25519-dalek",
+ "zeroize",
+]
+
+[[package]]
 name = "nsshared-mock-relay"
 version = "0.6.0"
 dependencies = [
@@ -839,11 +854,11 @@ dependencies = [
  "base64",
  "blake2",
  "ed25519-dalek",
- "getrandom 0.4.3",
  "hkdf",
  "hmac",
  "idna",
  "nsshared-codec",
+ "nsshared-identity",
  "nsshared-service-control",
  "proptest",
  "serde",

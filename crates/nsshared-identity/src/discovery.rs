@@ -10,12 +10,11 @@
 //! [`crate::record::RecordMarks`] and the caller's source policy).
 
 use crate::{
-    NodeId, NodeRecord,
     constants::MAX_NODE_RECORD_BYTES,
-    encoding::{decode_base64url, encode_base64url},
-    identity::AddressGroup,
-    record::{NodeRecordError, RecordExpired},
+    identity::{AddressGroup, NodeId},
+    record::{NodeRecord, NodeRecordError, RecordExpired},
 };
+use nsshared_codec::base64::{decode_base64url, encode_base64url};
 use std::net::Ipv6Addr;
 use thiserror::Error;
 
