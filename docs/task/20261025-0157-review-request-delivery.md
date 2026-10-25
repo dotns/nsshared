@@ -1,12 +1,12 @@
-# Record review request delivery
+# Record review delivery and registration lifecycle placeholders
 
-- **status**: in_progress
+- **status**: completed
 - **priority**: P1
 - **createdAt**: 2026-10-25 01:57
 
 ## Investigation
 
-Both documents lack the confirmed delivery date and revision. No external answer has been received.
+Both documents initially lacked the confirmed delivery date and revision. No external answer has been received.
 
 ## Acceptance
 
@@ -67,3 +67,11 @@ Formatting, lint and `just self-check feat/l8-account-profile` passed at `8a98b1
 Compare an immutable export of shared package `958da3f9b31e70f419035b974977f8d0d2895471` with gateway `e70a90abb1a53567bfb6eb28f6ee057d7b9f0dc8` using the unchanged exported comparison tool and read-only access to repository Git objects. Keep the current placeholder producer/test/fixture extension separate and qualify it with the current-head self-check. The immutable comparison has passed for 259 selected inputs and all four manifest/lock pairs (3, 3, 2, 2 shared resolutions).
 
 Document both evidence boundaries and preserve earlier failures. Crate sources, package/workspace manifests and lockfile compare unchanged from the delivered package. Only complete these records after the current-head self-check also passes. No tool change, consumer repin, input suppression or external approval claim is needed.
+
+## Final qualification
+
+The immutable delivered-package comparison passed for shared revision `958da3f9b31e70f419035b974977f8d0d2895471` and gateway revision `e70a90abb1a53567bfb6eb28f6ee057d7b9f0dc8`: 259 selected inputs are identical and all four manifest/lock pairs match (3, 3, 2, 2 shared lock resolutions). It ran the unchanged comparison tool from a complete `git archive` export of the selected package, with read-only repository object access. Earlier failed comparisons remain historical failures.
+
+The additive registration placeholder extension is separately qualified by `just self-check feat/l8-account-profile` at `019663e08d081badb085040eae0d085f5f7c3f3d`, exit 0. Formatting, lint, delivery and boundary documentation assertions, and the unchanged handoff tool test also pass. Only these records changed after that self-check. The boundary assertion first failed because qualification was still described as pending, then passed after the documentation update.
+
+The comparison boundary is settled and both required results pass. Consumer-resolved crate sources, manifests and lockfile are unchanged from the selected package; added test/fixture bytes are not attributed to that older snapshot. The five zero-placeholder vectors and all existing nonzero fixtures and transition refusals remain intact. Review delivery is recorded with no received reply or approval. NSD N24/N26 and ns S17 adoption and producer-owned vectors remain outstanding external inputs without blocking candidate completion.
