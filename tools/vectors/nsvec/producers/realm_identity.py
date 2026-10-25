@@ -5,7 +5,7 @@ from .. import cbor
 from . import account, public_edge, confidential_auth, publication_subscription, publication_snapshot_request
 from .publication import DOMAIN
 
-CRATE = "nsshared-proto"
+CRATE = "nsshared-control"
 GROUP = "realm-identity-membership"
 TITLE = "Canonical realm identity and independent membership authority"
 SECTIONS = "docs/canonical-realm-identity.md"

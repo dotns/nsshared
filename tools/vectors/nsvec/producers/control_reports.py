@@ -4,7 +4,7 @@ import hashlib
 from .. import cbor
 from . import account, bootstrap_envelope, public_edge, usage
 
-CRATE = "nsshared-proto"
+CRATE = "nsshared-control"
 GROUP = "control-reports"
 TITLE = "Candidate control report operations"
 SECTIONS = "repository docs/control-report-candidate.md"

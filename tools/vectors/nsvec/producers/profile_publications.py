@@ -3,7 +3,7 @@ import copy
 from .. import cbor
 from . import account
 
-CRATE = "nsshared-proto"
+CRATE = "nsshared-control"
 GROUP = "profile-publications"
 TITLE = "Usage and Node-control catalogues (fixture authority)"
 SECTIONS = "repository docs/profile-publications-candidate.md"

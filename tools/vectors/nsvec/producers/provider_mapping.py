@@ -2,7 +2,7 @@
 from .. import cbor
 from . import account, publication, source_selection, subnet, subnet_publication_views
 
-CRATE = "nsshared-proto"
+CRATE = "nsshared-control"
 GROUP = "provider-mapping"
 TITLE = "Provider mapping replacement (fixture authorities)"
 SECTIONS = "docs/l8-public-edge-candidate.md"

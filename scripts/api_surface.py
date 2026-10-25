@@ -362,8 +362,10 @@ def export(revision, directory):
 
 
 def excluded(line, prefixes):
+    """True when the line describes an item, member or impl under one of PREFIXES."""
     words = line.split(" ")
-    return any(word.startswith(prefix) for word in words[1:2] for prefix in prefixes)
+    subjects = words[1:2] + (words[-1:] if words[0] == "impl" else [])
+    return any(word.startswith(prefix) for word in subjects for prefix in prefixes)
 
 
 def main():

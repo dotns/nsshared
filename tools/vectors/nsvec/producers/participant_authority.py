@@ -5,7 +5,7 @@ import json
 from .. import cbor
 from . import account, usage
 
-CRATE = "nsshared-proto"
+CRATE = "nsshared-control"
 GROUP = "participant-authority"
 TITLE = "Participant authority and directory bindings (fixture authority)"
 SECTIONS = "repository docs/participant-authority-candidate.md"

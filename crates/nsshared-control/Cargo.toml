@@ -9,11 +9,21 @@ authors.workspace = true
 publish.workspace = true
 
 [dependencies]
+base64.workspace = true
 blake2.workspace = true
+ed25519-dalek.workspace = true
+hmac.workspace = true
+idna = "1.1.0"
 nsshared-codec.workspace = true
 nsshared-identity.workspace = true
+serde.workspace = true
+serde_json = { workspace = true, features = ["raw_value"] }
 sha2.workspace = true
 thiserror.workspace = true
+
+[dev-dependencies]
+nsshared-rendezvous.workspace = true
+proptest.workspace = true
 
 [lints]
 workspace = true

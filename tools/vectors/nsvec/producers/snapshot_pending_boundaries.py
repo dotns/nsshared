@@ -2,7 +2,7 @@
 from .. import cbor
 from . import account, bootstrap_envelope
 
-CRATE = "nsshared-proto"
+CRATE = "nsshared-control"
 GROUP = "snapshot-pending-boundaries"
 TITLE = "Pending snapshot request byte boundaries (fixture authority)"
 SECTIONS = "repository docs/control-exchange-candidate.md independent publication snapshot poll"

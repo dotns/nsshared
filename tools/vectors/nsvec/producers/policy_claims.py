@@ -7,7 +7,7 @@ import urllib.parse
 from .. import cbor
 from . import account, bootstrap_envelope
 
-CRATE = "nsshared-proto"
+CRATE = "nsshared-control"
 GROUP = "policy-claims"
 TITLE = "Policy, subject, admin scope and signed request canonical values"
 SECTIONS = "repository docs/l8-account-payload-profile.md: Policy and claim values"

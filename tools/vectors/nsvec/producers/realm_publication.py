@@ -7,7 +7,7 @@ from .account import key, sign
 from .node_records import Signer, sign as record_sign
 from .publication import DOMAIN
 
-CRATE = "nsshared-proto"
+CRATE = "nsshared-control"
 GROUP = "realm-publication"
 TITLE = "Complete realm membership and policy observation candidate fixture authority"
 SECTIONS = "docs/realm-publication-candidate.md"

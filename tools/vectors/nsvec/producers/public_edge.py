@@ -7,7 +7,7 @@ from .. import cbor
 from .account import key, sign
 from .publication import DOMAIN
 
-CRATE = "nsshared-proto"
+CRATE = "nsshared-control"
 GROUP = "public-edge"
 TITLE = "Public-edge, material and declaration candidate fixture authority"
 SECTIONS = "docs/l8-public-edge-candidate.md"

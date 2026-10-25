@@ -3,7 +3,7 @@
 from .. import cbor
 from .account import key
 
-CRATE = "nsshared-proto"
+CRATE = "nsshared-control"
 GROUP = "anonymous-public-edge"
 TITLE = "Anonymous public-edge selectors and verified-only policy matching"
 SECTIONS = "docs/l8-account-payload-profile.md and docs/l8-public-edge-candidate.md"

@@ -8,7 +8,7 @@ import json
 from .. import cbor
 from . import bootstrap_envelope, enrollment, participant_roster, publication, subnet
 
-CRATE = "nsshared-proto"
+CRATE = "nsshared-control"
 GROUP = "account"
 TITLE = "L8 account payload candidate contracts"
 SECTIONS = "repository docs/l8-account-payload-profile.md"

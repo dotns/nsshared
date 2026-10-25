@@ -4,7 +4,7 @@ import hashlib
 from .. import cbor
 from . import public_edge
 
-CRATE = "nsshared-proto"
+CRATE = "nsshared-control"
 GROUP = "floor-text"
 TITLE = "Exact service and Exit floor data text"
 SECTIONS = "repository docs/control-report-candidate.md"

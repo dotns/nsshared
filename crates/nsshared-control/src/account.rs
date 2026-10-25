@@ -1,0 +1,105 @@
+//! Account payload contracts; see `docs/l8-account-payload-profile.md`.
+//!
+//! | Module | Contents |
+//! | --- | --- |
+//! | [`node`] | Enrollment, identity lifecycle, Node L3 form and authority |
+//! | [`control`] | Bootstrap, envelopes, control exchanges and reports, machine tokens, route commands, Node L3 status, M6 carrier |
+//! | [`publication`] | Publication events and snapshots, family registry, source bindings, subscriptions, snapshot requests |
+//! | [`realm`] | Family 2: realms and peers, policy subjects, rules and claims |
+//! | [`grants`] | Families 3, 5 and 6: grants, payers, resource authority |
+//! | [`subnet`] | Family 4: Subnet views, provider mappings and reports |
+//! | [`edge`] | Family 7: public edge, declarations, material, confidential authentication |
+//! | [`relay`] | Family 8: rosters, participant sessions, directory bindings |
+//! | [`usage`] | Families 9 and 10: usage, reports, answers, profile publications |
+//!
+//! M6 objects and their bytes are [`crate::service`]. This module adds no runtime or
+//! transport and reads no clock or filesystem.
+
+pub mod control;
+mod families;
+pub mod node;
+pub mod publication;
+
+pub use families::{edge, grants, realm, relay, subnet, usage};
+
+use nsshared_codec::cbor::{CborError, CborReader};
+use nsshared_identity::{keys::IdentityKey, realm::RealmIdError};
+use thiserror::Error;
+
+/// Candidate CBOR schema version. Local admission JSON has its own schema 2.
+pub const SCHEMA: u64 = 1;
+/// Maximum encoded candidate or local snapshot size, in bytes.
+pub const MAX_BYTES: usize = 1_048_576;
+/// Maximum identities in a complete admission roster.
+pub const MAX_IDENTITIES: usize = 8_192;
+
+/// A rejected candidate contract. Invalid content never represents withdrawal.
+#[derive(Debug, Error)]
+#[non_exhaustive]
+pub enum AccountError {
+    /// Noncanonical membership realm text.
+    #[error(transparent)]
+    Realm(#[from] RealmIdError),
+    /// Malformed or noncanonical CBOR.
+    #[error(transparent)]
+    Cbor(#[from] CborError),
+    /// JSON shape, required field or field type is invalid.
+    #[error(transparent)]
+    Json(#[from] serde_json::Error),
+    /// Unsupported schema or invalid contract fields.
+    #[error("invalid account contract field")]
+    InvalidField,
+    /// Input or a collection exceeds its contract bound.
+    #[error("account contract bound exceeded")]
+    Bounds,
+    /// The signature is invalid.
+    #[error("invalid participant roster signature")]
+    Signature,
+    /// Issuer, recipient, version or time does not match the caller's authority.
+    #[error("participant roster authority or freshness mismatch")]
+    Authority,
+}
+
+fn require(condition: bool) -> Result<(), AccountError> {
+    if condition {
+        Ok(())
+    } else {
+        Err(AccountError::InvalidField)
+    }
+}
+
+fn identity(reader: &mut CborReader<'_>) -> Result<IdentityKey, AccountError> {
+    IdentityKey::from_bytes(&reader.fixed_bytes()?).map_err(|_| AccountError::InvalidField)
+}
+
+fn reader(input: &[u8], arity: u64) -> Result<CborReader<'_>, AccountError> {
+    let mut reader = CborReader::new(input, MAX_BYTES)?;
+    reader.array(arity)?;
+    require(reader.uint()? == SCHEMA)?;
+    Ok(reader)
+}
+
+/// Maximum scope text length in bytes.
+const MAX_SCOPE_BYTES: usize = 256;
+
+/// The scope text rule shared by every family: 1 to 256 UTF-8 bytes without
+/// whitespace or control characters.
+fn is_scope_text(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= MAX_SCOPE_BYTES
+        && !value
+            .chars()
+            .any(|ch| ch.is_whitespace() || ch.is_control())
+}
+
+fn scope_text(value: &str) -> Result<(), AccountError> {
+    require(is_scope_text(value))
+}
+
+fn bounded(bytes: Vec<u8>) -> Result<Vec<u8>, AccountError> {
+    if bytes.len() > MAX_BYTES {
+        Err(AccountError::Bounds)
+    } else {
+        Ok(bytes)
+    }
+}

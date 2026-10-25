@@ -3,7 +3,7 @@ import copy
 from .. import cbor, derive
 from . import account, bootstrap_envelope
 
-CRATE = "nsshared-proto"
+CRATE = "nsshared-control"
 GROUP = "source-selection"
 TITLE = "Source authority and immutable Node route receipts (fixture authority)"
 SECTIONS = "repository docs/source-selection-candidate.md"

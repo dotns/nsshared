@@ -4,7 +4,7 @@ import hashlib
 from .. import cbor
 from . import account, publication
 
-CRATE = "nsshared-proto"
+CRATE = "nsshared-control"
 GROUP = "node-l3-status"
 TITLE = "Node L3 applied status (fixture authorities)"
 SECTIONS = "docs/node-l3-status-candidate.md"

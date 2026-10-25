@@ -7,7 +7,7 @@ import json
 from .. import cbor
 from .account import key, sign
 
-CRATE = "nsshared-proto"
+CRATE = "nsshared-control"
 GROUP = "confidential-material"
 TITLE = "Confidential certificate and client-CA candidate fixture producer"
 SECTIONS = "docs/confidential-material-candidate.md"

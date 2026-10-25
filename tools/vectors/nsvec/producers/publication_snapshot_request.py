@@ -2,7 +2,7 @@
 from .. import cbor
 from . import account, bootstrap_envelope, participant_authority
 
-CRATE = "nsshared-proto"
+CRATE = "nsshared-control"
 GROUP = "publication-snapshot-request"
 TITLE = "Independent publication snapshot polls"
 SECTIONS = "repository docs/control-exchange-candidate.md independent publication snapshot poll"

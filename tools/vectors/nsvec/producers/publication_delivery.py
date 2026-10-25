@@ -3,7 +3,7 @@ import base64
 from .. import cbor
 from . import account
 
-CRATE = "nsshared-proto"
+CRATE = "nsshared-control"
 GROUP = "publication-delivery"
 TITLE = "Candidate publication stream delivery (fixture authority)"
 SECTIONS = "repository docs/control-exchange-candidate.md publication stream framing"

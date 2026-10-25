@@ -5,7 +5,7 @@ import json
 from .. import cbor
 from . import account, bootstrap_envelope
 
-CRATE = "nsshared-proto"
+CRATE = "nsshared-control"
 GROUP = "control-exchange"
 TITLE = "Candidate control exchange and machine trust boundaries"
 SECTIONS = "repository docs/control-exchange-candidate.md"

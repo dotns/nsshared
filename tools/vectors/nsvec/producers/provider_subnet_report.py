@@ -3,7 +3,7 @@ import copy
 from .. import cbor
 from . import account, bootstrap_envelope
 
-CRATE = "nsshared-proto"
+CRATE = "nsshared-control"
 GROUP = "provider-subnet-report"
 TITLE = "Ordinary provider Subnet route reports (fixture authority)"
 SECTIONS = "repository docs/provider-subnet-report-candidate.md"

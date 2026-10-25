@@ -2,7 +2,7 @@
 from .. import cbor
 from . import account, bootstrap_envelope, provider_mapping
 
-CRATE = "nsshared-proto"
+CRATE = "nsshared-control"
 GROUP = "provider-mapping-actions"
 TITLE = "Atomic provider mapping actions (fixture authorities)"
 SECTIONS = "docs/l8-public-edge-candidate.md"

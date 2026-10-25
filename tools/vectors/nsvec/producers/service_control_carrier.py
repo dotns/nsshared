@@ -5,7 +5,7 @@ import hashlib
 from .. import cbor
 from . import account, bootstrap_envelope
 
-CRATE = "nsshared-proto"
+CRATE = "nsshared-control"
 GROUP = "service-control-carrier"
 TITLE = "Contribution Network service control carrier"
 SECTIONS = "repository docs/service-control-carrier-candidate.md"

@@ -7,7 +7,7 @@ from .. import cbor
 from .account import key
 from .subnet import mapped, prefix, route_json, selected
 
-CRATE = "nsshared-proto"
+CRATE = "nsshared-control"
 GROUP = "grant-authority"
 TITLE = "Service grant and Node L3 authority candidate"
 SECTIONS = "docs/grant-authority-candidate.md; docs/l8-account-payload-profile.md"

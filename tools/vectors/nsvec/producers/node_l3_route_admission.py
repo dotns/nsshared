@@ -4,7 +4,7 @@ import json
 from .. import cbor, derive
 from . import account, subnet
 
-CRATE = "nsshared-proto"
+CRATE = "nsshared-control"
 GROUP = "node-l3-route-admission"
 TITLE = "Node L3 mapped route admission (fixture authorities)"
 SECTIONS = "docs/node-l3-status-candidate.md; docs/grant-authority-candidate.md"

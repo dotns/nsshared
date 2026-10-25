@@ -43,6 +43,7 @@ class Filtering(unittest.TestCase):
     def test_exclusions_match_the_item_path(self):
         self.assertTrue(api_surface.excluded("struct nsshared_proto::account::Roster", ["nsshared_proto::account"]))
         self.assertFalse(api_surface.excluded("fn nsshared_proto::keys::f() -> Account", ["nsshared_proto::account"]))
+        self.assertTrue(api_surface.excluded("impl Send for nsshared_proto::account::Roster", ["nsshared_proto::account"]))
 
 
 if __name__ == "__main__":

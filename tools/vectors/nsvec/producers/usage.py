@@ -7,7 +7,7 @@ from .. import cbor
 from .account import key
 from . import grant_authority
 
-CRATE = "nsshared-proto"
+CRATE = "nsshared-control"
 GROUP = "usage"
 TITLE = "Service and relay usage contract candidate"
 SECTIONS = "docs/usage-contract-candidate.md"

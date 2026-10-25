@@ -782,9 +782,17 @@ dependencies = [
 name = "nsshared-control"
 version = "0.6.0"
 dependencies = [
+ "base64",
  "blake2",
+ "ed25519-dalek",
+ "hmac",
+ "idna",
  "nsshared-codec",
  "nsshared-identity",
+ "nsshared-rendezvous",
+ "proptest",
+ "serde",
+ "serde_json",
  "sha2",
  "thiserror",
 ]
@@ -867,18 +875,14 @@ dependencies = [
  "ed25519-dalek",
  "hkdf",
  "hmac",
- "idna",
  "nsshared-codec",
  "nsshared-control",
  "nsshared-identity",
  "nsshared-relay",
  "nsshared-rendezvous",
- "nsshared-service-control",
  "proptest",
- "serde",
  "serde_json",
  "sha2",
- "thiserror",
  "x25519-dalek",
 ]
 

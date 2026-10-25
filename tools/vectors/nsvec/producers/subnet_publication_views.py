@@ -3,7 +3,7 @@ import copy
 from .. import cbor
 from . import account, publication, source_selection, subnet
 
-CRATE = "nsshared-proto"
+CRATE = "nsshared-control"
 GROUP = "subnet-publication-views"
 TITLE = "Provider grants and client Subnet route views (fixture authorities)"
 SECTIONS = "docs/grant-authority-candidate.md; docs/source-selection-candidate.md"

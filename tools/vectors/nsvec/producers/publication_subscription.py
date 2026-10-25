@@ -2,7 +2,7 @@
 from .. import cbor
 from . import account, bootstrap_envelope
 
-CRATE = "nsshared-proto"
+CRATE = "nsshared-control"
 GROUP = "publication-subscription"
 TITLE = "Authenticated publication subscription requests"
 SECTIONS = "repository docs/control-exchange-candidate.md authenticated publication subscription"

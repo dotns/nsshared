@@ -18,8 +18,6 @@
 //! The most used types are also re-exported at the crate root. Pure: no I/O, async
 //! runtime or TLS; callers pass time, randomness and keys.
 
-/// Pure L8 account payload candidate contracts and admission validators.
-pub mod account;
 pub mod constants;
 pub mod encoding;
 pub mod relay;
