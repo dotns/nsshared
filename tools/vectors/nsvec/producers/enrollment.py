@@ -54,6 +54,18 @@ def vectors(a, b):
     emit("unauthorized-rebind", rotation, "rebind-unauthorized", transition=lifecycle(1, before, rotation))
     emit("wrong-lifecycle-before", replacement, "lifecycle-mismatch", transition=lifecycle(0, before[:3] + [3], replacement))
     emit("wrong-lifecycle-after", rotation, "lifecycle-mismatch", transition=lifecycle(0, before, replacement), authorized=True)
+    # Ordinary registration needs neither grants nor a usage reporter.
+    # Retain the nonzero examples above as structural receiver coverage only.
+    for name, binding, decision, tag, old, new, authorized in [
+        ("identity-replacement", replacement, "identity-replacement", 0, before, replacement, False),
+        ("stable-i-rotation", rotation, "record-rotation", 1, before, rotation, True),
+        ("wrong-lifecycle-before", replacement, "lifecycle-mismatch", 0, before[:3] + [3], replacement, False),
+        ("wrong-lifecycle-after", rotation, "lifecycle-mismatch", 0, before, replacement, True),
+        ("unauthorized-rebind", rotation, "rebind-unauthorized", 1, before, rotation, False),
+    ]:
+        emit(name + "-zero-placeholders", binding, decision,
+             transition=[1, tag, old, new, bytes(16), bytes(16)],
+             authorized=authorized, caps=[])
     emit("invalid-lifecycle", rotation, "invalid-field", transition=lifecycle(0, before, rotation), authorized=True)
     emit("initial-with-lifecycle", replacement, "lifecycle-mismatch", accepted=None, transition=lifecycle(0, before, replacement))
     emit("same-key-record-refresh", before[:3] + [5], "lifecycle-required")

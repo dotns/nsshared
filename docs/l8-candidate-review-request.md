@@ -10,17 +10,20 @@ external provider subject namespaces and opaque scopes retain their meanings.
 Signed usage bytes and the historical payer pair remain unchanged.
 
 
-Status: prepared for the owner to forward. Addressed to the NSD owner as
-producer and the node (`ns`) owner as consumer reviewer. No delivery, answer
-or approval is recorded. Completion means this request is ready; NSD
-independently owns producer vectors and implementation. Unreceived answers
-remain outstanding and do not block the candidate. Review remains required
-before merging the candidate into `main` or releasing it.
+Status: delivered through the owner route on 2026-10-25 (UTC), at revision
+`958da3f9b31e70f419035b974977f8d0d2895471`. The owner forwarded the candidate
+review package to the NSD owner as producer and the ns owner as consumer reviewer.
+No answer has been received. Silence approves nothing. NSD independently owns
+producer vectors and implementation. Unreceived answers remain outstanding and
+do not block the candidate. Review remains required before merging the candidate
+into `main` or releasing it.
 
 ## Candidate package
 
 The current selected candidate revision is
-`50dc9db5fe106536d0a7d8b113b5bb4a3e210368`. The earlier
+`958da3f9b31e70f419035b974977f8d0d2895471`. The prior selection
+`50dc9db5fe106536d0a7d8b113b5bb4a3e210368` remains historical comparison
+evidence in the handoff. The earlier
 `41149fe1febf2ecee07f077d68a500e18822442c` remains a historical package delivery
 reference. Review the [immutable handoff](l8-candidate-handoff.md) for the complete
 delivered-contract list, P12–P19 additions, vector corrections, exact gateway
@@ -237,6 +240,50 @@ is the durable version boundary. Ordinary derivation yields one K per membership
 version; stable-I rotation requires an explicit producer-profile authorization
 and supplied K. Quick's K-per-generation derivation is a different profile.
 Please provide independent vectors for these restart and authorization decisions.
+
+The candidate registration profile now explicitly treats Lifecycle's final two
+mandatory 16-byte positions as wire placeholders. The requesting Node sends
+sixteen zero bytes in each even with no grants and no reporter. Receivers decode
+structurally and ignore values, including historical nonzero fixtures; they must
+not compare them with grants, reports or accepted registration or persist them
+as lifecycle custody or retirement state. No NSD response, provisioning or token
+acquisition produces them. They are not authority or transition inputs; nonzero
+fixtures do not define a registration producer form.
+
+NSD compares requested membership and authenticated presented I with provisioned
+enrollment authority and its accepted binding. Lifecycle.before must equal that
+complete accepted binding and Lifecycle.after the presented binding.
+IdentityReplacement increases membership version and changes I and K, with
+record generation allowed to restart under the new I. RecordRotation preserves
+I and membership version, changes K and increases generation, and requires
+explicit reviewed producer-profile RebindAuthorization. Initial enrollment still
+has no lifecycle; Equal compares the complete binding; rollback, authentication
+and scope checks remain. Ordinary stable-I self-initiated rebind remains disabled
+without the reviewed profile, regardless of placeholder values.
+
+The ns or gateway consumer compares its retained binding for the exact membership
+and signing authority. Before commit it verifies authenticated acceptance against
+staged membership, complete binding, profile, capabilities and locally computed
+EnrollmentDecision, with response correlation, recipient and nodes-source checks.
+Rejection or mismatch preserves committed identity. Accepted history and selected
+acceptance remain custody; placeholders add no durable state.
+
+Identity replacement fences old resources without transferring grants. NSD
+produces fresh grant incarnations for newly authorized replacement-identity grants
+under the existing signed grant/payer/resource-authority contracts and exact
+resource/client/provider/protocol/payer and retirement-history comparisons.
+K-only rotation alone changes no identity-keyed grant token; NSD publishes the
+changed authenticated I-to-K binding through Node L3. The reporter produces and
+durably retains its own lifecycle token, with fresh tokens for new reporter
+lifecycles under the usage contract. Registration assigns or retires neither
+token; pending rows and parts retain original attribution and settlement custody.
+
+The independent zero-placeholder `enrollment_consumer_vectors` preserve
+before/after mismatch and unauthorized-rotation refusals alongside valid identity
+replacement and authorized rotation. These are candidate fixtures, not producer
+confirmation. NSD N24/N26 and ns S17 adoption and producer-owned vectors remain
+outstanding; no response or approval is recorded. No schema, crate-source or
+codec change, gateway source change or gateway repin is required by this delta.
 
 ### Q08: Complete replacement semantics — NSD and node owners
 

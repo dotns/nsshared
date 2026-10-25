@@ -150,6 +150,30 @@ fn enrollment_identity_vectors() {
 }
 
 #[test]
+fn enrollment_consumer_vectors() {
+    let vectors = fixtures();
+    for (name, expected) in [
+        ("identity-replacement", "identity-replacement"),
+        ("stable-i-rotation", "record-rotation"),
+        ("wrong-lifecycle-before", "lifecycle-mismatch"),
+        ("wrong-lifecycle-after", "lifecycle-mismatch"),
+        ("unauthorized-rebind", "rebind-unauthorized"),
+    ] {
+        let name = format!("enrollment-{name}-zero-placeholders");
+        let vector = vectors
+            .iter()
+            .find(|vector| vector["name"] == name)
+            .unwrap_or_else(|| panic!("missing independent consumer vector: {name}"));
+        let enrollment = Enrollment::decode(&bytes(vector["bytes"])).unwrap();
+        assert!(enrollment.capabilities.is_empty(), "{name}");
+        let lifecycle = Lifecycle::decode(&bytes(vector["lifecycle"])).unwrap();
+        assert_eq!(lifecycle.grant.0, [0; 16], "{name}");
+        assert_eq!(lifecycle.reporter.0, [0; 16], "{name}");
+        assert_eq!(outcome(evaluate(vector)), expected, "{name}");
+    }
+}
+
+#[test]
 fn enrollment_contract_refusals() {
     let vectors = fixtures();
     let mut names = BTreeSet::new();

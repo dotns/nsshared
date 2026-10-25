@@ -1,7 +1,7 @@
 # L8 immutable candidate handoff
 
-Selected shared package: `50dc9db5fe106536d0a7d8b113b5bb4a3e210368`.
-Verified gateway consumer inputs: `e506df51e5e580d20d5cdaa25a8f134f87bf3caf`.
+Selected shared package: `958da3f9b31e70f419035b974977f8d0d2895471`.
+Verified gateway consumer inputs: `e70a90abb1a53567bfb6eb28f6ee057d7b9f0dc8`.
 All three delivered library packages have version `0.6.0`.
 
 The earlier `41149fe1febf2ecee07f077d68a500e18822442c` package remains a
@@ -126,8 +126,8 @@ fallback. Earlier delivery evidence does not prove these changed bytes.
 
 ## Exact consumer inputs and comparison
 
-Only these current gateway inputs at
-`e506df51e5e580d20d5cdaa25a8f134f87bf3caf` are selected:
+The current comparison selects these gateway inputs at
+`e70a90abb1a53567bfb6eb28f6ee057d7b9f0dc8`:
 
 | Manifest | Matching lockfile | Direct shared inputs | Shared lock resolutions |
 | --- | --- | --- | --- |
@@ -136,35 +136,72 @@ Only these current gateway inputs at
 | `e2e/r3/authority/Cargo.toml` | `e2e/r3/authority/Cargo.lock` | proto | 2 |
 | `e2e/r3/control-authority/Cargo.toml` | `e2e/r3/control-authority/Cargo.lock` | proto, service-control | 2 |
 
-Every direct revision and every shared lock source query/commit is exactly
-`50dc9db5fe106536d0a7d8b113b5bb4a3e210368`; every shared resolved version is
-`0.6.0`. Each URL is the same shared repository. No branch, tag or path input
-substitutes. Lockfiles include transitive shared packages, hence different counts.
-Their external dependency graphs belong to consumers and need not equal the
-shared workspace's `Cargo.lock` byte for byte.
+All four manifests pin their shared inputs to
+`958da3f9b31e70f419035b974977f8d0d2895471`. Every shared lock source
+query and resolved commit matches that exact revision; all shared resolved
+versions are `0.6.0`. No branch, tag or path input substitutes. Lockfiles include
+transitive shared packages, hence different counts. Their external dependency
+graphs belong to consumers and need not equal the shared workspace's
+`Cargo.lock` byte for byte. These verified pins do not establish complete
+snapshot qualification or external producer adoption on their own.
 
 Frozen `e2e/r1/client/Cargo.toml` pins proto and the three mocks to
 `fc1c884dd9d27d4b2238961b0e64d9442baf8ad8`. These are historical pre-adoption
 inputs, excluded from the current candidate comparison. No NSD/ns pin is claimed.
 
-Run from this repository, supplying the read-only gateway checkout:
+Run the package comparison against an immutable export of the selected shared
+revision. Supply an empty `SELECTED_EXPORT` directory and the read-only gateway
+checkout. The `.git` pointer permits the unchanged tool's read-only object queries
+against this repository; it does not create a checkout or alter Git metadata.
+Run the separate tool test from the current shared repository.
 
 ```bash
-python3 -B tools/candidate_handoff.py \
-  --candidate 50dc9db5fe106536d0a7d8b113b5bb4a3e210368 \
+set -o pipefail
+git archive 958da3f9b31e70f419035b974977f8d0d2895471 | tar -x -C "$SELECTED_EXPORT"
+printf 'gitdir: %s\n' "$(git rev-parse --absolute-git-dir)" > "$SELECTED_EXPORT/.git"
+python3 -B "$SELECTED_EXPORT/tools/candidate_handoff.py" \
+  --candidate 958da3f9b31e70f419035b974977f8d0d2895471 \
   --consumer "$GATEWAY_CHECKOUT" \
-  --consumer-revision e506df51e5e580d20d5cdaa25a8f134f87bf3caf
+  --consumer-revision e70a90abb1a53567bfb6eb28f6ee057d7b9f0dc8
 python3 -B tools/test_candidate_handoff.py
 ```
 
-The comparison passed: 251 candidate package/lock/API/vector inputs are identical,
-and all four consumer manifest/lock pairs agree (3, 3, 2, 2 shared resolutions).
-It compares current files with immutable candidate blobs, including Cargo.lock,
-workspace/package manifests, complete library source and tests, both vector
-producers and fixtures. Missing, added or changed inputs fail. It reads consumers
-only with `git show`; it never fetches, builds or edits the gateway.
+The immutable export comparison passed: 259 selected package/lock/API/vector
+inputs are identical and all four consumer manifest/lock pairs agree (3, 3, 2, 2
+shared lock resolutions). This qualifies the delivered package at the exact
+shared and gateway revisions above. The tool checks the complete selected
+snapshot, including tests, generators and fixtures, without suppressing input
+differences. It reads gateway inputs only with `git show` and never fetches,
+builds or edits that checkout.
+
+The registration placeholder producer, test and fixture extension is additive
+after the delivered package. Crate sources resolved by the consumer remain unchanged,
+as do their manifests, workspace manifest and lockfile. The new test/fixture
+bytes are not attributed to the delivered snapshot. Qualify this current
+extension separately with `just self-check feat/l8-account-profile` at its
+recorded immutable commit; that result does not replace the delivered-package
+comparison. Neither result establishes external review, producer adoption or
+live interoperability.
 The focused test uses temporary Git inputs and refuses mismatched manifest pins,
 lock commits/versions, missing packages, floating branches and changed/added files.
+
+The earlier comparison of shared package
+`50dc9db5fe106536d0a7d8b113b5bb4a3e210368` with gateway inputs
+`e506df51e5e580d20d5cdaa25a8f134f87bf3caf` remains historical comparison
+evidence: 251 inputs and four manifest/lock pairs agreed at that package.
+Rechecking that historical selection against the later shared tree failed on
+`crates/nsshared-proto/src/account.rs`; that failure is preserved and is not
+reclassified as a pass. The current comparison selects the delivered package
+and the aligned gateway inputs above at the immutable export boundary.
+
+The intermediate gateway revision
+`96fa0dca57c3af5e96ab9f72d710f2cbe6d8cf93` also remains historical failure
+evidence. Before the placeholder vector extension, comparison with selected
+shared package `958da3f9b31e70f419035b974977f8d0d2895471` confirmed 259
+identical shared inputs and three workspace lock resolutions, then failed with
+`manifest pin differs: nsshared-proto` at direct-peer. Its authority manifest
+also retained the old proto pin. The aligned revision supersedes that consumer
+selection; the previous failure remains a failure.
 
 Independent checks remain `just vectors-check`, `just semver`, and the existing
 format/lint/dependency/test/documentation checks through `just self-check` / `just qa`.
@@ -179,10 +216,14 @@ introduced by this handoff. Package equality is not a new whole-source purity pr
 
 All Q01–Q23 and M01–M02 in the [review request](l8-candidate-review-request.md)
 retain their individually recorded prepared/unanswered state and named addressees.
-There is no recorded owner-forwarding date or received producer answer. Q18's
-separate design choice is settled; shared P07 definitions are delivered, while
-producer review/adoption remains open. Gateway manifest delivery is established
-only for the four pairs above. Silence supplies no agreement.
+The [review request delivery](l8-candidate-review-request.md) was completed
+through the owner route on 2026-10-25 (UTC), at revision
+`958da3f9b31e70f419035b974977f8d0d2895471`. The owner forwarded the candidate
+review package to the NSD owner as producer and the ns owner as consumer reviewer.
+No answer has been received. Silence approves nothing. Q18's separate design
+choice is settled; shared P07 definitions are delivered, while producer
+review/adoption remains open. Gateway manifest delivery is established only
+for the four pairs above.
 
 | Surface | Outstanding external delivery / review |
 | --- | --- |
@@ -266,3 +307,27 @@ N07/N09 production and current-source handoff, and ns S25/S11 provider activatio
 remain outstanding. Review requests record no agreement. Gateway self-reporting
 and inventory consumption remain deferred to the existing C06 handoff; fixture
 success supplies no evidence of external implementation or live eligibility.
+
+## Registration lifecycle clarification after the selected package
+
+The [registration-only placeholder profile](l8-account-payload-profile.md#registration-only-incarnation-placeholders)
+and [registration exchange](control-exchange-candidate.md#canonical-tuples)
+clarify the existing six-element lifecycle without changing schema, codec or
+comparator. The requesting Node emits sixteen zero bytes in each final slot;
+receivers structurally decode and ignore both values. They supply neither
+authority nor transition inputs or custody. Existing nonzero fixtures remain
+receiver coverage only. Grant and reporter tokens retain their independent
+producers, comparisons, retirement and settlement contracts.
+
+The independent `enrollment_consumer_vectors` extension in
+`crates/nsshared-proto/tests/enrollment_vectors.rs`, generated by
+`tools/vectors/nsvec/producers/enrollment.py` into `account.vec`, covers an
+ordinary Node without grants or a reporter. It accepts zero-placeholder identity
+replacement and explicitly authorized K rotation while retaining exact
+before/after mismatch and unauthorized-rotation refusals.
+
+This documentation/vector addition is later than the selected shared package;
+that package's immutable export comparison does not establish these new vectors.
+It requires no gateway source change or repin. NSD N24/N26 and ns S17 adoption,
+producer-owned vectors and review remain outstanding as recorded in Q07. No
+reply, agreement or live interoperability is implied.
