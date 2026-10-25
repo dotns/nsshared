@@ -39,6 +39,24 @@ name.
 Review findings at the base (`review-1bc1d39e.md`) were re-verified against the code
 before each change; each phase lists what was confirmed.
 
+Phase A findings (confirmed):
+
+- A1: `Cursor::item` reserved `Vec::with_capacity(length)` and
+  `HashSet::with_capacity(length)` from the declared count (up to 16 384) before
+  reading members. The NS array profile has the same pattern after `array_up_to`, but
+  every such count is bounded by a small per-field maximum, so it is left unchanged.
+- A2: three scope rules existed: publication content (non-empty, at most 256 bytes),
+  subscription, snapshot request, source binding and authentication source selection
+  (also no control characters), public-edge, material and confidential configuration
+  (`policy_subject::text`: also no whitespace). The family specifications state
+  "without control characters". One rule now applies everywhere: the strictest one,
+  so no previously refused input becomes accepted. Node L3 status scopes equal their
+  source binding's scope and inherit the rule.
+- A3: the disposition table said every row was `prepared` although the status
+  recorded delivery on 2026-10-25.
+- A4: the profile named `41149fe1`, the review request and handoff `958da3f9`; content
+  after `958da3f9` (registration placeholders) was not marked.
+
 ## Proposal
 
 ### Target crates
@@ -105,6 +123,14 @@ Gates after every phase:
 4. A scratch crate outside the repository that imports every `nsshared_proto` and
    `nsshared_service_control` item used by the consumer main lines builds against the
    branch.
+
+Gate tools (in [this plan's directory](20261025-0802-nsshared-restructure/)):
+
+- `vector_cases.py BASE vector-map.json` compares every case of every fixture at
+  `BASE` with the working tree through the `moves` map and the listed `added` cases.
+- `consumer_paths.py OUT SHARED CONSUMER...` collects the `nsshared_proto` and
+  `nsshared_service_control` paths used by consumer sources and writes a crate that
+  imports each one. At the consumer pin `aba1c5d5` all 238 collected paths resolve.
 
 ### Account layout inside nsshared-control (P4)
 
@@ -183,8 +209,8 @@ push, merge or tag without the owner's word.
 
 | Phase | Status | Head | Notes |
 | --- | --- | --- | --- |
-| P0 | done | | plan and task |
-| A | pending | | |
+| P0 | done | ab9c885 | plan and task |
+| A | done | 4f623d3 | A1-A4; gates: qa 0, vectors-check 0, cases 0 (2714 unchanged, 9 added), semver 0 x5, consumer paths 0 |
 | P1 | pending | | |
 | P2 | pending | | |
 | P3 | pending | | |

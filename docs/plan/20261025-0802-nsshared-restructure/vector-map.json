@@ -1,0 +1,12 @@
+{
+  "base": "1bc1d39ef51d3e60a88a01d67244afc68ebd795c",
+  "moves": {},
+  "added": {
+    "crates/nsshared-proto/tests/fixtures/vectors/account.vec": ["publication-control-scope", "publication-whitespace-scope"],
+    "crates/nsshared-proto/tests/fixtures/vectors/control-exchange.vec": ["authentication-whitespace-scope"],
+    "crates/nsshared-proto/tests/fixtures/vectors/publication-snapshot-request.vec": ["whitespace-scope"],
+    "crates/nsshared-proto/tests/fixtures/vectors/publication-subscription.vec": ["scope-whitespace"],
+    "crates/nsshared-proto/tests/fixtures/vectors/source-selection.vec": ["control-scope", "whitespace-scope"],
+    "crates/nsshared-service-control/vectors/service-control-v1.json": ["declared_length_cbor", "declared_length_error"]
+  }
+}
