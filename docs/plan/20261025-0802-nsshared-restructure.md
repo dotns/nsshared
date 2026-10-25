@@ -217,7 +217,7 @@ push, merge or tag without the owner's word.
 | P0 | done | ab9c885 | plan and task |
 | A | done | 4f623d3 | A1-A4; gates: qa 0, vectors-check 0, cases 0 (2714 unchanged, 9 added), semver 0 x5, consumer paths 0 |
 | P1 | done | 42c4810 | qa 0, vectors 0, cases 0, api_surface proto 0 x3, service-control 2 missing lines = intended `#[non_exhaustive]` on `CborError`, consumer paths 0, base tests 287/287 |
-| P2 | pending | | |
+| P2 | done | dc7e9ff | qa 0 (after dropping proto's unused `getrandom`), vectors 0, cases 0, api_surface proto 0 x3, service-control: only the 2 intended lines, consumer paths 0, base tests 287/287; `RecordMarks::write`/`read` became public for the registry state |
 | P3 | pending | | |
 | P4 | pending | | |
 | P5 | pending | | |
