@@ -1,4 +1,4 @@
-//! Pure candidate enrollment, authentication and information exchange.
+//! Pure enrollment, authentication and information exchanges.
 use crate::{
     account::AccountError, account::MAX_BYTES, account::SCHEMA, account::codec::ascending,
     account::codec::bounded, account::codec::data_text, account::codec::reader,

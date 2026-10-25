@@ -33,7 +33,7 @@ pub const SERVICE_CONTROL: &str = "service.control.v1";
 pub const CONFIG_STREAM: &str = "config.stream";
 /// Confidential authenticated publication stream endpoint.
 pub const CONFIG_STREAM_PATH: &str = "/api/v1/config/stream";
-/// Publication SSE event containing one complete SourcePublication, never a B43 envelope.
+/// Publication SSE event containing one complete SourcePublication, never a signed carrier envelope.
 pub const CONFIG_PUBLICATION_EVENT: &str = "config-envelope.v1";
 /// Query parameter containing the canonical unpadded Base64 signed subscription.
 pub const CONFIG_STREAM_REQUEST_PARAM: &str = "request";

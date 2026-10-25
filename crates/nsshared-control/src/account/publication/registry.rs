@@ -4,7 +4,7 @@ use crate::{
 };
 use nsshared_codec::cbor::CborWriter;
 
-/// Stable candidate family identifiers, matching the request's eleven families.
+/// Stable family identifiers of the eleven account families.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(u64)]
 pub enum FamilyId {
@@ -73,7 +73,7 @@ pub struct ReplacementRule {
     pub clears: &'static str,
 }
 
-/// One immutable candidate family registration.
+/// One immutable family registration.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct FamilyRegistration {
     /// Stable identifier.
@@ -84,7 +84,7 @@ pub struct FamilyRegistration {
     pub name: &'static str,
     /// Complete replacement semantics.
     pub replacement: ReplacementRule,
-    /// Owning candidate work record, linked in the specification.
+    /// Owning specification of the family payloads.
     pub owner: &'static str,
     /// Existing M6 groups reused whenever this family carries service work.
     pub m6: &'static [M6Reuse],
@@ -180,7 +180,7 @@ pub const FAMILIES: [FamilyRegistration; 11] = [
     ),
 ];
 
-/// The exact immutable candidate registry, including replacement and reuse rules.
+/// The exact immutable family registry, including replacement and reuse rules.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct FamilyRegistry;
 

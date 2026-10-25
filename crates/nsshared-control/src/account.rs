@@ -43,14 +43,14 @@ use nsshared_codec::cbor::CborError;
 use nsshared_identity::realm::RealmIdError;
 use thiserror::Error;
 
-/// Candidate CBOR schema version. Local admission JSON has its own schema 2.
+/// Account CBOR schema version. Local admission JSON has its own schema 2.
 pub const SCHEMA: u64 = 1;
-/// Maximum encoded candidate or local snapshot size, in bytes.
+/// Maximum encoded contract or local snapshot size, in bytes.
 pub const MAX_BYTES: usize = 1_048_576;
 /// Maximum identities in a complete admission roster.
 pub const MAX_IDENTITIES: usize = 8_192;
 
-/// A rejected candidate contract. Invalid content never represents withdrawal.
+/// A rejected account contract. Invalid content never represents withdrawal.
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum AccountError {

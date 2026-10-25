@@ -41,7 +41,7 @@ pub struct RosterEntry {
 /// Validated local JSON schema 2 content. No file ownership or I/O is implied.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AdmissionSnapshot {
-    /// Candidate local JSON schema, always 2 after validation.
+    /// Local JSON schema, always 2 after validation.
     pub schema_version: u8,
     /// Issue time supplied by the controlled-file producer.
     pub issued_at_unix_ms: u64,

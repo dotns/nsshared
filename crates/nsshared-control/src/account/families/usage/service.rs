@@ -39,7 +39,7 @@ pub enum BatchLossWindow {
     },
 }
 
-/// Candidate service unit, independent of the later report envelope.
+/// Service usage unit, independent of the report envelope.
 /// Every payer and incarnation is explicit; M6 owns service references.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ServiceUsage {
@@ -62,7 +62,7 @@ pub struct ServiceUsage {
 }
 
 impl ServiceUsage {
-    /// Encodes the candidate unit and batch-loss measurement state.
+    /// Encodes the unit and batch-loss measurement state.
     #[must_use]
     pub fn canonical(&self) -> Vec<u8> {
         let mut out = CborWriter::default();

@@ -62,7 +62,7 @@ pub enum UsageProfile {
 }
 
 impl UsageProfile {
-    /// Exact candidate profile identifier.
+    /// Exact profile identifier.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {

@@ -15,7 +15,7 @@ use thiserror::Error;
 use nsshared_codec::{cbor::CborError, cbor::CborReader, cbor::CborWriter};
 use nsshared_identity::keys::IdentityKey;
 
-/// Typed refusal of candidate service authority.
+/// Typed refusal of service authority.
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum GrantError {

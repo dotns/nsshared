@@ -70,7 +70,7 @@ pub enum Transition {
     RecordRotation,
 }
 
-/// Candidate lifecycle example with explicitly separate incarnation domains.
+/// Identity lifecycle with explicitly separate incarnation domains.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Lifecycle {
     /// Kind of key transition.
@@ -120,7 +120,7 @@ impl Lifecycle {
         Ok(out.into_bytes())
     }
 
-    /// Decodes and validates an exact lifecycle candidate.
+    /// Decodes and validates an exact lifecycle.
     ///
     /// # Errors
     /// Rejects malformed CBOR, unsupported tags and invalid transitions.
