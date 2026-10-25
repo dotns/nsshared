@@ -1,6 +1,11 @@
 # M6 service control wire contract
 
-`nsshared-service-control` is the pure, versioned wire contract shared by `ns`,
+`nsshared-service-control` is a deprecated facade: the contract is
+`nsshared_control::service`, on the M6 value profile of `nsshared_codec::cbor::value`.
+This crate re-exports every item at its existing `cbor`, `contract`, `message`,
+`snapshot` and root paths.
+
+The contract is the pure, versioned wire contract shared by `ns`,
 `nsd`, and service-control consumers. It does not perform authentication, state
 persistence, port allocation, lease timing, or traffic enforcement. Callers use
 the existing signed control transport and verify its authenticated identity
@@ -21,9 +26,10 @@ publisher-only `listeners` carry backend coordinates. Consumer-visible
 `grants` carry an allowed TCP/UDP subset. Collection order is by complete
 `ServiceRef` and endpoint identity, rather than map or arrival order.
 
-The independent Python generator in `vectors/generate.py` produces the checked
-CBOR and digest fixtures in `vectors/service-control-v1.json`. `just vectors-check`
-checks for drift. `tests/message_schema.rs` exercises every
+The independent producer `tools/vectors/nsvec/producers/control/service/canonical.py`
+writes the checked CBOR and digest fixtures to
+`crates/nsshared-control/tests/vectors/service/canonical.json`; `just vectors-check`
+checks for drift. The `service::messages` tests of `nsshared-control` exercise every
 message kind, negative field cases, scope echoes and a nonempty snapshot.
 
 The companion M6 service-control plan in `ns/docs/plan` defines persistence,
