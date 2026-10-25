@@ -7,8 +7,8 @@
 mod support;
 use nsshared_control::{
     account::relay::Authorization, account::relay::BindingDecision, account::relay::EXPORTER_LABEL,
-    account::relay::EnrollmentProvision, account::relay::Frame, account::relay::PROOF_DOMAIN,
-    account::relay::PendingResponse, account::relay::SessionError,
+    account::relay::EnrollmentProvision, account::relay::Frame, account::relay::FrameKind,
+    account::relay::PROOF_DOMAIN, account::relay::PendingResponse, account::relay::SessionError,
     account::relay::SignedDirectoryBinding, account::relay::exporter_context,
     account::relay::proof_input, account::relay::verify_participant_roster,
     account::usage::UsageAnswer, account::usage::UsageReport, account::usage::UsageRows,
@@ -83,7 +83,11 @@ fn participant_authority_independent_vectors() {
                     }
                     "response" => {
                         let pending = PendingResponse {
-                            kind: if bytes[4] == 8 { 8 } else { 10 },
+                            kind: if bytes[4] == 8 {
+                                FrameKind::Enrolled
+                            } else {
+                                FrameKind::Renewed
+                            },
                             issuer: key(1),
                             participant: key(2),
                             correlation: [6; 16],
@@ -153,7 +157,10 @@ fn participant_auth_transport() {
         .unwrap()
         .validate_renewal(&authorization(true), (key(1), key(2)), 1000)
         .unwrap();
-    for (name, kind) in [("enrolled", 8), ("renewed", 10)] {
+    for (name, kind) in [
+        ("enrolled", FrameKind::Enrolled),
+        ("renewed", FrameKind::Renewed),
+    ] {
         let pending = PendingResponse {
             kind,
             issuer: key(1),
@@ -266,8 +273,8 @@ fn participant_auth_transport() {
 #[test]
 fn participant_constructors_correlation_and_deadlines() {
     use nsshared_control::{
-        account::relay::ENROLLED, account::relay::MAX_FRAME_BODY, account::relay::RENEWED,
-        account::relay::retained_credential_deadline, account::relay::validate_header,
+        account::relay::MAX_FRAME_BODY, account::relay::retained_credential_deadline,
+        account::relay::validate_header,
     };
     let vectors = fixtures();
     let proof: [u8; 64] = raw(&vectors, "authenticate")[69..].try_into().unwrap();
@@ -293,7 +300,7 @@ fn participant_constructors_correlation_and_deadlines() {
         raw(&vectors, "renew")
     );
     let pending = PendingResponse {
-        kind: ENROLLED,
+        kind: FrameKind::Enrolled,
         issuer: key(1),
         participant: key(2),
         correlation: [6; 16],
@@ -306,7 +313,7 @@ fn participant_constructors_correlation_and_deadlines() {
         response
             .validate_response(
                 &PendingResponse {
-                    kind: RENEWED,
+                    kind: FrameKind::Renewed,
                     ..pending
                 },
                 1000
@@ -355,9 +362,12 @@ fn participant_constructors_correlation_and_deadlines() {
             .validate_renewal(&authorization(true), (key(1), key(3)), 1000)
             .is_err()
     );
-    for kind in 4..=6 {
-        assert_eq!(validate_header(1_048_577, kind).unwrap(), MAX_FRAME_BODY);
-        assert!(validate_header(1_048_578, kind).is_err());
+    for kind in [FrameKind::Roster, FrameKind::Report, FrameKind::Answer] {
+        assert_eq!(
+            validate_header(1_048_577, kind.byte()).unwrap(),
+            MAX_FRAME_BODY
+        );
+        assert!(validate_header(1_048_578, kind.byte()).is_err());
         let frame = Frame::new(kind, vec![42; MAX_FRAME_BODY]).unwrap();
         assert_eq!(Frame::decode(&frame.canonical().unwrap()).unwrap(), frame);
         assert!(Frame::new(kind, vec![42; MAX_FRAME_BODY + 1]).is_err());

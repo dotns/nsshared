@@ -16,26 +16,70 @@ pub const EXPORTER_LABEL: &[u8] = b"EXPORTER-nsgw-participant-candidate-v1";
 pub const PROOF_DOMAIN: &[u8] = b"nsgw-participant-candidate-v1\0";
 /// Maximum body bytes, preserving the existing roster/report frame bound.
 pub const MAX_FRAME_BODY: usize = 1_048_576;
-/// Participant authentication request.
-pub const AUTHENTICATE: u8 = 1;
-/// Authenticated session metadata.
-pub const AUTHENTICATED: u8 = 2;
-/// Refusal with no withdrawal semantics.
-pub const REFUSED: u8 = 3;
-/// Unchanged signed complete roster bytes.
-pub const ROSTER: u8 = 4;
-/// Unchanged immutable usage report bytes.
-pub const REPORT: u8 = 5;
-/// Unchanged usage answer bytes.
-pub const ANSWER: u8 = 6;
-/// Dedicated enrollment request.
-pub const ENROLL: u8 = 7;
-/// Correlated enrollment acceptance.
-pub const ENROLLED: u8 = 8;
-/// Renewal on an already authenticated session.
-pub const RENEW: u8 = 9;
-/// Correlated renewal acceptance.
-pub const RENEWED: u8 = 10;
+/// Participant frame kinds; the discriminant is the wire kind byte.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[repr(u8)]
+pub enum FrameKind {
+    /// Participant authentication request.
+    Authenticate = 1,
+    /// Authenticated session metadata.
+    Authenticated = 2,
+    /// Refusal with no withdrawal semantics.
+    Refused = 3,
+    /// Unchanged signed complete roster bytes.
+    Roster = 4,
+    /// Unchanged immutable usage report bytes.
+    Report = 5,
+    /// Unchanged usage answer bytes.
+    Answer = 6,
+    /// Dedicated enrollment request.
+    Enroll = 7,
+    /// Correlated enrollment acceptance.
+    Enrolled = 8,
+    /// Renewal on an already authenticated session.
+    Renew = 9,
+    /// Correlated renewal acceptance.
+    Renewed = 10,
+}
+
+impl FrameKind {
+    /// The kind for a wire kind byte, or `None` for an unknown operation.
+    #[must_use]
+    pub const fn from_byte(byte: u8) -> Option<Self> {
+        Some(match byte {
+            1 => Self::Authenticate,
+            2 => Self::Authenticated,
+            3 => Self::Refused,
+            4 => Self::Roster,
+            5 => Self::Report,
+            6 => Self::Answer,
+            7 => Self::Enroll,
+            8 => Self::Enrolled,
+            9 => Self::Renew,
+            10 => Self::Renewed,
+            _ => return None,
+        })
+    }
+
+    /// The wire kind byte.
+    #[must_use]
+    pub const fn byte(self) -> u8 {
+        self as u8
+    }
+
+    /// True for the kinds that carry the issuer/participant pair.
+    const fn has_pair(self) -> bool {
+        matches!(self, Self::Authenticate) || self.has_correlation()
+    }
+
+    /// True for the kinds that carry a request correlation.
+    const fn has_correlation(self) -> bool {
+        matches!(
+            self,
+            Self::Enroll | Self::Enrolled | Self::Renew | Self::Renewed
+        )
+    }
+}
 
 /// Refusal never supplies signed withdrawal or a renewed deadline.
 #[derive(Debug, Error)]
@@ -129,8 +173,8 @@ impl fmt::Debug for EnrollmentProvision<'_> {
 /// Client-owned pending request on a verified TLS connection.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct PendingResponse {
-    /// Exactly ENROLLED or RENEWED.
-    pub kind: u8,
+    /// Exactly [`FrameKind::Enrolled`] or [`FrameKind::Renewed`].
+    pub kind: FrameKind,
     /// Expected trusted issuer.
     pub issuer: IdentityKey,
     /// Own public identity.
@@ -142,7 +186,7 @@ pub struct PendingResponse {
 /// Validated frame shape. Debug output never includes enrollment credentials.
 #[derive(Clone, Eq, PartialEq)]
 pub struct Frame {
-    kind: u8,
+    kind: FrameKind,
     body: Vec<u8>,
 }
 impl fmt::Debug for Frame {
@@ -163,15 +207,15 @@ pub fn validate_header(length: u32, kind: u8) -> Result<usize, SessionError> {
         .and_then(|n| n.checked_sub(1))
         .filter(|n| *n <= MAX_FRAME_BODY)
         .ok_or(SessionError::Frame)?;
-    let valid = match kind {
-        AUTHENTICATE => body_len == 128,
-        AUTHENTICATED => matches!(body_len, 1 | 9),
-        REFUSED => body_len == 0,
-        ROSTER..=ANSWER => body_len > 0,
-        ENROLL => body_len == 176,
-        ENROLLED | RENEWED => matches!(body_len, 81 | 89),
-        RENEW => body_len == 80,
-        _ => false,
+    let valid = match FrameKind::from_byte(kind) {
+        Some(FrameKind::Authenticate) => body_len == 128,
+        Some(FrameKind::Authenticated) => matches!(body_len, 1 | 9),
+        Some(FrameKind::Refused) => body_len == 0,
+        Some(FrameKind::Roster | FrameKind::Report | FrameKind::Answer) => body_len > 0,
+        Some(FrameKind::Enroll) => body_len == 176,
+        Some(FrameKind::Enrolled | FrameKind::Renewed) => matches!(body_len, 81 | 89),
+        Some(FrameKind::Renew) => body_len == 80,
+        None => false,
     };
     if !valid {
         return Err(SessionError::Frame);
@@ -218,24 +262,24 @@ impl Frame {
     /// Construct a bounded frame with exact operation fields; no session is granted.
     /// # Errors
     /// Refuses malformed lengths, identities, correlations and deadline encodings.
-    pub fn new(kind: u8, body: Vec<u8>) -> Result<Self, SessionError> {
+    pub fn new(kind: FrameKind, body: Vec<u8>) -> Result<Self, SessionError> {
         let length = u32::try_from(body.len())
             .ok()
             .and_then(|n| n.checked_add(1))
             .ok_or(SessionError::Frame)?;
-        validate_header(length, kind)?;
-        if matches!(kind, AUTHENTICATE | ENROLL..=RENEWED) {
+        validate_header(length, kind.byte())?;
+        if kind.has_pair() {
             identity(&body[..32])?;
             identity(&body[32..64])?;
         }
-        if matches!(kind, ENROLL..=RENEWED) && body[64..80] == [0; 16] {
+        if kind.has_correlation() && body[64..80] == [0; 16] {
             return Err(SessionError::Frame);
         }
         match kind {
-            AUTHENTICATED => {
+            FrameKind::Authenticated => {
                 credential_deadline(&body)?;
             }
-            ENROLLED | RENEWED => {
+            FrameKind::Enrolled | FrameKind::Renewed => {
                 credential_deadline(&body[80..])?;
             }
             _ => {}
@@ -252,7 +296,7 @@ impl Frame {
     ) -> Result<Self, SessionError> {
         let mut body = exporter_context(issuer, participant).to_vec();
         body.extend_from_slice(&proof);
-        Self::new(AUTHENTICATE, body)
+        Self::new(FrameKind::Authenticate, body)
     }
     /// Construct an enrollment request with its dedicated provisioning credential.
     /// # Errors
@@ -268,7 +312,7 @@ impl Frame {
         body.extend_from_slice(&correlation);
         body.extend_from_slice(credential);
         body.extend_from_slice(&proof);
-        Self::new(ENROLL, body)
+        Self::new(FrameKind::Enroll, body)
     }
     /// Construct renewal on an independently authenticated session.
     /// # Errors
@@ -280,7 +324,7 @@ impl Frame {
     ) -> Result<Self, SessionError> {
         let mut body = exporter_context(issuer, participant).to_vec();
         body.extend_from_slice(&correlation);
-        Self::new(RENEW, body)
+        Self::new(FrameKind::Renew, body)
     }
     /// Construct enrolled/renewed metadata for the exact request and actual deadline.
     /// # Errors
@@ -289,7 +333,7 @@ impl Frame {
         pending: &PendingResponse,
         deadline_ms: Option<u64>,
     ) -> Result<Self, SessionError> {
-        if !matches!(pending.kind, ENROLLED | RENEWED) {
+        if !matches!(pending.kind, FrameKind::Enrolled | FrameKind::Renewed) {
             return Err(SessionError::Frame);
         }
         let mut body = exporter_context(pending.issuer, pending.participant).to_vec();
@@ -301,13 +345,13 @@ impl Frame {
     /// # Errors
     /// Refuses invalid frame bounds.
     pub fn authenticated(deadline_ms: Option<u64>) -> Result<Self, SessionError> {
-        Self::new(AUTHENTICATED, deadline_bytes(deadline_ms))
+        Self::new(FrameKind::Authenticated, deadline_bytes(deadline_ms))
     }
     /// Read exact request correlation without exposing enrollment credentials.
     /// # Errors
     /// Refuses operations without a correlation.
     pub fn correlation(&self) -> Result<[u8; 16], SessionError> {
-        if !matches!(self.kind, ENROLL..=RENEWED) {
+        if !self.kind.has_correlation() {
             return Err(SessionError::Frame);
         }
         self.body[64..80]
@@ -318,7 +362,7 @@ impl Frame {
     /// # Errors
     /// Refuses operations that do not carry a pair.
     pub fn scope(&self) -> Result<(IdentityKey, IdentityKey), SessionError> {
-        if !matches!(self.kind, AUTHENTICATE | ENROLL..=RENEWED) {
+        if !self.kind.has_pair() {
             return Err(SessionError::Frame);
         }
         self.pair()
@@ -332,11 +376,12 @@ impl Frame {
             .ok_or(SessionError::Frame)?
             .try_into()
             .map_err(|_| SessionError::Frame)?;
-        let kind = *bytes.get(4).ok_or(SessionError::Frame)?;
-        let length = validate_header(u32::from_be_bytes(header), kind)?;
+        let byte = *bytes.get(4).ok_or(SessionError::Frame)?;
+        let length = validate_header(u32::from_be_bytes(header), byte)?;
         if bytes.len() != length + 5 {
             return Err(SessionError::Frame);
         }
+        let kind = FrameKind::from_byte(byte).ok_or(SessionError::Frame)?;
         Self::new(kind, bytes[5..].to_vec())
     }
     /// Exact wire bytes; roster/report/answer bodies are never reinterpreted.
@@ -344,15 +389,15 @@ impl Frame {
     /// Rejects invalid lengths rather than truncating their integer representation.
     pub fn canonical(&self) -> Result<Vec<u8>, SessionError> {
         let length = u32::try_from(self.body.len() + 1).map_err(|_| SessionError::Frame)?;
-        validate_header(length, self.kind)?;
+        validate_header(length, self.kind.byte())?;
         let mut bytes = length.to_be_bytes().to_vec();
-        bytes.push(self.kind);
+        bytes.push(self.kind.byte());
         bytes.extend_from_slice(&self.body);
         Ok(bytes)
     }
     /// Shared operation identifier.
     #[must_use]
-    pub const fn kind(&self) -> u8 {
+    pub const fn kind(&self) -> FrameKind {
         self.kind
     }
     /// Exact body, including unchanged roster/report/answer content.
@@ -388,7 +433,9 @@ impl Frame {
         provision: &EnrollmentProvision<'_>,
         exporter: &[u8; 32],
     ) -> Result<(), SessionError> {
-        if self.kind != ENROLL || self.pair()? != (provision.issuer, provision.participant) {
+        if self.kind != FrameKind::Enroll
+            || self.pair()? != (provision.issuer, provision.participant)
+        {
             return Err(SessionError::Unauthorized);
         }
         // Compare fixed-length credentials through constant-time MAC verification.
@@ -412,7 +459,7 @@ impl Frame {
         exporter: &[u8; 32],
         now_ms: u64,
     ) -> Result<(), SessionError> {
-        if self.kind != AUTHENTICATE {
+        if self.kind != FrameKind::Authenticate {
             return Err(SessionError::Frame);
         }
         let (issuer, participant) = self.pair()?;
@@ -428,7 +475,7 @@ impl Frame {
         authenticated_pair: (IdentityKey, IdentityKey),
         now_ms: u64,
     ) -> Result<(), SessionError> {
-        if self.kind != RENEW || self.pair()? != authenticated_pair {
+        if self.kind != FrameKind::Renew || self.pair()? != authenticated_pair {
             return Err(SessionError::Unauthorized);
         }
         authorization.validate(authenticated_pair.0, authenticated_pair.1, now_ms)
@@ -442,7 +489,7 @@ impl Frame {
         pending: &PendingResponse,
         now_ms: u64,
     ) -> Result<Option<u64>, SessionError> {
-        if !matches!(pending.kind, ENROLLED | RENEWED)
+        if !matches!(pending.kind, FrameKind::Enrolled | FrameKind::Renewed)
             || self.kind != pending.kind
             || pending.correlation == [0; 16]
             || self.pair()? != (pending.issuer, pending.participant)

@@ -5,9 +5,9 @@ use nsshared_control::{
     account::grants::GrantPublication, account::node::ReporterIncarnation,
     account::relay::IdentityClass, account::relay::ParticipantRosterGeneration,
     account::relay::ParticipantRosterScope, account::relay::RosterEntry,
-    account::relay::RosterVersion, account::usage::BatchLossWindow, account::usage::Direction,
-    account::usage::RelayBilling, account::usage::RelayDirection, account::usage::RelayUsage,
-    account::usage::ServiceBoundary, account::usage::ServiceOperation,
+    account::relay::RosterVersion, account::usage::BatchLossWindow, account::usage::RelayBilling,
+    account::usage::RelayDirection, account::usage::RelayUsage, account::usage::ServiceBoundary,
+    account::usage::ServiceDirection, account::usage::ServiceOperation,
     account::usage::ServiceUsage, account::usage::UsageAnswer, account::usage::UsageError,
     account::usage::UsageOutcome, account::usage::UsageProfile, account::usage::UsageReport,
     account::usage::UsageRows, account::usage::UsageWatermark,
@@ -487,7 +487,7 @@ fn usage_constructed_bounds_and_scope() {
     };
     rows[0].unit.boundary = ServiceBoundary::CompletedHostWritesAndSends;
     rows[0].operation = ServiceOperation::EchoReplySend;
-    assert_eq!(rows[0].unit.direction, Direction::ClientToProvider);
+    assert_eq!(rows[0].unit.direction, ServiceDirection::ClientToProvider);
     assert!(matches!(value.computed_digest(), Err(UsageError::Field)));
 
     let mut value = report("service-report");

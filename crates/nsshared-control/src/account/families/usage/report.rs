@@ -6,8 +6,8 @@ use crate::{
     account::AccountError, account::MAX_BYTES, account::MAX_IDENTITIES, account::SCHEMA,
     account::bounded, account::grants::GrantError, account::grants::ServiceGrant,
     account::grants::grant as grants, account::identity, account::node::ReporterIncarnation,
-    account::reader, account::usage::Direction, account::usage::RelayUsage,
-    account::usage::ServiceBoundary, account::usage::ServiceUsage,
+    account::reader, account::usage::RelayUsage, account::usage::ServiceBoundary,
+    account::usage::ServiceDirection, account::usage::ServiceUsage,
 };
 use nsshared_codec::{cbor::CborReader, cbor::CborWriter};
 use nsshared_identity::keys::IdentityKey;
@@ -122,11 +122,11 @@ impl ServiceUsageRow {
             }
             ServiceOperation::EchoProbeSend => field(
                 self.unit.boundary == ServiceBoundary::CompletedHostWritesAndSends
-                    && self.unit.direction == Direction::ClientToProvider,
+                    && self.unit.direction == ServiceDirection::ClientToProvider,
             ),
             ServiceOperation::EchoReplySend => field(
                 self.unit.boundary == ServiceBoundary::CompletedHostWritesAndSends
-                    && self.unit.direction == Direction::ProviderToClient,
+                    && self.unit.direction == ServiceDirection::ProviderToClient,
             ),
             _ => field(self.unit.boundary == ServiceBoundary::CompletedHostWritesAndSends),
         }

@@ -16,10 +16,10 @@ pub enum ServiceBoundary {
     PublicIngress,
 }
 
-/// Direction relative to the authorized service client and provider.
+/// ServiceDirection relative to the authorized service client and provider.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(u64)]
-pub enum Direction {
+pub enum ServiceDirection {
     /// Client to service provider.
     ClientToProvider,
     /// Service provider to client.
@@ -46,7 +46,7 @@ pub struct ServiceUsage {
     /// Versioned completed-byte boundary.
     pub boundary: ServiceBoundary,
     /// Client/provider direction.
-    pub direction: Direction,
+    pub direction: ServiceDirection,
     /// Explicit paying realm.
     pub payer_realm: RealmId,
     /// Paying realm-local UserId, unsigned big-endian ULID bytes.
@@ -98,8 +98,8 @@ impl ServiceUsage {
             _ => return Err(AccountError::Field),
         };
         let direction = match input.uint()? {
-            0 => Direction::ClientToProvider,
-            1 => Direction::ProviderToClient,
+            0 => ServiceDirection::ClientToProvider,
+            1 => ServiceDirection::ProviderToClient,
             _ => return Err(AccountError::Field),
         };
         let mut value = Self {

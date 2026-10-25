@@ -98,7 +98,7 @@ struct JsonEntry {
 /// # Errors
 /// Rejects missing/unknown/duplicate fields, invalid keys/classes, duplicate identities,
 /// unsupported schemas, zero versions, bounds, future issue times and stale content.
-pub fn validate_snapshot(
+pub fn validate_admission_snapshot(
     bytes: &[u8],
     now_ms: u64,
     max_age_ms: u64,

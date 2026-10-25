@@ -2,8 +2,9 @@
 
 use nsshared_control::{
     account::node::Lifecycle, account::node::NodeL3, account::publication::FamilyRegistry,
-    account::relay::Roster, account::relay::SignedRoster, account::relay::validate_snapshot,
-    account::usage::BatchLossWindow, account::usage::ServiceUsage,
+    account::relay::Roster, account::relay::SignedRoster,
+    account::relay::validate_admission_snapshot, account::usage::BatchLossWindow,
+    account::usage::ServiceUsage,
 };
 use nsshared_identity::keys::IdentitySecret;
 use std::collections::BTreeMap;
@@ -132,7 +133,7 @@ fn strict_local_roster_vectors() {
         if let Some(length) = vector.get("pad_to") {
             input.resize(length.parse().unwrap(), b' ');
         }
-        let result = validate_snapshot(&input, 1000, 100);
+        let result = validate_admission_snapshot(&input, 1000, 100);
         assert_eq!(
             result.is_ok(),
             vector["expect"] == "accept",
@@ -185,12 +186,12 @@ fn roster_freshness_and_empty_replacement() {
     let snapshot =
         r#"{"schema_version":2,"issued_at_unix_ms":900,"roster_version":7,"identities":[]}"#;
     assert!(
-        validate_snapshot(snapshot.as_bytes(), 1000, 100)
+        validate_admission_snapshot(snapshot.as_bytes(), 1000, 100)
             .unwrap()
             .identities
             .is_empty()
     );
-    assert!(validate_snapshot(snapshot.as_bytes(), 1001, 100).is_err());
+    assert!(validate_admission_snapshot(snapshot.as_bytes(), 1001, 100).is_err());
     let mut roster = Roster {
         issuer,
         recipient: issuer,
@@ -225,7 +226,7 @@ fn admission_identity_count_bound_and_atomic_classes() {
         }))
         .unwrap()
     };
-    let mut accepted = validate_snapshot(&local(MAX_IDENTITIES), 1000, 0).unwrap();
+    let mut accepted = validate_admission_snapshot(&local(MAX_IDENTITIES), 1000, 0).unwrap();
     assert!(
         accepted
             .identities
@@ -233,7 +234,7 @@ fn admission_identity_count_bound_and_atomic_classes() {
             .all(|entry| entry.class == IdentityClass::GatewayNode)
     );
     assert!(matches!(
-        validate_snapshot(&local(MAX_IDENTITIES + 1), 1000, 0),
+        validate_admission_snapshot(&local(MAX_IDENTITIES + 1), 1000, 0),
         Err(AccountError::Bounds)
     ));
     accepted.identities.sort_by_key(|entry| entry.identity);
