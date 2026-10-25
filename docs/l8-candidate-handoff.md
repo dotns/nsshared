@@ -143,32 +143,45 @@ versions are `0.6.0`. No branch, tag or path input substitutes. Lockfiles includ
 transitive shared packages, hence different counts. Their external dependency
 graphs belong to consumers and need not equal the shared workspace's
 `Cargo.lock` byte for byte. These verified pins do not establish complete
-snapshot qualification or external producer adoption.
+snapshot qualification or external producer adoption on their own.
 
 Frozen `e2e/r1/client/Cargo.toml` pins proto and the three mocks to
 `fc1c884dd9d27d4b2238961b0e64d9442baf8ad8`. These are historical pre-adoption
 inputs, excluded from the current candidate comparison. No NSD/ns pin is claimed.
 
-Run from this repository, supplying the read-only gateway checkout:
+Run the package comparison against an immutable export of the selected shared
+revision. Supply an empty `SELECTED_EXPORT` directory and the read-only gateway
+checkout. The `.git` pointer permits the unchanged tool's read-only object queries
+against this repository; it does not create a checkout or alter Git metadata.
+Run the separate tool test from the current shared repository.
 
 ```bash
-python3 -B tools/candidate_handoff.py \
+set -o pipefail
+git archive 958da3f9b31e70f419035b974977f8d0d2895471 | tar -x -C "$SELECTED_EXPORT"
+printf 'gitdir: %s\n' "$(git rev-parse --absolute-git-dir)" > "$SELECTED_EXPORT/.git"
+python3 -B "$SELECTED_EXPORT/tools/candidate_handoff.py" \
   --candidate 958da3f9b31e70f419035b974977f8d0d2895471 \
   --consumer "$GATEWAY_CHECKOUT" \
   --consumer-revision e70a90abb1a53567bfb6eb28f6ee057d7b9f0dc8
 python3 -B tools/test_candidate_handoff.py
 ```
 
-Snapshot-boundary qualification remains pending. The registration placeholder
-producer, test and fixture extension postdates selected package
-`958da3f9b31e70f419035b974977f8d0d2895471`. The command compares current
-files with immutable candidate blobs, including Cargo.lock, workspace/package
-manifests, complete library source and tests, both vector producers and fixtures.
-Matching gateway pins alone cannot make later test/fixture bytes part of the
-selected package. No input difference is suppressed and no complete comparison
-pass is claimed. The comparison boundary must be settled before qualifying the
-selected immutable snapshot with the verified gateway inputs. The tool reads
-consumers only with `git show`; it never fetches, builds or edits the gateway.
+The immutable export comparison passed: 259 selected package/lock/API/vector
+inputs are identical and all four consumer manifest/lock pairs agree (3, 3, 2, 2
+shared lock resolutions). This qualifies the delivered package at the exact
+shared and gateway revisions above. The tool checks the complete selected
+snapshot, including tests, generators and fixtures, without suppressing input
+differences. It reads gateway inputs only with `git show` and never fetches,
+builds or edits that checkout.
+
+The registration placeholder producer, test and fixture extension is additive
+after the delivered package. Crate sources resolved by the consumer remain unchanged,
+as do their manifests, workspace manifest and lockfile. The new test/fixture
+bytes are not attributed to the delivered snapshot. Qualify this current
+extension separately with `just self-check feat/l8-account-profile` at its
+recorded immutable commit; that result does not replace the delivered-package
+comparison. Neither result establishes external review, producer adoption or
+live interoperability.
 The focused test uses temporary Git inputs and refuses mismatched manifest pins,
 lock commits/versions, missing packages, floating branches and changed/added files.
 
@@ -179,7 +192,7 @@ evidence: 251 inputs and four manifest/lock pairs agreed at that package.
 Rechecking that historical selection against the later shared tree failed on
 `crates/nsshared-proto/src/account.rs`; that failure is preserved and is not
 reclassified as a pass. The current comparison selects the delivered package
-and the aligned gateway inputs above, with snapshot qualification still pending.
+and the aligned gateway inputs above at the immutable export boundary.
 
 The intermediate gateway revision
 `96fa0dca57c3af5e96ab9f72d710f2cbe6d8cf93` also remains historical failure
@@ -314,7 +327,7 @@ replacement and explicitly authorized K rotation while retaining exact
 before/after mismatch and unauthorized-rotation refusals.
 
 This documentation/vector addition is later than the selected shared package;
-that package's historical input comparison does not establish these new vectors.
+that package's immutable export comparison does not establish these new vectors.
 It requires no gateway source change or repin. NSD N24/N26 and ns S17 adoption,
 producer-owned vectors and review remain outstanding as recorded in Q07. No
 reply, agreement or live interoperability is implied.

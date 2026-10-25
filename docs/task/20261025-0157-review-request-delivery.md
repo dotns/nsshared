@@ -61,3 +61,9 @@ The five added vectors, existing nonzero fixtures, transition refusals and outst
 The consumer-reference assertion initially failed because the handoff still selected the intermediate revision, then passed after the documentation update. The review delivery assertion also passes. Immutable gateway manifest/lock inspection confirms shared lock resolution counts of 3 for the root, 2 for control-authority, 3 for direct-peer and 2 for authority, all at the selected shared revision. These observations establish pin alignment only.
 
 Formatting, lint and `just self-check feat/l8-account-profile` passed at `8a98b18018cd5cc13c9ad4e6871f53757f60530f`; only these records change afterward. The five new vectors, existing nonzero fixtures, exact transition refusals, implementation and outstanding adoption dispositions are unchanged. Independent documentation work is complete. Snapshot-boundary qualification and the complete comparison remain pending; no current full-comparison pass is claimed and earlier failures remain historical evidence.
+
+## Immutable package and additive extension boundary
+
+Compare an immutable export of shared package `958da3f9b31e70f419035b974977f8d0d2895471` with gateway `e70a90abb1a53567bfb6eb28f6ee057d7b9f0dc8` using the unchanged exported comparison tool and read-only access to repository Git objects. Keep the current placeholder producer/test/fixture extension separate and qualify it with the current-head self-check. The immutable comparison has passed for 259 selected inputs and all four manifest/lock pairs (3, 3, 2, 2 shared resolutions).
+
+Document both evidence boundaries and preserve earlier failures. Crate sources, package/workspace manifests and lockfile compare unchanged from the delivered package. Only complete these records after the current-head self-check also passes. No tool change, consumer repin, input suppression or external approval claim is needed.
