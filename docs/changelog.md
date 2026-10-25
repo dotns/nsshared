@@ -21,6 +21,11 @@ wire bytes.
 - Tests are one binary per crate area on the testkit; vectors live in
   `crates/<crate>/tests/vectors/` named after their test modules and producers;
   every base case is byte-identical (checked case by case against the base).
+- Account migration kit for consumers: `docs/review/account-migration.json` maps
+  every public `nsshared_proto::account` item and error variant of `1bc1d39e` to
+  its successor (generated from rustdoc, `just account-migration-check`),
+  `scripts/migrate-account-imports.py` rewrites a consumer's Rust imports and
+  paths from it, and `docs/review/account-migration.md` lists the manual steps.
 - Specifications are folded into `docs/spec/`; review, handoff, adoption and
   inventory state moved to `docs/review/`.
 - `just semver` covers every library crate present at the release tag, checking

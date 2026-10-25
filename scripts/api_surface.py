@@ -259,7 +259,8 @@ def function(inner):
     inputs = ", ".join(ty(t) if n == "self" else f"{ty(t)}" for n, t in sig["inputs"])
     output = f" -> {ty(sig['output'])}" if sig["output"] is not None else ""
     where = where_clause(inner["generics"])
-    return f"{generics(inner['generics'])}({prefix}{inputs}){output}{where}"
+    qualifiers = f" [{prefix.strip()}]" if prefix else ""
+    return f"{generics(inner['generics'])}({inputs}){output}{where}{qualifiers}"
 
 
 def generics(value):

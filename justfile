@@ -65,6 +65,10 @@ vectors:
 vectors-check:
     python3 tools/vectors/generate.py --check
 
+# Check that the account migration map matches the code at its base and at HEAD
+account-migration-check:
+    python3 -B scripts/account_migration.py check
+
 # Check the public API of the library crates against the previous release tag.
 # In 0.x a minor version bump may break the API; any other bump must not.
 # Facades re-export other workspace crates, which cargo-semver-checks does not

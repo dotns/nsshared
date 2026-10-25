@@ -36,7 +36,7 @@ class TypeRendering(unittest.TestCase):
             "generics": {"params": [], "where_predicates": []},
             "header": {"is_const": True, "is_async": False, "is_unsafe": False},
         }
-        self.assertEqual(api_surface.function(inner), "(const &Self, u64) -> Vec<u8>")
+        self.assertEqual(api_surface.function(inner), "(&Self, u64) -> Vec<u8> [const]")
 
 
 class Filtering(unittest.TestCase):
