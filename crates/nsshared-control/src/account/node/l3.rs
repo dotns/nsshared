@@ -1,7 +1,7 @@
 use crate::{
     account::AccountError, account::MAX_IDENTITIES, account::SCHEMA, account::codec::ascending,
-    account::codec::bounded, account::codec::identity, account::codec::reader,
-    account::codec::require,
+    account::codec::ascending_by, account::codec::bounded, account::codec::identity,
+    account::codec::reader, account::codec::require,
 };
 use nsshared_codec::cbor::CborWriter;
 use nsshared_identity::keys::IdentityKey;
@@ -71,11 +71,7 @@ impl NodeL3 {
     fn validate(&self) -> Result<(), AccountError> {
         require(self.revision > 0)?;
         require(self.scopes.len() <= MAX_IDENTITIES && self.rules.len() <= MAX_IDENTITIES)?;
-        require(
-            self.scopes
-                .windows(2)
-                .all(|pair| pair[0].namespace < pair[1].namespace),
-        )?;
+        require(ascending_by(&self.scopes, |value| &value.namespace))?;
         for scope in &self.scopes {
             require(scope.identities.len() <= MAX_IDENTITIES)?;
             require(ascending(&scope.identities))?;

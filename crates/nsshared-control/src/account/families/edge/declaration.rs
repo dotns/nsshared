@@ -413,17 +413,11 @@ impl EdgeServiceRequest {
     fn write_floor(&self, out: &mut CborWriter) -> Result<(), AccountError> {
         require(
             self.metadata.len() <= MAX_EDGE_ITEMS
-                && self
-                    .metadata
-                    .windows(2)
-                    .all(|p| p[0].reference < p[1].reference),
+                && ascending_by(&self.metadata, |value| &value.reference),
         )?;
         require(
             self.exit_profiles.len() <= MAX_EDGE_ITEMS
-                && self
-                    .exit_profiles
-                    .windows(2)
-                    .all(|p| p[0].reference < p[1].reference),
+                && ascending_by(&self.exit_profiles, |value| &value.reference),
         )?;
         out.array(self.metadata.len());
         for value in &self.metadata {

@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use crate::{
     account::AccountError, account::MAX_BYTES, account::MAX_IDENTITIES, account::SCHEMA,
-    account::codec::identity, account::node::NodeL3,
+    account::codec::ascending_by, account::codec::identity, account::node::NodeL3,
 };
 use nsshared_codec::{cbor::CborError, cbor::CborReader, cbor::CborWriter};
 use nsshared_identity::keys::IdentityKey;
@@ -56,11 +56,7 @@ impl NodeL3Authority {
         if self.bindings.len() > MAX_IDENTITIES {
             return Err(L3AuthorityError::Bounds);
         }
-        if !self
-            .bindings
-            .windows(2)
-            .all(|p| p[0].identity < p[1].identity)
-        {
+        if !ascending_by(&self.bindings, |value| &value.identity) {
             return Err(L3AuthorityError::Ordering);
         }
         let mut keys = BTreeSet::new();

@@ -1,10 +1,11 @@
 //! Generation-qualified references and public authentication bindings.
 
 use crate::{
-    account::AccountError, account::MAX_BYTES, account::codec::ascending, account::codec::bounded,
-    account::codec::issuer_url, account::codec::ordered_tokens, account::codec::reader,
-    account::codec::realm, account::codec::require, account::codec::token,
-    account::limits::MAX_ITEMS, account::limits::MAX_TEXT_BYTES, account::realm::JwtSubjectBinding,
+    account::AccountError, account::MAX_BYTES, account::codec::ascending,
+    account::codec::ascending_by, account::codec::bounded, account::codec::issuer_url,
+    account::codec::ordered_tokens, account::codec::reader, account::codec::realm,
+    account::codec::require, account::codec::token, account::limits::MAX_ITEMS,
+    account::limits::MAX_TEXT_BYTES, account::realm::JwtSubjectBinding,
     account::realm::SubjectBinding,
 };
 use nsshared_identity::realm::RealmId;
@@ -135,11 +136,7 @@ impl EdgeAuth {
     pub fn canonical(&self) -> Result<Vec<u8>, AccountError> {
         materials_valid(&self.materials)?;
         require(self.authorities.len() <= MAX_EDGE_ITEMS)?;
-        require(
-            self.authorities
-                .windows(2)
-                .all(|p| p[0].reference < p[1].reference),
-        )?;
+        require(ascending_by(&self.authorities, |value| &value.reference))?;
         let mut out = CborWriter::default();
         out.array(6)
             .uint(1)

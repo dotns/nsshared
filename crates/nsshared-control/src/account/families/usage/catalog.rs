@@ -1,9 +1,9 @@
 //! Scoped catalogues of existing usage quantities and Node-control vocabulary.
 
 use crate::{
-    account::AccountError, account::codec::ascending, account::codec::identity,
-    account::codec::reader, account::codec::require, account::control::exchange::MembershipScope,
-    account::usage::UsageProfile, node_control,
+    account::AccountError, account::codec::ascending, account::codec::ascending_by,
+    account::codec::identity, account::codec::reader, account::codec::require,
+    account::control::exchange::MembershipScope, account::usage::UsageProfile, node_control,
 };
 use nsshared_codec::cbor::CborWriter;
 use nsshared_identity::keys::IdentityKey;
@@ -20,11 +20,7 @@ pub struct UsageProfilePublication {
 impl UsageProfilePublication {
     fn validate(&self) -> Result<(), AccountError> {
         require(!self.profiles.is_empty() && self.profiles.len() <= 2)?;
-        require(
-            self.profiles
-                .windows(2)
-                .all(|pair| pair[0].as_str() < pair[1].as_str()),
-        )
+        require(ascending_by(&self.profiles, |value| value.as_str()))
     }
 
     /// Encodes the existing quantity references without changing their definitions.

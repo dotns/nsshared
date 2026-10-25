@@ -56,12 +56,9 @@ impl RealmPeers {
                 return Err(AccountError::Bounds);
             }
             total += realm.members.len();
-            require(
-                realm
-                    .members
-                    .windows(2)
-                    .all(|v| v[0].binding.identity < v[1].binding.identity),
-            )?;
+            require(ascending_by(&realm.members, |value| {
+                &value.binding.identity
+            }))?;
             for member in &realm.members {
                 let binding = &member.binding;
                 binding.validate()?;

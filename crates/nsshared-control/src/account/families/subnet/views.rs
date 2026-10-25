@@ -1,8 +1,8 @@
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 use crate::{
-    account::MAX_BYTES, account::SCHEMA, account::codec::ascending, service::ContractError,
-    service::Id, service::Identity, service::ServiceRef,
+    account::MAX_BYTES, account::SCHEMA, account::codec::ascending, account::codec::ascending_by,
+    service::ContractError, service::Id, service::Identity, service::ServiceRef,
 };
 use thiserror::Error;
 
@@ -459,11 +459,7 @@ impl SubnetPublication {
         if self.revision == 0 {
             return Err(SubnetError::Scope);
         }
-        if !self
-            .routes
-            .windows(2)
-            .all(|pair| pair[0].resource < pair[1].resource)
-        {
+        if !ascending_by(&self.routes, |value| &value.resource) {
             return Err(SubnetError::NonCanonicalSet);
         }
         for route in &self.routes {

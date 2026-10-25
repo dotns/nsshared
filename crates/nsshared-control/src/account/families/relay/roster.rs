@@ -1,7 +1,8 @@
 use crate::{
     account::AccountError, account::MAX_BYTES, account::MAX_IDENTITIES, account::SCHEMA,
-    account::codec::bounded, account::codec::identity, account::codec::reader,
-    account::codec::require, account::domains::ROSTER_DOMAIN, account::signing::verify,
+    account::codec::ascending_by, account::codec::bounded, account::codec::identity,
+    account::codec::reader, account::codec::require, account::domains::ROSTER_DOMAIN,
+    account::signing::verify,
 };
 use nsshared_codec::{cbor::CborReader, cbor::CborWriter};
 use nsshared_identity::keys::IdentityKey;
@@ -163,11 +164,7 @@ impl Roster {
         if self.identities.len() > MAX_IDENTITIES {
             return Err(AccountError::Bounds);
         }
-        require(
-            self.identities
-                .windows(2)
-                .all(|pair| pair[0].identity < pair[1].identity),
-        )
+        require(ascending_by(&self.identities, |value| &value.identity))
     }
 
     /// Encodes canonical content for signing with the roster signature domain.

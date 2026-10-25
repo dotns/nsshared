@@ -1,8 +1,8 @@
 //! Confidential catalog values; decoding never performs credential verification.
 use super::*;
 use crate::{
-    account::codec::read_optional_text, account::codec::read_texts, account::codec::write_texts,
-    account::limits::MAX_TEXT_BYTES,
+    account::codec::ascending_by, account::codec::read_optional_text, account::codec::read_texts,
+    account::codec::write_texts, account::limits::MAX_TEXT_BYTES,
 };
 use nsshared_codec::{cbor::CborReader, cbor::CborWriter};
 
@@ -441,11 +441,7 @@ impl AuthSecretSet {
     pub(in crate::account) fn validate(&self) -> Result<(), AccountError> {
         require(self.current.version > 0 && self.current.expires_seconds > 0)?;
         require(self.previous.len() <= MAX_EDGE_ITEMS)?;
-        require(
-            self.previous
-                .windows(2)
-                .all(|p| p[0].version < p[1].version),
-        )?;
+        require(ascending_by(&self.previous, |value| &value.version))?;
         for old in &self.previous {
             require(
                 old.reference == self.current.reference
