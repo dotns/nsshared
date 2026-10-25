@@ -1,12 +1,15 @@
-//! Pure confidential authentication delivery; see `docs/confidential-auth-candidate.md`.
+//! Public-edge route authentication and the confidential authentication configuration
+//! exchange; credential verification stays with consumers.
 
 use crate::{
-    account::AccountError, account::MAX_BYTES, account::codec::ascending_by,
-    account::codec::bounded, account::codec::identity, account::codec::issuer_url,
-    account::codec::reader, account::codec::realm, account::codec::require, account::codec::token,
-    account::edge::EdgeAuth, account::edge::EdgeMaterialKind, account::edge::EdgeMaterialRef,
-    account::edge::MAX_EDGE_ITEMS, account::limits::MAX_TEXT_BYTES, account::realm::PolicySubject,
-    account::realm::SubjectAnchor, account::realm::SubjectBinding,
+    account::AccountError, account::MAX_BYTES, account::codec::ascending,
+    account::codec::ascending_by, account::codec::bounded, account::codec::identity,
+    account::codec::issuer_url, account::codec::ordered_tokens, account::codec::reader,
+    account::codec::realm, account::codec::require, account::codec::token,
+    account::edge::EdgeMaterialKind, account::edge::EdgeMaterialRef, account::edge::MAX_EDGE_ITEMS,
+    account::edge::material::materials_valid, account::edge::material::read_materials,
+    account::limits::MAX_TEXT_BYTES, account::realm::PolicySubject, account::realm::SubjectAnchor,
+    account::realm::SubjectBinding, account::realm::claims::JwtSubjectBinding,
 };
 use nsshared_identity::realm::RealmId;
 mod values;
@@ -442,5 +445,152 @@ impl AuthConfigResponse {
             return Err(AuthConfigError::Dependency);
         }
         Ok(())
+    }
+}
+
+/// Explicit public JWT trust metadata; key verification/acquisition is external.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EdgeJwtAuthority {
+    /// Realm-local authority identity used by JwtSubjectBinding.
+    pub reference: String,
+    /// Explicit HTTPS issuer URL.
+    pub issuer: String,
+    /// Strictly ordered acceptable audiences.
+    pub audiences: Vec<String>,
+    /// Exact auth material generation supplying qualified verifier keys.
+    pub key_material: EdgeMaterialRef,
+}
+
+/// Complete realm-local material and subject-binding contribution.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EdgeAuth {
+    /// Binary policy realm.
+    pub realm: RealmId,
+    /// Complete references in kind/reference order.
+    pub materials: Vec<EdgeMaterialRef>,
+    /// Exact existing bindings in canonical-byte order.
+    pub bindings: Vec<SubjectBinding>,
+    /// Exact existing JWT joins in canonical-byte order.
+    pub jwt_bindings: Vec<JwtSubjectBinding>,
+    /// Public JWT authorities in reference order.
+    pub authorities: Vec<EdgeJwtAuthority>,
+}
+
+fn write_blobs(values: &[Vec<u8>], out: &mut CborWriter) -> Result<(), AccountError> {
+    require(values.len() <= MAX_EDGE_ITEMS && ascending(values))?;
+    out.array(values.len());
+    for value in values {
+        out.bytes(value);
+    }
+    Ok(())
+}
+
+impl EdgeAuth {
+    /// Encodes only references and existing public binding objects.
+    ///
+    /// # Errors
+    /// Rejects invalid scopes, authority joins, ordering, generations or bounds.
+    pub fn canonical(&self) -> Result<Vec<u8>, AccountError> {
+        materials_valid(&self.materials)?;
+        require(self.authorities.len() <= MAX_EDGE_ITEMS)?;
+        require(ascending_by(&self.authorities, |value| &value.reference))?;
+        let mut out = CborWriter::default();
+        out.array(6)
+            .uint(1)
+            .bytes(self.realm.as_bytes())
+            .array(self.materials.len());
+        for value in &self.materials {
+            value.write(&mut out)?;
+        }
+        let bindings = self
+            .bindings
+            .iter()
+            .map(|v| {
+                v.subject.in_realm(self.realm)?;
+                require(v.realm == self.realm)?;
+                v.canonical()
+            })
+            .collect::<Result<Vec<_>, AccountError>>()?;
+        write_blobs(&bindings, &mut out)?;
+        let bindings = self
+            .jwt_bindings
+            .iter()
+            .map(|v| {
+                require(v.binding.realm == self.realm)?;
+                require(
+                    self.authorities
+                        .iter()
+                        .any(|a| a.reference == v.authority_ref),
+                )?;
+                v.canonical()
+            })
+            .collect::<Result<Vec<_>, AccountError>>()?;
+        write_blobs(&bindings, &mut out)?;
+        out.array(self.authorities.len());
+        for authority in &self.authorities {
+            token(&authority.reference)?;
+            token(&authority.issuer)?;
+            issuer_url(&authority.issuer)?;
+            ordered_tokens(&authority.audiences)?;
+            require(!authority.audiences.is_empty())?;
+            require(
+                authority.key_material.kind == EdgeMaterialKind::Auth
+                    && self.materials.contains(&authority.key_material),
+            )?;
+            out.array(4)
+                .text(&authority.reference)
+                .text(&authority.issuer)
+                .array(authority.audiences.len());
+            for audience in &authority.audiences {
+                out.text(audience);
+            }
+            authority.key_material.write(&mut out)?;
+        }
+        bounded(out.into_bytes())
+    }
+
+    /// Decodes a complete bounded authentication contribution.
+    ///
+    /// # Errors
+    /// Rejects malformed/noncanonical input and invalid nested public metadata.
+    pub fn decode(bytes: &[u8]) -> Result<Self, AccountError> {
+        let mut input = reader(bytes, 6)?;
+        let realm = RealmId::from_bytes(input.fixed_bytes()?);
+        let materials = read_materials(&mut input)?;
+        let count = input.array_up_to(MAX_EDGE_ITEMS)?;
+        let bindings = (0..count)
+            .map(|_| SubjectBinding::decode(input.bytes_up_to(MAX_BYTES)?))
+            .collect::<Result<_, _>>()?;
+        let count = input.array_up_to(MAX_EDGE_ITEMS)?;
+        let jwt_bindings = (0..count)
+            .map(|_| JwtSubjectBinding::decode(input.bytes_up_to(MAX_BYTES)?))
+            .collect::<Result<_, _>>()?;
+        let count = input.array_up_to(MAX_EDGE_ITEMS)?;
+        let mut authorities = Vec::with_capacity(count);
+        for _ in 0..count {
+            input.array(4)?;
+            let reference = input.text_up_to(MAX_TEXT_BYTES)?.to_owned();
+            let issuer = input.text_up_to(MAX_TEXT_BYTES)?.to_owned();
+            let count = input.array_up_to(MAX_EDGE_ITEMS)?;
+            let audiences = (0..count)
+                .map(|_| Ok(input.text_up_to(MAX_TEXT_BYTES)?.to_owned()))
+                .collect::<Result<_, AccountError>>()?;
+            authorities.push(EdgeJwtAuthority {
+                reference,
+                issuer,
+                audiences,
+                key_material: EdgeMaterialRef::read(&mut input)?,
+            });
+        }
+        input.finish()?;
+        let value = Self {
+            realm,
+            materials,
+            bindings,
+            jwt_bindings,
+            authorities,
+        };
+        value.canonical()?;
+        Ok(value)
     }
 }
