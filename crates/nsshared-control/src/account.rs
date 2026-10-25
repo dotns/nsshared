@@ -15,6 +15,19 @@
 //! M6 objects and their bytes are [`crate::service`]. This module adds no runtime or
 //! transport and reads no clock or filesystem.
 
+/// Implements `From<CborError>` for an error whose `Contract` variant wraps
+/// [`AccountError`]: every CBOR refusal is reported as [`AccountError::Cbor`].
+macro_rules! contract_error {
+    ($error:ty) => {
+        impl From<nsshared_codec::cbor::CborError> for $error {
+            fn from(error: nsshared_codec::cbor::CborError) -> Self {
+                Self::Contract(crate::account::AccountError::Cbor(error))
+            }
+        }
+    };
+}
+pub(crate) use contract_error;
+
 pub mod control;
 mod families;
 pub mod node;
@@ -48,15 +61,15 @@ pub enum AccountError {
     Json(#[from] serde_json::Error),
     /// Unsupported schema or invalid contract fields.
     #[error("invalid account contract field")]
-    InvalidField,
+    Field,
     /// Input or a collection exceeds its contract bound.
     #[error("account contract bound exceeded")]
     Bounds,
     /// The signature is invalid.
-    #[error("invalid participant roster signature")]
+    #[error("invalid account contract signature")]
     Signature,
     /// Issuer, recipient, version or time does not match the caller's authority.
-    #[error("participant roster authority or freshness mismatch")]
+    #[error("account contract authority or freshness mismatch")]
     Authority,
 }
 
@@ -64,12 +77,12 @@ fn require(condition: bool) -> Result<(), AccountError> {
     if condition {
         Ok(())
     } else {
-        Err(AccountError::InvalidField)
+        Err(AccountError::Field)
     }
 }
 
 fn identity(reader: &mut CborReader<'_>) -> Result<IdentityKey, AccountError> {
-    IdentityKey::from_bytes(&reader.fixed_bytes()?).map_err(|_| AccountError::InvalidField)
+    IdentityKey::from_bytes(&reader.fixed_bytes()?).map_err(|_| AccountError::Field)
 }
 
 fn reader(input: &[u8], arity: u64) -> Result<CborReader<'_>, AccountError> {

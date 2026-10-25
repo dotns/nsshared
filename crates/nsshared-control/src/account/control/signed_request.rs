@@ -73,7 +73,7 @@ fn nibble(byte: u8) -> Result<u8, AccountError> {
         b'0'..=b'9' => Ok(byte - b'0'),
         b'a'..=b'f' => Ok(byte - b'a' + 10),
         b'A'..=b'F' => Ok(byte - b'A' + 10),
-        _ => Err(AccountError::InvalidField),
+        _ => Err(AccountError::Field),
     }
 }
 
@@ -82,8 +82,8 @@ fn percent_decode(value: &str) -> Result<Vec<u8>, AccountError> {
     let mut bytes = value.bytes();
     while let Some(byte) = bytes.next() {
         out.push(if byte == b'%' {
-            let high = nibble(bytes.next().ok_or(AccountError::InvalidField)?)?;
-            let low = nibble(bytes.next().ok_or(AccountError::InvalidField)?)?;
+            let high = nibble(bytes.next().ok_or(AccountError::Field)?)?;
+            let low = nibble(bytes.next().ok_or(AccountError::Field)?)?;
             high * 16 + low
         } else {
             byte

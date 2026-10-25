@@ -42,12 +42,12 @@ impl EdgeServiceBody {
     pub fn canonical(&self) -> Result<(Vec<u8>, Digest), AccountError> {
         match self {
             Self::Declaration(value) => {
-                let bytes = value.canonical().map_err(|_| AccountError::InvalidField)?;
+                let bytes = value.canonical().map_err(|_| AccountError::Field)?;
                 let digest = domain_digest("ns.account.declaration.v1", &bytes);
                 Ok((bytes, digest))
             }
-            Self::Report(value) => value.canonical().map_err(|_| AccountError::InvalidField),
-            Self::Listener(value) => value.canonical().map_err(|_| AccountError::InvalidField),
+            Self::Report(value) => value.canonical().map_err(|_| AccountError::Field),
+            Self::Listener(value) => value.canonical().map_err(|_| AccountError::Field),
         }
     }
 }
@@ -138,15 +138,15 @@ impl EdgeServiceRequest {
         let raw = input.bytes_up_to(MAX_BYTES)?;
         let body = match kind {
             0 => EdgeServiceBody::Declaration(
-                Declaration::decode(raw).map_err(|_| AccountError::InvalidField)?,
+                Declaration::decode(raw).map_err(|_| AccountError::Field)?,
             ),
             1 => EdgeServiceBody::Report(
-                ReportContent::decode(raw).map_err(|_| AccountError::InvalidField)?,
+                ReportContent::decode(raw).map_err(|_| AccountError::Field)?,
             ),
             2 => EdgeServiceBody::Listener(
-                ListenerIntent::decode(raw).map_err(|_| AccountError::InvalidField)?,
+                ListenerIntent::decode(raw).map_err(|_| AccountError::Field)?,
             ),
-            _ => return Err(AccountError::InvalidField),
+            _ => return Err(AccountError::Field),
         };
         require(arity == if kind == 1 { 11 } else { 9 })?;
         let (metadata, exit_profiles) = if kind == 1 {
@@ -213,7 +213,7 @@ impl EdgeServiceResponse {
             .uint(self.body_kind)
             .bytes(&self.digest);
         if self.body_kind == 1 {
-            let outcomes = self.outcomes.as_ref().ok_or(AccountError::InvalidField)?;
+            let outcomes = self.outcomes.as_ref().ok_or(AccountError::Field)?;
             require(self.accepted == outcomes.rejected.is_empty())?;
             outcomes.write(&mut out)?;
         } else {
@@ -244,7 +244,7 @@ impl EdgeServiceResponse {
                 match input.uint()? {
                     0 => true,
                     1 => false,
-                    _ => return Err(AccountError::InvalidField),
+                    _ => return Err(AccountError::Field),
                 },
                 None,
             )
@@ -345,7 +345,7 @@ impl EdgeServiceMetadata {
     fn write(&self, out: &mut CborWriter) -> Result<(), AccountError> {
         data_text(&self.reference)?;
         crate::account::node::enrollment::validate_capabilities(&self.capabilities)
-            .map_err(|_| AccountError::InvalidField)?;
+            .map_err(|_| AccountError::Field)?;
         out.array(3).text(&self.reference);
         ordered_data_write(&self.capabilities, out)?;
         labels_write(&self.policy_labels, out)
@@ -378,7 +378,7 @@ impl EdgeExitProfile {
     fn write(&self, out: &mut CborWriter) -> Result<(), AccountError> {
         data_text(&self.reference)?;
         crate::account::node::enrollment::validate_capabilities(&self.capabilities)
-            .map_err(|_| AccountError::InvalidField)?;
+            .map_err(|_| AccountError::Field)?;
         out.array(5).text(&self.reference);
         match &self.selection {
             SubnetSelection::Default => {
@@ -386,7 +386,7 @@ impl EdgeExitProfile {
             }
             SubnetSelection::Explicit(prefixes) => {
                 crate::account::subnet::views::validate_set(prefixes)
-                    .map_err(|_| AccountError::InvalidField)?;
+                    .map_err(|_| AccountError::Field)?;
                 out.array(2).uint(1);
                 crate::account::subnet::views::write_set(prefixes, out);
             }
@@ -402,10 +402,9 @@ impl EdgeExitProfile {
         let selection = match (arity, input.uint()?) {
             (1, 0) => SubnetSelection::Default,
             (2, 1) => SubnetSelection::Explicit(
-                crate::account::subnet::views::read_set(input)
-                    .map_err(|_| AccountError::InvalidField)?,
+                crate::account::subnet::views::read_set(input).map_err(|_| AccountError::Field)?,
             ),
-            _ => return Err(AccountError::InvalidField),
+            _ => return Err(AccountError::Field),
         };
         Ok(Self {
             reference,
@@ -492,6 +491,7 @@ pub struct EdgeFloorOutcomes {
 }
 /// Correlation failures never imply acknowledgement.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum EdgeServiceAckError {
     /// Malformed fields or mismatched complete request context.
     #[error(transparent)]
@@ -553,7 +553,7 @@ impl EdgeFloorOutcomes {
     }
     fn validate_for(&self, request: &EdgeServiceRequest) -> Result<(), EdgeServiceAckError> {
         let EdgeServiceBody::Report(report) = &request.body else {
-            return Err(AccountError::InvalidField.into());
+            return Err(AccountError::Field.into());
         };
         let services: Vec<_> = report
             .declarations

@@ -113,7 +113,7 @@ fn outcome(result: Result<EnrollmentDecision, EnrollmentError>) -> &'static str 
         Err(EnrollmentError::RebindUnauthorized) => "rebind-unauthorized",
         Err(EnrollmentError::InvalidCapabilities) => "invalid-capabilities",
         Err(EnrollmentError::CapabilityBounds) => "capability-bounds",
-        Err(EnrollmentError::Contract(AccountError::InvalidField)) => "invalid-field",
+        Err(EnrollmentError::Contract(AccountError::Field)) => "invalid-field",
         Err(EnrollmentError::Contract(AccountError::Cbor(CborError::NonShortest))) => {
             "non-shortest"
         }
@@ -258,7 +258,7 @@ fn enrollment_validates_constructed_contracts() {
             Some(&lifecycle),
             RebindAuthorization::Authorized
         ),
-        Err(EnrollmentError::Contract(AccountError::InvalidField))
+        Err(EnrollmentError::Contract(AccountError::Field))
     ));
     let mut invalid_accepted = enrollment.binding.clone();
     invalid_accepted.identity_version.0 = 0;
@@ -269,6 +269,6 @@ fn enrollment_validates_constructed_contracts() {
             None,
             RebindAuthorization::Denied
         ),
-        Err(EnrollmentError::Contract(AccountError::InvalidField))
+        Err(EnrollmentError::Contract(AccountError::Field))
     ));
 }

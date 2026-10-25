@@ -64,7 +64,7 @@ fn content(raw: &[u8]) -> PublicationContent<'_> {
 
 fn refusal<T: std::fmt::Debug>(result: Result<T, PublicationError>, expected: &str) {
     match (result, expected) {
-        (Err(PublicationError::Fields), "fields") | (Err(PublicationError::Bounds), "bounds") => {}
+        (Err(PublicationError::Field), "fields") | (Err(PublicationError::Bounds), "bounds") => {}
         (actual, _) => panic!("expected {expected}, got {actual:?}"),
     }
 }

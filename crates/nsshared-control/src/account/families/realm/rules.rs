@@ -178,7 +178,7 @@ impl SubjectPolicy {
                 Some(match input.uint()? {
                     6 => TransportProtocol::Tcp,
                     17 => TransportProtocol::Udp,
-                    _ => return Err(AccountError::InvalidField),
+                    _ => return Err(AccountError::Field),
                 })
             };
             rules.push(SubjectRule {

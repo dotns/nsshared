@@ -279,7 +279,7 @@ pub fn decide_source_snapshot_scopes<'a>(
             PublicationDecision::ChannelMismatch(_) => return Err(SourceError::Context),
             PublicationDecision::Refused(_)
             | PublicationDecision::Absent
-            | PublicationDecision::TerminateStream => return Err(PublicationError::Fields.into()),
+            | PublicationDecision::TerminateStream => return Err(PublicationError::Field.into()),
         };
         // Unknown pairs bypass registry ownership checks in the event decision,
         // but every source snapshot entry must still declare the snapshot channel.

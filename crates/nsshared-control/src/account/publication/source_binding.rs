@@ -56,18 +56,8 @@ pub enum SourceError {
     /// Signature is invalid under the independently expected NSD.
     #[error("invalid source signature")]
     Signature,
-    /// Request identity was reused for different content.
-    #[error("route request content conflict")]
-    Conflict,
-    /// Invalid canonical M6 service reference.
-    #[error("invalid route reference")]
-    Reference,
 }
-impl From<nsshared_codec::cbor::CborError> for SourceError {
-    fn from(value: nsshared_codec::cbor::CborError) -> Self {
-        Self::Contract(value.into())
-    }
-}
+crate::account::contract_error!(SourceError);
 
 pub(in crate::account) fn nonzero(value: &[u8; 16]) -> Result<(), SourceError> {
     Ok(require(*value != [0; 16])?)

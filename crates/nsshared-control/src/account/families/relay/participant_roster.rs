@@ -4,7 +4,7 @@ use crate::{
     account::relay::Roster, account::relay::RosterEntry, account::relay::RosterVersion,
     account::relay::SignedRoster,
 };
-use nsshared_codec::{cbor::CborError, cbor::CborReader};
+use nsshared_codec::cbor::CborReader;
 use nsshared_identity::keys::IdentityKey;
 use std::collections::BTreeSet;
 use thiserror::Error;
@@ -42,13 +42,13 @@ pub enum ParticipantRosterError {
     Contract(#[from] AccountError),
     /// The publication is from a different authority.
     #[error("wrong participant roster issuer")]
-    WrongIssuer,
+    Issuer,
     /// The publication addresses another participant.
     #[error("wrong participant roster recipient")]
-    WrongRecipient,
+    Recipient,
     /// The version is below or equal to the accepted epoch.
     #[error("stale or replayed participant roster version")]
-    StaleVersion,
+    Stale,
     /// The signed issue time is later than the supplied clock.
     #[error("participant roster issue is in the future")]
     FutureIssue,
@@ -60,7 +60,7 @@ pub enum ParticipantRosterError {
     ShortLifetime,
     /// The signature fails strict verification over the canonical domain/content.
     #[error("invalid participant roster signature")]
-    BadSignature,
+    Signature,
     /// An identity entry lacks its attribution class.
     #[error("missing participant roster class")]
     MissingClass,
@@ -75,11 +75,7 @@ pub enum ParticipantRosterError {
     DuplicateIdentity,
 }
 
-impl From<CborError> for ParticipantRosterError {
-    fn from(error: CborError) -> Self {
-        Self::Contract(error.into())
-    }
-}
+crate::account::contract_error!(ParticipantRosterError);
 
 fn validate_content(roster: &Roster) -> Result<(), ParticipantRosterError> {
     if roster
@@ -119,13 +115,13 @@ impl SignedRoster {
         self.content.canonical()?;
         let roster = &self.content;
         if roster.issuer != issuer {
-            return Err(ParticipantRosterError::WrongIssuer);
+            return Err(ParticipantRosterError::Issuer);
         }
         if roster.recipient != recipient {
-            return Err(ParticipantRosterError::WrongRecipient);
+            return Err(ParticipantRosterError::Recipient);
         }
         if roster.version.0 <= last_version {
-            return Err(ParticipantRosterError::StaleVersion);
+            return Err(ParticipantRosterError::Stale);
         }
         if now_ms < roster.issued_at_unix_ms {
             return Err(ParticipantRosterError::FutureIssue);
@@ -135,7 +131,7 @@ impl SignedRoster {
         }
         self.verify(issuer, recipient, last_version, now_ms)
             .map_err(|error| match error {
-                AccountError::Signature => ParticipantRosterError::BadSignature,
+                AccountError::Signature => ParticipantRosterError::Signature,
                 other => ParticipantRosterError::Contract(other),
             })?;
         Ok(ParticipantRosterGeneration {

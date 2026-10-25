@@ -75,7 +75,7 @@ impl PolicySubject {
         match self {
             Self::Realm { realm, name } => {
                 text(name)?;
-                let (prefix, suffix) = name.split_once(':').ok_or(AccountError::InvalidField)?;
+                let (prefix, suffix) = name.split_once(':').ok_or(AccountError::Field)?;
                 require(
                     matches!(prefix, "user" | "group" | "machine" | "external")
                         && !suffix.is_empty(),
@@ -118,7 +118,7 @@ impl PolicySubject {
                 subject: input.fixed_bytes()?,
             }),
             2 if arity == 3 => Self::Node(identity(&mut input)?),
-            _ => return Err(AccountError::InvalidField),
+            _ => return Err(AccountError::Field),
         };
         input.finish()?;
         value.canonical()?;
@@ -188,7 +188,7 @@ impl SubjectBinding {
         let anchor = match input.uint()? {
             0 => SubjectAnchor::Node(identity(&mut input)?),
             1 => SubjectAnchor::Credential(input.text_up_to(MAX_POLICY_TEXT)?.to_owned()),
-            _ => return Err(AccountError::InvalidField),
+            _ => return Err(AccountError::Field),
         };
         let subject = PolicySubject::decode(input.bytes_up_to(MAX_BYTES)?)?;
         let enabled = input.boolean()?;

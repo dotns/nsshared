@@ -57,7 +57,7 @@ impl EdgeMaterialRef {
             0 => EdgeMaterialKind::Auth,
             1 => EdgeMaterialKind::Certificate,
             2 => EdgeMaterialKind::ClientCa,
-            _ => return Err(AccountError::InvalidField),
+            _ => return Err(AccountError::Field),
         };
         let value = Self {
             kind,
@@ -129,18 +129,16 @@ fn write_blobs(values: &[Vec<u8>], out: &mut CborWriter) -> Result<(), AccountEr
 pub(in crate::account) fn issuer_url(value: &str) -> Result<(), AccountError> {
     use std::net::Ipv6Addr;
     require(!value.contains(['@', '?', '#', '\\']))?;
-    let rest = value
-        .strip_prefix("https://")
-        .ok_or(AccountError::InvalidField)?;
-    let authority = rest.split('/').next().ok_or(AccountError::InvalidField)?;
+    let rest = value.strip_prefix("https://").ok_or(AccountError::Field)?;
+    let authority = rest.split('/').next().ok_or(AccountError::Field)?;
     let port = if let Some(rest) = authority.strip_prefix('[') {
-        let (host, suffix) = rest.split_once(']').ok_or(AccountError::InvalidField)?;
-        let address: Ipv6Addr = host.parse().map_err(|_| AccountError::InvalidField)?;
+        let (host, suffix) = rest.split_once(']').ok_or(AccountError::Field)?;
+        let address: Ipv6Addr = host.parse().map_err(|_| AccountError::Field)?;
         require(address.to_string() == host)?;
         if suffix.is_empty() {
             None
         } else {
-            Some(suffix.strip_prefix(':').ok_or(AccountError::InvalidField)?)
+            Some(suffix.strip_prefix(':').ok_or(AccountError::Field)?)
         }
     } else {
         let (host, port) = authority
@@ -150,7 +148,7 @@ pub(in crate::account) fn issuer_url(value: &str) -> Result<(), AccountError> {
         port
     };
     if let Some(port) = port {
-        let number: u16 = port.parse().map_err(|_| AccountError::InvalidField)?;
+        let number: u16 = port.parse().map_err(|_| AccountError::Field)?;
         require(number > 0 && number.to_string() == port)?;
     }
     Ok(())
@@ -323,7 +321,7 @@ impl EdgeMaterialAck {
         let installed = match input.uint()? {
             0 => true,
             1 => false,
-            _ => return Err(AccountError::InvalidField),
+            _ => return Err(AccountError::Field),
         };
         input.finish()?;
         let value = Self {

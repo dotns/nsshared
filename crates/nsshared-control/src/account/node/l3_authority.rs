@@ -1,12 +1,36 @@
 use std::collections::BTreeSet;
 
-use crate::account::grants::grant::checked_bytes;
 use crate::{
-    account::MAX_BYTES, account::MAX_IDENTITIES, account::SCHEMA, account::grants::GrantError,
+    account::AccountError, account::MAX_BYTES, account::MAX_IDENTITIES, account::SCHEMA,
     account::identity, account::node::NodeL3,
 };
-use nsshared_codec::{cbor::CborReader, cbor::CborWriter};
+use nsshared_codec::{cbor::CborError, cbor::CborReader, cbor::CborWriter};
 use nsshared_identity::keys::IdentityKey;
+use thiserror::Error;
+
+/// A refused Node L3 authority; no error installs or withdraws effects.
+#[derive(Debug, Error)]
+#[non_exhaustive]
+pub enum L3AuthorityError {
+    /// Strict CBOR refusal of the authority itself.
+    #[error(transparent)]
+    Encoding(#[from] CborError),
+    /// Invalid full identity or normalized Node policy.
+    #[error(transparent)]
+    Contract(#[from] AccountError),
+    /// Unsupported schema.
+    #[error("invalid Node L3 authority field")]
+    Field,
+    /// Too many bindings.
+    #[error("Node L3 authority bound exceeded")]
+    Bounds,
+    /// Bindings are not in strict identity order.
+    #[error("Node L3 authority bindings are not in strict identity order")]
+    Ordering,
+    /// A key is zero or repeated, or a policy member has no binding.
+    #[error("missing, zero or repeated Node L3 binding")]
+    Binding,
+}
 
 /// Explicit full signing identity to authorized transport key.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -27,22 +51,22 @@ pub struct NodeL3Authority {
 }
 
 impl NodeL3Authority {
-    fn validate(&self) -> Result<(), GrantError> {
+    fn validate(&self) -> Result<(), L3AuthorityError> {
         self.policy.canonical()?;
         if self.bindings.len() > MAX_IDENTITIES {
-            return Err(GrantError::Bounds);
+            return Err(L3AuthorityError::Bounds);
         }
         if !self
             .bindings
             .windows(2)
             .all(|p| p[0].identity < p[1].identity)
         {
-            return Err(GrantError::Ordering);
+            return Err(L3AuthorityError::Ordering);
         }
         let mut keys = BTreeSet::new();
         for binding in &self.bindings {
             if binding.wg_key == [0; 32] || !keys.insert(binding.wg_key) {
-                return Err(GrantError::Binding);
+                return Err(L3AuthorityError::Binding);
             }
         }
         for scope in &self.policy.scopes {
@@ -52,7 +76,7 @@ impl NodeL3Authority {
                     .binary_search_by_key(member, |binding| binding.identity)
                     .is_err()
                 {
-                    return Err(GrantError::Binding);
+                    return Err(L3AuthorityError::Binding);
                 }
             }
         }
@@ -63,7 +87,7 @@ impl NodeL3Authority {
     ///
     /// # Errors
     /// Refuses invalid policy, missing or ambiguous binding and bounds.
-    pub fn canonical(&self) -> Result<Vec<u8>, GrantError> {
+    pub fn canonical(&self) -> Result<Vec<u8>, L3AuthorityError> {
         self.validate()?;
         let mut out = CborWriter::default();
         out.array(3).uint(SCHEMA).array(self.bindings.len());
@@ -73,18 +97,22 @@ impl NodeL3Authority {
                 .bytes(&binding.wg_key);
         }
         out.bytes(&self.policy.canonical()?);
-        checked_bytes(out)
+        let bytes = out.into_bytes();
+        if bytes.len() > MAX_BYTES {
+            return Err(L3AuthorityError::Bounds);
+        }
+        Ok(bytes)
     }
 
     /// Decodes complete canonical Node authority without installing any effects.
     ///
     /// # Errors
     /// Refuses malformed encoding, policy, missing membership bindings or duplicate keys.
-    pub fn decode(bytes: &[u8]) -> Result<Self, GrantError> {
+    pub fn decode(bytes: &[u8]) -> Result<Self, L3AuthorityError> {
         let mut input = CborReader::new(bytes, MAX_BYTES)?;
         input.array(3)?;
         if input.uint()? != SCHEMA {
-            return Err(GrantError::Field);
+            return Err(L3AuthorityError::Field);
         }
         let count = input.array_up_to(MAX_IDENTITIES)?;
         let mut bindings = Vec::with_capacity(count);

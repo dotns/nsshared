@@ -7,7 +7,7 @@ use thiserror::Error;
 
 use crate::account::control::exchange::MAX_PUBLICATION_BYTES;
 use crate::{account::control::MAX_CONTROL_BODY, account::is_scope_text};
-use nsshared_codec::{cbor::CborError, cbor::CborReader, cbor::CborWriter};
+use nsshared_codec::{cbor::CborReader, cbor::CborWriter};
 use nsshared_identity::keys::IdentityKey;
 
 /// Ed25519 publication domain, including the final zero separator.
@@ -120,7 +120,7 @@ impl PublicationContent<'_> {
             || (self.outcome == PublicationOutcome::FetchFailed
                 && (key.family != 11 || key.kind != "node-l3" || self.payload.is_empty()))
         {
-            return Err(PublicationError::Fields);
+            return Err(PublicationError::Field);
         }
         if self.payload.len() > MAX_PUBLICATION_BYTES {
             return Err(PublicationError::Bounds);
@@ -187,16 +187,17 @@ pub struct PublicationEvent<'a> {
 
 /// Pure refusal; errors never represent empty authority.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum PublicationError {
     /// Invalid, truncated, nonminimal or trailing CBOR.
     #[error(transparent)]
-    Encoding(#[from] CborError),
+    Contract(#[from] crate::account::AccountError),
     /// Measured encoded event or snapshot exceeds its byte ceiling.
     #[error("publication encoded byte bound exceeded")]
     Bounds,
     /// Unsupported schema, discriminant or invalid required field.
     #[error("invalid publication field")]
-    Fields,
+    Field,
     /// Signed issuer differs from the externally trusted issuer.
     #[error("publication issuer mismatch")]
     Issuer,
@@ -222,6 +223,8 @@ pub enum PublicationError {
     #[error("publication snapshot keys out of order")]
     Order,
 }
+
+crate::account::contract_error!(PublicationError);
 
 /// Consumer action. Only replacement, withdrawal and typed failure advance state.
 #[derive(Debug)]
@@ -285,17 +288,17 @@ impl<'a> PublicationEvent<'a> {
         let mut reader = CborReader::new(signing_bytes, bytes.len())?;
         reader.array(14)?;
         if reader.uint()? != 1 {
-            return Err(PublicationError::Fields);
+            return Err(PublicationError::Field);
         }
         let key = PublicationKey {
             issuer: IdentityKey::from_bytes(&reader.fixed_bytes()?)
-                .map_err(|_| PublicationError::Fields)?,
+                .map_err(|_| PublicationError::Field)?,
             recipient: IdentityKey::from_bytes(&reader.fixed_bytes()?)
-                .map_err(|_| PublicationError::Fields)?,
+                .map_err(|_| PublicationError::Field)?,
             served_realm: reader
                 .text_up_to(26)?
                 .parse()
-                .map_err(|_| PublicationError::Fields)?,
+                .map_err(|_| PublicationError::Field)?,
             scope: reader.text_up_to(256)?,
             family: reader.uint()?,
             kind: reader.text_up_to(256)?,
@@ -303,7 +306,7 @@ impl<'a> PublicationEvent<'a> {
         let channel = match reader.uint()? {
             0 => PublicationChannel::Stream,
             1 => PublicationChannel::Snapshot,
-            _ => return Err(PublicationError::Fields),
+            _ => return Err(PublicationError::Field),
         };
         let complete = reader.boolean()?;
         let version = reader.uint()?;
@@ -312,7 +315,7 @@ impl<'a> PublicationEvent<'a> {
         let outcome = match reader.uint()? {
             0 => PublicationOutcome::Data,
             1 => PublicationOutcome::FetchFailed,
-            _ => return Err(PublicationError::Fields),
+            _ => return Err(PublicationError::Field),
         };
         let payload = reader.bytes_up_to(bytes.len())?;
         reader.finish()?;
@@ -323,7 +326,7 @@ impl<'a> PublicationEvent<'a> {
             || (outcome == PublicationOutcome::FetchFailed
                 && (key.family != 11 || key.kind != "node-l3" || payload.is_empty()))
         {
-            return Err(PublicationError::Fields);
+            return Err(PublicationError::Field);
         }
         Ok(Self {
             content: PublicationContent {
@@ -416,13 +419,13 @@ impl<'a> PublicationEvent<'a> {
             return Ok(None);
         }
         let value = crate::account::grants::GrantPublication::decode(content.payload)
-            .map_err(|_| PublicationError::Fields)?;
+            .map_err(|_| PublicationError::Field)?;
         if value.family != content.key.family
             || value.issuer != content.key.issuer
             || value.recipient != content.key.recipient
             || value.revision != content.version
         {
-            return Err(PublicationError::Fields);
+            return Err(PublicationError::Field);
         }
         Ok(Some(value))
     }
@@ -441,10 +444,10 @@ impl<'a> PublicationEvent<'a> {
             return Ok(None);
         }
         let value = crate::account::subnet::SubnetPublication::decode(content.payload)
-            .map_err(|_| PublicationError::Fields)?;
+            .map_err(|_| PublicationError::Field)?;
         if value.recipient != *content.key.recipient.as_bytes() || value.revision != content.version
         {
-            return Err(PublicationError::Fields);
+            return Err(PublicationError::Field);
         }
         Ok(Some(value))
     }
@@ -464,7 +467,7 @@ impl<'a> PublicationEvent<'a> {
         }
         crate::account::subnet::ProviderMappings::decode(content.payload)
             .map(Some)
-            .map_err(|_| PublicationError::Fields)
+            .map_err(|_| PublicationError::Field)
     }
 
     /// Compares routing collections against independently accepted identity and membership.
@@ -481,7 +484,7 @@ impl<'a> PublicationEvent<'a> {
         let scope = match (content.key.family, content.key.kind) {
             (3, "egress-grants") => "egress",
             (4, "exit-grants" | "subnet-routes" | "provider-mappings") => "nodes",
-            _ => return Err(PublicationError::Fields),
+            _ => return Err(PublicationError::Field),
         };
         if content.key.recipient != recipient {
             return Err(PublicationError::Recipient);
@@ -584,7 +587,7 @@ pub fn decide_publication<'a>(
         || event.decode_subnet_payload().is_err()
         || event.decode_provider_mapping_payload().is_err()
     {
-        return PublicationDecision::Refused(PublicationError::Fields);
+        return PublicationDecision::Refused(PublicationError::Field);
     }
     if content.outcome == PublicationOutcome::FetchFailed {
         PublicationDecision::FetchFailed(event)
@@ -637,7 +640,7 @@ fn snapshot_reader(bytes: &[u8]) -> Result<(CborReader<'_>, usize), PublicationE
     let mut reader = CborReader::new(bytes, MAX_CONTROL_BODY)?;
     reader.array(2)?;
     if reader.uint()? != 1 {
-        return Err(PublicationError::Fields);
+        return Err(PublicationError::Field);
     }
     let count = reader.array_up_to(bytes.len())?;
     Ok((reader, count))
@@ -657,7 +660,7 @@ pub fn decide_publication_snapshot<'a, 's>(
     expected: &'s PublicationExpectation<'s>,
 ) -> Result<PublicationSnapshot<'a, 's>, PublicationError> {
     if expected.channel != PublicationChannel::Snapshot {
-        return Err(PublicationError::Fields);
+        return Err(PublicationError::Field);
     }
     let (mut reader, count) = snapshot_reader(bytes)?;
     let mut previous = None;
@@ -672,7 +675,7 @@ pub fn decide_publication_snapshot<'a, 's>(
             | PublicationDecision::ChannelMismatch(event) => event,
             PublicationDecision::Refused(error) => return Err(error),
             PublicationDecision::Absent | PublicationDecision::TerminateStream => {
-                return Err(PublicationError::Fields);
+                return Err(PublicationError::Field);
             }
         };
         let key = event.content().key;

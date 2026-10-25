@@ -52,7 +52,7 @@ impl UsageProfilePublication {
         let count = input.array_up_to(2)?;
         let mut profiles = Vec::with_capacity(count);
         for _ in 0..count {
-            profiles.push(UsageProfile::read(&mut input).map_err(|_| AccountError::InvalidField)?);
+            profiles.push(UsageProfile::read(&mut input).map_err(|_| AccountError::Field)?);
         }
         input.finish()?;
         let value = Self { reporter, profiles };
@@ -121,7 +121,7 @@ impl NodeControlProfilePublication {
         let count = input.array_up_to(5)?;
         let mut capabilities = Vec::with_capacity(count);
         for _ in 0..count {
-            capabilities.push(u8::try_from(input.uint()?).map_err(|_| AccountError::InvalidField)?);
+            capabilities.push(u8::try_from(input.uint()?).map_err(|_| AccountError::Field)?);
         }
         input.finish()?;
         let value = Self {

@@ -71,7 +71,7 @@ pub fn validate_control_input(
 pub enum BootstrapError {
     /// Malformed or noncanonical CBOR.
     #[error(transparent)]
-    Encoding(CborError),
+    Contract(crate::account::AccountError),
     /// Encoded bytes or declared lengths exceed the boundary.
     #[error("control input bound exceeded")]
     Bounds,
@@ -131,7 +131,7 @@ impl From<CborError> for BootstrapError {
             CborError::TooLarge { .. }
             | CborError::StringLength { .. }
             | CborError::ArrayLength { .. } => Self::Bounds,
-            other => Self::Encoding(other),
+            other => Self::Contract(crate::account::AccountError::Cbor(other)),
         }
     }
 }

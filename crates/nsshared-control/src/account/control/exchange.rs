@@ -154,7 +154,7 @@ fn decision(value: u64) -> Result<EnrollmentDecision, AccountError> {
         1 => Ok(EnrollmentDecision::Equal),
         2 => Ok(EnrollmentDecision::IdentityReplacement),
         3 => Ok(EnrollmentDecision::RecordRotation),
-        _ => Err(AccountError::InvalidField),
+        _ => Err(AccountError::Field),
     }
 }
 

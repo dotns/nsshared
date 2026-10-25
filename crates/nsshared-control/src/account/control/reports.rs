@@ -226,7 +226,7 @@ impl GatewayReport {
     pub fn canonical(&self) -> Result<Vec<u8>, AccountError> {
         require(self.certificates.len() <= MAX_EDGE_ITEMS)?;
         crate::account::node::enrollment::validate_capabilities(&self.capabilities)
-            .map_err(|_| AccountError::InvalidField)?;
+            .map_err(|_| AccountError::Field)?;
         require(self.public_http_port != Some(0) && self.internal_http_port != Some(0))?;
         let mut out = CborWriter::default();
         out.array(12).uint(1).bytes(&self.request_id);
@@ -260,7 +260,7 @@ impl GatewayReport {
         let connections = read_uint(&mut input)?
             .map(u32::try_from)
             .transpose()
-            .map_err(|_| AccountError::InvalidField)?;
+            .map_err(|_| AccountError::Field)?;
         let terminate_enabled = if input.take_null() {
             None
         } else {
@@ -269,11 +269,11 @@ impl GatewayReport {
         let public_http_port = read_uint(&mut input)?
             .map(u16::try_from)
             .transpose()
-            .map_err(|_| AccountError::InvalidField)?;
+            .map_err(|_| AccountError::Field)?;
         let internal_http_port = read_uint(&mut input)?
             .map(u16::try_from)
             .transpose()
-            .map_err(|_| AccountError::InvalidField)?;
+            .map_err(|_| AccountError::Field)?;
         let draining = input.boolean()?;
         let capabilities = read_strings(&mut input)?;
         let public_ingress_scopes = read_strings(&mut input)?;
@@ -394,7 +394,7 @@ impl ControlReportOperation {
             GATEWAY_SERVICES_REPORT => Ok(Self::Services),
             GATEWAY_USAGE_REPORT => Ok(Self::Usage),
             GATEWAY_MATERIAL_STATUS => Ok(Self::MaterialStatus),
-            _ => Err(AccountError::InvalidField),
+            _ => Err(AccountError::Field),
         }
     }
     /// Exact signed operation identifier, defined in the shared exchange constants.
@@ -436,10 +436,10 @@ impl ControlReportOperation {
                 require(EdgeServiceResponse::decode(bytes)?.body_kind == 1)?;
             }
             (Self::Usage, EnvelopeDirection::Request) => {
-                UsageReport::decode(bytes).map_err(|_| AccountError::InvalidField)?;
+                UsageReport::decode(bytes).map_err(|_| AccountError::Field)?;
             }
             (Self::Usage, EnvelopeDirection::Response) => {
-                UsageAnswer::decode(bytes).map_err(|_| AccountError::InvalidField)?;
+                UsageAnswer::decode(bytes).map_err(|_| AccountError::Field)?;
             }
             (Self::MaterialStatus, EnvelopeDirection::Request) => {
                 EdgeMaterialAck::decode(bytes)?;
@@ -470,7 +470,7 @@ impl ControlReportOperation {
                 )?,
                 Self::Usage => require(
                     UsageReport::decode(&envelope.payload)
-                        .map_err(|_| AccountError::InvalidField)?
+                        .map_err(|_| AccountError::Field)?
                         .reporter
                         == envelope.signer,
                 )?,

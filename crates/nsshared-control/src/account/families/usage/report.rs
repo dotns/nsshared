@@ -9,7 +9,7 @@ use crate::{
     account::reader, account::usage::Direction, account::usage::RelayUsage,
     account::usage::ServiceBoundary, account::usage::ServiceUsage,
 };
-use nsshared_codec::{cbor::CborError, cbor::CborReader, cbor::CborWriter};
+use nsshared_codec::{cbor::CborReader, cbor::CborWriter};
 use nsshared_identity::keys::IdentityKey;
 
 /// Domain separator for the complete immutable part preimage.
@@ -45,11 +45,7 @@ pub enum UsageError {
     Conflict,
 }
 
-impl From<CborError> for UsageError {
-    fn from(value: CborError) -> Self {
-        Self::Contract(value.into())
-    }
-}
+crate::account::contract_error!(UsageError);
 
 pub(in crate::account) fn field(condition: bool) -> Result<(), UsageError> {
     if condition {

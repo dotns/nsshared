@@ -23,6 +23,7 @@ pub const MAX_SNAPSHOT_REQUEST_BYTES: usize = 8192;
 
 /// Typed refusal without changing accepted authority or retained versions.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum SnapshotRequestError {
     /// Invalid canonical request or fields.
     #[error(transparent)]
@@ -131,8 +132,7 @@ impl PublicationSnapshotRequest {
             subscriber,
             scopes,
             boot_nonce: input.fixed_bytes()?,
-            attempt_counter: u32::try_from(input.uint()?)
-                .map_err(|_| AccountError::InvalidField)?,
+            attempt_counter: u32::try_from(input.uint()?).map_err(|_| AccountError::Field)?,
             correlation: input.fixed_bytes()?,
         };
         input.finish()?;

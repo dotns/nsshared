@@ -133,7 +133,7 @@ impl RealmPeers {
                 input.array(2)?;
                 let binding = NodeBinding::read(&mut input)?;
                 let record = NodeRecord::decode(input.bytes_up_to(MAX_NODE_RECORD_BYTES)?)
-                    .map_err(|_| AccountError::InvalidField)?;
+                    .map_err(|_| AccountError::Field)?;
                 members.push(RealmMember { binding, record });
             }
             realms.push(RealmContribution { realm, members });

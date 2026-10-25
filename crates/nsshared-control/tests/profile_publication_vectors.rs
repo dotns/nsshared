@@ -168,7 +168,7 @@ fn profile_publication_replacement() {
             PublicationDecision::Refused(error) => {
                 assert_eq!(v["expect"], "refused");
                 if index == 2 {
-                    assert!(matches!(error, PublicationError::Fields));
+                    assert!(matches!(error, PublicationError::Field));
                 } else {
                     assert!(matches!(error, PublicationError::Stale));
                 }
@@ -229,7 +229,7 @@ fn profile_publication_context_refusals() {
                         .is_err()
                 );
             }
-            PublicationDecision::Refused(PublicationError::Fields) => {
+            PublicationDecision::Refused(PublicationError::Field) => {
                 assert_eq!(v["expect"], "refused")
             }
             other => panic!("{}: {other:?}", v["name"]),

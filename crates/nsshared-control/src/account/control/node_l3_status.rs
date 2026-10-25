@@ -159,7 +159,7 @@ impl NodeL3StatusRequest {
             (1, 0) => NodeL3Status::Applied,
             (2, 1) => NodeL3Status::Rejected(input.text_up_to(256)?.to_owned()),
             (1, 2) => NodeL3Status::FetchFailedDenied,
-            _ => return Err(AccountError::InvalidField.into()),
+            _ => return Err(AccountError::Field.into()),
         };
         input.finish()?;
         let value = Self {

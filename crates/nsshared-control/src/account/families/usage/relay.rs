@@ -53,7 +53,7 @@ fn class(value: u64) -> Result<IdentityClass, AccountError> {
     match value {
         0 => Ok(IdentityClass::OrdinaryNode),
         1 => Ok(IdentityClass::GatewayNode),
-        _ => Err(AccountError::InvalidField),
+        _ => Err(AccountError::Field),
     }
 }
 
@@ -98,7 +98,7 @@ impl RelayUsage {
         let direction = match input.uint()? {
             0 => RelayDirection::SourceToDestination,
             1 => RelayDirection::DestinationToSource,
-            _ => return Err(AccountError::InvalidField),
+            _ => return Err(AccountError::Field),
         };
         let value = Self {
             source,

@@ -128,7 +128,7 @@ impl Lifecycle {
         let transition = match input.uint()? {
             0 => Transition::IdentityReplacement,
             1 => Transition::RecordRotation,
-            _ => return Err(AccountError::InvalidField),
+            _ => return Err(AccountError::Field),
         };
         let value = Self {
             transition,

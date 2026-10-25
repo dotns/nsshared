@@ -27,7 +27,7 @@ pub const MAX_SUBNET_OFFERS: usize = 256;
 pub enum SubnetReportError {
     /// Strict canonical encoding refusal.
     #[error(transparent)]
-    Encoding(#[from] CborError),
+    Contract(#[from] crate::account::AccountError),
     /// Source or authenticated carrier refusal.
     #[error(transparent)]
     Source(#[from] SourceError),
@@ -36,7 +36,7 @@ pub enum SubnetReportError {
     Subnet(#[from] SubnetError),
     /// Unsupported schema, zero generation or invalid ordered mapping ids.
     #[error("invalid Subnet report fields")]
-    Fields,
+    Field,
     /// Encoded payload or entry bound exceeded.
     #[error("Subnet report bound exceeded")]
     Bounds,
@@ -57,13 +57,15 @@ pub enum SubnetReportError {
     Allocation,
 }
 
+crate::account::contract_error!(SubnetReportError);
+
 fn require(condition: bool, error: SubnetReportError) -> Result<(), SubnetReportError> {
     if condition { Ok(()) } else { Err(error) }
 }
 fn ids(values: impl Iterator<Item = u32>) -> Result<(), SubnetReportError> {
     let mut previous = 0;
     for id in values {
-        require(id > previous, SubnetReportError::Fields)?;
+        require(id > previous, SubnetReportError::Field)?;
         previous = id;
     }
     Ok(())
@@ -77,7 +79,7 @@ fn count(input: &mut CborReader<'_>) -> Result<usize, SubnetReportError> {
         })
 }
 fn mapping_id(input: &mut CborReader<'_>) -> Result<u32, SubnetReportError> {
-    u32::try_from(input.uint()?).map_err(|_| SubnetReportError::Fields)
+    u32::try_from(input.uint()?).map_err(|_| SubnetReportError::Field)
 }
 fn bounded(bytes: Vec<u8>) -> Result<Vec<u8>, SubnetReportError> {
     require(bytes.len() <= MAX_BYTES, SubnetReportError::Bounds)?;
@@ -108,7 +110,7 @@ impl NodeSubnetRouteReport {
     /// # Errors
     /// Refuses invalid source fields, counters, mapping ids, selections or bounds.
     pub fn canonical(&self) -> Result<Vec<u8>, SubnetReportError> {
-        require(self.report_generation > 0, SubnetReportError::Fields)?;
+        require(self.report_generation > 0, SubnetReportError::Field)?;
         require(
             self.offers.len() <= MAX_SUBNET_OFFERS,
             SubnetReportError::Bounds,
@@ -142,7 +144,7 @@ impl NodeSubnetRouteReport {
     pub fn decode(bytes: &[u8]) -> Result<Self, SubnetReportError> {
         let mut input = CborReader::new(bytes, MAX_BYTES)?;
         input.array(4)?;
-        require(input.uint()? == 1, SubnetReportError::Fields)?;
+        require(input.uint()? == 1, SubnetReportError::Field)?;
         let binding = SignedSourceBinding::decode(input.bytes_up_to(MAX_SOURCE_BYTES)?)?;
         let report_generation = input.uint()?;
         let size = count(&mut input)?;
@@ -156,7 +158,7 @@ impl NodeSubnetRouteReport {
             let selection = match tag {
                 0 if prefixes.is_empty() => SubnetSelection::Default,
                 1 => SubnetSelection::Explicit(prefixes),
-                _ => return Err(SubnetReportError::Fields),
+                _ => return Err(SubnetReportError::Field),
             };
             offers.push(SubnetRouteOffer {
                 subnet_id,
@@ -222,7 +224,7 @@ impl NodeSubnetRouteReportResponse {
     /// # Errors
     /// Refuses malformed source, generation, mapping order, reference or bounds.
     pub fn canonical(&self) -> Result<Vec<u8>, SubnetReportError> {
-        require(self.report_generation > 0, SubnetReportError::Fields)?;
+        require(self.report_generation > 0, SubnetReportError::Field)?;
         require(
             self.allocations.len() <= MAX_SUBNET_OFFERS,
             SubnetReportError::Bounds,
@@ -254,7 +256,7 @@ impl NodeSubnetRouteReportResponse {
     pub fn decode(bytes: &[u8]) -> Result<Self, SubnetReportError> {
         let mut input = CborReader::new(bytes, MAX_BYTES)?;
         input.array(4)?;
-        require(input.uint()? == 1, SubnetReportError::Fields)?;
+        require(input.uint()? == 1, SubnetReportError::Field)?;
         let binding = SignedSourceBinding::decode(input.bytes_up_to(MAX_SOURCE_BYTES)?)?;
         let report_generation = input.uint()?;
         let size = count(&mut input)?;

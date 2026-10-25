@@ -6,7 +6,7 @@ use crate::{
     account::edge::routing::hostname, account::identity, account::reader,
     account::realm::subject::text, account::require, account::scope_text,
 };
-use nsshared_codec::{cbor::CborError, cbor::CborWriter};
+use nsshared_codec::cbor::CborWriter;
 use nsshared_identity::{keys::IdentityKey, realm::RealmId};
 use thiserror::Error;
 
@@ -89,11 +89,7 @@ pub enum EdgeMaterialError {
     Echo,
 }
 
-impl From<CborError> for EdgeMaterialError {
-    fn from(value: CborError) -> Self {
-        Self::Contract(value.into())
-    }
-}
+crate::account::contract_error!(EdgeMaterialError);
 
 impl EdgeMaterialRequest {
     /// Encodes the exact acquisition tuple, preserving the auth-only request contract.

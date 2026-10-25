@@ -1,4 +1,5 @@
 #![allow(clippy::unwrap_used, clippy::panic)]
+use nsshared_control::account::AccountError;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -72,9 +73,9 @@ fn scopes(raw: &[u8]) -> Vec<PublicationScope<'_>> {
 
 fn reason(error: &PublicationError) -> &'static str {
     match error {
-        PublicationError::Encoding(_) => "encoding",
+        PublicationError::Contract(AccountError::Cbor(_)) => "encoding",
         PublicationError::Bounds => "bounds",
-        PublicationError::Fields => "fields",
+        PublicationError::Field => "fields",
         PublicationError::Issuer => "issuer",
         PublicationError::Recipient => "recipient",
         PublicationError::Scope => "scope",
@@ -83,6 +84,7 @@ fn reason(error: &PublicationError) -> &'static str {
         PublicationError::Incomplete => "incomplete",
         PublicationError::Stale => "stale",
         PublicationError::Order => "order",
+        _ => "unexpected",
     }
 }
 

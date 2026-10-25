@@ -17,12 +17,12 @@ use nsshared_identity::keys::IdentityKey;
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum GrantError {
-    /// Strict CBOR refusal.
+    /// Strict CBOR refusal of the grant payload itself.
     #[error(transparent)]
     Encoding(#[from] CborError),
-    /// Invalid full identity or normalized Node policy.
+    /// Invalid full identity, normalized Node policy or other shared contract field.
     #[error(transparent)]
-    Policy(#[from] AccountError),
+    Contract(#[from] AccountError),
     /// Invalid embedded Subnet selection.
     #[error(transparent)]
     Subnet(#[from] SubnetError),

@@ -47,7 +47,7 @@ pub use reports::{
 };
 pub use route_command::{
     CommittedSelection, NODE_ROUTE_CLEAR, NODE_ROUTE_SELECT, RouteAction, RouteCommand,
-    RouteDecision, RouteOutcome, RouteReceipt, RouteResponse, decide_route_command,
+    RouteDecision, RouteError, RouteOutcome, RouteReceipt, RouteResponse, decide_route_command,
 };
 pub use service_control::{
     PendingRequest, ServiceControlBinding, ServiceControlError, StreamExpectation, UnaryReply,

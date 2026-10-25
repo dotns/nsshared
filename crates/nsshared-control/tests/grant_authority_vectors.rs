@@ -3,9 +3,9 @@
 use nsshared_control::{
     account::grants::GrantDetails, account::grants::GrantDiscriminator,
     account::grants::GrantError, account::grants::GrantPublication, account::grants::PayerBindings,
-    account::grants::ResourceAuthority, account::node::NodeL3Authority,
-    account::node::TransportProtocol, account::subnet::SubnetPrefix,
-    account::subnet::SubnetSelection,
+    account::grants::ResourceAuthority, account::node::L3AuthorityError,
+    account::node::NodeL3Authority, account::node::TransportProtocol,
+    account::subnet::SubnetPrefix, account::subnet::SubnetSelection,
 };
 use serde_json::{Value, json};
 
@@ -43,7 +43,7 @@ fn refusal(error: GrantError) -> &'static str {
         GrantError::MissingPayer => "missing-payer",
         GrantError::AmbiguousPayer => "ambiguous-payer",
         GrantError::Encoding(_) => "encoding",
-        GrantError::Policy(_) => "policy",
+        GrantError::Contract(_) => "policy",
         GrantError::Subnet(_) => "subnet",
         GrantError::Reference => "reference",
         GrantError::Scope => "scope",
@@ -52,6 +52,18 @@ fn refusal(error: GrantError) -> &'static str {
         GrantError::Ordering => "ordering",
         GrantError::RetiredIncarnation => "retired-incarnation",
         GrantError::Binding => "binding",
+        other => panic!("unexpected refusal: {other:?}"),
+    }
+}
+
+fn l3_refusal(error: L3AuthorityError) -> &'static str {
+    match error {
+        L3AuthorityError::Encoding(_) => "encoding",
+        L3AuthorityError::Contract(_) => "policy",
+        L3AuthorityError::Field => "field",
+        L3AuthorityError::Bounds => "bounds",
+        L3AuthorityError::Ordering => "ordering",
+        L3AuthorityError::Binding => "binding",
         other => panic!("unexpected refusal: {other:?}"),
     }
 }
@@ -71,7 +83,7 @@ fn allows(
     destination: nsshared_identity::keys::IdentityKey,
     protocol: TransportProtocol,
     port: u16,
-) -> Result<bool, GrantError> {
+) -> Result<bool, L3AuthorityError> {
     value.canonical()?;
     Ok(value.policy.rules.iter().any(|r| {
         r.namespace == namespace
@@ -104,7 +116,21 @@ fn grant_l3_consumer_vectors() {
             "grants" => GrantPublication::decode(&bytes).and_then(|v| v.canonical()),
             "payer" => PayerBindings::decode(&bytes).and_then(|v| v.canonical()),
             "withdrawal" => ResourceAuthority::decode(&bytes).and_then(|v| v.canonical()),
-            "l3-authority" => NodeL3Authority::decode(&bytes).and_then(|v| v.canonical()),
+            "l3-authority" => {
+                let result = NodeL3Authority::decode(&bytes).and_then(|v| v.canonical());
+                assert_eq!(
+                    result.is_ok(),
+                    fields["decision"] == "accept",
+                    "{}",
+                    fields["name"]
+                );
+                match result {
+                    Ok(canonical) => assert_eq!(canonical, bytes),
+                    Err(error) => assert_eq!(l3_refusal(error), fields["decision"]),
+                }
+                count += 1;
+                continue;
+            }
             _ => unreachable!(),
         };
         assert_eq!(
@@ -308,7 +334,10 @@ fn constructed_authority_refusals() {
     ));
     let mut authority = NodeL3Authority::decode(&sample("node-authority")).unwrap();
     authority.bindings.clear();
-    assert!(matches!(authority.canonical(), Err(GrantError::Binding)));
+    assert!(matches!(
+        authority.canonical(),
+        Err(L3AuthorityError::Binding)
+    ));
     let mut authority = ResourceAuthority::decode(&sample("initial-authority")).unwrap();
     authority.active.reverse();
     assert!(matches!(authority.canonical(), Err(GrantError::Ordering)));

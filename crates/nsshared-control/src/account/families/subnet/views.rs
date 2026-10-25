@@ -96,7 +96,7 @@ pub struct SelectedSubnetRoute {
 pub enum SubnetError {
     /// Strict CBOR encoding failure, including nonminimal and trailing input.
     #[error(transparent)]
-    Encoding(#[from] CborError),
+    Contract(#[from] crate::account::AccountError),
     /// M6's own codec or reference parser rejected embedded reference bytes.
     #[error("invalid M6 reference: {0}")]
     M6Reference(ContractError),
@@ -149,6 +149,8 @@ pub enum SubnetError {
     #[error("invalid Subnet publication scope")]
     Scope,
 }
+
+crate::account::contract_error!(SubnetError);
 
 impl SubnetPrefix {
     fn width(self) -> u8 {
@@ -257,7 +259,7 @@ pub(in crate::account) fn write_set(values: &[SubnetPrefix], out: &mut CborWrite
 fn read_count(input: &mut CborReader<'_>, maximum: usize) -> Result<usize, SubnetError> {
     input.array_up_to(maximum).map_err(|error| match error {
         CborError::ArrayLength { .. } => SubnetError::Bounds,
-        other => SubnetError::Encoding(other),
+        other => other.into(),
     })
 }
 

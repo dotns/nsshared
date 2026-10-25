@@ -96,7 +96,7 @@ fn independent_pending_byte_boundaries_apply_to_authenticated_empty_polls() {
         } else {
             assert!(matches!(
                 result,
-                Err(SnapshotRequestError::Contract(AccountError::InvalidField))
+                Err(SnapshotRequestError::Contract(AccountError::Field))
             ));
         }
     }

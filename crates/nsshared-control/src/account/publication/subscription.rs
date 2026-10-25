@@ -153,12 +153,10 @@ impl PublicationSubscriptionRequest {
         let count = input.array_up_to(MAX_SUBSCRIPTION_SCOPES)?;
         let mut public_ingress = Vec::new();
         for _ in 0..count {
-            public_ingress
-                .push(u32::try_from(input.uint()?).map_err(|_| AccountError::InvalidField)?);
+            public_ingress.push(u32::try_from(input.uint()?).map_err(|_| AccountError::Field)?);
         }
         let boot_nonce = input.fixed_bytes()?;
-        let attempt_counter =
-            u32::try_from(input.uint()?).map_err(|_| AccountError::InvalidField)?;
+        let attempt_counter = u32::try_from(input.uint()?).map_err(|_| AccountError::Field)?;
         let service_control = if input.take_null() {
             None
         } else {

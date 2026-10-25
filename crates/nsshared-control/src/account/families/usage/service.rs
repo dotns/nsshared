@@ -95,12 +95,12 @@ impl ServiceUsage {
         let boundary = match input.uint()? {
             0 => ServiceBoundary::CompletedHostWritesAndSends,
             1 => ServiceBoundary::PublicIngress,
-            _ => return Err(AccountError::InvalidField),
+            _ => return Err(AccountError::Field),
         };
         let direction = match input.uint()? {
             0 => Direction::ClientToProvider,
             1 => Direction::ProviderToClient,
-            _ => return Err(AccountError::InvalidField),
+            _ => return Err(AccountError::Field),
         };
         let mut value = Self {
             boundary,

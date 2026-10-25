@@ -62,7 +62,7 @@ impl AuthProviderKind {
     fn read(input: &mut CborReader<'_>) -> Result<Self, AccountError> {
         match input.uint()? {
             0 => Ok(Self::Oidc),
-            _ => Err(AccountError::InvalidField),
+            _ => Err(AccountError::Field),
         }
     }
 }
@@ -78,7 +78,7 @@ impl AuthOrganizationMode {
     fn read(input: &mut CborReader<'_>) -> Result<Self, AccountError> {
         match input.uint()? {
             0 => Ok(Self::Logto),
-            _ => Err(AccountError::InvalidField),
+            _ => Err(AccountError::Field),
         }
     }
 }
@@ -100,7 +100,7 @@ impl AuthKeySourceKind {
             0 => Ok(Self::Discovery),
             1 => Ok(Self::Uri),
             2 => Ok(Self::Inline),
-            _ => Err(AccountError::InvalidField),
+            _ => Err(AccountError::Field),
         }
     }
 }
@@ -131,7 +131,7 @@ impl AuthMethodKind {
             3 => Ok(Self::Bearer),
             4 => Ok(Self::SignedRequest),
             5 => Ok(Self::Basic),
-            _ => Err(AccountError::InvalidField),
+            _ => Err(AccountError::Field),
         }
     }
 }
@@ -161,7 +161,7 @@ impl AuthSecretVersion {
         input.array(4)?;
         Ok(Self {
             reference: input.text_up_to(256)?.to_owned(),
-            version: u32::try_from(input.uint()?).map_err(|_| AccountError::InvalidField)?,
+            version: u32::try_from(input.uint()?).map_err(|_| AccountError::Field)?,
             expires_seconds: input.uint()?,
             value: input.text_up_to(8192)?.to_owned(),
         })
@@ -581,7 +581,7 @@ impl AuthVerifier {
                 spiffe_id: input.text_up_to(8192)?.to_owned(),
                 trust_material: EdgeMaterialRef::read(input)?,
             }),
-            _ => Err(AccountError::InvalidField),
+            _ => Err(AccountError::Field),
         }
     }
 }

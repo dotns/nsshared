@@ -25,7 +25,7 @@ pub enum BindingError {
     Authority,
     /// Lower version or changed equal version, including replay after restart.
     #[error("stale or changed directory binding version")]
-    Version,
+    Stale,
     /// Future issue or expired exclusive deadline.
     #[error("directory binding outside signed lifetime")]
     Time,
@@ -33,11 +33,7 @@ pub enum BindingError {
     #[error("invalid directory binding signature")]
     Signature,
 }
-impl From<nsshared_codec::cbor::CborError> for BindingError {
-    fn from(error: nsshared_codec::cbor::CborError) -> Self {
-        Self::Contract(error.into())
-    }
-}
+crate::account::contract_error!(BindingError);
 
 /// Complete NSD ownership and eligible realm set for one permanent numeric id.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -92,7 +88,7 @@ impl DirectoryBinding {
     pub fn decode(bytes: &[u8]) -> Result<Self, BindingError> {
         let mut input = reader(bytes, 8)?;
         let issuer = identity(&mut input)?;
-        let relay_id = u16::try_from(input.uint()?).map_err(|_| AccountError::InvalidField)?;
+        let relay_id = u16::try_from(input.uint()?).map_err(|_| AccountError::Field)?;
         let participant = identity(&mut input)?;
         let count = input.array_up_to(MAX_IDENTITIES)?;
         let mut realms = Vec::with_capacity(count);
@@ -206,7 +202,7 @@ impl SignedDirectoryBinding {
         if self.content.version == floor && previous == Some(self) {
             return Ok(BindingDecision::Idempotent);
         }
-        Err(BindingError::Version)
+        Err(BindingError::Stale)
     }
     /// Query signed association for a selected entry, owner and authenticated realm.
     /// Caller first accepts this record with verify and its persisted floor.

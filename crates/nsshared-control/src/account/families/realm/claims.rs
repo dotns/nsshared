@@ -103,7 +103,7 @@ impl AdminTokenClaims {
             0 => AdminScope::ReadOnly,
             1 => AdminScope::ReadWrite,
             2 => AdminScope::SuperAdmin,
-            _ => return Err(AccountError::InvalidField),
+            _ => return Err(AccountError::Field),
         };
         let realm = if input.take_null() {
             None
@@ -279,7 +279,7 @@ impl SignedSubjectHeaderPolicy {
             validity_seconds: if input.take_null() {
                 None
             } else {
-                Some(u32::try_from(input.uint()?).map_err(|_| AccountError::InvalidField)?)
+                Some(u32::try_from(input.uint()?).map_err(|_| AccountError::Field)?)
             },
             strip_inbound: input.boolean()?,
         };

@@ -1,4 +1,5 @@
 #![allow(clippy::unwrap_used, clippy::panic)]
+use nsshared_control::account::AccountError;
 
 use nsshared_codec::{cbor::CborError, cbor::CborReader, cbor::CborWriter};
 use nsshared_control::{
@@ -175,8 +176,8 @@ fn decision(value: Result<(), BootstrapError>) -> &'static str {
         Err(BootstrapError::Replay) => "replay",
         Err(BootstrapError::Signature) => "signature",
         Err(BootstrapError::Bounds) => "bounds",
-        Err(BootstrapError::Encoding(CborError::NonShortest)) => "nonminimal",
-        Err(BootstrapError::Encoding(CborError::TrailingBytes)) => "trailing",
+        Err(BootstrapError::Contract(AccountError::Cbor(CborError::NonShortest))) => "nonminimal",
+        Err(BootstrapError::Contract(AccountError::Cbor(CborError::TrailingBytes))) => "trailing",
         other => panic!("unexpected decision {other:?}"),
     }
 }
@@ -247,7 +248,9 @@ fn canonical_carriers_refuse_altered_encodings() {
         assert!(
             matches!(
                 decode(&trailing),
-                Err(BootstrapError::Encoding(CborError::TrailingBytes))
+                Err(BootstrapError::Contract(AccountError::Cbor(
+                    CborError::TrailingBytes
+                )))
             ),
             "{}",
             v["name"]
@@ -257,7 +260,9 @@ fn canonical_carriers_refuse_altered_encodings() {
         assert!(
             matches!(
                 decode(&nonminimal),
-                Err(BootstrapError::Encoding(CborError::NonShortest))
+                Err(BootstrapError::Contract(AccountError::Cbor(
+                    CborError::NonShortest
+                )))
             ),
             "{}",
             v["name"]

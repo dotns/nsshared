@@ -52,10 +52,10 @@ fn fixed_jwks_uri(value: &str) -> Result<(), AccountError> {
     require(!value.contains(['#', '\\']))?;
     let authority = value
         .strip_prefix("https://")
-        .ok_or(AccountError::InvalidField)?
+        .ok_or(AccountError::Field)?
         .split(['/', '?'])
         .next()
-        .ok_or(AccountError::InvalidField)?;
+        .ok_or(AccountError::Field)?;
     crate::account::edge::material::issuer_url(&format!("https://{authority}"))?;
     for (index, byte) in value.bytes().enumerate() {
         if byte == b'%' {
@@ -76,7 +76,7 @@ fn anchor(binding: &SubjectBinding) -> Result<&str, AccountError> {
     if let SubjectAnchor::Credential(reference) = &binding.anchor {
         Ok(reference)
     } else {
-        Err(AccountError::InvalidField)
+        Err(AccountError::Field)
     }
 }
 
@@ -129,7 +129,7 @@ impl AuthConfiguration {
             match source.kind {
                 AuthKeySourceKind::Discovery => require(source.value.is_none())?,
                 AuthKeySourceKind::Uri => {
-                    fixed_jwks_uri(source.value.as_deref().ok_or(AccountError::InvalidField)?)?
+                    fixed_jwks_uri(source.value.as_deref().ok_or(AccountError::Field)?)?
                 }
                 AuthKeySourceKind::Inline => require(source.value.is_some())?,
             }
@@ -144,7 +144,7 @@ impl AuthConfiguration {
                 .jwt_bindings
                 .iter()
                 .find(|b| anchor(&b.binding).is_ok_and(|key| key == join.credential_ref))
-                .ok_or(AccountError::InvalidField)?;
+                .ok_or(AccountError::Field)?;
             require(self.consumers.iter().any(|c| {
                 c.reference == join.consumer_ref && c.subject == binding.binding.subject
             }))?;

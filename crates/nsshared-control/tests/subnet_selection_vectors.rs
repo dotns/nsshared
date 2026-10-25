@@ -1,4 +1,5 @@
 #![allow(clippy::unwrap_used, clippy::panic)]
+use nsshared_control::account::AccountError;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -83,10 +84,10 @@ fn refusal(error: SubnetError) -> &'static str {
         SubnetError::Identity => "identity",
         SubnetError::Scope => "scope",
         SubnetError::M6Reference(_) => "m6-reference",
-        SubnetError::Encoding(CborError::TrailingBytes) => "trailing-bytes",
-        SubnetError::Encoding(CborError::NonShortest) => "non-shortest",
-        SubnetError::Encoding(CborError::Truncated) => "truncated",
-        SubnetError::Encoding(_) => "invalid-encoding",
+        SubnetError::Contract(AccountError::Cbor(CborError::TrailingBytes)) => "trailing-bytes",
+        SubnetError::Contract(AccountError::Cbor(CborError::NonShortest)) => "non-shortest",
+        SubnetError::Contract(AccountError::Cbor(CborError::Truncated)) => "truncated",
+        SubnetError::Contract(AccountError::Cbor(_)) => "invalid-encoding",
         other => panic!("unexpected refusal: {other:?}"),
     }
 }
@@ -295,6 +296,8 @@ fn subnet_constructed_contracts() {
     let oversized = vec![0; nsshared_control::account::MAX_BYTES + 1];
     assert!(matches!(
         SubnetPublication::decode(&oversized),
-        Err(SubnetError::Encoding(CborError::TooLarge { .. }))
+        Err(SubnetError::Contract(AccountError::Cbor(
+            CborError::TooLarge { .. }
+        )))
     ));
 }

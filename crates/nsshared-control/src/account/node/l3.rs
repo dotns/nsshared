@@ -20,7 +20,7 @@ impl TransportProtocol {
         match value {
             6 => Ok(Self::Tcp),
             17 => Ok(Self::Udp),
-            _ => Err(AccountError::InvalidField),
+            _ => Err(AccountError::Field),
         }
     }
 }
@@ -85,7 +85,7 @@ impl NodeL3 {
             let index = self
                 .scopes
                 .binary_search_by_key(&rule.namespace, |scope| scope.namespace)
-                .map_err(|_| AccountError::InvalidField)?;
+                .map_err(|_| AccountError::Field)?;
             let scope = &self.scopes[index];
             require(
                 scope.identities.binary_search(&rule.source).is_ok()
@@ -162,8 +162,8 @@ impl NodeL3 {
                 source: identity(&mut input)?,
                 destination: identity(&mut input)?,
                 protocol: TransportProtocol::read(input.uint()?)?,
-                first_port: u16::try_from(input.uint()?).map_err(|_| AccountError::InvalidField)?,
-                last_port: u16::try_from(input.uint()?).map_err(|_| AccountError::InvalidField)?,
+                first_port: u16::try_from(input.uint()?).map_err(|_| AccountError::Field)?,
+                last_port: u16::try_from(input.uint()?).map_err(|_| AccountError::Field)?,
             });
         }
         input.finish()?;

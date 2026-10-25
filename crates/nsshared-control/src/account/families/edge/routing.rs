@@ -118,8 +118,7 @@ fn read_names(
 }
 
 fn reference_bytes(value: ServiceRef) -> Result<Vec<u8>, AccountError> {
-    nsshared_codec::cbor::value::encode_canonical(&value.value())
-        .map_err(|_| AccountError::InvalidField)
+    nsshared_codec::cbor::value::encode_canonical(&value.value()).map_err(|_| AccountError::Field)
 }
 
 impl PublicEdge {
@@ -156,7 +155,7 @@ impl PublicEdge {
             for route in &realm.routes {
                 text(&route.id)?;
                 if route.protocol == EdgeProtocol::Http {
-                    let name = route.name.as_ref().ok_or(AccountError::InvalidField)?;
+                    let name = route.name.as_ref().ok_or(AccountError::Field)?;
                     hostname(name)?;
                     require(public_names.insert(name))?;
                     for alias in &route.aliases {
@@ -291,9 +290,8 @@ impl PublicEdge {
                 let domains = read_names(&mut input)?;
                 let value =
                     nsshared_codec::cbor::value::decode_canonical(input.bytes_up_to(MAX_BYTES)?)
-                        .map_err(|_| AccountError::InvalidField)?;
-                let service =
-                    ServiceRef::from_value(&value).map_err(|_| AccountError::InvalidField)?;
+                        .map_err(|_| AccountError::Field)?;
+                let service = ServiceRef::from_value(&value).map_err(|_| AccountError::Field)?;
                 let backend = if input.take_null() {
                     None
                 } else {
@@ -303,12 +301,10 @@ impl PublicEdge {
                     0 => EdgeProtocol::Http,
                     6 => EdgeProtocol::Tcp,
                     17 => EdgeProtocol::Udp,
-                    _ => return Err(AccountError::InvalidField),
+                    _ => return Err(AccountError::Field),
                 };
-                let public_port =
-                    u16::try_from(input.uint()?).map_err(|_| AccountError::InvalidField)?;
-                let virtual_port =
-                    u16::try_from(input.uint()?).map_err(|_| AccountError::InvalidField)?;
+                let public_port = u16::try_from(input.uint()?).map_err(|_| AccountError::Field)?;
+                let virtual_port = u16::try_from(input.uint()?).map_err(|_| AccountError::Field)?;
                 let policy = SubjectPolicy::decode(input.bytes_up_to(MAX_BYTES)?)?;
                 let headers = SignedSubjectHeaderPolicy::decode(input.bytes_up_to(MAX_BYTES)?)?;
                 let dependencies = read_materials(&mut input)?;
@@ -390,9 +386,7 @@ impl PublicEdge {
         require(snapshots.len() <= MAX_EDGE_ITEMS * MAX_EDGE_ITEMS)?;
         let mut scopes = BTreeSet::new();
         for snapshot in snapshots {
-            snapshot
-                .canonical()
-                .map_err(|_| AccountError::InvalidField)?;
+            snapshot.canonical().map_err(|_| AccountError::Field)?;
             require(
                 snapshot.target_identity == *recipient.as_bytes()
                     && scopes.insert((snapshot.nsd_id, snapshot.network_id)),
@@ -586,9 +580,9 @@ fn cidrs(values: &[String], out: &mut CborWriter) -> Result<(), AccountError> {
     require(values.len() <= MAX_EDGE_ITEMS && values.windows(2).all(|p| p[0] < p[1]))?;
     out.array(values.len());
     for value in values {
-        let (address, prefix) = value.split_once('/').ok_or(AccountError::InvalidField)?;
-        let address: IpAddr = address.parse().map_err(|_| AccountError::InvalidField)?;
-        let prefix: u32 = prefix.parse().map_err(|_| AccountError::InvalidField)?;
+        let (address, prefix) = value.split_once('/').ok_or(AccountError::Field)?;
+        let address: IpAddr = address.parse().map_err(|_| AccountError::Field)?;
+        let prefix: u32 = prefix.parse().map_err(|_| AccountError::Field)?;
         require(format!("{address}/{prefix}") == *value)?;
         let network = match address {
             IpAddr::V4(address) => {
@@ -665,7 +659,7 @@ impl EdgeRouteOptions {
             1 => EdgeTransport::WebSocket,
             2 => EdgeTransport::PreferWireGuard,
             3 => EdgeTransport::PreferWebSocket,
-            _ => return Err(AccountError::InvalidField),
+            _ => return Err(AccountError::Field),
         };
         let upstream_authority = read_optional(input)?;
         let upstream_tls = if input.take_null() {

@@ -46,18 +46,18 @@ fn number(vector: &Vector, field: &str) -> u64 {
 fn decision(result: &Result<ParticipantRosterGeneration, ParticipantRosterError>) -> &'static str {
     match result {
         Ok(_) => "accepted",
-        Err(ParticipantRosterError::WrongIssuer) => "wrong-issuer",
-        Err(ParticipantRosterError::WrongRecipient) => "wrong-recipient",
-        Err(ParticipantRosterError::StaleVersion) => "stale-version",
+        Err(ParticipantRosterError::Issuer) => "wrong-issuer",
+        Err(ParticipantRosterError::Recipient) => "wrong-recipient",
+        Err(ParticipantRosterError::Stale) => "stale-version",
         Err(ParticipantRosterError::FutureIssue) => "future-issue",
         Err(ParticipantRosterError::Expired) => "expired",
         Err(ParticipantRosterError::ShortLifetime) => "short-lifetime",
-        Err(ParticipantRosterError::BadSignature) => "bad-signature",
+        Err(ParticipantRosterError::Signature) => "bad-signature",
         Err(ParticipantRosterError::MissingClass) => "missing-class",
         Err(ParticipantRosterError::DuplicateClass) => "duplicate-class",
         Err(ParticipantRosterError::UnknownClass) => "unknown-class",
         Err(ParticipantRosterError::DuplicateIdentity) => "duplicate-identity",
-        Err(ParticipantRosterError::Contract(AccountError::InvalidField)) => "invalid-field",
+        Err(ParticipantRosterError::Contract(AccountError::Field)) => "invalid-field",
         Err(ParticipantRosterError::Contract(AccountError::Cbor(CborError::TrailingBytes))) => {
             "trailing-bytes"
         }

@@ -120,13 +120,12 @@ pub fn validate_snapshot(
     let mut seen = BTreeSet::new();
     let mut identities = Vec::with_capacity(snapshot.identities.len());
     for JsonObject(entry) in snapshot.identities {
-        let identity =
-            IdentityKey::from_str(&entry.identity).map_err(|_| AccountError::InvalidField)?;
+        let identity = IdentityKey::from_str(&entry.identity).map_err(|_| AccountError::Field)?;
         require(seen.insert(identity))?;
         let class = match entry.class.as_str() {
             "ordinary_node" => IdentityClass::OrdinaryNode,
             "gateway_node" => IdentityClass::GatewayNode,
-            _ => return Err(AccountError::InvalidField),
+            _ => return Err(AccountError::Field),
         };
         identities.push(RosterEntry { identity, class });
     }
@@ -218,7 +217,7 @@ impl Roster {
             let class = match input.uint()? {
                 0 => IdentityClass::OrdinaryNode,
                 1 => IdentityClass::GatewayNode,
-                _ => return Err(AccountError::InvalidField),
+                _ => return Err(AccountError::Field),
             };
             value.identities.push(RosterEntry { identity, class });
         }

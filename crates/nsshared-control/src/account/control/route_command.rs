@@ -2,18 +2,48 @@
 
 use crate::service::ServiceRef;
 use crate::{
-    account::control::BootstrapEnvelope, account::control::EnvelopeDirection,
-    account::control::EnvelopeExpectation, account::identity,
+    account::AccountError, account::control::BootstrapEnvelope, account::control::BootstrapError,
+    account::control::EnvelopeDirection, account::control::EnvelopeExpectation, account::identity,
     account::publication::source_binding::MAX_SOURCE_BYTES,
     account::publication::source_binding::SignedSourceBinding,
     account::publication::source_binding::SourceBinding,
     account::publication::source_binding::SourceError,
-    account::publication::source_binding::nonzero, account::require,
+    account::publication::source_binding::nonzero, account::require, account::subnet::SubnetError,
     account::subnet::SubnetSelection, account::subnet::views::read_set,
     account::subnet::views::validate_set, account::subnet::views::write_set,
 };
 use nsshared_codec::{cbor::CborReader, cbor::CborWriter};
 use nsshared_identity::keys::IdentityKey;
+use thiserror::Error;
+
+/// Typed refusal of a route command or receipt; no error changes committed selections.
+#[derive(Debug, Error)]
+#[non_exhaustive]
+pub enum RouteError {
+    /// Invalid bounded canonical encoding or fields.
+    #[error(transparent)]
+    Contract(#[from] AccountError),
+    /// Invalid confidential signed carrier.
+    #[error(transparent)]
+    Envelope(#[from] BootstrapError),
+    /// Invalid embedded source binding.
+    #[error(transparent)]
+    Source(#[from] SourceError),
+    /// Invalid Subnet selection.
+    #[error(transparent)]
+    Subnet(#[from] SubnetError),
+    /// Caller, source, provider or pending command differs.
+    #[error("route authority mismatch")]
+    Authority,
+    /// Request identity was reused for different content.
+    #[error("route request content conflict")]
+    Conflict,
+    /// Invalid canonical M6 service reference.
+    #[error("invalid route reference")]
+    Reference,
+}
+
+crate::account::contract_error!(RouteError);
 
 /// Confidential Node/route selection operation.
 pub const NODE_ROUTE_SELECT: &str = "node.route.select";
@@ -63,7 +93,7 @@ impl RouteCommand {
     /// Encodes exact fields with SubnetSelection scope and unchanged canonical M6 reference bytes.
     /// # Errors
     /// Refuses invalid identities, source, prefixes, generation or encoded size.
-    pub fn canonical(&self) -> Result<Vec<u8>, SourceError> {
+    pub fn canonical(&self) -> Result<Vec<u8>, RouteError> {
         nonzero(&self.request_id)?;
         nonzero(&self.selection_id)?;
         let mut out = CborWriter::default();
@@ -83,7 +113,7 @@ impl RouteCommand {
                 scope,
             } => {
                 let resource = nsshared_codec::cbor::value::encode_canonical(&resource.value())
-                    .map_err(|_| SourceError::Reference)?;
+                    .map_err(|_| RouteError::Reference)?;
                 out.array(4)
                     .uint(0)
                     .bytes(provider.as_bytes())
@@ -108,7 +138,7 @@ impl RouteCommand {
     /// Decodes exact new forms without predecessor field conversion.
     /// # Errors
     /// Refuses unknown, missing, retired, malformed or over-bound fields.
-    pub fn decode(bytes: &[u8]) -> Result<Self, SourceError> {
+    pub fn decode(bytes: &[u8]) -> Result<Self, RouteError> {
         let mut input = CborReader::new(bytes, MAX_SOURCE_BYTES)?;
         input.array(5)?;
         require(input.uint()? == 1)?;
@@ -125,9 +155,9 @@ impl RouteCommand {
                 let resource = nsshared_codec::cbor::value::decode_canonical(
                     input.bytes_up_to(MAX_SOURCE_BYTES)?,
                 )
-                .map_err(|_| SourceError::Reference)?;
+                .map_err(|_| RouteError::Reference)?;
                 let resource =
-                    ServiceRef::from_value(&resource).map_err(|_| SourceError::Reference)?;
+                    ServiceRef::from_value(&resource).map_err(|_| RouteError::Reference)?;
                 input.array(2)?;
                 let tag = input.uint()?;
                 let prefixes = read_set(&mut input)?;
@@ -137,7 +167,7 @@ impl RouteCommand {
                         SubnetSelection::Default
                     }
                     1 => SubnetSelection::Explicit(prefixes),
-                    _ => return Err(SourceError::Authority),
+                    _ => return Err(RouteError::Authority),
                 };
                 RouteAction::Select {
                     provider,
@@ -145,7 +175,7 @@ impl RouteCommand {
                     scope,
                 }
             }
-            _ => return Err(SourceError::Authority),
+            _ => return Err(RouteError::Authority),
         };
         input.finish()?;
         let value = Self {
@@ -165,7 +195,7 @@ impl RouteCommand {
         envelope: &BootstrapEnvelope,
         expected: &EnvelopeExpectation<'_>,
         nsd: IdentityKey,
-    ) -> Result<Self, SourceError> {
+    ) -> Result<Self, RouteError> {
         envelope.verify(expected)?;
         let value = Self::decode(&envelope.payload)?;
         nonzero(&envelope.nonce)?;
@@ -176,7 +206,7 @@ impl RouteCommand {
             || expected.recipient != nsd
             || envelope.signer != value.binding.binding.recipient
         {
-            return Err(SourceError::Authority);
+            return Err(RouteError::Authority);
         }
         Ok(value)
     }
@@ -207,7 +237,7 @@ impl RouteReceipt {
     /// Original immutable canonical receipt bytes.
     /// # Errors
     /// Refuses invalid command, outcome or target generation disagreement.
-    pub fn canonical(&self) -> Result<Vec<u8>, SourceError> {
+    pub fn canonical(&self) -> Result<Vec<u8>, RouteError> {
         require(self.selection_generation > 0)?;
         match self.command.action {
             RouteAction::Select { .. } => require(self.outcome == RouteOutcome::Selected)?,
@@ -228,7 +258,7 @@ impl RouteReceipt {
     /// Decodes without authenticating a committed result.
     /// # Errors
     /// Refuses malformed, retired, conflicting or unsupported fields.
-    pub fn decode(bytes: &[u8]) -> Result<Self, SourceError> {
+    pub fn decode(bytes: &[u8]) -> Result<Self, RouteError> {
         let mut input = CborReader::new(bytes, MAX_SOURCE_BYTES)?;
         input.array(4)?;
         require(input.uint()? == 1)?;
@@ -238,7 +268,7 @@ impl RouteReceipt {
             0 => RouteOutcome::Selected,
             1 => RouteOutcome::Cleared,
             2 => RouteOutcome::ClearAbsent,
-            _ => return Err(SourceError::Authority),
+            _ => return Err(RouteError::Authority),
         };
         input.finish()?;
         let value = Self {
@@ -263,7 +293,7 @@ impl RouteResponse {
     /// Exact response payload for the NSD-signed control-envelope carrier.
     /// # Errors
     /// Refuses invalid receipt fields or bounds.
-    pub fn canonical(&self) -> Result<Vec<u8>, SourceError> {
+    pub fn canonical(&self) -> Result<Vec<u8>, RouteError> {
         let mut out = CborWriter::default();
         out.array(3)
             .uint(1)
@@ -276,7 +306,7 @@ impl RouteResponse {
     /// Decodes response fields without asserting NSD commitment.
     /// # Errors
     /// Refuses invalid receipt, malformed or extra fields.
-    pub fn decode(bytes: &[u8]) -> Result<Self, SourceError> {
+    pub fn decode(bytes: &[u8]) -> Result<Self, RouteError> {
         let mut input = CborReader::new(bytes, MAX_SOURCE_BYTES)?;
         input.array(3)?;
         require(input.uint()? == 1)?;
@@ -297,7 +327,7 @@ impl RouteResponse {
         expected: &EnvelopeExpectation<'_>,
         pending: &RouteCommand,
         pending_nonce: [u8; 16],
-    ) -> Result<Self, SourceError> {
+    ) -> Result<Self, RouteError> {
         envelope.verify(expected)?;
         pending.canonical()?;
         nonzero(&pending_nonce)?;
@@ -312,7 +342,7 @@ impl RouteResponse {
             || envelope.nonce != pending_nonce
             || &value.receipt.command != pending
         {
-            return Err(SourceError::Authority);
+            return Err(RouteError::Authority);
         }
         Ok(value)
     }
@@ -349,22 +379,22 @@ pub fn decide_route_command(
     current: &SourceBinding,
     original: Option<&RouteReceipt>,
     selection: Option<&CommittedSelection>,
-) -> Result<RouteDecision, SourceError> {
+) -> Result<RouteDecision, RouteError> {
     request.canonical()?;
     current.canonical()?;
     request.binding.verify(current.nsd)?;
     if request.binding.binding.recipient != authenticated_caller {
-        return Err(SourceError::Authority);
+        return Err(RouteError::Authority);
     }
     if let Some(original) = original {
         original.canonical()?;
         if original.command != *request {
-            return Err(SourceError::Conflict);
+            return Err(RouteError::Conflict);
         }
         return Ok(RouteDecision::Replay(Box::new(original.clone())));
     }
     if request.binding.binding != *current {
-        return Err(SourceError::Authority);
+        return Err(RouteError::Authority);
     }
     match request.action {
         RouteAction::Select { .. } => Ok(RouteDecision::Select),
