@@ -160,3 +160,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**Prepare the immutable candidate handoff**](20261024-1115-candidate-handoff.md) `P1`
 - [x] [**Define provider mapping eligibility snapshots**](20261024-1655-provider-mapping-eligibility.md) `P1`
 - [x] [**Record review delivery and registration lifecycle placeholders**](20261025-0157-review-request-delivery.md) `P1`
+- [-] [**20261025-0802-nsshared-restructure Restructure the shared crates and apply the review revisions**](20261025-0802-nsshared-restructure.md) `P1`
