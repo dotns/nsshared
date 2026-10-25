@@ -2,11 +2,13 @@
 
 use crate::{
     account::AccountError, account::MAX_BYTES, account::MAX_IDENTITIES, account::SCHEMA,
-    account::codec::ascending, account::codec::identity, account::limits::MAX_TEXT_BYTES,
-    account::node::GrantIncarnation, account::node::TransportProtocol,
-    account::subnet::SubnetError, account::subnet::SubnetPublication, service::ServiceRef,
+    account::codec::identity, account::grants::authority::RetiredGrant,
+    account::grants::payer::Payer, account::grants::payer::payer,
+    account::grants::payer::read_payers, account::grants::payer::write_payers,
+    account::limits::MAX_TEXT_BYTES, account::node::GrantIncarnation,
+    account::node::TransportProtocol, account::subnet::SubnetError,
+    account::subnet::SubnetPublication, service::ServiceRef,
 };
-use nsshared_identity::realm::RealmId;
 
 use thiserror::Error;
 
@@ -61,48 +63,6 @@ pub enum GrantError {
     Binding,
 }
 
-/// Explicit paying realm and realm-local UserId; neither component is an identity key.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Payer {
-    /// Paying realm's binary identifier.
-    pub realm: RealmId,
-    /// Realm-local UserId, unsigned big-endian ULID bytes.
-    pub subject: [u8; 16],
-}
-
-fn payer(values: &[Payer]) -> Result<&Payer, GrantError> {
-    match values {
-        [] => Err(GrantError::MissingPayer),
-        [value] => Ok(value),
-        _ => Err(GrantError::AmbiguousPayer),
-    }
-}
-
-fn write_payers(values: &[Payer], out: &mut CborWriter) {
-    out.array(values.len());
-    for value in values {
-        out.array(2)
-            .bytes(value.realm.as_bytes())
-            .bytes(&value.subject);
-    }
-}
-
-fn read_payers(input: &mut CborReader<'_>) -> Result<Vec<Payer>, GrantError> {
-    let count = input.array_up_to(MAX_IDENTITIES)?;
-    // Refuse cardinality before decoding values, without choosing or deduplicating a payer.
-    if count == 0 {
-        return Err(GrantError::MissingPayer);
-    }
-    if count != 1 {
-        return Err(GrantError::AmbiguousPayer);
-    }
-    input.array(2)?;
-    Ok(vec![Payer {
-        realm: RealmId::from_bytes(input.fixed_bytes()?),
-        subject: input.fixed_bytes()?,
-    }])
-}
-
 pub(in crate::account) fn write_reference(
     value: &ServiceRef,
     out: &mut CborWriter,
@@ -126,7 +86,7 @@ pub(in crate::account) fn checked_bytes(out: CborWriter) -> Result<Vec<u8>, Gran
     }
 }
 
-fn field(condition: bool) -> Result<(), GrantError> {
+pub(in crate::account) fn field(condition: bool) -> Result<(), GrantError> {
     if condition {
         Ok(())
     } else {
@@ -146,7 +106,7 @@ pub enum GrantDiscriminator {
 }
 
 impl GrantDiscriminator {
-    fn write(self, out: &mut CborWriter) {
+    pub(in crate::account) fn write(self, out: &mut CborWriter) {
         match self {
             Self::EgressTcp => {
                 out.array(2).uint(0).uint(6);
@@ -160,7 +120,7 @@ impl GrantDiscriminator {
         }
     }
 
-    fn read(input: &mut CborReader<'_>) -> Result<Self, GrantError> {
+    pub(in crate::account) fn read(input: &mut CborReader<'_>) -> Result<Self, GrantError> {
         let count = input.array_up_to(2)?;
         match (count, input.uint()?) {
             (1, 1) => Ok(Self::Exit),
@@ -174,7 +134,7 @@ impl GrantDiscriminator {
     }
 }
 
-fn unique_tokens<'a>(
+pub(in crate::account) fn unique_tokens<'a>(
     values: impl Iterator<Item = (&'a ServiceRef, [u8; 16])>,
 ) -> Result<(), GrantError> {
     let mut seen = std::collections::BTreeSet::new();
@@ -497,322 +457,6 @@ impl GrantPublication {
                 grant.expires_at_unix_ms < old.expires_at_unix_ms || renewed != *grant
             }) {
                 return Err(GrantError::ReusedIncarnation);
-            }
-        }
-        Ok(())
-    }
-}
-
-/// One resource/client/incarnation payer assignment.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct PayerBinding {
-    /// Full M6 resource reference.
-    pub resource: ServiceRef,
-    /// Authorized client.
-    pub client: IdentityKey,
-    /// Exact grant lifetime.
-    pub incarnation: GrantIncarnation,
-    /// Exactly one explicit realm-local payer.
-    pub payers: Vec<Payer>,
-    /// Exact protocol or Exit identity.
-    pub discriminator: GrantDiscriminator,
-}
-
-/// Complete payer assignments; this payload alone grants no service access.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct PayerBindings {
-    /// Issuing authority.
-    pub issuer: IdentityKey,
-    /// Provider recipient.
-    pub recipient: IdentityKey,
-    /// Positive replacement revision.
-    pub revision: u64,
-    /// Strict resource/client/discriminator order.
-    pub bindings: Vec<PayerBinding>,
-}
-
-impl PayerBindings {
-    /// Joins exact protocol-qualified grants, lifetimes and historical payer pairs.
-    ///
-    /// # Errors
-    /// Refuses invalid inputs, scope differences and missing or differing bindings.
-    pub fn validate_grants(&self, grants: &GrantPublication) -> Result<(), GrantError> {
-        self.canonical()?;
-        grants.canonical()?;
-        if self.issuer != grants.issuer || self.recipient != grants.recipient {
-            return Err(GrantError::Scope);
-        }
-        for grant in &grants.grants {
-            if !self.bindings.iter().any(|binding| {
-                binding.resource == grant.resource
-                    && binding.client == grant.client
-                    && binding.discriminator == grant.details.discriminator()
-                    && binding.incarnation == grant.incarnation
-                    && binding.payers == grant.payers
-            }) {
-                return Err(GrantError::Scope);
-            }
-        }
-        Ok(())
-    }
-
-    /// Encodes a complete payer assignment set.
-    ///
-    /// # Errors
-    /// Refuses cardinality, ordering, revision or size violations.
-    pub fn canonical(&self) -> Result<Vec<u8>, GrantError> {
-        field(self.revision > 0)?;
-        if self.bindings.len() > MAX_IDENTITIES {
-            return Err(GrantError::Bounds);
-        }
-        if !self.bindings.windows(2).all(|p| {
-            (&p[0].resource, p[0].client, p[0].discriminator)
-                < (&p[1].resource, p[1].client, p[1].discriminator)
-        }) {
-            return Err(GrantError::Ordering);
-        }
-        unique_tokens(self.bindings.iter().map(|b| (&b.resource, b.incarnation.0)))?;
-        let mut out = CborWriter::default();
-        out.array(6)
-            .uint(SCHEMA)
-            .uint(5)
-            .bytes(self.issuer.as_bytes())
-            .bytes(self.recipient.as_bytes())
-            .uint(self.revision)
-            .array(self.bindings.len());
-        for binding in &self.bindings {
-            payer(&binding.payers)?;
-            out.array(5);
-            write_reference(&binding.resource, &mut out)?;
-            out.bytes(binding.client.as_bytes())
-                .bytes(&binding.incarnation.0);
-            write_payers(&binding.payers, &mut out);
-            binding.discriminator.write(&mut out);
-        }
-        checked_bytes(out)
-    }
-
-    /// Decodes exact binary UserId payer pairs.
-    ///
-    /// # Errors
-    /// Refuses malformed or ambiguous assignments.
-    pub fn decode(bytes: &[u8]) -> Result<Self, GrantError> {
-        let mut input = CborReader::new(bytes, MAX_BYTES)?;
-        input.array(6)?;
-        field(input.uint()? == SCHEMA && input.uint()? == 5)?;
-        let issuer = identity(&mut input)?;
-        let recipient = identity(&mut input)?;
-        let revision = input.uint()?;
-        let count = input.array_up_to(MAX_IDENTITIES)?;
-        let mut bindings = Vec::with_capacity(count);
-        for _ in 0..count {
-            input.array(5)?;
-            bindings.push(PayerBinding {
-                resource: read_reference(&mut input)?,
-                client: identity(&mut input)?,
-                incarnation: GrantIncarnation(input.fixed_bytes()?),
-                payers: read_payers(&mut input)?,
-                discriminator: GrantDiscriminator::read(&mut input)?,
-            });
-        }
-        input.finish()?;
-        let value = Self {
-            issuer,
-            recipient,
-            revision,
-            bindings,
-        };
-        value.canonical()?;
-        Ok(value)
-    }
-}
-
-/// Active client/resource claim, independent of grant content.
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub struct GrantClaim {
-    /// Full resource scope.
-    pub resource: ServiceRef,
-    /// Full client.
-    pub client: IdentityKey,
-    /// Exact protocol or Exit identity.
-    pub discriminator: GrantDiscriminator,
-    /// Active lifetime token.
-    pub incarnation: [u8; 16],
-}
-
-/// Retired token for one resource, across all clients.
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub struct RetiredGrant {
-    /// Full resource scope.
-    pub resource: ServiceRef,
-    /// Irrevocably retired token.
-    pub incarnation: [u8; 16],
-}
-
-/// Caller-owned authority snapshot; validation owns no mutable lifecycle state.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ResourceAuthority {
-    /// Authenticated issuer.
-    pub issuer: IdentityKey,
-    /// Exact provider recipient.
-    pub recipient: IdentityKey,
-    /// Positive complete replacement revision.
-    pub revision: u64,
-    /// Current claims in strict resource/client/discriminator order.
-    pub active: Vec<GrantClaim>,
-    /// Retained strictly ordered retirement history.
-    pub retired: Vec<RetiredGrant>,
-}
-
-impl ResourceAuthority {
-    /// Joins a service publication to this snapshot's exact active claims.
-    ///
-    /// # Errors
-    /// Refuses invalid input, mismatched authority or any absent client/resource/token.
-    pub fn validate_grants(&self, grants: &GrantPublication) -> Result<(), GrantError> {
-        self.canonical()?;
-        grants.canonical()?;
-        if self.issuer != grants.issuer || self.recipient != grants.recipient {
-            return Err(GrantError::Scope);
-        }
-        for grant in &grants.grants {
-            if !self.active.contains(&GrantClaim {
-                resource: grant.resource,
-                client: grant.client,
-                incarnation: grant.incarnation.0,
-                discriminator: grant.details.discriminator(),
-            }) {
-                return Err(GrantError::Scope);
-            }
-        }
-        Ok(())
-    }
-
-    /// Encodes current claims and retained retired tokens.
-    ///
-    /// # Errors
-    /// Refuses retired claims, invalid ordering, revision and bounds.
-    pub fn canonical(&self) -> Result<Vec<u8>, GrantError> {
-        field(self.revision > 0)?;
-        if self.active.len() > MAX_IDENTITIES || self.retired.len() > MAX_IDENTITIES {
-            return Err(GrantError::Bounds);
-        }
-        if !self.active.windows(2).all(|p| {
-            (&p[0].resource, p[0].client, p[0].discriminator)
-                < (&p[1].resource, p[1].client, p[1].discriminator)
-        }) || !ascending(&self.retired)
-        {
-            return Err(GrantError::Ordering);
-        }
-        unique_tokens(self.active.iter().map(|c| (&c.resource, c.incarnation)))?;
-        let mut out = CborWriter::default();
-        out.array(7)
-            .uint(SCHEMA)
-            .uint(6)
-            .bytes(self.issuer.as_bytes())
-            .bytes(self.recipient.as_bytes())
-            .uint(self.revision)
-            .array(self.active.len());
-        for claim in &self.active {
-            if self
-                .retired
-                .iter()
-                .any(|r| r.resource == claim.resource && r.incarnation == claim.incarnation)
-            {
-                return Err(GrantError::RetiredIncarnation);
-            }
-            out.array(4);
-            write_reference(&claim.resource, &mut out)?;
-            out.bytes(claim.client.as_bytes()).bytes(&claim.incarnation);
-            claim.discriminator.write(&mut out);
-        }
-        out.array(self.retired.len());
-        for old in &self.retired {
-            out.array(2);
-            write_reference(&old.resource, &mut out)?;
-            out.bytes(&old.incarnation);
-        }
-        checked_bytes(out)
-    }
-
-    /// Decodes a present canonical resource authority snapshot.
-    ///
-    /// # Errors
-    /// Refuses malformed snapshots and active retired tokens.
-    pub fn decode(bytes: &[u8]) -> Result<Self, GrantError> {
-        let mut input = CborReader::new(bytes, MAX_BYTES)?;
-        input.array(7)?;
-        field(input.uint()? == SCHEMA && input.uint()? == 6)?;
-        let issuer = identity(&mut input)?;
-        let recipient = identity(&mut input)?;
-        let revision = input.uint()?;
-        let count = input.array_up_to(MAX_IDENTITIES)?;
-        let mut active = Vec::with_capacity(count);
-        for _ in 0..count {
-            input.array(4)?;
-            active.push(GrantClaim {
-                resource: read_reference(&mut input)?,
-                client: identity(&mut input)?,
-                incarnation: input.fixed_bytes()?,
-                discriminator: GrantDiscriminator::read(&mut input)?,
-            });
-        }
-        let count = input.array_up_to(MAX_IDENTITIES)?;
-        let mut retired = Vec::with_capacity(count);
-        for _ in 0..count {
-            input.array(2)?;
-            retired.push(RetiredGrant {
-                resource: read_reference(&mut input)?,
-                incarnation: input.fixed_bytes()?,
-            });
-        }
-        input.finish()?;
-        let value = Self {
-            issuer,
-            recipient,
-            revision,
-            active,
-            retired,
-        };
-        value.canonical()?;
-        Ok(value)
-    }
-
-    /// Validates a replacement without mutating or persisting either snapshot.
-    ///
-    /// # Errors
-    /// Refuses scope/revision mismatch, lost history and unretired removed claims.
-    pub fn validate_successor(&self, previous: &Self) -> Result<(), GrantError> {
-        self.canonical()?;
-        previous.canonical()?;
-        if self.issuer != previous.issuer
-            || self.recipient != previous.recipient
-            || self.revision <= previous.revision
-        {
-            return Err(GrantError::Scope);
-        }
-        if previous
-            .retired
-            .iter()
-            .any(|old| self.retired.binary_search(old).is_err())
-        {
-            return Err(GrantError::History);
-        }
-        for old in &previous.active {
-            if self.active.iter().any(|claim| {
-                claim.resource == old.resource
-                    && claim.incarnation == old.incarnation
-                    && claim != old
-            }) {
-                return Err(GrantError::ReusedIncarnation);
-            }
-            if !self.active.contains(old)
-                && !self.retired.contains(&RetiredGrant {
-                    resource: old.resource,
-                    incarnation: old.incarnation,
-                })
-            {
-                return Err(GrantError::History);
             }
         }
         Ok(())
