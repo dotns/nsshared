@@ -15,9 +15,9 @@ dev-check: fmt-check lint
 self-check base="main":
     python3 -B scripts/self_check.py {{quote(base)}}
 
-# Selection tests use temporary Git repositories and Cargo workspaces.
+# Script tests; selection tests use temporary Git repositories and Cargo workspaces.
 self-check-tests:
-    python3 -B -m unittest discover -s scripts/tests -p test_self_check.py -v
+    python3 -B -m unittest discover -s scripts/tests -p 'test_*.py' -v
 
 # Full quality gate
 qa: qa-checks qa-tests
@@ -69,6 +69,8 @@ vectors-check:
 
 # Check the public API of the library crates against the previous release tag.
 # In 0.x a minor version bump may break the API; any other bump must not.
+# Facades re-export other workspace crates, which cargo-semver-checks does not
+# follow; scripts/api_surface.py checks them. Crates absent at the tag are skipped.
 semver:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -77,4 +79,14 @@ semver:
         echo "semver: no release tag before HEAD; skipped"
         exit 0
     fi
-    cargo semver-checks --package nsshared-proto --package nsshared-telemetry --baseline-rev "$baseline"
+    facades=" nsshared-proto nsshared-service-control "
+    for manifest in crates/*/Cargo.toml; do
+        package="$(basename "$(dirname "$manifest")")"
+        if [[ "$facades" == *" $package "* ]]; then
+            python3 -B scripts/api_surface.py check "$package" --baseline "$baseline"
+        elif git cat-file -e "$baseline:$manifest" 2>/dev/null; then
+            cargo semver-checks --package "$package" --baseline-rev "$baseline"
+        else
+            echo "semver: $package has no release at $baseline; skipped"
+        fi
+    done
