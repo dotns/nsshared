@@ -5,7 +5,7 @@ use super::{
     EnvelopeExpectation, PublicationDecision, PublicationError, PublicationExpectation, SCHEMA,
     identity,
     publication_subscription::SubscriptionScope,
-    require,
+    require, scope_text,
     source_binding::{DeliveryContext, SourceBinding, SourceError},
     source_publication::decide_source_snapshot_scopes,
 };
@@ -72,8 +72,7 @@ impl PublicationSnapshotRequest {
         require(self.scopes.windows(2).all(|pair| pair[0] < pair[1]))?;
         for scope in &self.scopes {
             require(scope.recipient == self.subscriber)?;
-            let text = &scope.scope;
-            require(!text.is_empty() && text.len() <= 256 && !text.chars().any(char::is_control))?;
+            scope_text(&scope.scope)?;
         }
         require(self.boot_nonce != [0; 16] && self.attempt_counter > 0)?;
         require(self.correlation != [0; 16])

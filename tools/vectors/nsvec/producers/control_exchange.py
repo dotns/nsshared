@@ -45,7 +45,8 @@ def vectors():
     for name, selector in [("lowercase-realm", ["030c1g60r30c1g60r30c1g60r3", "nodes"]),
                            ("empty-scope", ["030C1G60R30C1G60R30C1G60R3", ""]),
                            ("long-scope", ["030C1G60R30C1G60R30C1G60R3", "x"*257]),
-                           ("control-scope", ["030C1G60R30C1G60R30C1G60R3", "nodes\n"])]:
+                           ("control-scope", ["030C1G60R30C1G60R30C1G60R3", "nodes\n"]),
+                           ("whitespace-scope", ["030C1G60R30C1G60R30C1G60R3", "nodes a"])]:
         emit("authentication-" + name, "authentication", [1, scope, binding, "control", selector], "field")
     for name, source_scope in [("scope-bound", "x"*256), ("utf8-scope-bound", "é"*128)]:
         emit("authentication-" + name, "authentication",

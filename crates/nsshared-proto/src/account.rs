@@ -184,6 +184,23 @@ fn reader(input: &[u8], arity: u64) -> Result<CborReader<'_>, AccountError> {
     Ok(reader)
 }
 
+/// Maximum scope text length in bytes.
+const MAX_SCOPE_BYTES: usize = 256;
+
+/// The scope text rule shared by every family: 1 to 256 UTF-8 bytes without
+/// whitespace or control characters.
+fn is_scope_text(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= MAX_SCOPE_BYTES
+        && !value
+            .chars()
+            .any(|ch| ch.is_whitespace() || ch.is_control())
+}
+
+fn scope_text(value: &str) -> Result<(), AccountError> {
+    require(is_scope_text(value))
+}
+
 fn bounded(bytes: Vec<u8>) -> Result<Vec<u8>, AccountError> {
     if bytes.len() > MAX_BYTES {
         Err(AccountError::Bounds)

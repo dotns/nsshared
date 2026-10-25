@@ -1,3 +1,18 @@
+## 2026-10-25 [fix]
+
+Apply one scope text rule to every opaque authority scope: 1 to 256 UTF-8 bytes
+without whitespace or control characters. Behaviour change: publication content
+now refuses control characters and whitespace in its scope (it checked only
+emptiness and length), and subscription, snapshot request, source binding and
+authentication source selection now refuse whitespace. Public-edge, material and
+confidential configuration scopes keep their existing rule. Refusal vectors were
+added to the publication, subscription, snapshot request, source selection and
+control exchange fixtures; no existing case changed.
+
+Bound M6 decoder reservations by the remaining input. Arrays and maps reserved
+their declared member count before reading any member; a short nested input
+could reserve megabytes. A regression vector covers nested unsatisfiable lengths.
+
 ## 2026-10-25 [docs]
 
 Record review request delivery and the verified immutable package/consumer pair.

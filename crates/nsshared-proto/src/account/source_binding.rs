@@ -5,7 +5,7 @@ use thiserror::Error;
 
 use super::{
     AccountError, BootstrapEnvelope, BootstrapError, EnvelopeDirection, EnvelopeExpectation,
-    PublicationChannel, PublicationError, SubnetError, identity, require,
+    PublicationChannel, PublicationError, SubnetError, identity, is_scope_text, require,
 };
 use crate::{
     IdentityKey, RealmId,
@@ -112,11 +112,7 @@ impl SourceBinding {
     /// # Errors
     /// Refuses invalid scope, contribution or counters.
     pub fn canonical(&self) -> Result<Vec<u8>, SourceError> {
-        require(
-            !self.scope.is_empty()
-                && self.scope.len() <= 256
-                && !self.scope.chars().any(char::is_control),
-        )?;
+        require(is_scope_text(&self.scope))?;
         nonzero(&self.contribution)?;
         require(self.source_epoch > 0 && self.source_generation > 0)?;
         let mut out = CborWriter::default();

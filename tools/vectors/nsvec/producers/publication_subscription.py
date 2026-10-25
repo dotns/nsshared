@@ -46,6 +46,7 @@ def vectors():
         ("short-nonce", 5, bytes(15)),
         ("zero-attempt", 6, 0),
         ("overflow-attempt", 6, 2**32),
+        ("scope-whitespace", 2, [[issuer, subscriber, "030C1G60R30C1G60R30C1G60R3", "edge a"]]),
     ]:
         changed = list(base)
         changed[index] = value

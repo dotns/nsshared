@@ -7,7 +7,7 @@ pub use values::*;
 use super::policy_subject::{ordered_text, text};
 use super::{
     AccountError, EdgeAuth, EdgeMaterialKind, EdgeMaterialRef, MAX_BYTES, MAX_EDGE_ITEMS,
-    PolicySubject, SubjectAnchor, SubjectBinding, bounded, identity, reader, require,
+    PolicySubject, SubjectAnchor, SubjectBinding, bounded, identity, reader, require, scope_text,
 };
 use crate::{IdentityKey, encoding::CborWriter};
 use thiserror::Error;
@@ -299,7 +299,7 @@ impl AuthConfigRequest {
     /// # Errors
     /// Rejects invalid scope, non-auth material and bounds.
     pub fn canonical(&self) -> Result<Vec<u8>, AccountError> {
-        text(&self.scope)?;
+        scope_text(&self.scope)?;
         require(self.material.kind == EdgeMaterialKind::Auth)?;
         let mut out = CborWriter::default();
         out.array(7)

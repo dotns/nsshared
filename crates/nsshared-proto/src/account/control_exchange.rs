@@ -6,7 +6,7 @@ use super::{
     AccountError, BootstrapDiscovery, BootstrapEnvelope, BootstrapError, Enrollment,
     EnrollmentDecision, EnrollmentError, EnvelopeDirection, EnvelopeExpectation, Lifecycle,
     MAX_BYTES, NodeBinding, RebindAuthorization, SCHEMA, bounded, decide_enrollment, reader,
-    require,
+    require, scope_text,
 };
 use crate::{
     RealmId,
@@ -363,7 +363,7 @@ pub struct AuthenticationSourceScope {
 }
 impl AuthenticationSourceScope {
     fn write(&self, out: &mut CborWriter) -> Result<(), AccountError> {
-        text(&self.publication_scope)?;
+        scope_text(&self.publication_scope)?;
         out.array(2)
             .text(&self.served_realm.to_string())
             .text(&self.publication_scope);

@@ -11,7 +11,7 @@ use super::policy_subject::text;
 use super::{
     AccountError, EdgeAuth, EdgeMaterialAck, EdgeMaterialKind, EdgeMaterialRef, MAX_BYTES,
     MAX_EDGE_ITEMS, PublicationContent, PublicationOutcome, SignedSubjectHeaderPolicy,
-    SubjectPolicy, bounded, identity, reader, require,
+    SubjectPolicy, bounded, identity, reader, require, scope_text,
 };
 use crate::{IdentityKey, encoding::CborWriter};
 
@@ -122,7 +122,7 @@ impl PublicEdge {
     /// # Errors
     /// Rejects malformed scopes, duplicates, port conflicts, invalid joins or bounds.
     pub fn canonical(&self) -> Result<Vec<u8>, AccountError> {
-        text(&self.scope)?;
+        scope_text(&self.scope)?;
         require(
             self.realms.len() <= MAX_EDGE_ITEMS
                 && self.realms.windows(2).all(|p| p[0].realm < p[1].realm),

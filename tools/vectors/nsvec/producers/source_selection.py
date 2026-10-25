@@ -49,6 +49,7 @@ def vectors():
         ("old-profile-binding", 5, "gateway-v1"), ("zero-contribution", 7, bytes(16)),
         ("zero-epoch", 8, 0), ("zero-generation", 9, 0),
         ("noncanonical-realm", 3, realm.lower()), ("empty-scope", 4, ""),
+        ("control-scope", 4, "nodes\n"), ("whitespace-scope", 4, "nodes a"),
     ]:
         changed = copy.deepcopy(a)
         changed[index] = value

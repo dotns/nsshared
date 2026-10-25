@@ -3,7 +3,10 @@
 use crate::RealmId;
 
 use super::policy_subject::{ordered_text, text};
-use super::{AccountError, JwtSubjectBinding, MAX_BYTES, SubjectBinding, bounded, reader, require};
+use super::{
+    AccountError, JwtSubjectBinding, MAX_BYTES, SubjectBinding, bounded, reader, require,
+    scope_text,
+};
 use crate::encoding::{CborReader, CborWriter};
 
 /// Maximum entries in each public-edge collection.
@@ -292,7 +295,7 @@ impl EdgeMaterialAck {
     /// # Errors
     /// Rejects invalid scopes, material references and bounds.
     pub fn canonical(&self) -> Result<Vec<u8>, AccountError> {
-        text(&self.scope)?;
+        scope_text(&self.scope)?;
         let mut out = CborWriter::default();
         out.array(7)
             .uint(1)

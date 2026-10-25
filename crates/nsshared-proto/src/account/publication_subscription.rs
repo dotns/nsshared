@@ -6,7 +6,7 @@ use super::{
     MAX_CAPABILITIES, MAX_CAPABILITY_BYTES, PublicationScope, SCHEMA,
     control_exchange::{CONFIG_STREAM, ExchangeError},
     enrollment::validate_capabilities,
-    identity, require,
+    identity, require, scope_text,
 };
 use crate::RealmId;
 use crate::{
@@ -61,16 +61,13 @@ pub struct PublicationSubscriptionRequest {
     pub service_control: Option<ServiceControlBinding>,
 }
 
-fn text(value: &str) -> Result<(), AccountError> {
-    require(!value.is_empty() && value.len() <= 256 && !value.chars().any(char::is_control))
-}
 impl PublicationSubscriptionRequest {
     fn validate(&self) -> Result<(), ExchangeError> {
         require(self.scopes.len() <= MAX_SUBSCRIPTION_SCOPES)?;
         require(self.scopes.windows(2).all(|p| p[0] < p[1]))?;
         for scope in &self.scopes {
             require(scope.recipient == self.subscriber)?;
-            text(&scope.scope)?;
+            scope_text(&scope.scope)?;
         }
         validate_capabilities(&self.capabilities)?;
         require(self.public_ingress.len() <= MAX_SUBSCRIPTION_SCOPES)?;

@@ -2,7 +2,7 @@
 
 use super::{
     AccountError, EdgeMaterialKind, EdgeMaterialRef, MAX_BYTES, MAX_EDGE_ITEMS, bounded, identity,
-    policy_subject::text, public_edge::hostname, reader, require,
+    policy_subject::text, public_edge::hostname, reader, require, scope_text,
 };
 use crate::{
     IdentityKey, RealmId,
@@ -106,7 +106,7 @@ impl EdgeMaterialRequest {
         ) {
             return Err(EdgeMaterialError::Kind);
         }
-        text(&self.scope)?;
+        scope_text(&self.scope)?;
         let mut out = CborWriter::default();
         out.array(7)
             .uint(1)

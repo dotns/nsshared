@@ -1,6 +1,7 @@
 """Independent signed per-kind publication and atomic snapshot fixtures."""
 
 import copy
+import unicodedata
 
 from .. import cbor
 
@@ -62,6 +63,7 @@ def vectors(a, b, sign):
                           (10, "node-control-profile"): 0, (11, "node-l3"): 1,
                           (11, "policy-version"): 0}
                 valid = (0 < len(value[4].encode()) <= 256
+                         and not any(ch.isspace() or unicodedata.category(ch) == "Cc" for ch in value[4])
                          and 0 < len(value[6].encode()) <= 256
                          and owners.get((value[5], value[6])) == value[7]
                          and value[9] > 0 and value[10] < value[11]
@@ -145,6 +147,8 @@ def vectors(a, b, sign):
         ("empty-failure", {12: 1, 13: b""}, "fields"),
         ("schema", {0: 2}, "fields"),
         ("unknown-expired", {6: "future-kind", 11: 149}, "validity"),
+        ("control-scope", {4: "scope\n"}, "fields"),
+        ("whitespace-scope", {4: "scope a"}, "fields"),
     ]:
         event(name, "refused", changes=changes, reason=reason)
     event("at-expiry", "refused", now=200, reason="validity")

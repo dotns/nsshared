@@ -33,6 +33,7 @@ def vectors():
         ("control-scope", 2, [[issuer, subscriber, "030C1G60R30C1G60R30C1G60R3", "nodes\n"]]),
         ("zero-boot", 3, bytes(16)), ("zero-attempt", 4, 0),
         ("overflow-attempt", 4, 2**32), ("zero-correlation", 5, bytes(16)),
+        ("whitespace-scope", 2, [[issuer, subscriber, "030C1G60R30C1G60R30C1G60R3", "nodes a"]]),
     ]:
         value_tuple = list(base)
         value_tuple[index] = value

@@ -5,8 +5,8 @@ use crate::RealmId;
 use ed25519_dalek::{Signature, VerifyingKey};
 use thiserror::Error;
 
-use super::MAX_CONTROL_BODY;
 pub use super::control_exchange::MAX_PUBLICATION_BYTES;
+use super::{MAX_CONTROL_BODY, is_scope_text};
 use crate::{
     IdentityKey,
     encoding::{CborError, CborReader, CborWriter},
@@ -113,8 +113,7 @@ impl PublicationContent<'_> {
     /// Refuses invalid fields, unknown ownership, wrong channels and encoded bounds.
     pub fn canonical(&self) -> Result<Vec<u8>, PublicationError> {
         let key = &self.key;
-        if key.scope.is_empty()
-            || key.scope.len() > 256
+        if !is_scope_text(key.scope)
             || key.kind.is_empty()
             || key.kind.len() > 256
             || publication_channel(key.family, key.kind) != Some(self.channel)
@@ -319,7 +318,7 @@ impl<'a> PublicationEvent<'a> {
         };
         let payload = reader.bytes_up_to(bytes.len())?;
         reader.finish()?;
-        if key.scope.is_empty()
+        if !is_scope_text(key.scope)
             || key.kind.is_empty()
             || version == 0
             || issued_seconds >= expires_seconds
