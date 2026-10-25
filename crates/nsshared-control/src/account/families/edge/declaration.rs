@@ -1,14 +1,14 @@
 //! Correlated service requests and replies carrying exact existing M6 bytes.
 
 use crate::{
-    service::Declaration, service::Digest, service::ListenerIntent, service::ReportContent,
-    service::domain_digest,
+    account::AccountError, account::MAX_BYTES, account::codec::ascending_by,
+    account::codec::bounded, account::codec::data_text, account::codec::identity,
+    account::codec::read_texts, account::codec::reader, account::codec::require,
+    account::codec::write_texts, account::edge::MAX_EDGE_ITEMS, account::limits::MAX_TEXT_BYTES,
+    account::subnet::SubnetSelection, service::Declaration, service::Digest,
+    service::ListenerIntent, service::ReportContent, service::domain_digest,
 };
 
-use crate::{
-    account::AccountError, account::MAX_BYTES, account::bounded, account::edge::MAX_EDGE_ITEMS,
-    account::identity, account::reader, account::require, account::subnet::SubnetSelection,
-};
 use nsshared_codec::cbor::CborReader;
 use nsshared_codec::cbor::CborWriter;
 use nsshared_identity::keys::IdentityKey;
@@ -303,16 +303,12 @@ pub struct EdgeServiceMetadata {
     pub policy_labels: Vec<(String, String)>,
 }
 
-fn data_text(value: &str) -> Result<(), AccountError> {
-    require(!value.is_empty() && value.len() <= 256 && !value.chars().any(char::is_control))
-}
-
 fn labels_write(values: &[(String, String)], out: &mut CborWriter) -> Result<(), AccountError> {
-    require(values.len() <= MAX_EDGE_ITEMS && values.windows(2).all(|p| p[0].0 < p[1].0))?;
+    require(values.len() <= MAX_EDGE_ITEMS && ascending_by(values, |value| &value.0))?;
     out.array(values.len());
     for (key, value) in values {
         data_text(key)?;
-        require(value.len() <= 256 && !value.chars().any(char::is_control))?;
+        require(value.len() <= MAX_TEXT_BYTES && !value.chars().any(char::is_control))?;
         out.array(2).text(key).text(value);
     }
     Ok(())
@@ -322,23 +318,11 @@ fn labels_read(input: &mut CborReader<'_>) -> Result<Vec<(String, String)>, Acco
     (0..count)
         .map(|_| {
             input.array(2)?;
-            Ok((input.text_up_to(256)?.into(), input.text_up_to(256)?.into()))
+            Ok((
+                input.text_up_to(MAX_TEXT_BYTES)?.into(),
+                input.text_up_to(MAX_TEXT_BYTES)?.into(),
+            ))
         })
-        .collect()
-}
-fn ordered_data_write(values: &[String], out: &mut CborWriter) -> Result<(), AccountError> {
-    require(values.len() <= MAX_EDGE_ITEMS && values.windows(2).all(|p| p[0] < p[1]))?;
-    out.array(values.len());
-    for value in values {
-        data_text(value)?;
-        out.text(value);
-    }
-    Ok(())
-}
-fn strings_read(input: &mut CborReader<'_>) -> Result<Vec<String>, AccountError> {
-    let count = input.array_up_to(MAX_EDGE_ITEMS)?;
-    (0..count)
-        .map(|_| Ok(input.text_up_to(256)?.into()))
         .collect()
 }
 impl EdgeServiceMetadata {
@@ -347,14 +331,14 @@ impl EdgeServiceMetadata {
         crate::account::node::enrollment::validate_capabilities(&self.capabilities)
             .map_err(|_| AccountError::Field)?;
         out.array(3).text(&self.reference);
-        ordered_data_write(&self.capabilities, out)?;
+        write_texts(out, &self.capabilities, data_text)?;
         labels_write(&self.policy_labels, out)
     }
     fn read(input: &mut CborReader<'_>) -> Result<Self, AccountError> {
         input.array(3)?;
         Ok(Self {
-            reference: input.text_up_to(256)?.into(),
-            capabilities: strings_read(input)?,
+            reference: input.text_up_to(MAX_TEXT_BYTES)?.into(),
+            capabilities: read_texts(input, MAX_TEXT_BYTES)?,
             policy_labels: labels_read(input)?,
         })
     }
@@ -392,12 +376,12 @@ impl EdgeExitProfile {
             }
         }
         out.boolean(self.enabled);
-        ordered_data_write(&self.capabilities, out)?;
+        write_texts(out, &self.capabilities, data_text)?;
         labels_write(&self.policy_labels, out)
     }
     fn read(input: &mut CborReader<'_>) -> Result<Self, AccountError> {
         input.array(5)?;
-        let reference = input.text_up_to(256)?.into();
+        let reference = input.text_up_to(MAX_TEXT_BYTES)?.into();
         let arity = input.array_up_to(2)?;
         let selection = match (arity, input.uint()?) {
             (1, 0) => SubnetSelection::Default,
@@ -410,7 +394,7 @@ impl EdgeExitProfile {
             reference,
             selection,
             enabled: input.boolean()?,
-            capabilities: strings_read(input)?,
+            capabilities: read_texts(input, MAX_TEXT_BYTES)?,
             policy_labels: labels_read(input)?,
         })
     }
@@ -509,8 +493,8 @@ pub enum EdgeServiceAckError {
 impl EdgeFloorOutcomes {
     fn write(&self, out: &mut CborWriter) -> Result<(), AccountError> {
         out.array(3);
-        ordered_data_write(&self.accepted_services, out)?;
-        ordered_data_write(&self.accepted_exit_profiles, out)?;
+        write_texts(out, &self.accepted_services, data_text)?;
+        write_texts(out, &self.accepted_exit_profiles, data_text)?;
         require(
             self.rejected.len() <= MAX_EDGE_ITEMS
                 && self
@@ -532,16 +516,16 @@ impl EdgeFloorOutcomes {
     }
     fn read(input: &mut CborReader<'_>) -> Result<Self, AccountError> {
         input.array(3)?;
-        let accepted_services = strings_read(input)?;
-        let accepted_exit_profiles = strings_read(input)?;
+        let accepted_services = read_texts(input, MAX_TEXT_BYTES)?;
+        let accepted_exit_profiles = read_texts(input, MAX_TEXT_BYTES)?;
         let count = input.array_up_to(MAX_EDGE_ITEMS)?;
         let rejected = (0..count)
             .map(|_| {
                 input.array(3)?;
                 Ok(EdgeFloorRejection {
                     kind: input.uint()?,
-                    reference: input.text_up_to(256)?.into(),
-                    reason: input.text_up_to(256)?.into(),
+                    reference: input.text_up_to(MAX_TEXT_BYTES)?.into(),
+                    reason: input.text_up_to(MAX_TEXT_BYTES)?.into(),
                 })
             })
             .collect::<Result<_, AccountError>>()?;

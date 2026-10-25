@@ -1,10 +1,11 @@
 //! Pure confidential material acquisition; see `docs/confidential-material-candidate.md`.
 
 use crate::{
-    account::AccountError, account::MAX_BYTES, account::bounded, account::edge::EdgeMaterialKind,
-    account::edge::EdgeMaterialRef, account::edge::MAX_EDGE_ITEMS,
-    account::edge::routing::hostname, account::identity, account::reader,
-    account::realm::subject::text, account::require, account::scope_text,
+    account::AccountError, account::MAX_BYTES, account::codec::ascending, account::codec::bounded,
+    account::codec::hostname, account::codec::identity, account::codec::reader,
+    account::codec::realm, account::codec::require, account::codec::token,
+    account::edge::EdgeMaterialKind, account::edge::EdgeMaterialRef, account::edge::MAX_EDGE_ITEMS,
+    account::limits::MAX_HOSTNAME_BYTES, account::limits::MAX_TEXT_BYTES,
 };
 use nsshared_codec::cbor::CborWriter;
 use nsshared_identity::{keys::IdentityKey, realm::RealmId};
@@ -102,7 +103,7 @@ impl EdgeMaterialRequest {
         ) {
             return Err(EdgeMaterialError::Kind);
         }
-        scope_text(&self.scope)?;
+        token(&self.scope)?;
         let mut out = CborWriter::default();
         out.array(7)
             .uint(1)
@@ -123,8 +124,8 @@ impl EdgeMaterialRequest {
         let value = Self {
             request_id: input.fixed_bytes()?,
             recipient: identity(&mut input)?,
-            served_realm: input.text_up_to(26)?.parse().map_err(AccountError::from)?,
-            scope: input.text_up_to(256)?.to_owned(),
+            served_realm: realm(&mut input)?,
+            scope: input.text_up_to(MAX_TEXT_BYTES)?.to_owned(),
             realm: RealmId::from_bytes(input.fixed_bytes()?),
             material: EdgeMaterialRef::read(&mut input)?,
         };
@@ -168,7 +169,7 @@ impl EdgeMaterialValues {
                 trust_domain,
             } => {
                 pem(ca_pem)?;
-                text(trust_domain)?;
+                token(trust_domain)?;
                 out.array(3).uint(2).text(ca_pem).text(trust_domain);
             }
         }
@@ -185,10 +186,7 @@ impl EdgeMaterialResponse {
         if self.values.kind() != self.request.material.kind {
             return Err(EdgeMaterialError::Kind);
         }
-        require(
-            self.hostnames.len() <= MAX_EDGE_ITEMS
-                && self.hostnames.windows(2).all(|p| p[0] < p[1]),
-        )?;
+        require(self.hostnames.len() <= MAX_EDGE_ITEMS && ascending(&self.hostnames))?;
         let mut out = CborWriter::default();
         out.array(5)
             .uint(1)
@@ -211,7 +209,7 @@ impl EdgeMaterialResponse {
         let request = EdgeMaterialRequest::decode(input.bytes_up_to(MAX_BYTES)?)?;
         let count = input.array_up_to(MAX_EDGE_ITEMS)?;
         let hostnames = (0..count)
-            .map(|_| input.text_up_to(253).map(str::to_owned))
+            .map(|_| input.text_up_to(MAX_HOSTNAME_BYTES).map(str::to_owned))
             .collect::<Result<_, _>>()?;
         let not_after_unix_seconds = input.uint()?;
         input.array(3)?;
@@ -222,7 +220,7 @@ impl EdgeMaterialResponse {
             },
             2 => EdgeMaterialValues::ClientCa {
                 ca_pem: input.text_up_to(MAX_BYTES)?.to_owned(),
-                trust_domain: input.text_up_to(256)?.to_owned(),
+                trust_domain: input.text_up_to(MAX_TEXT_BYTES)?.to_owned(),
             },
             _ => return Err(EdgeMaterialError::Kind),
         };

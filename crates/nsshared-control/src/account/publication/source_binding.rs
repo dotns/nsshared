@@ -1,14 +1,16 @@
 //! Signed source authority and subscriber-produced delivery context.
 
+use crate::{
+    account::AccountError, account::codec::identity, account::codec::is_token,
+    account::codec::realm, account::codec::require, account::control::BootstrapEnvelope,
+    account::control::BootstrapError, account::control::EnvelopeDirection,
+    account::control::EnvelopeExpectation, account::limits::MAX_TEXT_BYTES,
+    account::publication::PublicationChannel, account::publication::PublicationError,
+    account::subnet::SubnetError,
+};
 use ed25519_dalek::{Signature, VerifyingKey};
 use thiserror::Error;
 
-use crate::{
-    account::AccountError, account::control::BootstrapEnvelope, account::control::BootstrapError,
-    account::control::EnvelopeDirection, account::control::EnvelopeExpectation, account::identity,
-    account::is_scope_text, account::publication::PublicationChannel,
-    account::publication::PublicationError, account::require, account::subnet::SubnetError,
-};
 use nsshared_codec::{cbor::CborReader, cbor::CborWriter};
 use nsshared_identity::{keys::IdentityKey, realm::RealmId};
 
@@ -102,7 +104,7 @@ impl SourceBinding {
     /// # Errors
     /// Refuses invalid scope, contribution or counters.
     pub fn canonical(&self) -> Result<Vec<u8>, SourceError> {
-        require(is_scope_text(&self.scope))?;
+        require(is_token(&self.scope))?;
         nonzero(&self.contribution)?;
         require(self.source_epoch > 0 && self.source_generation > 0)?;
         let mut out = CborWriter::default();
@@ -128,8 +130,8 @@ impl SourceBinding {
         require(input.uint()? == 1)?;
         let nsd = identity(&mut input)?;
         let recipient = identity(&mut input)?;
-        let served_realm = input.text_up_to(26)?.parse().map_err(AccountError::from)?;
-        let scope = input.text_up_to(256)?.to_owned();
+        let served_realm = realm(&mut input)?;
+        let scope = input.text_up_to(MAX_TEXT_BYTES)?.to_owned();
         require(input.text_up_to(64)? == SourceProfile::ExplicitGateway.as_str())?;
         let value = Self {
             nsd,

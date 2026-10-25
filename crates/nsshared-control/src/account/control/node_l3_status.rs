@@ -1,18 +1,18 @@
 //! Pure exact Node L3 application reports; authentication and current state are caller-owned.
 
-use crate::service::domain_digest;
-
 use crate::{
-    account::AccountError, account::MAX_BYTES, account::bounded,
+    account::AccountError, account::MAX_BYTES, account::codec::bounded, account::codec::identity,
+    account::codec::reader, account::codec::realm, account::codec::require,
     account::control::BootstrapEnvelope, account::control::EnvelopeDirection,
     account::control::EnvelopeExpectation, account::control::exchange::NODE_L3_STATUS,
-    account::identity, account::node::NodeL3Authority, account::publication::PublicationChannel,
-    account::publication::PublicationEvent, account::publication::PublicationKey,
-    account::publication::PublicationOutcome,
+    account::limits::MAX_TEXT_BYTES, account::node::NodeL3Authority,
+    account::publication::PublicationChannel, account::publication::PublicationEvent,
+    account::publication::PublicationKey, account::publication::PublicationOutcome,
     account::publication::source_binding::MAX_SOURCE_BYTES,
     account::publication::source_binding::SourceBinding,
-    account::publication::source_binding::SourceError, account::reader, account::require,
+    account::publication::source_binding::SourceError, service::domain_digest,
 };
+
 use nsshared_codec::cbor::CborWriter;
 use nsshared_identity::{keys::IdentityKey, realm::RealmId};
 
@@ -125,7 +125,7 @@ impl NodeL3StatusRequest {
             NodeL3Status::Rejected(reason) => {
                 require(
                     !reason.is_empty()
-                        && reason.len() <= 256
+                        && reason.len() <= MAX_TEXT_BYTES
                         && !reason.chars().any(char::is_control),
                 )?;
                 out.array(2).uint(1).text(reason);
@@ -147,17 +147,17 @@ impl NodeL3StatusRequest {
         let key = NodeL3StatusKey {
             issuer: identity(&mut input)?,
             recipient: identity(&mut input)?,
-            served_realm: input.text_up_to(26)?.parse().map_err(AccountError::from)?,
-            scope: input.text_up_to(256)?.to_owned(),
+            served_realm: realm(&mut input)?,
+            scope: input.text_up_to(MAX_TEXT_BYTES)?.to_owned(),
         };
-        require(input.uint()? == 11 && input.text_up_to(256)? == "node-l3")?;
+        require(input.uint()? == 11 && input.text_up_to(MAX_TEXT_BYTES)? == "node-l3")?;
         let source_binding = SourceBinding::decode(input.bytes_up_to(MAX_SOURCE_BYTES)?)?;
         let event_version = input.uint()?;
         let event_digest = input.fixed_bytes()?;
         let arity = input.array_up_to(2)?;
         let status = match (arity, input.uint()?) {
             (1, 0) => NodeL3Status::Applied,
-            (2, 1) => NodeL3Status::Rejected(input.text_up_to(256)?.to_owned()),
+            (2, 1) => NodeL3Status::Rejected(input.text_up_to(MAX_TEXT_BYTES)?.to_owned()),
             (1, 2) => NodeL3Status::FetchFailedDenied,
             _ => return Err(AccountError::Field.into()),
         };

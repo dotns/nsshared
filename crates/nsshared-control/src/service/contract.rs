@@ -47,6 +47,23 @@ impl ServiceRef {
         ])
     }
 
+    /// Returns the unique canonical M6 encoding.
+    ///
+    /// # Errors
+    /// Returns [`ContractError::InvalidEncoding`] when the value exceeds the wire limit.
+    pub fn canonical(self) -> Result<Vec<u8>, ContractError> {
+        Ok(encode_canonical(&self.value())?)
+    }
+
+    /// Decodes exact canonical M6 bytes of a service reference.
+    ///
+    /// # Errors
+    /// Returns [`ContractError::InvalidEncoding`] for noncanonical bytes and
+    /// [`ContractError::InvalidField`] on the wrong shape or length.
+    pub fn decode(input: &[u8]) -> Result<Self, ContractError> {
+        Self::from_value(&decode_canonical(input)?)
+    }
+
     /// Reads an exact service reference.
     ///
     /// # Errors

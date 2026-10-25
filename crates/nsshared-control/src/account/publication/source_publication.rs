@@ -1,17 +1,17 @@
 //! Exact source and delivery fences before existing publication decisions.
 
 use crate::{
-    account::control::MAX_CONTROL_BODY, account::control::MAX_PUBLICATION_BYTES,
-    account::publication::AcceptedPublication, account::publication::PublicationChannel,
-    account::publication::PublicationDecision, account::publication::PublicationError,
-    account::publication::PublicationEvent, account::publication::PublicationExpectation,
-    account::publication::decide_publication,
+    account::codec::require, account::control::MAX_CONTROL_BODY,
+    account::control::MAX_PUBLICATION_BYTES, account::publication::AcceptedPublication,
+    account::publication::PublicationChannel, account::publication::PublicationDecision,
+    account::publication::PublicationError, account::publication::PublicationEvent,
+    account::publication::PublicationExpectation, account::publication::decide_publication,
     account::publication::source_binding::DeliveryContext,
     account::publication::source_binding::MAX_SOURCE_BYTES,
     account::publication::source_binding::SignedSourceBinding,
     account::publication::source_binding::SourceBinding,
     account::publication::source_binding::SourceError,
-    account::publication::source_binding::verify_signature, account::require,
+    account::publication::source_binding::verify_signature,
 };
 use nsshared_codec::{cbor::CborReader, cbor::CborWriter};
 

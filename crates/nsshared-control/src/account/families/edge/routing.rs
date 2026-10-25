@@ -1,21 +1,25 @@
 //! Complete public discovery and routing facts without forwarding runtime.
 
+use crate::{
+    account::AccountError, account::MAX_BYTES, account::codec::ascending,
+    account::codec::ascending_by, account::codec::bounded, account::codec::hostname,
+    account::codec::identity, account::codec::read_optional_text,
+    account::codec::read_optional_uint, account::codec::read_reference, account::codec::read_texts,
+    account::codec::reader, account::codec::realm, account::codec::require, account::codec::token,
+    account::codec::write_optional_text, account::codec::write_optional_uint,
+    account::codec::write_reference, account::codec::write_texts, account::edge::EdgeAuth,
+    account::edge::EdgeMaterialAck, account::edge::EdgeMaterialKind,
+    account::edge::EdgeMaterialRef, account::edge::MAX_EDGE_ITEMS,
+    account::edge::material::materials_valid, account::edge::material::read_materials,
+    account::limits::MAX_HOSTNAME_BYTES, account::limits::MAX_TEXT_BYTES,
+    account::publication::PublicationContent, account::publication::PublicationOutcome,
+    account::realm::SignedSubjectHeaderPolicy, account::realm::SubjectPolicy, service::ServiceRef,
+    service::Snapshot,
+};
 use nsshared_identity::realm::RealmId;
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::{service::ServiceRef, service::Snapshot};
-
-use crate::account::realm::subject::text;
-use crate::{
-    account::AccountError, account::MAX_BYTES, account::bounded, account::edge::EdgeAuth,
-    account::edge::EdgeMaterialAck, account::edge::EdgeMaterialKind,
-    account::edge::EdgeMaterialRef, account::edge::MAX_EDGE_ITEMS, account::identity,
-    account::publication::PublicationContent, account::publication::PublicationOutcome,
-    account::reader, account::realm::SignedSubjectHeaderPolicy, account::realm::SubjectPolicy,
-    account::require, account::scope_text,
-};
-use crate::{account::edge::material::materials_valid, account::edge::material::read_materials};
 use nsshared_codec::cbor::CborWriter;
 use nsshared_identity::keys::IdentityKey;
 
@@ -84,53 +88,15 @@ pub struct PublicEdge {
     pub realms: Vec<EdgeRealm>,
 }
 
-pub(in crate::account) fn hostname(value: &str) -> Result<(), AccountError> {
-    require(!value.is_empty() && value.len() <= 253 && value.is_ascii())?;
-    require(value.split('.').all(|label| {
-        let bytes = label.as_bytes();
-        !bytes.is_empty()
-            && bytes.len() <= 63
-            && bytes.first().is_some_and(u8::is_ascii_alphanumeric)
-            && bytes.last().is_some_and(u8::is_ascii_alphanumeric)
-            && bytes
-                .iter()
-                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || *b == b'-')
-    }))
-}
-
-fn names(values: &[String], out: &mut CborWriter) -> Result<(), AccountError> {
-    require(values.len() <= MAX_EDGE_ITEMS && values.windows(2).all(|p| p[0] < p[1]))?;
-    out.array(values.len());
-    for value in values {
-        hostname(value)?;
-        out.text(value);
-    }
-    Ok(())
-}
-
-fn read_names(
-    input: &mut nsshared_codec::cbor::CborReader<'_>,
-) -> Result<Vec<String>, AccountError> {
-    let count = input.array_up_to(MAX_EDGE_ITEMS)?;
-    (0..count)
-        .map(|_| Ok(input.text_up_to(253)?.to_owned()))
-        .collect()
-}
-
-fn reference_bytes(value: ServiceRef) -> Result<Vec<u8>, AccountError> {
-    nsshared_codec::cbor::value::encode_canonical(&value.value()).map_err(|_| AccountError::Field)
-}
-
 impl PublicEdge {
     /// Encodes complete validated content without sorting, applying or installing it.
     ///
     /// # Errors
     /// Rejects malformed scopes, duplicates, port conflicts, invalid joins or bounds.
     pub fn canonical(&self) -> Result<Vec<u8>, AccountError> {
-        scope_text(&self.scope)?;
+        token(&self.scope)?;
         require(
-            self.realms.len() <= MAX_EDGE_ITEMS
-                && self.realms.windows(2).all(|p| p[0].realm < p[1].realm),
+            self.realms.len() <= MAX_EDGE_ITEMS && ascending_by(&self.realms, |value| &value.realm),
         )?;
         let mut out = CborWriter::default();
         out.array(5)
@@ -145,7 +111,7 @@ impl PublicEdge {
         let mut backend_ports = BTreeSet::new();
         for realm in &self.realms {
             require(realm.realm == realm.auth.realm && realm.routes.len() <= MAX_EDGE_ITEMS)?;
-            require(realm.routes.windows(2).all(|p| p[0].id < p[1].id))?;
+            require(ascending_by(&realm.routes, |value| &value.id))?;
             out.array(3)
                 .bytes(realm.realm.as_bytes())
                 .bytes(&realm.auth.canonical()?)
@@ -153,7 +119,7 @@ impl PublicEdge {
             let mut public_names = BTreeSet::new();
             let mut hostname_owners = BTreeMap::new();
             for route in &realm.routes {
-                text(&route.id)?;
+                token(&route.id)?;
                 if route.protocol == EdgeProtocol::Http {
                     let name = route.name.as_ref().ok_or(AccountError::Field)?;
                     hostname(name)?;
@@ -238,9 +204,9 @@ impl PublicEdge {
                 } else {
                     out.null();
                 }
-                names(&route.aliases, &mut out)?;
-                names(&route.domains, &mut out)?;
-                out.bytes(&reference_bytes(route.service)?);
+                write_texts(&mut out, &route.aliases, hostname)?;
+                write_texts(&mut out, &route.domains, hostname)?;
+                write_reference(&mut out, &route.service)?;
                 if let Some(backend) = route.backend {
                     out.bytes(backend.as_bytes());
                 } else {
@@ -268,8 +234,8 @@ impl PublicEdge {
     pub fn decode(bytes: &[u8]) -> Result<Self, AccountError> {
         let mut input = reader(bytes, 5)?;
         require(input.uint()? == 7)?;
-        let served_realm = input.text_up_to(26)?.parse()?;
-        let scope = input.text_up_to(256)?.to_owned();
+        let served_realm = realm(&mut input)?;
+        let scope = input.text_up_to(MAX_TEXT_BYTES)?.to_owned();
         let count = input.array_up_to(MAX_EDGE_ITEMS)?;
         let mut realms = Vec::with_capacity(count);
         for _ in 0..count {
@@ -280,18 +246,15 @@ impl PublicEdge {
             let mut routes = Vec::with_capacity(count);
             for _ in 0..count {
                 input.array(13)?;
-                let id = input.text_up_to(256)?.to_owned();
+                let id = input.text_up_to(MAX_TEXT_BYTES)?.to_owned();
                 let name = if input.take_null() {
                     None
                 } else {
-                    Some(input.text_up_to(253)?.to_owned())
+                    Some(input.text_up_to(MAX_HOSTNAME_BYTES)?.to_owned())
                 };
-                let aliases = read_names(&mut input)?;
-                let domains = read_names(&mut input)?;
-                let value =
-                    nsshared_codec::cbor::value::decode_canonical(input.bytes_up_to(MAX_BYTES)?)
-                        .map_err(|_| AccountError::Field)?;
-                let service = ServiceRef::from_value(&value).map_err(|_| AccountError::Field)?;
+                let aliases = read_texts(&mut input, MAX_HOSTNAME_BYTES)?;
+                let domains = read_texts(&mut input, MAX_HOSTNAME_BYTES)?;
+                let service = read_reference(&mut input)?;
                 let backend = if input.take_null() {
                     None
                 } else {
@@ -535,49 +498,15 @@ pub struct EdgeRouteOptions {
     pub audit_metadata: Vec<(String, String)>,
 }
 
-fn write_optional(value: Option<&str>, out: &mut CborWriter) -> Result<(), AccountError> {
-    if let Some(value) = value {
-        text(value)?;
-        out.text(value);
-    } else {
-        out.null();
-    }
-    Ok(())
-}
-
-fn read_optional(
-    input: &mut nsshared_codec::cbor::CborReader<'_>,
-) -> Result<Option<String>, AccountError> {
-    if input.take_null() {
-        Ok(None)
-    } else {
-        Ok(Some(input.text_up_to(256)?.to_owned()))
-    }
-}
-
 fn write_limit(value: Option<u64>, out: &mut CborWriter) -> Result<(), AccountError> {
-    if let Some(value) = value {
-        require(value > 0)?;
-        out.uint(value);
-    } else {
-        out.null();
-    }
+    require(value != Some(0))?;
+    write_optional_uint(out, value);
     Ok(())
-}
-
-fn read_limit(
-    input: &mut nsshared_codec::cbor::CborReader<'_>,
-) -> Result<Option<u64>, AccountError> {
-    if input.take_null() {
-        Ok(None)
-    } else {
-        Ok(Some(input.uint()?))
-    }
 }
 
 fn cidrs(values: &[String], out: &mut CborWriter) -> Result<(), AccountError> {
     use std::net::IpAddr;
-    require(values.len() <= MAX_EDGE_ITEMS && values.windows(2).all(|p| p[0] < p[1]))?;
+    require(values.len() <= MAX_EDGE_ITEMS && ascending(values))?;
     out.array(values.len());
     for value in values {
         let (address, prefix) = value.split_once('/').ok_or(AccountError::Field)?;
@@ -606,7 +535,7 @@ impl EdgeRouteOptions {
         if let Some(authority) = &self.upstream_authority {
             hostname(authority)?;
         }
-        write_optional(self.upstream_authority.as_deref(), out)?;
+        write_optional_text(out, self.upstream_authority.as_deref(), token)?;
         if let Some(tls) = &self.upstream_tls {
             hostname(&tls.sni)?;
             out.array(2).text(&tls.sni).boolean(tls.accept_untrusted);
@@ -627,7 +556,7 @@ impl EdgeRouteOptions {
             &self.forwarded_subject_ref,
             &self.audit_ref,
         ] {
-            write_optional(value.as_deref(), out)?;
+            write_optional_text(out, value.as_deref(), token)?;
         }
         write_limit(self.request_body_bytes, out)?;
         write_limit(self.response_body_bytes, out)?;
@@ -641,12 +570,12 @@ impl EdgeRouteOptions {
         }
         require(
             self.audit_metadata.len() <= MAX_EDGE_ITEMS
-                && self.audit_metadata.windows(2).all(|p| p[0].0 < p[1].0),
+                && ascending_by(&self.audit_metadata, |value| &value.0),
         )?;
         out.array(self.audit_metadata.len());
         for (key, value) in &self.audit_metadata {
-            text(key)?;
-            text(value)?;
+            token(key)?;
+            token(value)?;
             out.array(2).text(key).text(value);
         }
         Ok(())
@@ -661,37 +590,37 @@ impl EdgeRouteOptions {
             3 => EdgeTransport::PreferWebSocket,
             _ => return Err(AccountError::Field),
         };
-        let upstream_authority = read_optional(input)?;
+        let upstream_authority = read_optional_text(input, MAX_TEXT_BYTES)?;
         let upstream_tls = if input.take_null() {
             None
         } else {
             input.array(2)?;
             Some(EdgeUpstreamTls {
-                sni: input.text_up_to(253)?.to_owned(),
+                sni: input.text_up_to(MAX_HOSTNAME_BYTES)?.to_owned(),
                 accept_untrusted: input.boolean()?,
             })
         };
         input.array(11)?;
-        let chain_ref = read_optional(input)?;
-        let waf_ref = read_optional(input)?;
-        let ext_authz_ref = read_optional(input)?;
-        let rate_limit_ref = read_optional(input)?;
-        let connection_limit_ref = read_optional(input)?;
-        let slow_client_ref = read_optional(input)?;
-        let session_limit_ref = read_optional(input)?;
-        let request_rewrite_ref = read_optional(input)?;
-        let response_header_ref = read_optional(input)?;
-        let forwarded_subject_ref = read_optional(input)?;
-        let audit_ref = read_optional(input)?;
-        let request_body_bytes = read_limit(input)?;
-        let response_body_bytes = read_limit(input)?;
+        let chain_ref = read_optional_text(input, MAX_TEXT_BYTES)?;
+        let waf_ref = read_optional_text(input, MAX_TEXT_BYTES)?;
+        let ext_authz_ref = read_optional_text(input, MAX_TEXT_BYTES)?;
+        let rate_limit_ref = read_optional_text(input, MAX_TEXT_BYTES)?;
+        let connection_limit_ref = read_optional_text(input, MAX_TEXT_BYTES)?;
+        let slow_client_ref = read_optional_text(input, MAX_TEXT_BYTES)?;
+        let session_limit_ref = read_optional_text(input, MAX_TEXT_BYTES)?;
+        let request_rewrite_ref = read_optional_text(input, MAX_TEXT_BYTES)?;
+        let response_header_ref = read_optional_text(input, MAX_TEXT_BYTES)?;
+        let forwarded_subject_ref = read_optional_text(input, MAX_TEXT_BYTES)?;
+        let audit_ref = read_optional_text(input, MAX_TEXT_BYTES)?;
+        let request_body_bytes = read_optional_uint(input)?;
+        let response_body_bytes = read_optional_uint(input)?;
         let source_ip = if input.take_null() {
             None
         } else {
             input.array(3)?;
             Some(EdgeSourceIp {
-                allow_cidrs: read_names(input)?,
-                deny_cidrs: read_names(input)?,
+                allow_cidrs: read_texts(input, MAX_HOSTNAME_BYTES)?,
+                deny_cidrs: read_texts(input, MAX_HOSTNAME_BYTES)?,
                 fail_closed: input.boolean()?,
             })
         };
@@ -700,8 +629,8 @@ impl EdgeRouteOptions {
         for _ in 0..count {
             input.array(2)?;
             audit_metadata.push((
-                input.text_up_to(256)?.to_owned(),
-                input.text_up_to(256)?.to_owned(),
+                input.text_up_to(MAX_TEXT_BYTES)?.to_owned(),
+                input.text_up_to(MAX_TEXT_BYTES)?.to_owned(),
             ));
         }
         Ok(Self {

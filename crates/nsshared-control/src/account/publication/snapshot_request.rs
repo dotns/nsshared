@@ -1,16 +1,18 @@
 //! Pure independently polled snapshot requests and pending-response validation.
 
 use crate::{
-    account::AccountError, account::SCHEMA, account::control::BootstrapEnvelope,
-    account::control::BootstrapError, account::control::EnvelopeDirection,
-    account::control::EnvelopeExpectation, account::identity,
-    account::publication::AcceptedPublication, account::publication::PublicationDecision,
-    account::publication::PublicationError, account::publication::PublicationExpectation,
+    account::AccountError, account::SCHEMA, account::codec::ascending, account::codec::identity,
+    account::codec::realm, account::codec::require, account::codec::token,
+    account::control::BootstrapEnvelope, account::control::BootstrapError,
+    account::control::EnvelopeDirection, account::control::EnvelopeExpectation,
+    account::limits::MAX_TEXT_BYTES, account::publication::AcceptedPublication,
+    account::publication::PublicationDecision, account::publication::PublicationError,
+    account::publication::PublicationExpectation,
     account::publication::source_binding::DeliveryContext,
     account::publication::source_binding::SourceBinding,
     account::publication::source_binding::SourceError,
     account::publication::source_publication::decide_source_snapshot_scopes,
-    account::publication::subscription::SubscriptionScope, account::require, account::scope_text,
+    account::publication::subscription::SubscriptionScope,
 };
 use nsshared_codec::{cbor::CborReader, cbor::CborWriter};
 use nsshared_identity::keys::IdentityKey;
@@ -71,10 +73,10 @@ pub struct PublicationSnapshotRequest {
 impl PublicationSnapshotRequest {
     fn validate(&self) -> Result<(), AccountError> {
         require(self.scopes.len() <= MAX_SNAPSHOT_SCOPES)?;
-        require(self.scopes.windows(2).all(|pair| pair[0] < pair[1]))?;
+        require(ascending(&self.scopes))?;
         for scope in &self.scopes {
             require(scope.recipient == self.subscriber)?;
-            scope_text(&scope.scope)?;
+            token(&scope.scope)?;
         }
         require(self.boot_nonce != [0; 16] && self.attempt_counter > 0)?;
         require(self.correlation != [0; 16])
@@ -124,8 +126,8 @@ impl PublicationSnapshotRequest {
             scopes.push(SubscriptionScope {
                 issuer: identity(&mut input)?,
                 recipient: identity(&mut input)?,
-                served_realm: input.text_up_to(26)?.parse().map_err(AccountError::from)?,
-                scope: input.text_up_to(256)?.into(),
+                served_realm: realm(&mut input)?,
+                scope: input.text_up_to(MAX_TEXT_BYTES)?.into(),
             });
         }
         let value = Self {

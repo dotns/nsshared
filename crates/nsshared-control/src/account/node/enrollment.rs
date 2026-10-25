@@ -1,6 +1,6 @@
 use crate::{
-    account::AccountError, account::SCHEMA, account::node::Lifecycle, account::node::NodeBinding,
-    account::node::Transition, account::reader,
+    account::AccountError, account::SCHEMA, account::codec::ascending, account::codec::reader,
+    account::node::Lifecycle, account::node::NodeBinding, account::node::Transition,
 };
 use nsshared_codec::{cbor::CborError, cbor::CborWriter};
 use thiserror::Error;
@@ -186,7 +186,7 @@ pub(in crate::account) fn validate_capabilities(
     {
         return Err(EnrollmentError::CapabilityBounds);
     }
-    if !capabilities.windows(2).all(|pair| pair[0] < pair[1])
+    if !ascending(capabilities)
         || capabilities.iter().any(|id| {
             id.is_empty()
                 || !id.bytes().all(|byte| {

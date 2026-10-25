@@ -4,8 +4,8 @@ use crate::{
     account::AccountError, account::control::BootstrapEnvelope, account::control::BootstrapError,
     account::control::EnvelopeDirection, account::control::EnvelopeExpectation,
     account::control::MAX_CONTROL_BODY, account::control::exchange::SERVICE_CONTROL,
+    service::ContractError, service::Id, service::Message, service::MessageBody,
 };
-use crate::{service::ContractError, service::Id, service::Message, service::MessageBody};
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use nsshared_codec::{cbor::CborReader, cbor::CborWriter};
 use nsshared_identity::keys::IdentityKey;
@@ -31,7 +31,7 @@ pub struct ServiceControlBinding {
 }
 impl ServiceControlBinding {
     pub(in crate::account) fn validate(&self) -> Result<(), AccountError> {
-        crate::account::require(
+        crate::account::codec::require(
             self.runtime_generation > 0
                 && self.authority_epoch > 0
                 && self.session_seq > 0

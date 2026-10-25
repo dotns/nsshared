@@ -1,6 +1,7 @@
 use crate::{
-    account::AccountError, account::MAX_IDENTITIES, account::SCHEMA, account::bounded,
-    account::identity, account::reader, account::require,
+    account::AccountError, account::MAX_IDENTITIES, account::SCHEMA, account::codec::ascending,
+    account::codec::bounded, account::codec::identity, account::codec::reader,
+    account::codec::require,
 };
 use nsshared_codec::cbor::CborWriter;
 use nsshared_identity::keys::IdentityKey;
@@ -77,9 +78,9 @@ impl NodeL3 {
         )?;
         for scope in &self.scopes {
             require(scope.identities.len() <= MAX_IDENTITIES)?;
-            require(scope.identities.windows(2).all(|pair| pair[0] < pair[1]))?;
+            require(ascending(&scope.identities))?;
         }
-        require(self.rules.windows(2).all(|pair| pair[0] < pair[1]))?;
+        require(ascending(&self.rules))?;
         for rule in &self.rules {
             require(rule.first_port > 0 && rule.first_port <= rule.last_port)?;
             let index = self

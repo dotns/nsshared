@@ -1,6 +1,7 @@
 use crate::{
     account::AccountError, account::MAX_BYTES, account::MAX_IDENTITIES, account::SCHEMA,
-    account::bounded, account::identity, account::reader, account::require,
+    account::codec::bounded, account::codec::identity, account::codec::reader,
+    account::codec::require,
 };
 use ed25519_dalek::{Signature, VerifyingKey};
 use nsshared_codec::{cbor::CborReader, cbor::CborWriter};

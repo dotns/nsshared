@@ -1,6 +1,6 @@
 //! Public RS256 claim/key values; signature verification and custody remain external.
 
-use crate::{account::AccountError, account::MAX_BYTES, account::require};
+use crate::{account::AccountError, account::MAX_BYTES, account::codec::require};
 use nsshared_codec::{base64::decode_base64url, base64::encode_base64url};
 use nsshared_identity::keys::IdentityKey;
 use nsshared_identity::realm::RealmId;
@@ -124,7 +124,7 @@ impl MachineClaims {
     /// # Errors
     /// Refuses oversized output or JSON encoding failures.
     pub fn canonical_json(&self) -> Result<Vec<u8>, AccountError> {
-        crate::account::bounded(serde_json::to_vec(self)?)
+        crate::account::codec::bounded(serde_json::to_vec(self)?)
     }
     /// Compares externally authenticated claims using the pinned gateway predicate.
     /// Signature, RS256 algorithm and qualified-key verification must precede this call.
@@ -226,7 +226,7 @@ impl JwkSet {
     /// # Errors
     /// Refuses oversized output or encoding failures.
     pub fn canonical_json(&self) -> Result<Vec<u8>, AccountError> {
-        crate::account::bounded(serde_json::to_vec(self)?)
+        crate::account::codec::bounded(serde_json::to_vec(self)?)
     }
 }
 impl RsaJwk {

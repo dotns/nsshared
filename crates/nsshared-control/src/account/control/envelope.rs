@@ -3,7 +3,7 @@
 use crate::{
     account::control::bootstrap::BootstrapError, account::control::bootstrap::ControlBoundary,
     account::control::bootstrap::EnvelopePins, account::control::bootstrap::MAX_CONTROL_BODY,
-    account::control::bootstrap::validate_control_input,
+    account::control::bootstrap::validate_control_input, account::limits::MAX_TEXT_BYTES,
 };
 use ed25519_dalek::{Signature, VerifyingKey};
 use nsshared_codec::{cbor::CborReader, cbor::CborWriter};
@@ -77,7 +77,7 @@ pub struct BootstrapEnvelope {
 
 impl BootstrapEnvelope {
     fn content(&self) -> Result<Vec<u8>, BootstrapError> {
-        if self.kind.is_empty() || self.kind.len() > 256 {
+        if self.kind.is_empty() || self.kind.len() > MAX_TEXT_BYTES {
             return Err(BootstrapError::Kind);
         }
         validate_control_input(ControlBoundary::CallBody, &self.payload)?;
@@ -151,7 +151,7 @@ impl BootstrapEnvelope {
                     .map_err(|_| BootstrapError::Recipient)?,
             )
         };
-        let kind = input.text_up_to(256)?.to_owned();
+        let kind = input.text_up_to(MAX_TEXT_BYTES)?.to_owned();
         let unix_seconds = input.uint()?;
         let nonce = input.fixed_bytes()?;
         let payload = input.bytes_up_to(MAX_CONTROL_BODY)?.to_vec();

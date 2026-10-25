@@ -1,13 +1,14 @@
 //! Pure authenticated publication requests; acceptance remains per publication key.
 
-use crate::account::control::service_control::ServiceControlBinding;
 use crate::{
-    account::AccountError, account::SCHEMA, account::control::BootstrapEnvelope,
-    account::control::BootstrapError, account::control::EnvelopeDirection,
-    account::control::EnvelopeExpectation, account::control::exchange::CONFIG_STREAM,
-    account::control::exchange::ExchangeError, account::identity, account::node::MAX_CAPABILITIES,
-    account::node::MAX_CAPABILITY_BYTES, account::node::enrollment::validate_capabilities,
-    account::publication::PublicationScope, account::require, account::scope_text,
+    account::AccountError, account::SCHEMA, account::codec::ascending, account::codec::identity,
+    account::codec::realm, account::codec::require, account::codec::token,
+    account::control::BootstrapEnvelope, account::control::BootstrapError,
+    account::control::EnvelopeDirection, account::control::EnvelopeExpectation,
+    account::control::exchange::CONFIG_STREAM, account::control::exchange::ExchangeError,
+    account::control::service_control::ServiceControlBinding, account::limits::MAX_TEXT_BYTES,
+    account::node::MAX_CAPABILITIES, account::node::MAX_CAPABILITY_BYTES,
+    account::node::enrollment::validate_capabilities, account::publication::PublicationScope,
 };
 use nsshared_codec::{cbor::CborReader, cbor::CborWriter};
 use nsshared_identity::keys::IdentityKey;
@@ -63,14 +64,14 @@ pub struct PublicationSubscriptionRequest {
 impl PublicationSubscriptionRequest {
     fn validate(&self) -> Result<(), ExchangeError> {
         require(self.scopes.len() <= MAX_SUBSCRIPTION_SCOPES)?;
-        require(self.scopes.windows(2).all(|p| p[0] < p[1]))?;
+        require(ascending(&self.scopes))?;
         for scope in &self.scopes {
             require(scope.recipient == self.subscriber)?;
-            scope_text(&scope.scope)?;
+            token(&scope.scope)?;
         }
         validate_capabilities(&self.capabilities)?;
         require(self.public_ingress.len() <= MAX_SUBSCRIPTION_SCOPES)?;
-        require(self.public_ingress.windows(2).all(|p| p[0] < p[1]))?;
+        require(ascending(&self.public_ingress))?;
         for index in &self.public_ingress {
             require(usize::try_from(*index).is_ok_and(|i| i < self.scopes.len()))?;
         }
@@ -141,8 +142,8 @@ impl PublicationSubscriptionRequest {
             scopes.push(SubscriptionScope {
                 issuer: identity(&mut input)?,
                 recipient: identity(&mut input)?,
-                served_realm: input.text_up_to(26)?.parse().map_err(AccountError::from)?,
-                scope: input.text_up_to(256)?.into(),
+                served_realm: realm(&mut input)?,
+                scope: input.text_up_to(MAX_TEXT_BYTES)?.into(),
             });
         }
         let count = input.array_up_to(MAX_CAPABILITIES)?;

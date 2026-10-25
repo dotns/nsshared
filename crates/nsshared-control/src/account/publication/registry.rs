@@ -1,4 +1,7 @@
-use crate::{account::AccountError, account::SCHEMA, account::reader, account::require};
+use crate::{
+    account::AccountError, account::SCHEMA, account::codec::reader, account::codec::require,
+    account::limits::MAX_TEXT_BYTES,
+};
 use nsshared_codec::cbor::CborWriter;
 
 /// Stable candidate family identifiers, matching the request's eleven families.
@@ -238,7 +241,7 @@ impl FamilyRegistry {
             require(input.uint()? == family.version)?;
             require(input.text_up_to(128)? == family.name)?;
             require(input.text_up_to(128)? == family.replacement.publication)?;
-            require(input.text_up_to(256)? == family.replacement.clears)?;
+            require(input.text_up_to(MAX_TEXT_BYTES)? == family.replacement.clears)?;
             require(input.text_up_to(128)? == family.owner)?;
             input.array(family.m6.len() as u64)?;
             for item in family.m6 {

@@ -1,9 +1,11 @@
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
-use crate::{service::ContractError, service::Id, service::Identity, service::ServiceRef};
+use crate::{
+    account::MAX_BYTES, account::SCHEMA, account::codec::ascending, service::ContractError,
+    service::Id, service::Identity, service::ServiceRef,
+};
 use thiserror::Error;
 
-use crate::{account::MAX_BYTES, account::SCHEMA};
 use nsshared_codec::{cbor::CborError, cbor::CborReader, cbor::CborWriter};
 use nsshared_identity::keys::IdentityKey;
 
@@ -240,7 +242,7 @@ pub(in crate::account) fn validate_set(values: &[SubnetPrefix]) -> Result<(), Su
     for value in values {
         value.validate()?;
     }
-    if !values.windows(2).all(|pair| pair[0] < pair[1]) {
+    if !ascending(values) {
         return Err(SubnetError::NonCanonicalSet);
     }
     if values.windows(2).any(|pair| pair[0].overlaps(pair[1])) {
@@ -274,10 +276,6 @@ fn validate_identity(value: &Identity) -> Result<(), SubnetError> {
     IdentityKey::from_bytes(value)
         .map(|_| ())
         .map_err(|_| SubnetError::Identity)
-}
-
-fn m6_error(error: impl Into<ContractError>) -> SubnetError {
-    SubnetError::M6Reference(error.into())
 }
 
 impl SubnetRoute {
@@ -336,8 +334,10 @@ impl SubnetRoute {
     }
 
     fn write(&self, out: &mut CborWriter) -> Result<(), SubnetError> {
-        let resource = nsshared_codec::cbor::value::encode_canonical(&self.resource.value())
-            .map_err(m6_error)?;
+        let resource = self
+            .resource
+            .canonical()
+            .map_err(SubnetError::M6Reference)?;
         out.array(8).bytes(&resource);
         self.real.write(out);
         self.mapped.write(out);
@@ -359,9 +359,8 @@ impl SubnetRoute {
 
     fn read(input: &mut CborReader<'_>) -> Result<Self, SubnetError> {
         input.array(8)?;
-        let resource = nsshared_codec::cbor::value::decode_canonical(input.bytes_up_to(MAX_BYTES)?)
-            .map_err(m6_error)?;
-        let resource = ServiceRef::from_value(&resource).map_err(SubnetError::M6Reference)?;
+        let resource =
+            ServiceRef::decode(input.bytes_up_to(MAX_BYTES)?).map_err(SubnetError::M6Reference)?;
         let real = SubnetPrefix::read(input)?;
         let mapped = SubnetPrefix::read(input)?;
         let provider = input.fixed_bytes()?;

@@ -1,19 +1,18 @@
 //! Pure candidate enrollment, authentication and information exchange.
-use crate::service::Id;
 use crate::{
-    account::AccountError, account::MAX_BYTES, account::SCHEMA, account::bounded,
+    account::AccountError, account::MAX_BYTES, account::SCHEMA, account::codec::ascending,
+    account::codec::bounded, account::codec::data_text, account::codec::reader,
+    account::codec::realm, account::codec::require, account::codec::token,
     account::control::BootstrapDiscovery, account::control::BootstrapEnvelope,
     account::control::BootstrapError, account::control::EnvelopeDirection,
-    account::control::EnvelopeExpectation, account::node::Enrollment,
-    account::node::EnrollmentDecision, account::node::EnrollmentError, account::node::Lifecycle,
-    account::node::NodeBinding, account::node::RebindAuthorization,
-    account::node::decide_enrollment, account::reader, account::require, account::scope_text,
-};
-use crate::{
+    account::control::EnvelopeExpectation, account::limits::MAX_CREDENTIAL_BYTES,
+    account::limits::MAX_TEXT_BYTES, account::node::Enrollment, account::node::EnrollmentDecision,
+    account::node::EnrollmentError, account::node::Lifecycle, account::node::NodeBinding,
+    account::node::RebindAuthorization, account::node::decide_enrollment,
     account::publication::source_binding::MAX_SOURCE_BYTES,
     account::publication::source_binding::SignedSourceBinding,
     account::publication::source_binding::SourceEnrollmentExpectation,
-    account::publication::source_binding::SourceError,
+    account::publication::source_binding::SourceError, service::Id,
 };
 use nsshared_codec::{cbor::CborReader, cbor::CborWriter};
 use nsshared_identity::realm::RealmId;
@@ -137,9 +136,6 @@ pub enum ExchangeError {
     Lifecycle,
 }
 
-fn text(value: &str) -> Result<(), AccountError> {
-    require(!value.is_empty() && value.len() <= 256 && !value.chars().any(char::is_control))
-}
 fn tag(decision: EnrollmentDecision) -> u64 {
     match decision {
         EnrollmentDecision::Initial => 0,
@@ -188,8 +184,8 @@ impl RegistrationRequest {
     /// # Errors
     /// Refuses invalid fields, enrollment or lifecycle and oversized credentials.
     pub fn canonical(&self) -> Result<Vec<u8>, ExchangeError> {
-        text(&self.profile)?;
-        require(!self.credential.is_empty() && self.credential.len() <= 16_384)?;
+        data_text(&self.profile)?;
+        require(!self.credential.is_empty() && self.credential.len() <= MAX_CREDENTIAL_BYTES)?;
         let mut out = CborWriter::default();
         out.array(6).uint(SCHEMA);
         self.scope.write(&mut out);
@@ -213,9 +209,12 @@ impl RegistrationRequest {
             enrollment: Enrollment::decode(
                 input.bytes_up_to(MAX_BYTES).map_err(AccountError::from)?,
             )?,
-            profile: input.text_up_to(256).map_err(AccountError::from)?.into(),
+            profile: input
+                .text_up_to(MAX_TEXT_BYTES)
+                .map_err(AccountError::from)?
+                .into(),
             credential: input
-                .bytes_up_to(16_384)
+                .bytes_up_to(MAX_CREDENTIAL_BYTES)
                 .map_err(AccountError::from)?
                 .to_vec(),
             lifecycle: if input.take_null() {
@@ -268,7 +267,7 @@ impl RegistrationAcceptance {
     /// # Errors
     /// Refuses invalid profile or enrollment.
     pub fn canonical(&self) -> Result<Vec<u8>, ExchangeError> {
-        text(&self.profile)?;
+        data_text(&self.profile)?;
         let mut out = CborWriter::default();
         out.array(6).uint(SCHEMA);
         self.scope.write(&mut out);
@@ -288,7 +287,10 @@ impl RegistrationAcceptance {
             enrollment: Enrollment::decode(
                 input.bytes_up_to(MAX_BYTES).map_err(AccountError::from)?,
             )?,
-            profile: input.text_up_to(256).map_err(AccountError::from)?.into(),
+            profile: input
+                .text_up_to(MAX_TEXT_BYTES)
+                .map_err(AccountError::from)?
+                .into(),
             decision: decision(input.uint().map_err(AccountError::from)?)?,
             source_binding: SignedSourceBinding::decode(
                 input
@@ -367,7 +369,7 @@ pub struct AuthenticationSourceScope {
 }
 impl AuthenticationSourceScope {
     fn write(&self, out: &mut CborWriter) -> Result<(), AccountError> {
-        scope_text(&self.publication_scope)?;
+        token(&self.publication_scope)?;
         out.array(2)
             .text(&self.served_realm.to_string())
             .text(&self.publication_scope);
@@ -376,8 +378,8 @@ impl AuthenticationSourceScope {
     fn read(input: &mut CborReader<'_>) -> Result<Self, AccountError> {
         input.array(2)?;
         Ok(Self {
-            served_realm: input.text_up_to(26)?.parse()?,
-            publication_scope: input.text_up_to(256)?.into(),
+            served_realm: realm(input)?,
+            publication_scope: input.text_up_to(MAX_TEXT_BYTES)?.into(),
         })
     }
 }
@@ -436,7 +438,7 @@ impl AuthenticationRequest {
         let mut input = reader(bytes, 5)?;
         let scope = MembershipScope::read(&mut input)?;
         let binding = NodeBinding::read(&mut input)?;
-        require(input.text_up_to(256)? == MACHINE_AUTH_PURPOSE)?;
+        require(input.text_up_to(MAX_TEXT_BYTES)? == MACHINE_AUTH_PURPOSE)?;
         let value = Self {
             scope,
             binding,
@@ -488,7 +490,7 @@ impl AuthenticationResponse {
     pub fn canonical(&self) -> Result<Vec<u8>, ExchangeError> {
         require(
             !self.token.is_empty()
-                && self.token.len() <= 16_384
+                && self.token.len() <= MAX_CREDENTIAL_BYTES
                 && self.token.bytes().all(|b| b.is_ascii_graphic()),
         )?;
         let mut out = CborWriter::default();
@@ -504,7 +506,10 @@ impl AuthenticationResponse {
     pub fn decode(bytes: &[u8]) -> Result<Self, ExchangeError> {
         let mut input = reader(bytes, 3)?;
         let value = Self {
-            token: input.text_up_to(16_384).map_err(AccountError::from)?.into(),
+            token: input
+                .text_up_to(MAX_CREDENTIAL_BYTES)
+                .map_err(AccountError::from)?
+                .into(),
             source_binding: SignedSourceBinding::decode(
                 input
                     .bytes_up_to(MAX_SOURCE_BYTES)
@@ -556,11 +561,11 @@ impl InformationResponse {
     /// # Errors
     /// Refuses invalid discovery, metadata or canonical sets.
     pub fn canonical(&self) -> Result<Vec<u8>, ExchangeError> {
-        text(&self.provider)?;
-        text(&self.version)?;
-        text(&self.realm)?;
+        data_text(&self.provider)?;
+        data_text(&self.version)?;
+        data_text(&self.realm)?;
         require(
-            self.auth_methods.windows(2).all(|p| p[0] < p[1])
+            ascending(&self.auth_methods)
                 && self
                     .auth_methods
                     .iter()
@@ -592,13 +597,27 @@ impl InformationResponse {
         let mut input = reader(bytes, 7)?;
         let discovery =
             BootstrapDiscovery::decode(input.bytes_up_to(MAX_BYTES).map_err(AccountError::from)?)?;
-        let realm = input.text_up_to(256).map_err(AccountError::from)?.into();
-        let provider = input.text_up_to(256).map_err(AccountError::from)?.into();
-        let version = input.text_up_to(256).map_err(AccountError::from)?.into();
+        let realm = input
+            .text_up_to(MAX_TEXT_BYTES)
+            .map_err(AccountError::from)?
+            .into();
+        let provider = input
+            .text_up_to(MAX_TEXT_BYTES)
+            .map_err(AccountError::from)?
+            .into();
+        let version = input
+            .text_up_to(MAX_TEXT_BYTES)
+            .map_err(AccountError::from)?
+            .into();
         let methods = input.array_up_to(3).map_err(AccountError::from)?;
         let mut auth_methods = Vec::new();
         for _ in 0..methods {
-            auth_methods.push(input.text_up_to(256).map_err(AccountError::from)?.into());
+            auth_methods.push(
+                input
+                    .text_up_to(MAX_TEXT_BYTES)
+                    .map_err(AccountError::from)?
+                    .into(),
+            );
         }
         let count = input
             .array_up_to(crate::account::node::MAX_CAPABILITIES)

@@ -1,8 +1,8 @@
 use crate::{
-    account::AccountError, account::SCHEMA, account::identity, account::node::ReporterIncarnation,
-    account::reader, account::relay::IdentityClass, account::relay::ParticipantRosterGeneration,
-    account::relay::ParticipantRosterScope, account::relay::RosterVersion, account::require,
-    account::usage::UsageError,
+    account::AccountError, account::SCHEMA, account::codec::identity, account::codec::reader,
+    account::codec::require, account::node::ReporterIncarnation, account::relay::IdentityClass,
+    account::relay::ParticipantRosterGeneration, account::relay::ParticipantRosterScope,
+    account::relay::RosterVersion, account::usage::UsageError,
 };
 use nsshared_codec::cbor::CborWriter;
 use nsshared_identity::identity::NodeId;

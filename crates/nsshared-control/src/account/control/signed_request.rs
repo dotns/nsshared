@@ -1,9 +1,9 @@
 //! Existing account envelope and secret-free signed URL canonical input.
 
-use crate::account::realm::subject::text;
 use crate::{
-    account::AccountError, account::control::BootstrapEnvelope, account::control::BootstrapError,
-    account::control::EnvelopeDirection, account::require,
+    account::AccountError, account::codec::require, account::codec::token,
+    account::control::BootstrapEnvelope, account::control::BootstrapError,
+    account::control::EnvelopeDirection, account::limits::MAX_CREDENTIAL_BYTES,
 };
 use sha2::{Digest as _, Sha256};
 
@@ -117,11 +117,11 @@ impl SignedUrlScope<'_> {
         require(
             self.scheme.eq_ignore_ascii_case("http") || self.scheme.eq_ignore_ascii_case("https"),
         )?;
-        text(self.realm)?;
-        text(self.route)?;
+        token(self.realm)?;
+        token(self.route)?;
         require(!self.realm.contains('/') && !self.route.contains('/'))?;
         for value in [self.host, self.path, self.query] {
-            require(value.len() <= 16_384 && !value.chars().any(char::is_control))?;
+            require(value.len() <= MAX_CREDENTIAL_BYTES && !value.chars().any(char::is_control))?;
         }
         require(self.path.starts_with('/') && !self.path.contains(['?', '#']))?;
         let mut host = self.host.trim().to_ascii_lowercase();

@@ -1,9 +1,9 @@
 //! Scoped catalogues of existing usage quantities and Node-control vocabulary.
 
-use crate::node_control;
 use crate::{
-    account::AccountError, account::control::exchange::MembershipScope, account::identity,
-    account::reader, account::require, account::usage::UsageProfile,
+    account::AccountError, account::codec::ascending, account::codec::identity,
+    account::codec::reader, account::codec::require, account::control::exchange::MembershipScope,
+    account::usage::UsageProfile, node_control,
 };
 use nsshared_codec::cbor::CborWriter;
 use nsshared_identity::keys::IdentityKey;
@@ -91,7 +91,7 @@ impl NodeControlProfilePublication {
                         | node_control::kind::PROBE_REQUEST
                         | node_control::kind::PROBE_REPLY
                 )
-            }) && self.capabilities.windows(2).all(|pair| pair[0] < pair[1]),
+            }) && ascending(&self.capabilities),
         )
     }
 

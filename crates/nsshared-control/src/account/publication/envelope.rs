@@ -1,12 +1,14 @@
 //! Signed per-kind authority; payloads remain the owning family's exact bytes.
 
+use crate::{
+    account::codec::is_token, account::control::MAX_CONTROL_BODY,
+    account::control::exchange::MAX_PUBLICATION_BYTES, account::limits::MAX_TEXT_BYTES,
+};
 use nsshared_identity::realm::RealmId;
 
 use ed25519_dalek::{Signature, VerifyingKey};
 use thiserror::Error;
 
-use crate::account::control::exchange::MAX_PUBLICATION_BYTES;
-use crate::{account::control::MAX_CONTROL_BODY, account::is_scope_text};
 use nsshared_codec::{cbor::CborReader, cbor::CborWriter};
 use nsshared_identity::keys::IdentityKey;
 
@@ -111,9 +113,9 @@ impl PublicationContent<'_> {
     /// Refuses invalid fields, unknown ownership, wrong channels and encoded bounds.
     pub fn canonical(&self) -> Result<Vec<u8>, PublicationError> {
         let key = &self.key;
-        if !is_scope_text(key.scope)
+        if !is_token(key.scope)
             || key.kind.is_empty()
-            || key.kind.len() > 256
+            || key.kind.len() > MAX_TEXT_BYTES
             || publication_channel(key.family, key.kind) != Some(self.channel)
             || self.version == 0
             || self.issued_seconds >= self.expires_seconds
@@ -299,9 +301,9 @@ impl<'a> PublicationEvent<'a> {
                 .text_up_to(26)?
                 .parse()
                 .map_err(|_| PublicationError::Field)?,
-            scope: reader.text_up_to(256)?,
+            scope: reader.text_up_to(MAX_TEXT_BYTES)?,
             family: reader.uint()?,
-            kind: reader.text_up_to(256)?,
+            kind: reader.text_up_to(MAX_TEXT_BYTES)?,
         };
         let channel = match reader.uint()? {
             0 => PublicationChannel::Stream,
@@ -319,7 +321,7 @@ impl<'a> PublicationEvent<'a> {
         };
         let payload = reader.bytes_up_to(bytes.len())?;
         reader.finish()?;
-        if !is_scope_text(key.scope)
+        if !is_token(key.scope)
             || key.kind.is_empty()
             || version == 0
             || issued_seconds >= expires_seconds

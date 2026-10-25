@@ -1,65 +1,17 @@
 //! Pure observations and authenticated report operation dispatch.
 use crate::{
-    account::AccountError, account::MAX_BYTES, account::bounded,
+    account::AccountError, account::MAX_BYTES, account::codec::bounded, account::codec::data_text,
+    account::codec::read_optional_text, account::codec::read_optional_uint,
+    account::codec::read_texts, account::codec::reader, account::codec::require,
+    account::codec::write_optional_text, account::codec::write_optional_uint,
+    account::codec::write_text_sequence, account::codec::write_texts,
     account::control::BootstrapEnvelope, account::control::EnvelopeDirection,
     account::control::EnvelopeExpectation, account::control::exchange::*,
     account::edge::EdgeMaterialAck, account::edge::EdgeServiceRequest,
-    account::edge::EdgeServiceResponse, account::edge::MAX_EDGE_ITEMS, account::reader,
-    account::require, account::usage::UsageAnswer, account::usage::UsageReport,
+    account::edge::EdgeServiceResponse, account::edge::MAX_EDGE_ITEMS,
+    account::limits::MAX_TEXT_BYTES, account::usage::UsageAnswer, account::usage::UsageReport,
 };
 use nsshared_codec::{cbor::CborReader, cbor::CborWriter};
-
-fn text(value: &str) -> Result<(), AccountError> {
-    require(!value.is_empty() && value.len() <= 256 && !value.chars().any(char::is_control))
-}
-fn strings(out: &mut CborWriter, values: &[String], ordered: bool) -> Result<(), AccountError> {
-    require(values.len() <= MAX_EDGE_ITEMS)?;
-    if ordered {
-        require(values.windows(2).all(|p| p[0] < p[1]))?;
-    }
-    out.array(values.len());
-    for value in values {
-        text(value)?;
-        out.text(value);
-    }
-    Ok(())
-}
-fn read_strings(input: &mut CborReader<'_>) -> Result<Vec<String>, AccountError> {
-    let count = input.array_up_to(MAX_EDGE_ITEMS)?;
-    (0..count)
-        .map(|_| Ok(input.text_up_to(256)?.into()))
-        .collect()
-}
-fn optional_text(out: &mut CborWriter, value: &Option<String>) -> Result<(), AccountError> {
-    if let Some(value) = value {
-        text(value)?;
-        out.text(value);
-    } else {
-        out.null();
-    }
-    Ok(())
-}
-fn read_text(input: &mut CborReader<'_>) -> Result<Option<String>, AccountError> {
-    if input.take_null() {
-        Ok(None)
-    } else {
-        Ok(Some(input.text_up_to(256)?.into()))
-    }
-}
-fn optional_uint(out: &mut CborWriter, value: Option<u64>) {
-    if let Some(value) = value {
-        out.uint(value);
-    } else {
-        out.null();
-    }
-}
-fn read_uint(input: &mut CborReader<'_>) -> Result<Option<u64>, AccountError> {
-    if input.take_null() {
-        Ok(None)
-    } else {
-        Ok(Some(input.uint()?))
-    }
-}
 
 /// Process liveness observations, never authorization or applied-policy evidence.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -88,8 +40,8 @@ impl HeartbeatRequest {
             .uint(1)
             .bytes(&self.request_id)
             .uint(self.uptime_seconds);
-        strings(&mut out, &self.local_ips, false)?;
-        optional_uint(&mut out, self.policy_version);
+        write_text_sequence(&mut out, &self.local_ips, data_text)?;
+        write_optional_uint(&mut out, self.policy_version);
         bounded(out.into_bytes())
     }
     /// Decodes exact canonical heartbeat bytes.
@@ -100,8 +52,8 @@ impl HeartbeatRequest {
         let value = Self {
             request_id: input.fixed_bytes()?,
             uptime_seconds: input.uint()?,
-            local_ips: read_strings(&mut input)?,
-            policy_version: read_uint(&mut input)?,
+            local_ips: read_texts(&mut input, MAX_TEXT_BYTES)?,
+            policy_version: read_optional_uint(&mut input)?,
         };
         input.finish()?;
         value.canonical()?;
@@ -123,7 +75,7 @@ impl HeartbeatResponse {
     pub fn canonical(&self) -> Result<Vec<u8>, AccountError> {
         let mut out = CborWriter::default();
         out.array(3).uint(1).bytes(&self.request_id);
-        strings(&mut out, &self.features, true)?;
+        write_texts(&mut out, &self.features, data_text)?;
         bounded(out.into_bytes())
     }
     /// Decodes canonical receipt bytes.
@@ -133,7 +85,7 @@ impl HeartbeatResponse {
         let mut input = reader(bytes, 3)?;
         let value = Self {
             request_id: input.fixed_bytes()?,
-            features: read_strings(&mut input)?,
+            features: read_texts(&mut input, MAX_TEXT_BYTES)?,
         };
         input.finish()?;
         value.canonical()?;
@@ -168,28 +120,28 @@ pub struct GatewayCertificateObservation {
 }
 impl GatewayCertificateObservation {
     fn write(&self, out: &mut CborWriter) -> Result<(), AccountError> {
-        text(&self.id)?;
-        text(&self.issuer)?;
-        text(&self.fingerprint)?;
+        data_text(&self.id)?;
+        data_text(&self.issuer)?;
+        data_text(&self.fingerprint)?;
         require(self.ack_generation.is_none_or(|value| value > 0))?;
         out.array(7).text(&self.id);
-        strings(out, &self.hostnames, true)?;
+        write_texts(out, &self.hostnames, data_text)?;
         out.text(&self.issuer)
             .uint(self.not_after_seconds)
             .text(&self.fingerprint);
-        optional_uint(out, self.ack_generation);
-        optional_text(out, &self.last_error)
+        write_optional_uint(out, self.ack_generation);
+        write_optional_text(out, self.last_error.as_deref(), data_text)
     }
     fn read(input: &mut CborReader<'_>) -> Result<Self, AccountError> {
         input.array(7)?;
         Ok(Self {
-            id: input.text_up_to(256)?.into(),
-            hostnames: read_strings(input)?,
-            issuer: input.text_up_to(256)?.into(),
+            id: input.text_up_to(MAX_TEXT_BYTES)?.into(),
+            hostnames: read_texts(input, MAX_TEXT_BYTES)?,
+            issuer: input.text_up_to(MAX_TEXT_BYTES)?.into(),
             not_after_seconds: input.uint()?,
-            fingerprint: input.text_up_to(256)?.into(),
-            ack_generation: read_uint(input)?,
-            last_error: read_text(input)?,
+            fingerprint: input.text_up_to(MAX_TEXT_BYTES)?.into(),
+            ack_generation: read_optional_uint(input)?,
+            last_error: read_optional_text(input, MAX_TEXT_BYTES)?,
         })
     }
 }
@@ -230,19 +182,19 @@ impl GatewayReport {
         require(self.public_http_port != Some(0) && self.internal_http_port != Some(0))?;
         let mut out = CborWriter::default();
         out.array(12).uint(1).bytes(&self.request_id);
-        optional_text(&mut out, &self.software_version)?;
-        optional_text(&mut out, &self.source_revision)?;
-        optional_uint(&mut out, self.connections.map(u64::from));
+        write_optional_text(&mut out, self.software_version.as_deref(), data_text)?;
+        write_optional_text(&mut out, self.source_revision.as_deref(), data_text)?;
+        write_optional_uint(&mut out, self.connections.map(u64::from));
         if let Some(value) = self.terminate_enabled {
             out.boolean(value);
         } else {
             out.null();
         }
-        optional_uint(&mut out, self.public_http_port.map(u64::from));
-        optional_uint(&mut out, self.internal_http_port.map(u64::from));
+        write_optional_uint(&mut out, self.public_http_port.map(u64::from));
+        write_optional_uint(&mut out, self.internal_http_port.map(u64::from));
         out.boolean(self.draining);
-        strings(&mut out, &self.capabilities, true)?;
-        strings(&mut out, &self.public_ingress_scopes, true)?;
+        write_texts(&mut out, &self.capabilities, data_text)?;
+        write_texts(&mut out, &self.public_ingress_scopes, data_text)?;
         out.array(self.certificates.len());
         for value in &self.certificates {
             value.write(&mut out)?;
@@ -255,9 +207,9 @@ impl GatewayReport {
     pub fn decode(bytes: &[u8]) -> Result<Self, AccountError> {
         let mut input = reader(bytes, 12)?;
         let request_id = input.fixed_bytes()?;
-        let software_version = read_text(&mut input)?;
-        let source_revision = read_text(&mut input)?;
-        let connections = read_uint(&mut input)?
+        let software_version = read_optional_text(&mut input, MAX_TEXT_BYTES)?;
+        let source_revision = read_optional_text(&mut input, MAX_TEXT_BYTES)?;
+        let connections = read_optional_uint(&mut input)?
             .map(u32::try_from)
             .transpose()
             .map_err(|_| AccountError::Field)?;
@@ -266,17 +218,17 @@ impl GatewayReport {
         } else {
             Some(input.boolean()?)
         };
-        let public_http_port = read_uint(&mut input)?
+        let public_http_port = read_optional_uint(&mut input)?
             .map(u16::try_from)
             .transpose()
             .map_err(|_| AccountError::Field)?;
-        let internal_http_port = read_uint(&mut input)?
+        let internal_http_port = read_optional_uint(&mut input)?
             .map(u16::try_from)
             .transpose()
             .map_err(|_| AccountError::Field)?;
         let draining = input.boolean()?;
-        let capabilities = read_strings(&mut input)?;
-        let public_ingress_scopes = read_strings(&mut input)?;
+        let capabilities = read_texts(&mut input, MAX_TEXT_BYTES)?;
+        let public_ingress_scopes = read_texts(&mut input, MAX_TEXT_BYTES)?;
         let count = input.array_up_to(MAX_EDGE_ITEMS)?;
         let certificates = (0..count)
             .map(|_| GatewayCertificateObservation::read(&mut input))

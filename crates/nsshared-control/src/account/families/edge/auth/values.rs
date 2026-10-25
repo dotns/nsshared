@@ -1,13 +1,17 @@
 //! Confidential catalog values; decoding never performs credential verification.
 use super::*;
+use crate::{
+    account::codec::read_optional_text, account::codec::read_texts, account::codec::write_texts,
+    account::limits::MAX_TEXT_BYTES,
+};
 use nsshared_codec::{cbor::CborReader, cbor::CborWriter};
 
 fn data(value: &str) -> Result<(), AccountError> {
     require(!value.is_empty() && value.len() <= 8192)
 }
-fn write_text(value: &str, out: &mut CborWriter, token: bool) -> Result<(), AccountError> {
-    if token {
-        text(value)?;
+fn write_text(value: &str, out: &mut CborWriter, is_token: bool) -> Result<(), AccountError> {
+    if is_token {
+        token(value)?;
     } else {
         data(value)?;
     }
@@ -26,29 +30,11 @@ fn write_optional(
     }
     Ok(())
 }
-fn read_optional(
-    input: &mut CborReader<'_>,
-    maximum: usize,
-) -> Result<Option<String>, AccountError> {
-    if input.take_null() {
-        Ok(None)
-    } else {
-        Ok(Some(input.text_up_to(maximum)?.to_owned()))
-    }
-}
 fn write_strings(values: &[String], out: &mut CborWriter) -> Result<(), AccountError> {
-    ordered_text(values)?;
-    out.array(values.len());
-    for value in values {
-        out.text(value);
-    }
-    Ok(())
+    write_texts(out, values, token)
 }
 fn read_strings(input: &mut CborReader<'_>) -> Result<Vec<String>, AccountError> {
-    let count = input.array_up_to(MAX_EDGE_ITEMS)?;
-    (0..count)
-        .map(|_| Ok(input.text_up_to(256)?.to_owned()))
-        .collect()
+    read_texts(input, MAX_TEXT_BYTES)
 }
 
 /// Provider protocol.
@@ -160,7 +146,7 @@ impl AuthSecretVersion {
     pub(in crate::account) fn read(input: &mut CborReader<'_>) -> Result<Self, AccountError> {
         input.array(4)?;
         Ok(Self {
-            reference: input.text_up_to(256)?.to_owned(),
+            reference: input.text_up_to(MAX_TEXT_BYTES)?.to_owned(),
             version: u32::try_from(input.uint()?).map_err(|_| AccountError::Field)?,
             expires_seconds: input.uint()?,
             value: input.text_up_to(8192)?.to_owned(),
@@ -256,17 +242,17 @@ impl AuthProvider {
     pub(in crate::account) fn read(input: &mut CborReader<'_>) -> Result<Self, AccountError> {
         input.array(13)?;
         Ok(Self {
-            reference: input.text_up_to(256)?.to_owned(),
+            reference: input.text_up_to(MAX_TEXT_BYTES)?.to_owned(),
             kind: AuthProviderKind::read(input)?,
             issuer: input.text_up_to(8192)?.to_owned(),
             client_id: input.text_up_to(8192)?.to_owned(),
             client_secret: AuthSecretSet::read(input)?,
             scopes: read_strings(input)?,
-            audience: read_optional(input, 8192)?,
-            subject_template: read_optional(input, 8192)?,
-            idp_template: read_optional(input, 8192)?,
+            audience: read_optional_text(input, 8192)?,
+            subject_template: read_optional_text(input, 8192)?,
+            idp_template: read_optional_text(input, 8192)?,
             subject_realm: input.text_up_to(8192)?.to_owned(),
-            organization_id: read_optional(input, 8192)?,
+            organization_id: read_optional_text(input, 8192)?,
             organization_mode: if input.take_null() {
                 None
             } else {
@@ -301,10 +287,10 @@ impl AuthConsumer {
     pub(in crate::account) fn read(input: &mut CborReader<'_>) -> Result<Self, AccountError> {
         input.array(4)?;
         Ok(Self {
-            reference: input.text_up_to(256)?.to_owned(),
+            reference: input.text_up_to(MAX_TEXT_BYTES)?.to_owned(),
             subject: PolicySubject::decode(input.bytes_up_to(MAX_BYTES)?)?,
             enabled: input.boolean()?,
-            display_name: read_optional(input, 8192)?,
+            display_name: read_optional_text(input, 8192)?,
         })
     }
 }
@@ -333,7 +319,7 @@ impl AuthCredential {
     pub(in crate::account) fn read(input: &mut CborReader<'_>) -> Result<Self, AccountError> {
         input.array(4)?;
         Ok(Self {
-            consumer_ref: input.text_up_to(256)?.to_owned(),
+            consumer_ref: input.text_up_to(MAX_TEXT_BYTES)?.to_owned(),
             binding: SubjectBinding::decode(input.bytes_up_to(MAX_BYTES)?)?,
             scopes: read_strings(input)?,
             verifier: AuthVerifier::read(input)?,
@@ -365,10 +351,10 @@ impl AuthKeySource {
     pub(in crate::account) fn read(input: &mut CborReader<'_>) -> Result<Self, AccountError> {
         input.array(4)?;
         Ok(Self {
-            authority_ref: input.text_up_to(256)?.to_owned(),
+            authority_ref: input.text_up_to(MAX_TEXT_BYTES)?.to_owned(),
             enabled: input.boolean()?,
             kind: AuthKeySourceKind::read(input)?,
-            value: read_optional(input, 8192)?,
+            value: read_optional_text(input, 8192)?,
         })
     }
 }
@@ -395,8 +381,8 @@ impl AuthImportMethod {
         input.array(3)?;
         Ok(Self {
             kind: AuthMethodKind::read(input)?,
-            reference: input.text_up_to(256)?.to_owned(),
-            redirect_base_url: read_optional(input, 8192)?,
+            reference: input.text_up_to(MAX_TEXT_BYTES)?.to_owned(),
+            redirect_base_url: read_optional_text(input, 8192)?,
         })
     }
 }
@@ -429,7 +415,7 @@ impl AuthRouteImport {
     pub(in crate::account) fn read(input: &mut CborReader<'_>) -> Result<Self, AccountError> {
         input.array(4)?;
         Ok(Self {
-            route_id: input.text_up_to(256)?.to_owned(),
+            route_id: input.text_up_to(MAX_TEXT_BYTES)?.to_owned(),
             methods: {
                 let count = input.array_up_to(MAX_EDGE_ITEMS)?;
                 (0..count)
@@ -566,7 +552,7 @@ impl AuthVerifier {
         input.array(3)?;
         match input.uint()? {
             0 => Ok(Self::ApiKey {
-                key_id: input.text_up_to(256)?.to_owned(),
+                key_id: input.text_up_to(MAX_TEXT_BYTES)?.to_owned(),
                 verifier_hash: input.text_up_to(8192)?.to_owned(),
             }),
             1 => Ok(Self::Basic {
@@ -574,7 +560,7 @@ impl AuthVerifier {
                 phc_hash: input.text_up_to(8192)?.to_owned(),
             }),
             2 => Ok(Self::SignedUrl {
-                kid: input.text_up_to(256)?.to_owned(),
+                kid: input.text_up_to(MAX_TEXT_BYTES)?.to_owned(),
                 hmac_keys: AuthSecretSet::read(input)?,
             }),
             3 => Ok(Self::Mtls {
@@ -604,8 +590,8 @@ impl AuthJwtConsumer {
     pub(in crate::account) fn read(input: &mut CborReader<'_>) -> Result<Self, AccountError> {
         input.array(2)?;
         Ok(Self {
-            credential_ref: input.text_up_to(256)?.to_owned(),
-            consumer_ref: input.text_up_to(256)?.to_owned(),
+            credential_ref: input.text_up_to(MAX_TEXT_BYTES)?.to_owned(),
+            consumer_ref: input.text_up_to(MAX_TEXT_BYTES)?.to_owned(),
         })
     }
 }

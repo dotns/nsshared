@@ -1,6 +1,6 @@
 use crate::{
-    account::MAX_IDENTITIES, account::SCHEMA, account::identity,
-    account::node::ReporterIncarnation, account::reader, account::relay::ParticipantRosterScope,
+    account::MAX_IDENTITIES, account::SCHEMA, account::codec::identity, account::codec::reader,
+    account::node::ReporterIncarnation, account::relay::ParticipantRosterScope,
     account::relay::RosterVersion, account::usage::UsageError, account::usage::UsageProfile,
     account::usage::UsageReport, account::usage::UsageRows, account::usage::report::field,
 };

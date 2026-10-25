@@ -1,6 +1,6 @@
 use crate::{
-    account::AccountError, account::MAX_BYTES, account::MAX_IDENTITIES, account::identity,
-    account::reader, account::relay::IdentityClass, account::relay::MIN_ROSTER_VALIDITY_MS,
+    account::AccountError, account::MAX_BYTES, account::MAX_IDENTITIES, account::codec::identity,
+    account::codec::reader, account::relay::IdentityClass, account::relay::MIN_ROSTER_VALIDITY_MS,
     account::relay::Roster, account::relay::RosterEntry, account::relay::RosterVersion,
     account::relay::SignedRoster,
 };

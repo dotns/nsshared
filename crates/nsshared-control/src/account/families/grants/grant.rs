@@ -1,15 +1,15 @@
 //! Pure service authority payloads; installation and history custody stay in consumers.
 
-use nsshared_identity::realm::RealmId;
-
-use crate::service::ServiceRef;
-use thiserror::Error;
-
 use crate::{
     account::AccountError, account::MAX_BYTES, account::MAX_IDENTITIES, account::SCHEMA,
-    account::identity, account::node::GrantIncarnation, account::node::TransportProtocol,
-    account::subnet::SubnetError, account::subnet::SubnetPublication,
+    account::codec::ascending, account::codec::identity, account::limits::MAX_TEXT_BYTES,
+    account::node::GrantIncarnation, account::node::TransportProtocol,
+    account::subnet::SubnetError, account::subnet::SubnetPublication, service::ServiceRef,
 };
+use nsshared_identity::realm::RealmId;
+
+use thiserror::Error;
+
 use nsshared_codec::{cbor::CborError, cbor::CborReader, cbor::CborWriter};
 use nsshared_identity::keys::IdentityKey;
 
@@ -107,18 +107,14 @@ pub(in crate::account) fn write_reference(
     value: &ServiceRef,
     out: &mut CborWriter,
 ) -> Result<(), GrantError> {
-    let bytes = nsshared_codec::cbor::value::encode_canonical(&value.value())
-        .map_err(|_| GrantError::Reference)?;
-    out.bytes(&bytes);
+    out.bytes(&value.canonical().map_err(|_| GrantError::Reference)?);
     Ok(())
 }
 
 pub(in crate::account) fn read_reference(
     input: &mut CborReader<'_>,
 ) -> Result<ServiceRef, GrantError> {
-    let value = nsshared_codec::cbor::value::decode_canonical(input.bytes_up_to(MAX_BYTES)?)
-        .map_err(|_| GrantError::Reference)?;
-    ServiceRef::from_value(&value).map_err(|_| GrantError::Reference)
+    ServiceRef::decode(input.bytes_up_to(MAX_BYTES)?).map_err(|_| GrantError::Reference)
 }
 
 pub(in crate::account) fn checked_bytes(out: CborWriter) -> Result<Vec<u8>, GrantError> {
@@ -269,9 +265,9 @@ impl ServiceGrant {
             } => field(
                 family == 3
                     && !floor.is_empty()
-                    && floor.len() <= 256
+                    && floor.len() <= MAX_TEXT_BYTES
                     && !name.is_empty()
-                    && name.len() <= 256
+                    && name.len() <= MAX_TEXT_BYTES
                     && *virtual_port > 0
                     && alias_generation.is_none_or(|value| value > 0),
             ),
@@ -338,8 +334,8 @@ impl ServiceGrant {
             3 => {
                 input.array(6)?;
                 field(input.uint()? == 0)?;
-                let floor = input.text_up_to(256)?.to_owned();
-                let name = input.text_up_to(256)?.to_owned();
+                let floor = input.text_up_to(MAX_TEXT_BYTES)?.to_owned();
+                let name = input.text_up_to(MAX_TEXT_BYTES)?.to_owned();
                 let protocol = match input.uint()? {
                     6 => TransportProtocol::Tcp,
                     17 => TransportProtocol::Udp,
@@ -704,7 +700,7 @@ impl ResourceAuthority {
         if !self.active.windows(2).all(|p| {
             (&p[0].resource, p[0].client, p[0].discriminator)
                 < (&p[1].resource, p[1].client, p[1].discriminator)
-        }) || !self.retired.windows(2).all(|p| p[0] < p[1])
+        }) || !ascending(&self.retired)
         {
             return Err(GrantError::Ordering);
         }

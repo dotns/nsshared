@@ -28,15 +28,17 @@ macro_rules! contract_error {
 }
 pub(crate) use contract_error;
 
+mod codec;
 pub mod control;
 mod families;
+mod limits;
 pub mod node;
 pub mod publication;
 
 pub use families::{edge, grants, realm, relay, subnet, usage};
 
-use nsshared_codec::cbor::{CborError, CborReader};
-use nsshared_identity::{keys::IdentityKey, realm::RealmIdError};
+use nsshared_codec::cbor::CborError;
+use nsshared_identity::realm::RealmIdError;
 use thiserror::Error;
 
 /// Candidate CBOR schema version. Local admission JSON has its own schema 2.
@@ -71,48 +73,4 @@ pub enum AccountError {
     /// Issuer, recipient, version or time does not match the caller's authority.
     #[error("account contract authority or freshness mismatch")]
     Authority,
-}
-
-fn require(condition: bool) -> Result<(), AccountError> {
-    if condition {
-        Ok(())
-    } else {
-        Err(AccountError::Field)
-    }
-}
-
-fn identity(reader: &mut CborReader<'_>) -> Result<IdentityKey, AccountError> {
-    IdentityKey::from_bytes(&reader.fixed_bytes()?).map_err(|_| AccountError::Field)
-}
-
-fn reader(input: &[u8], arity: u64) -> Result<CborReader<'_>, AccountError> {
-    let mut reader = CborReader::new(input, MAX_BYTES)?;
-    reader.array(arity)?;
-    require(reader.uint()? == SCHEMA)?;
-    Ok(reader)
-}
-
-/// Maximum scope text length in bytes.
-const MAX_SCOPE_BYTES: usize = 256;
-
-/// The scope text rule shared by every family: 1 to 256 UTF-8 bytes without
-/// whitespace or control characters.
-fn is_scope_text(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= MAX_SCOPE_BYTES
-        && !value
-            .chars()
-            .any(|ch| ch.is_whitespace() || ch.is_control())
-}
-
-fn scope_text(value: &str) -> Result<(), AccountError> {
-    require(is_scope_text(value))
-}
-
-fn bounded(bytes: Vec<u8>) -> Result<Vec<u8>, AccountError> {
-    if bytes.len() > MAX_BYTES {
-        Err(AccountError::Bounds)
-    } else {
-        Ok(bytes)
-    }
 }

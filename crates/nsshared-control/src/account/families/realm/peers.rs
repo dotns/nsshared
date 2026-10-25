@@ -1,13 +1,14 @@
 //! Complete membership content; enclosing publication authority stays external.
 
+use crate::{
+    account::AccountError, account::MAX_IDENTITIES, account::SCHEMA, account::codec::ascending_by,
+    account::codec::bounded, account::codec::realm, account::codec::require,
+    account::node::NodeBinding,
+};
 use nsshared_identity::realm::RealmId;
 
 use std::collections::BTreeSet;
 
-use crate::{
-    account::AccountError, account::MAX_IDENTITIES, account::SCHEMA, account::bounded,
-    account::node::NodeBinding, account::require,
-};
 use nsshared_codec::{cbor::CborReader, cbor::CborWriter};
 use nsshared_identity::{constants::MAX_NODE_RECORD_BYTES, record::NodeRecord};
 
@@ -46,7 +47,7 @@ impl RealmPeers {
         if self.realms.len() > MAX_PEER_REALMS {
             return Err(AccountError::Bounds);
         }
-        require(self.realms.windows(2).all(|v| v[0].realm < v[1].realm))?;
+        require(ascending_by(&self.realms, |value| &value.realm))?;
         let mut identities = BTreeSet::new();
         let mut keys = BTreeSet::new();
         let mut total = 0usize;
@@ -118,14 +119,14 @@ impl RealmPeers {
     /// # Errors
     /// Refuses malformed CBOR, invalid signed records, bindings and collections.
     pub fn decode(bytes: &[u8]) -> Result<Self, AccountError> {
-        let mut input = crate::account::reader(bytes, 3)?;
+        let mut input = crate::account::codec::reader(bytes, 3)?;
         require(input.uint()? == 2)?;
         let count = input.array_up_to(MAX_PEER_REALMS)?;
         let mut realms = Vec::with_capacity(count);
         let mut total = 0usize;
         for _ in 0..count {
             input.array(2)?;
-            let realm = input.text_up_to(26)?.parse()?;
+            let realm = realm(&mut input)?;
             let count = input.array_up_to(MAX_IDENTITIES - total)?;
             total += count;
             let mut members = Vec::with_capacity(count);

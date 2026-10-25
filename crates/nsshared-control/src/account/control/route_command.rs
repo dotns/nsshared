@@ -1,16 +1,16 @@
 //! Pure Node/route commands and immutable receipt decisions on the authenticated control carrier.
 
-use crate::service::ServiceRef;
 use crate::{
-    account::AccountError, account::control::BootstrapEnvelope, account::control::BootstrapError,
-    account::control::EnvelopeDirection, account::control::EnvelopeExpectation, account::identity,
+    account::AccountError, account::codec::identity, account::codec::require,
+    account::control::BootstrapEnvelope, account::control::BootstrapError,
+    account::control::EnvelopeDirection, account::control::EnvelopeExpectation,
     account::publication::source_binding::MAX_SOURCE_BYTES,
     account::publication::source_binding::SignedSourceBinding,
     account::publication::source_binding::SourceBinding,
     account::publication::source_binding::SourceError,
-    account::publication::source_binding::nonzero, account::require, account::subnet::SubnetError,
+    account::publication::source_binding::nonzero, account::subnet::SubnetError,
     account::subnet::SubnetSelection, account::subnet::views::read_set,
-    account::subnet::views::validate_set, account::subnet::views::write_set,
+    account::subnet::views::validate_set, account::subnet::views::write_set, service::ServiceRef,
 };
 use nsshared_codec::{cbor::CborReader, cbor::CborWriter};
 use nsshared_identity::keys::IdentityKey;
@@ -112,8 +112,7 @@ impl RouteCommand {
                 resource,
                 scope,
             } => {
-                let resource = nsshared_codec::cbor::value::encode_canonical(&resource.value())
-                    .map_err(|_| RouteError::Reference)?;
+                let resource = resource.canonical().map_err(|_| RouteError::Reference)?;
                 out.array(4)
                     .uint(0)
                     .bytes(provider.as_bytes())
@@ -152,12 +151,8 @@ impl RouteCommand {
             },
             (0, 4) => {
                 let provider = identity(&mut input)?;
-                let resource = nsshared_codec::cbor::value::decode_canonical(
-                    input.bytes_up_to(MAX_SOURCE_BYTES)?,
-                )
-                .map_err(|_| RouteError::Reference)?;
-                let resource =
-                    ServiceRef::from_value(&resource).map_err(|_| RouteError::Reference)?;
+                let resource = ServiceRef::decode(input.bytes_up_to(MAX_SOURCE_BYTES)?)
+                    .map_err(|_| RouteError::Reference)?;
                 input.array(2)?;
                 let tag = input.uint()?;
                 let prefixes = read_set(&mut input)?;

@@ -1,6 +1,6 @@
 use crate::{
-    account::AccountError, account::SCHEMA, account::node::GrantIncarnation,
-    account::node::ReporterIncarnation, account::reader,
+    account::AccountError, account::SCHEMA, account::codec::reader,
+    account::node::GrantIncarnation, account::node::ReporterIncarnation,
 };
 
 use nsshared_codec::cbor::CborWriter;

@@ -1,18 +1,15 @@
 //! Supplied claims and policy values, without token verification or key custody.
 
+use crate::{
+    account::AccountError, account::MAX_BYTES, account::SCHEMA, account::codec::bounded,
+    account::codec::ordered_tokens, account::codec::read_optional_text, account::codec::read_texts,
+    account::codec::reader, account::codec::require, account::codec::token,
+    account::codec::write_optional_text, account::limits::MAX_TEXT_BYTES,
+    account::realm::PolicySubject, account::realm::SubjectAnchor, account::realm::SubjectBinding,
+};
 use nsshared_identity::realm::RealmId;
 
-use crate::account::realm::rules::read_texts;
-use crate::{
-    account::AccountError, account::MAX_BYTES, account::SCHEMA, account::bounded, account::reader,
-    account::realm::PolicySubject, account::realm::SubjectAnchor, account::realm::SubjectBinding,
-    account::require,
-};
-use crate::{
-    account::realm::subject::MAX_POLICY_TEXT, account::realm::subject::ordered_text,
-    account::realm::subject::text,
-};
-use nsshared_codec::{cbor::CborReader, cbor::CborWriter};
+use nsshared_codec::cbor::CborWriter;
 
 use serde::{Deserialize, Serialize};
 
@@ -145,11 +142,11 @@ impl JwtSubjectBinding {
     /// Rejects malformed references, oversized claim data, non-credential anchors and scope/order violations.
     pub fn canonical(&self) -> Result<Vec<u8>, AccountError> {
         require(matches!(self.binding.anchor, SubjectAnchor::Credential(_)))?;
-        text(&self.authority_ref)?;
+        token(&self.authority_ref)?;
         require(
-            self.claim_name.len() <= MAX_POLICY_TEXT && self.claim_value.len() <= MAX_POLICY_TEXT,
+            self.claim_name.len() <= MAX_TEXT_BYTES && self.claim_value.len() <= MAX_TEXT_BYTES,
         )?;
-        ordered_text(&self.scopes)?;
+        ordered_tokens(&self.scopes)?;
         let mut out = CborWriter::default();
         out.array(6)
             .uint(SCHEMA)
@@ -172,10 +169,10 @@ impl JwtSubjectBinding {
         let mut input = reader(bytes, 6)?;
         let value = Self {
             binding: SubjectBinding::decode(input.bytes_up_to(MAX_BYTES)?)?,
-            authority_ref: input.text_up_to(MAX_POLICY_TEXT)?.to_owned(),
-            claim_name: input.text_up_to(MAX_POLICY_TEXT)?.to_owned(),
-            claim_value: input.text_up_to(MAX_POLICY_TEXT)?.to_owned(),
-            scopes: read_texts(&mut input)?,
+            authority_ref: input.text_up_to(MAX_TEXT_BYTES)?.to_owned(),
+            claim_name: input.text_up_to(MAX_TEXT_BYTES)?.to_owned(),
+            claim_value: input.text_up_to(MAX_TEXT_BYTES)?.to_owned(),
+            scopes: read_texts(&mut input, MAX_TEXT_BYTES)?,
         };
         input.finish()?;
         value.canonical()?;
@@ -201,28 +198,12 @@ pub struct SignedSubjectHeaderPolicy {
 }
 
 fn header(value: &str) -> Result<(), AccountError> {
-    text(value)?;
+    token(value)?;
     require(
         value.bytes().all(|b| {
             b.is_ascii_lowercase() || b.is_ascii_digit() || b"!#$%&'*+-.^_`|~".contains(&b)
         }),
     )
-}
-
-fn write_optional(value: Option<&str>, out: &mut CborWriter) {
-    if let Some(value) = value {
-        out.text(value);
-    } else {
-        out.null();
-    }
-}
-
-fn read_optional(input: &mut CborReader<'_>) -> Result<Option<String>, AccountError> {
-    Ok(if input.take_null() {
-        None
-    } else {
-        Some(input.text_up_to(MAX_POLICY_TEXT)?.to_owned())
-    })
 }
 
 impl SignedSubjectHeaderPolicy {
@@ -239,7 +220,7 @@ impl SignedSubjectHeaderPolicy {
         }
         require(self.header_name.is_none() || self.header_name != self.signature_header_name)?;
         if let Some(key) = &self.keyset_ref {
-            text(key)?;
+            token(key)?;
         }
         require(self.validity_seconds != Some(0))?;
         if self.enabled {
@@ -253,9 +234,9 @@ impl SignedSubjectHeaderPolicy {
         }
         let mut out = CborWriter::default();
         out.array(7).uint(SCHEMA).boolean(self.enabled);
-        write_optional(self.header_name.as_deref(), &mut out);
-        write_optional(self.signature_header_name.as_deref(), &mut out);
-        write_optional(self.keyset_ref.as_deref(), &mut out);
+        write_optional_text(&mut out, self.header_name.as_deref(), |_| Ok(()))?;
+        write_optional_text(&mut out, self.signature_header_name.as_deref(), |_| Ok(()))?;
+        write_optional_text(&mut out, self.keyset_ref.as_deref(), |_| Ok(()))?;
         if let Some(seconds) = self.validity_seconds {
             out.uint(u64::from(seconds));
         } else {
@@ -273,9 +254,9 @@ impl SignedSubjectHeaderPolicy {
         let mut input = reader(bytes, 7)?;
         let value = Self {
             enabled: input.boolean()?,
-            header_name: read_optional(&mut input)?,
-            signature_header_name: read_optional(&mut input)?,
-            keyset_ref: read_optional(&mut input)?,
+            header_name: read_optional_text(&mut input, MAX_TEXT_BYTES)?,
+            signature_header_name: read_optional_text(&mut input, MAX_TEXT_BYTES)?,
+            keyset_ref: read_optional_text(&mut input, MAX_TEXT_BYTES)?,
             validity_seconds: if input.take_null() {
                 None
             } else {

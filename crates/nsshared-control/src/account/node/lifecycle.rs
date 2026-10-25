@@ -1,5 +1,6 @@
 use crate::{
-    account::AccountError, account::SCHEMA, account::identity, account::reader, account::require,
+    account::AccountError, account::SCHEMA, account::codec::identity, account::codec::reader,
+    account::codec::require,
 };
 use nsshared_codec::{cbor::CborReader, cbor::CborWriter};
 use nsshared_identity::keys::IdentityKey;

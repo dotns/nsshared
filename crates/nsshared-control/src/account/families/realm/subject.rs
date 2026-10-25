@@ -1,35 +1,14 @@
 //! Qualified subjects and bindings; credential verification remains external.
 
+use crate::{
+    account::AccountError, account::MAX_BYTES, account::SCHEMA, account::codec::bounded,
+    account::codec::identity, account::codec::reader, account::codec::require,
+    account::codec::token, account::grants::Payer, account::limits::MAX_TEXT_BYTES,
+};
 use nsshared_identity::realm::RealmId;
 
-use crate::{
-    account::AccountError, account::MAX_BYTES, account::SCHEMA, account::bounded,
-    account::grants::Payer, account::identity, account::reader, account::require,
-};
 use nsshared_codec::{cbor::CborReader, cbor::CborWriter};
 use nsshared_identity::keys::IdentityKey;
-
-pub(in crate::account) const MAX_POLICY_ITEMS: usize = 256;
-pub(in crate::account) const MAX_POLICY_TEXT: usize = 256;
-
-pub(in crate::account) fn text(value: &str) -> Result<(), AccountError> {
-    require(
-        !value.is_empty()
-            && value.len() <= MAX_POLICY_TEXT
-            && !value
-                .chars()
-                .any(|ch| ch.is_whitespace() || ch.is_control()),
-    )
-}
-
-pub(in crate::account) fn ordered_text(values: &[String]) -> Result<(), AccountError> {
-    require(values.len() <= MAX_POLICY_ITEMS)?;
-    require(values.windows(2).all(|p| p[0] < p[1]))?;
-    for value in values {
-        text(value)?;
-    }
-    Ok(())
-}
 
 /// A policy label, paying-realm user or complete Node signing identity.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -74,7 +53,7 @@ impl PolicySubject {
         let mut out = CborWriter::default();
         match self {
             Self::Realm { realm, name } => {
-                text(name)?;
+                token(name)?;
                 let (prefix, suffix) = name.split_once(':').ok_or(AccountError::Field)?;
                 require(
                     matches!(prefix, "user" | "group" | "machine" | "external")
@@ -111,7 +90,7 @@ impl PolicySubject {
         let value = match input.uint()? {
             0 if arity == 4 => Self::Realm {
                 realm: RealmId::from_bytes(input.fixed_bytes()?),
-                name: input.text_up_to(MAX_POLICY_TEXT)?.to_owned(),
+                name: input.text_up_to(MAX_TEXT_BYTES)?.to_owned(),
             },
             1 if arity == 4 => Self::User(Payer {
                 realm: RealmId::from_bytes(input.fixed_bytes()?),
@@ -165,7 +144,7 @@ impl SubjectBinding {
                 out.uint(0).bytes(node.as_bytes());
             }
             SubjectAnchor::Credential(reference) => {
-                text(reference)?;
+                token(reference)?;
                 out.uint(1).text(reference);
             }
         }
@@ -187,7 +166,7 @@ impl SubjectBinding {
         let realm = RealmId::from_bytes(input.fixed_bytes()?);
         let anchor = match input.uint()? {
             0 => SubjectAnchor::Node(identity(&mut input)?),
-            1 => SubjectAnchor::Credential(input.text_up_to(MAX_POLICY_TEXT)?.to_owned()),
+            1 => SubjectAnchor::Credential(input.text_up_to(MAX_TEXT_BYTES)?.to_owned()),
             _ => return Err(AccountError::Field),
         };
         let subject = PolicySubject::decode(input.bytes_up_to(MAX_BYTES)?)?;

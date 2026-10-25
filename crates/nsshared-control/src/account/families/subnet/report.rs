@@ -1,8 +1,5 @@
 //! Pure ordinary-provider route reports and caller-owned custody comparisons.
 
-use crate::{service::Id, service::ServiceRef};
-use thiserror::Error;
-
 use crate::{
     account::MAX_BYTES, account::control::BootstrapEnvelope, account::control::EnvelopeDirection,
     account::control::EnvelopeExpectation, account::publication::source_binding::MAX_SOURCE_BYTES,
@@ -11,8 +8,10 @@ use crate::{
     account::publication::source_binding::nonzero, account::subnet::SubnetError,
     account::subnet::SubnetPrefix, account::subnet::SubnetSelection,
     account::subnet::views::read_set, account::subnet::views::validate_set,
-    account::subnet::views::write_set,
+    account::subnet::views::write_set, service::Id, service::ServiceRef,
 };
+use thiserror::Error;
+
 use nsshared_codec::{cbor::CborError, cbor::CborReader, cbor::CborWriter};
 use nsshared_identity::keys::IdentityKey;
 
@@ -240,9 +239,10 @@ impl NodeSubnetRouteReportResponse {
             .uint(self.report_generation)
             .array(self.allocations.len());
         for allocation in &self.allocations {
-            let resource =
-                nsshared_codec::cbor::value::encode_canonical(&allocation.resource.value())
-                    .map_err(|_| SubnetReportError::Allocation)?;
+            let resource = allocation
+                .resource
+                .canonical()
+                .map_err(|_| SubnetReportError::Allocation)?;
             out.array(2)
                 .uint(u64::from(allocation.subnet_id))
                 .bytes(&resource);
@@ -264,11 +264,8 @@ impl NodeSubnetRouteReportResponse {
         for _ in 0..size {
             input.array(2)?;
             let subnet_id = mapping_id(&mut input)?;
-            let resource =
-                nsshared_codec::cbor::value::decode_canonical(input.bytes_up_to(MAX_BYTES)?)
-                    .map_err(|_| SubnetReportError::Allocation)?;
-            let resource =
-                ServiceRef::from_value(&resource).map_err(|_| SubnetReportError::Allocation)?;
+            let resource = ServiceRef::decode(input.bytes_up_to(MAX_BYTES)?)
+                .map_err(|_| SubnetReportError::Allocation)?;
             allocations.push(SubnetRouteAllocation {
                 subnet_id,
                 resource,

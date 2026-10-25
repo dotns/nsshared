@@ -1,12 +1,13 @@
 //! NSD-signed eligibility alongside the unchanged global relay directory.
 
+use crate::{
+    account::AccountError, account::MAX_BYTES, account::MAX_IDENTITIES, account::codec::ascending,
+    account::codec::identity, account::codec::reader, account::codec::realm,
+    account::codec::require,
+};
 use ed25519_dalek::{Signature, VerifyingKey};
 use thiserror::Error;
 
-use crate::{
-    account::AccountError, account::MAX_BYTES, account::MAX_IDENTITIES, account::identity,
-    account::reader, account::require,
-};
 use nsshared_codec::{cbor::CborReader, cbor::CborWriter};
 use nsshared_identity::{keys::IdentityKey, realm::RealmId};
 
@@ -66,7 +67,7 @@ impl DirectoryBinding {
         if self.realms.len() > MAX_IDENTITIES {
             return Err(AccountError::Bounds.into());
         }
-        require(self.realms.windows(2).all(|pair| pair[0] < pair[1]))?;
+        require(ascending(&self.realms))?;
         let mut out = CborWriter::default();
         out.array(8)
             .uint(1)
@@ -80,7 +81,7 @@ impl DirectoryBinding {
         out.uint(self.version)
             .uint(self.issued_at_unix_ms)
             .uint(self.expires_at_unix_ms);
-        Ok(crate::account::bounded(out.into_bytes())?)
+        Ok(crate::account::codec::bounded(out.into_bytes())?)
     }
     /// Decode bounded canonical content without trusting the self-presented issuer.
     /// # Errors
@@ -93,7 +94,7 @@ impl DirectoryBinding {
         let count = input.array_up_to(MAX_IDENTITIES)?;
         let mut realms = Vec::with_capacity(count);
         for _ in 0..count {
-            realms.push(input.text_up_to(26)?.parse().map_err(AccountError::from)?);
+            realms.push(realm(&mut input)?);
         }
         let value = Self {
             issuer,
@@ -144,7 +145,7 @@ impl SignedDirectoryBinding {
         out.array(2)
             .bytes(&self.content.canonical()?)
             .bytes(&self.signature);
-        Ok(crate::account::bounded(out.into_bytes())?)
+        Ok(crate::account::codec::bounded(out.into_bytes())?)
     }
     /// Exact canonical signed carrier, without accepting its issuer.
     /// # Errors

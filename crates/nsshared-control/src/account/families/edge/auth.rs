@@ -1,17 +1,17 @@
 //! Pure confidential authentication delivery; see `docs/confidential-auth-candidate.md`.
 
+use crate::{
+    account::AccountError, account::MAX_BYTES, account::codec::ascending_by,
+    account::codec::bounded, account::codec::identity, account::codec::issuer_url,
+    account::codec::reader, account::codec::realm, account::codec::require, account::codec::token,
+    account::edge::EdgeAuth, account::edge::EdgeMaterialKind, account::edge::EdgeMaterialRef,
+    account::edge::MAX_EDGE_ITEMS, account::limits::MAX_TEXT_BYTES, account::realm::PolicySubject,
+    account::realm::SubjectAnchor, account::realm::SubjectBinding,
+};
 use nsshared_identity::realm::RealmId;
 mod values;
 pub use values::*;
 
-use crate::{
-    account::AccountError, account::MAX_BYTES, account::bounded, account::edge::EdgeAuth,
-    account::edge::EdgeMaterialKind, account::edge::EdgeMaterialRef, account::edge::MAX_EDGE_ITEMS,
-    account::identity, account::reader, account::realm::PolicySubject,
-    account::realm::SubjectAnchor, account::realm::SubjectBinding, account::require,
-    account::scope_text,
-};
-use crate::{account::realm::subject::ordered_text, account::realm::subject::text};
 use nsshared_codec::cbor::CborWriter;
 use nsshared_identity::keys::IdentityKey;
 use thiserror::Error;
@@ -45,7 +45,7 @@ pub struct AuthConfiguration {
 
 fn https(value: &str) -> Result<(), AccountError> {
     require(value.len() <= 8192 && !value.chars().any(|c| c.is_whitespace() || c.is_control()))?;
-    crate::account::edge::material::issuer_url(value)
+    issuer_url(value)
 }
 fn fixed_jwks_uri(value: &str) -> Result<(), AccountError> {
     require(value.len() <= 8192 && !value.chars().any(|c| c.is_whitespace() || c.is_control()))?;
@@ -56,7 +56,7 @@ fn fixed_jwks_uri(value: &str) -> Result<(), AccountError> {
         .split(['/', '?'])
         .next()
         .ok_or(AccountError::Field)?;
-    crate::account::edge::material::issuer_url(&format!("https://{authority}"))?;
+    issuer_url(&format!("https://{authority}"))?;
     for (index, byte) in value.bytes().enumerate() {
         if byte == b'%' {
             require(
@@ -70,7 +70,7 @@ fn fixed_jwks_uri(value: &str) -> Result<(), AccountError> {
     Ok(())
 }
 fn ordered<T>(values: &[T], key: impl Fn(&T) -> &str) -> Result<(), AccountError> {
-    require(values.len() <= MAX_EDGE_ITEMS && values.windows(2).all(|p| key(&p[0]) < key(&p[1])))
+    require(values.len() <= MAX_EDGE_ITEMS && ascending_by(values, key))
 }
 fn anchor(binding: &SubjectBinding) -> Result<&str, AccountError> {
     if let SubjectAnchor::Credential(reference) = &binding.anchor {
@@ -97,7 +97,7 @@ impl AuthConfiguration {
             require(provider.organization_mode.is_none() || provider.organization_id.is_some())?;
         }
         if let Some(default) = &self.default_provider_ref {
-            text(default)?;
+            token(default)?;
             require(self.providers.iter().any(|p| &p.reference == default))?;
         }
         for consumer in &self.consumers {
@@ -235,7 +235,7 @@ impl AuthConfiguration {
         let default_provider_ref = if input.take_null() {
             None
         } else {
-            Some(input.text_up_to(256)?.to_owned())
+            Some(input.text_up_to(MAX_TEXT_BYTES)?.to_owned())
         };
         let count = input.array_up_to(MAX_EDGE_ITEMS)?;
         let providers = (0..count)
@@ -303,7 +303,7 @@ impl AuthConfigRequest {
     /// # Errors
     /// Rejects invalid scope, non-auth material and bounds.
     pub fn canonical(&self) -> Result<Vec<u8>, AccountError> {
-        scope_text(&self.scope)?;
+        token(&self.scope)?;
         require(self.material.kind == EdgeMaterialKind::Auth)?;
         let mut out = CborWriter::default();
         out.array(7)
@@ -324,8 +324,8 @@ impl AuthConfigRequest {
         let value = Self {
             request_id: input.fixed_bytes()?,
             recipient: identity(&mut input)?,
-            served_realm: input.text_up_to(26)?.parse()?,
-            scope: input.text_up_to(256)?.to_owned(),
+            served_realm: realm(&mut input)?,
+            scope: input.text_up_to(MAX_TEXT_BYTES)?.to_owned(),
             realm: RealmId::from_bytes(input.fixed_bytes()?),
             material: EdgeMaterialRef::read(&mut input)?,
         };

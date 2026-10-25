@@ -1,14 +1,15 @@
 //! Ordered accept rules; matching and evaluation stay in gateway consumers.
 
+use crate::{
+    account::AccountError, account::MAX_BYTES, account::SCHEMA, account::codec::ascending,
+    account::codec::bounded, account::codec::ordered_tokens, account::codec::read_texts,
+    account::codec::reader, account::codec::require, account::limits::MAX_ITEMS,
+    account::limits::MAX_TEXT_BYTES, account::node::TransportProtocol,
+    account::realm::PolicySubject,
+};
 use nsshared_identity::realm::RealmId;
 
-use crate::{
-    account::AccountError, account::MAX_BYTES, account::SCHEMA, account::bounded,
-    account::node::TransportProtocol, account::reader, account::realm::PolicySubject,
-    account::require,
-};
-use crate::{account::realm::subject::MAX_POLICY_ITEMS, account::realm::subject::ordered_text};
-use nsshared_codec::{cbor::CborReader, cbor::CborWriter};
+use nsshared_codec::cbor::CborWriter;
 
 use std::collections::BTreeSet;
 
@@ -63,7 +64,7 @@ pub struct SubjectPolicy {
 }
 
 fn subject_set(values: &[PolicySubject], realm: RealmId) -> Result<Vec<Vec<u8>>, AccountError> {
-    require(values.len() <= MAX_POLICY_ITEMS)?;
+    require(values.len() <= MAX_ITEMS)?;
     let bytes = values
         .iter()
         .map(|subject| {
@@ -72,7 +73,7 @@ fn subject_set(values: &[PolicySubject], realm: RealmId) -> Result<Vec<Vec<u8>>,
             subject.canonical()
         })
         .collect::<Result<Vec<_>, _>>()?;
-    require(bytes.windows(2).all(|p| p[0] < p[1]))?;
+    require(ascending(&bytes))?;
     Ok(bytes)
 }
 
@@ -82,7 +83,7 @@ impl SubjectPolicy {
     /// # Errors
     /// Rejects cross-realm, missing groups, duplicate or unordered sets and bounds.
     pub fn canonical(&self) -> Result<Vec<u8>, AccountError> {
-        require(self.rules.len() <= MAX_POLICY_ITEMS && self.groups.len() <= MAX_POLICY_ITEMS)?;
+        require(self.rules.len() <= MAX_ITEMS && self.groups.len() <= MAX_ITEMS)?;
         let mut group_keys = BTreeSet::new();
         let mut previous = None;
         for group in &self.groups {
@@ -100,9 +101,9 @@ impl SubjectPolicy {
             .bytes(self.realm.as_bytes())
             .array(self.rules.len());
         for rule in &self.rules {
-            require(!rule.subjects.is_empty() && rule.subjects.len() <= MAX_POLICY_ITEMS)?;
+            require(!rule.subjects.is_empty() && rule.subjects.len() <= MAX_ITEMS)?;
             require(!rule.destinations.is_empty())?;
-            ordered_text(&rule.destinations)?;
+            ordered_tokens(&rule.destinations)?;
             out.array(3).array(rule.subjects.len());
             let mut previous = None;
             for subject in &rule.subjects {
@@ -153,11 +154,11 @@ impl SubjectPolicy {
     pub fn decode(bytes: &[u8]) -> Result<Self, AccountError> {
         let mut input = reader(bytes, 4)?;
         let realm = RealmId::from_bytes(input.fixed_bytes()?);
-        let count = input.array_up_to(MAX_POLICY_ITEMS)?;
+        let count = input.array_up_to(MAX_ITEMS)?;
         let mut rules = Vec::with_capacity(count);
         for _ in 0..count {
             input.array(3)?;
-            let count = input.array_up_to(MAX_POLICY_ITEMS)?;
+            let count = input.array_up_to(MAX_ITEMS)?;
             let mut subjects = Vec::with_capacity(count);
             for _ in 0..count {
                 subjects.push(if input.take_null() {
@@ -171,7 +172,7 @@ impl SubjectPolicy {
                     }
                 });
             }
-            let destinations = read_texts(&mut input)?;
+            let destinations = read_texts(&mut input, MAX_TEXT_BYTES)?;
             let protocol = if input.take_null() {
                 None
             } else {
@@ -187,12 +188,12 @@ impl SubjectPolicy {
                 protocol,
             });
         }
-        let count = input.array_up_to(MAX_POLICY_ITEMS)?;
+        let count = input.array_up_to(MAX_ITEMS)?;
         let mut groups = Vec::with_capacity(count);
         for _ in 0..count {
             input.array(2)?;
             let group = PolicySubject::decode(input.bytes_up_to(MAX_BYTES)?)?;
-            let count = input.array_up_to(MAX_POLICY_ITEMS)?;
+            let count = input.array_up_to(MAX_ITEMS)?;
             let mut members = Vec::with_capacity(count);
             for _ in 0..count {
                 members.push(PolicySubject::decode(input.bytes_up_to(MAX_BYTES)?)?);
@@ -208,17 +209,4 @@ impl SubjectPolicy {
         value.canonical()?;
         Ok(value)
     }
-}
-
-pub(in crate::account) fn read_texts(
-    input: &mut CborReader<'_>,
-) -> Result<Vec<String>, AccountError> {
-    let count = input.array_up_to(MAX_POLICY_ITEMS)?;
-    (0..count)
-        .map(|_| {
-            Ok(input
-                .text_up_to(crate::account::realm::subject::MAX_POLICY_TEXT)?
-                .to_owned())
-        })
-        .collect()
 }

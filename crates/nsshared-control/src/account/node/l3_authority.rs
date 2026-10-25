@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use crate::{
     account::AccountError, account::MAX_BYTES, account::MAX_IDENTITIES, account::SCHEMA,
-    account::identity, account::node::NodeL3,
+    account::codec::identity, account::node::NodeL3,
 };
 use nsshared_codec::{cbor::CborError, cbor::CborReader, cbor::CborWriter};
 use nsshared_identity::keys::IdentityKey;

@@ -1,17 +1,18 @@
 //! Generation-qualified references and public authentication bindings.
 
+use crate::{
+    account::AccountError, account::MAX_BYTES, account::codec::ascending, account::codec::bounded,
+    account::codec::issuer_url, account::codec::ordered_tokens, account::codec::reader,
+    account::codec::realm, account::codec::require, account::codec::token,
+    account::limits::MAX_ITEMS, account::limits::MAX_TEXT_BYTES, account::realm::JwtSubjectBinding,
+    account::realm::SubjectBinding,
+};
 use nsshared_identity::realm::RealmId;
 
-use crate::{
-    account::AccountError, account::MAX_BYTES, account::bounded, account::reader,
-    account::realm::JwtSubjectBinding, account::realm::SubjectBinding, account::require,
-    account::scope_text,
-};
-use crate::{account::realm::subject::ordered_text, account::realm::subject::text};
 use nsshared_codec::{cbor::CborReader, cbor::CborWriter};
 
 /// Maximum entries in each public-edge collection.
-pub const MAX_EDGE_ITEMS: usize = 256;
+pub const MAX_EDGE_ITEMS: usize = MAX_ITEMS;
 
 /// Material category, independent of confidential material bytes.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -38,7 +39,7 @@ pub struct EdgeMaterialRef {
 
 impl EdgeMaterialRef {
     pub(in crate::account) fn validate(&self) -> Result<(), AccountError> {
-        text(&self.reference)?;
+        token(&self.reference)?;
         require(self.generation > 0)
     }
 
@@ -61,7 +62,7 @@ impl EdgeMaterialRef {
         };
         let value = Self {
             kind,
-            reference: input.text_up_to(256)?.to_owned(),
+            reference: input.text_up_to(MAX_TEXT_BYTES)?.to_owned(),
             generation: input.uint()?,
         };
         value.validate()?;
@@ -118,38 +119,10 @@ pub struct EdgeAuth {
 }
 
 fn write_blobs(values: &[Vec<u8>], out: &mut CborWriter) -> Result<(), AccountError> {
-    require(values.len() <= MAX_EDGE_ITEMS && values.windows(2).all(|p| p[0] < p[1]))?;
+    require(values.len() <= MAX_EDGE_ITEMS && ascending(values))?;
     out.array(values.len());
     for value in values {
         out.bytes(value);
-    }
-    Ok(())
-}
-
-pub(in crate::account) fn issuer_url(value: &str) -> Result<(), AccountError> {
-    use std::net::Ipv6Addr;
-    require(!value.contains(['@', '?', '#', '\\']))?;
-    let rest = value.strip_prefix("https://").ok_or(AccountError::Field)?;
-    let authority = rest.split('/').next().ok_or(AccountError::Field)?;
-    let port = if let Some(rest) = authority.strip_prefix('[') {
-        let (host, suffix) = rest.split_once(']').ok_or(AccountError::Field)?;
-        let address: Ipv6Addr = host.parse().map_err(|_| AccountError::Field)?;
-        require(address.to_string() == host)?;
-        if suffix.is_empty() {
-            None
-        } else {
-            Some(suffix.strip_prefix(':').ok_or(AccountError::Field)?)
-        }
-    } else {
-        let (host, port) = authority
-            .split_once(':')
-            .map_or((authority, None), |(host, port)| (host, Some(port)));
-        crate::account::edge::routing::hostname(host)?;
-        port
-    };
-    if let Some(port) = port {
-        let number: u16 = port.parse().map_err(|_| AccountError::Field)?;
-        require(number > 0 && number.to_string() == port)?;
     }
     Ok(())
 }
@@ -201,10 +174,10 @@ impl EdgeAuth {
         write_blobs(&bindings, &mut out)?;
         out.array(self.authorities.len());
         for authority in &self.authorities {
-            text(&authority.reference)?;
-            text(&authority.issuer)?;
+            token(&authority.reference)?;
+            token(&authority.issuer)?;
             issuer_url(&authority.issuer)?;
-            ordered_text(&authority.audiences)?;
+            ordered_tokens(&authority.audiences)?;
             require(!authority.audiences.is_empty())?;
             require(
                 authority.key_material.kind == EdgeMaterialKind::Auth
@@ -242,11 +215,11 @@ impl EdgeAuth {
         let mut authorities = Vec::with_capacity(count);
         for _ in 0..count {
             input.array(4)?;
-            let reference = input.text_up_to(256)?.to_owned();
-            let issuer = input.text_up_to(256)?.to_owned();
+            let reference = input.text_up_to(MAX_TEXT_BYTES)?.to_owned();
+            let issuer = input.text_up_to(MAX_TEXT_BYTES)?.to_owned();
             let count = input.array_up_to(MAX_EDGE_ITEMS)?;
             let audiences = (0..count)
-                .map(|_| Ok(input.text_up_to(256)?.to_owned()))
+                .map(|_| Ok(input.text_up_to(MAX_TEXT_BYTES)?.to_owned()))
                 .collect::<Result<_, AccountError>>()?;
             authorities.push(EdgeJwtAuthority {
                 reference,
@@ -294,7 +267,7 @@ impl EdgeMaterialAck {
     /// # Errors
     /// Rejects invalid scopes, material references and bounds.
     pub fn canonical(&self) -> Result<Vec<u8>, AccountError> {
-        scope_text(&self.scope)?;
+        token(&self.scope)?;
         let mut out = CborWriter::default();
         out.array(7)
             .uint(1)
@@ -314,8 +287,8 @@ impl EdgeMaterialAck {
     pub fn decode(bytes: &[u8]) -> Result<Self, AccountError> {
         let mut input = reader(bytes, 7)?;
         let request_id = input.fixed_bytes()?;
-        let served_realm = input.text_up_to(26)?.parse()?;
-        let scope = input.text_up_to(256)?.to_owned();
+        let served_realm = realm(&mut input)?;
+        let scope = input.text_up_to(MAX_TEXT_BYTES)?.to_owned();
         let realm = RealmId::from_bytes(input.fixed_bytes()?);
         let material = EdgeMaterialRef::read(&mut input)?;
         let installed = match input.uint()? {
