@@ -9,12 +9,11 @@ mod support;
 use ed25519_dalek::SigningKey;
 use futures_util::StreamExt;
 use nsshared_mock_rendezvous::Limits;
-use nsshared_proto::rendezvous::{
-    auth::Hello,
-    error::ErrorCode,
-    limits::{MAX_UNACKED_MESSAGES, MAX_WAIT_MS},
-    message::{Admission, Digits, Kind, MailboxId, OpenRequest, RecvRequest},
-    transport::{MAX_MESSAGE_BYTES, PATH, Request, Response, encode_request},
+use nsshared_rendezvous::{
+    auth::Hello, error::ErrorCode, limits::MAX_UNACKED_MESSAGES, limits::MAX_WAIT_MS,
+    message::Admission, message::Digits, message::Kind, message::MailboxId, message::OpenRequest,
+    message::RecvRequest, transport::MAX_MESSAGE_BYTES, transport::PATH, transport::Request,
+    transport::Response, transport::encode_request,
 };
 use support::{Client, Mock, key, relaxed_limits};
 use tokio_tungstenite::tungstenite::{Message, http::StatusCode};

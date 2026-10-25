@@ -18,7 +18,8 @@ path = "src/main.rs"
 [dependencies]
 futures-util.workspace = true
 getrandom.workspace = true
-nsshared-proto.workspace = true
+nsshared-identity.workspace = true
+nsshared-rendezvous.workspace = true
 rand_core.workspace = true
 rcgen.workspace = true
 rustls.workspace = true
@@ -30,7 +31,7 @@ tokio-tungstenite.workspace = true
 
 [dev-dependencies]
 ed25519-dalek.workspace = true
-tokio-tungstenite = { workspace = true, features = ["connect", "rustls-tls-webpki-roots"] }
+tokio-tungstenite = { workspace = true, features = ["connect", "__rustls-tls"] }
 
 [lints]
 workspace = true

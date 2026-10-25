@@ -3,32 +3,36 @@
 
 //! NS shared protocols (docs ns/quick-v2.md, ns/rendezvous.md).
 //!
-//! | Module | Contents |
-//! | --- | --- |
-//! | [`keys`] | Typed identity and WireGuard keys: generation, canonical encodings, derivations |
-//! | [`identity`] | Raw identities, node ID, address group, `node6` / `node4`, address conflicts |
-//! | [`record`] | `NodeRecord`, its signature and the §3.3 ordering / conflict rules |
-//! | [`relay`] | Relay identifiers and relay packets v2; budget defaults in [`relay::budget`] |
-//! | [`discovery`] | Public DNS discovery of records: TXT encoding and answer checks |
-//! | [`rendezvous`] | The `/rendezvous/v1` messages: transport, capabilities, `hello`, directory, mailbox, registry |
-//! | [`encoding`] | Strict base64url / base64 and canonical CBOR |
-//! | [`constants`] | Protocol constants, derivation labels and signature contexts |
+//! Deprecated facade: every module keeps its 0.6 path and re-exports the crate that now
+//! defines it. New code depends on the defining crate; this facade is removed in a later
+//! major release.
+//!
+//! | Module | Contents | Defined in |
+//! | --- | --- | --- |
+//! | [`keys`] | Typed identity and WireGuard keys: generation, canonical encodings, derivations | `nsshared_identity::keys` |
+//! | [`identity`] | Raw identities, node ID, address group, `node6` / `node4`, address conflicts | `nsshared_identity::identity` |
+//! | [`node_control`] | Node-control v2 messages, ACK hashes and endpoint selection | `nsshared_control::node_control` |
+//! | [`record`] | `NodeRecord`, its signature and the §3.3 ordering / conflict rules | `nsshared_identity::record` |
+//! | [`relay`] | Relay identifiers and relay packets v2; budget defaults in [`relay::budget`] | `nsshared_relay`, `nsshared_identity::relay_id` |
+//! | [`discovery`] | Public DNS discovery of records: TXT encoding and answer checks | `nsshared_identity::discovery` |
+//! | [`rendezvous`] | The `/rendezvous/v1` messages: transport, capabilities, `hello`, directory, mailbox, registry | `nsshared_rendezvous` |
+//! | [`encoding`] | Strict base64url / base64 and canonical CBOR | `nsshared_codec` |
+//! | [`constants`] | Protocol constants, derivation labels and signature contexts | `constants` of `nsshared_identity`, `nsshared_relay`, `nsshared_rendezvous` |
 //!
 //! The most used types are also re-exported at the crate root. Pure: no I/O, async
-//! runtime or TLS; callers pass time, randomness and keys.
+//! runtime or TLS; callers pass time, randomness and keys. The account contracts are not
+//! re-exported here; they are the candidate `nsshared_control::account`, behind the
+//! `unstable-account` feature of `nsshared-control`.
 
-mod codec;
 pub mod constants;
-pub mod discovery;
 pub mod encoding;
-mod identifier;
-pub mod identity;
-pub mod keys;
-pub mod record;
 pub mod relay;
-pub mod rendezvous;
 
 pub use identity::NodeId;
 pub use keys::{IdentityKey, IdentitySecret, WgSessionKey, WgSessionSecret};
+pub use nsshared_control::node_control;
+pub use nsshared_identity::realm::{RealmId, RealmIdError};
+pub use nsshared_identity::{discovery, identity, keys, record};
+pub use nsshared_rendezvous as rendezvous;
 pub use record::NodeRecord;
 pub use relay::RelayId;

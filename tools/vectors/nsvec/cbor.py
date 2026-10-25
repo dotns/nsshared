@@ -1,11 +1,15 @@
-"""Deterministic CBOR for the quick-v2 §12.1 subset (RFC 8949 §4.2.1).
+"""Deterministic CBOR (RFC 8949 §4.2.1) in the two profiles of nsshared-codec.
 
-Supported items: unsigned integers (shortest form), byte strings, UTF-8 text strings,
-definite-length arrays, booleans
-and null. No floats, tags, maps, negative integers or indefinite lengths. The decoder accepts only the canonical encoding of this subset.
+NS array profile (quick-v2 §12.1), `encode` and `decode`: unsigned integers (shortest
+form), byte strings, UTF-8 text strings, definite-length arrays, booleans and null. No
+floats, tags, maps, negative integers or indefinite lengths. The decoder accepts only the
+canonical encoding of this subset.
+
+M6 value profile, `encode_value`: the same items plus maps with text keys ordered by
+encoded length, then bytewise.
 """
 
-UINT, BYTES, TEXT, ARRAY = 0, 2, 3, 4
+UINT, BYTES, TEXT, ARRAY, MAP = 0, 2, 3, 4, 5
 FALSE, TRUE, NULL = 0xF4, 0xF5, 0xF6
 U64_MAX = 2**64 - 1
 
@@ -43,6 +47,17 @@ def encode(item):
     if isinstance(item, list):
         return head(ARRAY, len(item)) + b"".join(encode(x) for x in item)
     raise TypeError(f"{type(item).__name__} is outside the quick-v2 §12.1 subset")
+
+
+def encode_value(item):
+    """Encodes `item` in the M6 value profile: `dict` values become canonical maps."""
+    if isinstance(item, dict):
+        entries = sorted(((encode_value(k), encode_value(v)) for k, v in item.items()),
+                         key=lambda entry: (len(entry[0]), entry[0]))
+        return head(MAP, len(entries)) + b"".join(k + v for k, v in entries)
+    if isinstance(item, list):
+        return head(ARRAY, len(item)) + b"".join(encode_value(x) for x in item)
+    return encode(item)
 
 
 class CborError(ValueError):

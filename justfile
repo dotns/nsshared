@@ -3,12 +3,24 @@
 
 set dotenv-load := false
 
+# The candidate account contracts build only with this feature; qa covers both sets.
+account := "--features nsshared-control/unstable-account"
+
 # Show available recipes
 default:
     @just --list
 
 # Fast static checks for daily development (fmt + clippy)
 dev-check: fmt-check lint
+
+# Compare against a git ref (default main); global inputs select full QA.
+# Scoped checks retain every static check, including vectors and semver.
+self-check base="main":
+    python3 -B scripts/self_check.py {{quote(base)}}
+
+# Script tests; selection tests use temporary Git repositories and Cargo workspaces.
+self-check-tests:
+    python3 -B -m unittest discover -s scripts/tests -p 'test_*.py' -v
 
 # Full quality gate
 qa: qa-checks qa-tests
@@ -17,10 +29,11 @@ qa: qa-checks qa-tests
 qa-checks: fmt-check lint deny shear typos vectors-check semver
 
 # Tests: nextest plus the doctests nextest does not run
-qa-tests: test doc
+qa-tests: self-check-tests test doc
 
 check:
     cargo check --workspace --all-targets --locked
+    cargo check --workspace --all-targets --locked {{account}}
 
 fmt:
     cargo fmt --all
@@ -31,13 +44,17 @@ fmt-check:
 # The deny-warnings policy lives in [workspace.lints]
 lint:
     cargo clippy --workspace --all-targets --locked
+    cargo clippy --workspace --all-targets --locked {{account}}
 
 test:
     cargo nextest run --workspace --locked
+    cargo nextest run --workspace --locked {{account}}
 
 doc:
     cargo test --workspace --doc --locked
+    cargo test --workspace --doc --locked {{account}}
     RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
+    RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked {{account}}
 
 deny:
     cargo deny --locked check
@@ -51,15 +68,21 @@ typos:
 # Regenerate the spec-derived test vector fixtures
 vectors:
     python3 tools/vectors/generate.py
-    python3 crates/nsshared-service-control/vectors/generate.py
 
 # Check that the committed test vector fixtures match the generator
 vectors-check:
     python3 tools/vectors/generate.py --check
-    python3 crates/nsshared-service-control/vectors/generate.py --check
+
+# Check that the account migration map matches the code at its base and at HEAD
+# (nsshared-control built with unstable-account)
+account-migration-check:
+    python3 -B scripts/account_migration.py check
 
 # Check the public API of the library crates against the previous release tag.
 # In 0.x a minor version bump may break the API; any other bump must not.
+# Facades re-export other workspace crates, which cargo-semver-checks does not
+# follow; scripts/api_surface.py checks them. Crates absent at the tag are skipped.
+# Default features only: the unstable-account candidate is outside semver.
 semver:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -68,4 +91,14 @@ semver:
         echo "semver: no release tag before HEAD; skipped"
         exit 0
     fi
-    cargo semver-checks --package nsshared-proto --package nsshared-telemetry --baseline-rev "$baseline"
+    facades=" nsshared-proto nsshared-service-control "
+    for manifest in crates/*/Cargo.toml; do
+        package="$(basename "$(dirname "$manifest")")"
+        if [[ "$facades" == *" $package "* ]]; then
+            python3 -B scripts/api_surface.py check "$package" --baseline "$baseline"
+        elif git cat-file -e "$baseline:$manifest" 2>/dev/null; then
+            cargo semver-checks --package "$package" --baseline-rev "$baseline" --default-features
+        else
+            echo "semver: $package has no release at $baseline; skipped"
+        fi
+    done

@@ -18,7 +18,7 @@ It serves, over TLS WebSocket:
 It is one instance: no region, owner epochs, forwarding or replication (region
 frames 10-12 are not served), and its registry domain is its own single entry,
 so every node ID is in its shard. Encodings, validation, phase rules, proofs
-and record acceptance all come from `nsshared_proto::rendezvous`; the mock adds only
+and record acceptance all come from `nsshared_rendezvous`; the mock adds only
 storage, randomness, clocks, rate limits and I/O. State is in memory and lost
 on exit.
 

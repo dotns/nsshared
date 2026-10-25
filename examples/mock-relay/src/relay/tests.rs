@@ -1,9 +1,7 @@
 use super::*;
 use crate::testing::{NodeSession, TestNode, TestRng, data_packet};
-use nsshared_proto::{
-    RelayId, record::NodeRecordFields, relay::ObservedAddr, relay::RelayType, relay::RevokeReason,
-    relay::budget::RateLimit,
-};
+use nsshared_identity::{record::NodeRecordFields, relay_id::RelayId};
+use nsshared_relay::{ObservedAddr, RelayType, RevokeReason, budget::RateLimit};
 use std::{
     net::SocketAddr,
     time::{Duration, Instant},

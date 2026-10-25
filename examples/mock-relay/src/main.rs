@@ -2,8 +2,9 @@
 //! until Ctrl-C. Not a production relay.
 
 use clap::Parser;
+use nsshared_identity::relay_id::RelayId;
 use nsshared_mock_relay::{Limits, MockRelay, MockRelayConfig, TlsSource};
-use nsshared_proto::{RelayId, relay::budget::WSS_CONNECTIONS_PER_IP};
+use nsshared_relay::budget::WSS_CONNECTIONS_PER_IP;
 use std::{error::Error, net::SocketAddr, path::PathBuf, process::ExitCode};
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;

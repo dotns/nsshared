@@ -1,0 +1,72 @@
+{
+  "base": "1bc1d39ef51d3e60a88a01d67244afc68ebd795c",
+  "moves": {
+    "crates/nsshared-proto/tests/fixtures/vectors/identities.vec": "crates/nsshared-identity/tests/vectors/identity.vec",
+    "crates/nsshared-proto/tests/fixtures/vectors/node_records.vec": "crates/nsshared-identity/tests/vectors/record.vec",
+    "crates/nsshared-proto/tests/fixtures/vectors/dns_txt.vec": "crates/nsshared-identity/tests/vectors/discovery.vec",
+    "crates/nsshared-proto/tests/fixtures/vectors/relay_packets.vec": "crates/nsshared-relay/tests/vectors/packet.vec",
+    "crates/nsshared-proto/tests/fixtures/vectors/hello.vec": "crates/nsshared-rendezvous/tests/vectors/hello.vec",
+    "crates/nsshared-proto/tests/fixtures/vectors/mailbox_json.vec": "crates/nsshared-rendezvous/tests/vectors/mailbox.vec",
+    "crates/nsshared-proto/tests/fixtures/vectors/registry.vec": "crates/nsshared-rendezvous/tests/vectors/registry.vec",
+    "crates/nsshared-proto/tests/fixtures/vectors/registry_state.vec": "crates/nsshared-rendezvous/tests/vectors/registry-state.vec",
+    "crates/nsshared-proto/tests/fixtures/vectors/node_control.vec": "crates/nsshared-control/tests/vectors/node_control/messages.vec",
+    "crates/nsshared-proto/tests/fixtures/vectors/control-exchange.vec": "crates/nsshared-control/tests/vectors/account/control/exchange.vec",
+    "crates/nsshared-proto/tests/fixtures/vectors/control-reports.vec": "crates/nsshared-control/tests/vectors/account/control/reports.vec",
+    "crates/nsshared-proto/tests/fixtures/vectors/service-control-carrier.vec": "crates/nsshared-control/tests/vectors/account/control/service-control.vec",
+    "crates/nsshared-proto/tests/fixtures/vectors/node-l3-status.vec": "crates/nsshared-control/tests/vectors/account/control/node-l3-status.vec",
+    "crates/nsshared-proto/tests/fixtures/vectors/node-l3-route-admission.vec": "crates/nsshared-control/tests/vectors/account/control/node-l3-route-admission.vec",
+    "crates/nsshared-proto/tests/fixtures/vectors/publication-delivery.vec": "crates/nsshared-control/tests/vectors/account/publication/delivery.vec",
+    "crates/nsshared-proto/tests/fixtures/vectors/publication-subscription.vec": "crates/nsshared-control/tests/vectors/account/publication/subscription.vec",
+    "crates/nsshared-proto/tests/fixtures/vectors/publication-snapshot-request.vec": "crates/nsshared-control/tests/vectors/account/publication/snapshot-request.vec",
+    "crates/nsshared-proto/tests/fixtures/vectors/snapshot-pending-boundaries.vec": "crates/nsshared-control/tests/vectors/account/publication/snapshot-pending-boundaries.vec",
+    "crates/nsshared-proto/tests/fixtures/vectors/source-selection.vec": "crates/nsshared-control/tests/vectors/account/publication/source-selection.vec",
+    "crates/nsshared-proto/tests/fixtures/vectors/realm-publication.vec": "crates/nsshared-control/tests/vectors/account/realm/peers.vec",
+    "crates/nsshared-proto/tests/fixtures/vectors/realm-identity-membership.vec": "crates/nsshared-control/tests/vectors/account/realm/membership.vec",
+    "crates/nsshared-proto/tests/fixtures/vectors/policy-claims.vec": "crates/nsshared-control/tests/vectors/account/realm/claims.vec",
+    "crates/nsshared-proto/tests/fixtures/vectors/grant-authority.vec": "crates/nsshared-control/tests/vectors/account/grants/grant-authority.vec",
+    "crates/nsshared-proto/tests/fixtures/vectors/subnet-publication-views.vec": "crates/nsshared-control/tests/vectors/account/subnet/views.vec",
+    "crates/nsshared-proto/tests/fixtures/vectors/provider-mapping.vec": "crates/nsshared-control/tests/vectors/account/subnet/mapping.vec",
+    "crates/nsshared-proto/tests/fixtures/vectors/provider-mapping-actions.vec": "crates/nsshared-control/tests/vectors/account/subnet/mapping-actions.vec",
+    "crates/nsshared-proto/tests/fixtures/vectors/provider-subnet-report.vec": "crates/nsshared-control/tests/vectors/account/subnet/report.vec",
+    "crates/nsshared-proto/tests/fixtures/vectors/public-edge.vec": "crates/nsshared-control/tests/vectors/account/edge/routing.vec",
+    "crates/nsshared-proto/tests/fixtures/vectors/anonymous-public-edge.vec": "crates/nsshared-control/tests/vectors/account/edge/anonymous.vec",
+    "crates/nsshared-proto/tests/fixtures/vectors/confidential-auth.vec": "crates/nsshared-control/tests/vectors/account/edge/auth.vec",
+    "crates/nsshared-proto/tests/fixtures/vectors/confidential-material.vec": "crates/nsshared-control/tests/vectors/account/edge/material-request.vec",
+    "crates/nsshared-proto/tests/fixtures/vectors/floor-text.vec": "crates/nsshared-control/tests/vectors/account/edge/floor-text.vec",
+    "crates/nsshared-proto/tests/fixtures/vectors/participant-authority.vec": "crates/nsshared-control/tests/vectors/account/relay/session.vec",
+    "crates/nsshared-proto/tests/fixtures/vectors/usage.vec": "crates/nsshared-control/tests/vectors/account/usage/reports.vec",
+    "crates/nsshared-proto/tests/fixtures/vectors/profile-publications.vec": "crates/nsshared-control/tests/vectors/account/usage/catalog.vec",
+    "crates/nsshared-proto/tests/fixtures/vectors/account.vec": [
+      "crates/nsshared-control/tests/vectors/account/profile.vec",
+      "crates/nsshared-control/tests/vectors/account/control/envelope.vec",
+      "crates/nsshared-control/tests/vectors/account/node/enrollment.vec",
+      "crates/nsshared-control/tests/vectors/account/relay/participant-roster.vec",
+      "crates/nsshared-control/tests/vectors/account/subnet/selection.vec",
+      "crates/nsshared-control/tests/vectors/account/publication/envelope.vec"
+    ],
+    "crates/nsshared-service-control/vectors/service-control-v1.json": "crates/nsshared-control/tests/vectors/service/canonical.json"
+  },
+  "added": {
+    "crates/nsshared-control/tests/vectors/account/publication/envelope.vec": [
+      "publication-control-scope",
+      "publication-whitespace-scope"
+    ],
+    "crates/nsshared-control/tests/vectors/account/control/exchange.vec": [
+      "authentication-whitespace-scope"
+    ],
+    "crates/nsshared-control/tests/vectors/account/publication/snapshot-request.vec": [
+      "whitespace-scope"
+    ],
+    "crates/nsshared-control/tests/vectors/account/publication/subscription.vec": [
+      "scope-whitespace"
+    ],
+    "crates/nsshared-control/tests/vectors/account/publication/source-selection.vec": [
+      "control-scope",
+      "whitespace-scope"
+    ],
+    "crates/nsshared-control/tests/vectors/service/canonical.json": [
+      "declared_length_cbor",
+      "declared_length_error"
+    ]
+  }
+}

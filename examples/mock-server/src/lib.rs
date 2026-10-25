@@ -13,12 +13,12 @@
 //! router and the lifecycle. The served directory lists the mock itself announcing
 //! `mailbox`, `registry`, `udp` and `wss` (rendezvous §3.1, §5.4).
 
+use nsshared_identity::relay_id::RelayId;
 use nsshared_mock_relay::{MockRelay, MockRelayConfig, accept_relay_request};
 use nsshared_mock_rendezvous::{
     Config, RendezvousServer, ServerError, accept_quick_request, server::HANDSHAKE_TIMEOUT,
 };
-use nsshared_proto::RelayId;
-use nsshared_proto::rendezvous::{capability, transport::PATH};
+use nsshared_rendezvous::{capability, transport::PATH};
 use std::{io, net::SocketAddr, sync::Arc, time::Duration};
 use thiserror::Error;
 use tokio::{

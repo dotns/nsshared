@@ -1,0 +1,21 @@
+{
+  "contract_revision": "019bb7250549f1040a813c599a2ac1b09bd620f3",
+  "input": {
+    "local_seed": 1,
+    "peer_seed": 2
+  },
+  "producer_command": "cargo run --offline --quiet --manifest-path Cargo.toml --bin control-vectors",
+  "source_commit": "50f8e3fd95fac8bbc72aea9b132459103c3b206a",
+  "source_path": "crates/overlay/src/control/codec.rs",
+  "vectors": {
+    "ack": "83020082025003030303030303030303030303030303",
+    "ack_endpoints": "830200820150aa811f60ed1f4e3adbef1b76e965a462",
+    "ack_record": "830200820250e3d4833bfed67ec7a47a4dad8c5e9ecf",
+    "endpoints": "8302018307828344c000020119ca6c00835020010db800000000000000000000000119119401817172656c61792e6578616d706c653a343433",
+    "known_ack": "83020082025000000000000000000000000000000000",
+    "known_probe_reply": "830204815820aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "probe_reply": "830204815820aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "probe_request": "830203815820aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "record": "83020281880258208139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b39458200909090909090909090909090909090909090909090909090909090909090909010a14817172656c61792e6578616d706c653a343433584060897d1274deccf7daaf0f51ca65f06a34d47a226d0e1811ac4323a0ce0ac0e3e3bb20cdae16fd9dd9f06e4941f69495b725e70249f325b3f45200808fdd4205"
+  }
+}

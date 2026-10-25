@@ -1,6 +1,6 @@
 [package]
 name = "nsshared-proto"
-description = "NS shared protocols: identities and keys, node records, relay packets v2 and the /rendezvous/v1 messages"
+description = "Deprecated facade: the NS shared protocol modules at their 0.6 paths, re-exported from nsshared-identity, nsshared-relay, nsshared-rendezvous, nsshared-control and nsshared-codec"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,21 +9,11 @@ authors.workspace = true
 publish.workspace = true
 
 [dependencies]
-base64.workspace = true
-blake2.workspace = true
-ed25519-dalek.workspace = true
-getrandom.workspace = true
-hmac.workspace = true
-serde.workspace = true
-serde_json = { workspace = true, features = ["raw_value"] }
-sha2.workspace = true
-thiserror.workspace = true
-x25519-dalek.workspace = true
-zeroize.workspace = true
-
-[dev-dependencies]
-hkdf.workspace = true
-proptest.workspace = true
+nsshared-codec.workspace = true
+nsshared-control.workspace = true
+nsshared-identity.workspace = true
+nsshared-relay.workspace = true
+nsshared-rendezvous.workspace = true
 
 [lints]
 workspace = true

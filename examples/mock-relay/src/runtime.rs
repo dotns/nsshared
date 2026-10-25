@@ -18,10 +18,10 @@ pub use wss::{accept_relay_request, relay_websocket_config};
 
 use crate::{ConfigError, Counters, Limits, Now, Peer, Relay, RelayConfig, SessionInfo, Transmit};
 use getrandom::SysRng;
-use nsshared_proto::rendezvous::capability::{self, Capabilities, Capability, CapabilityError};
-use nsshared_proto::{
-    RelayId, constants::DEFAULT_PRESENCE_TTL_SECONDS, relay::RelayIdError,
-    relay::budget::WSS_CONNECTIONS_PER_IP,
+use nsshared_identity::{relay_id::RelayId, relay_id::RelayIdError};
+use nsshared_relay::{budget::WSS_CONNECTIONS_PER_IP, constants::DEFAULT_PRESENCE_TTL_SECONDS};
+use nsshared_rendezvous::{
+    capability, capability::Capabilities, capability::Capability, capability::CapabilityError,
 };
 use rand_core::UnwrapErr;
 use std::{
@@ -137,6 +137,9 @@ pub enum Error {
     /// Both carriers are disabled.
     #[error("at least one of the UDP and WSS carriers must be enabled")]
     NoCarrier,
+    /// Owned UDP startup requires UDP only and no listen overrides.
+    #[error("owned UDP startup requires UDP only, no external WSS and default listen settings")]
+    OwnedUdpConfig,
     /// The core rejected the configuration.
     #[error(transparent)]
     Config(#[from] ConfigError),
@@ -208,6 +211,55 @@ impl MockRelay {
             Some(relay_id) => relay_id.clone(),
             None => default_relay_id(wss_addr.or(udp_addr).unwrap_or(config.listen))?,
         };
+        Self::from_sockets(config, udp_socket, tcp_listener, relay_id)
+    }
+
+    /// Starts UDP serving on exactly the caller's bound socket, without binding or retrying.
+    ///
+    /// The socket is owned until shutdown, and dropped if initialization fails. Unless
+    /// `relay_id` is supplied, the identity is `relay.example.test:<local port>`.
+    /// Set `udp` to true and `wss` and `external_wss` to false, leave `listen` at
+    /// its default value, and leave both carrier-specific listen addresses unset.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::OwnedUdpConfig`] for conflicting settings; otherwise [`enum@Error`]
+    /// for an invalid local address, relay identity or core configuration.
+    pub async fn start_with_udp_socket(
+        config: MockRelayConfig,
+        socket: UdpSocket,
+    ) -> Result<Self, Error> {
+        if !config.udp
+            || config.wss
+            || config.external_wss
+            || config.udp_listen.is_some()
+            || config.wss_listen.is_some()
+            || config.listen != MockRelayConfig::default().listen
+        {
+            return Err(Error::OwnedUdpConfig);
+        }
+        let address = socket.local_addr().map_err(|source| Error::Bind {
+            address: config.listen,
+            source,
+        })?;
+        let relay_id = match &config.relay_id {
+            Some(relay_id) => relay_id.clone(),
+            None => {
+                let text = format!("relay.example.test:{}", address.port());
+                RelayId::parse(&text).map_err(|source| Error::RelayId { text, source })?
+            }
+        };
+        Self::from_sockets(config, Some(socket), None, relay_id)
+    }
+
+    fn from_sockets(
+        config: MockRelayConfig,
+        udp_socket: Option<UdpSocket>,
+        tcp_listener: Option<TcpListener>,
+        relay_id: RelayId,
+    ) -> Result<Self, Error> {
+        let udp_addr = local_addr(udp_socket.as_ref().map(UdpSocket::local_addr))?;
+        let wss_addr = local_addr(tcp_listener.as_ref().map(TcpListener::local_addr))?;
         if let (Some(udp), Some(wss)) = (udp_addr, wss_addr)
             && udp.port() != wss.port()
         {

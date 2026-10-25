@@ -6,13 +6,15 @@ use crate::{
     inspect::{Counters, Reason, SessionInfo},
     peer::{Carrier, Now, Peer, Transmit},
 };
-use nsshared_proto::{
-    NodeId, NodeRecord, constants::NODE_ID_BYTES, constants::RELAY_HEADER_BYTES,
-    constants::RELAY_MAGIC, identity::Identity, record::RecordDecision, record::RecordMarks,
-    relay::Presence, relay::RELAY_SLOT, relay::Reflect, relay::Reflected, relay::RegisterCandidate,
-    relay::RegisterRejection, relay::Registered, relay::RelayBody, relay::RelayHeader,
-    relay::RelayPacket, relay::RelayPacketError, relay::SessionKey, relay::Status,
-    relay::StatusCode, relay::ephemeral_public, relay::is_handshake_initiation,
+use nsshared_identity::{
+    constants::NODE_ID_BYTES, identity::Identity, identity::NodeId, record::NodeRecord,
+    record::RecordDecision, record::RecordMarks,
+};
+use nsshared_relay::{
+    Presence, RELAY_SLOT, Reflect, Reflected, RegisterCandidate, RegisterRejection, Registered,
+    RelayBody, RelayHeader, RelayPacket, RelayPacketError, SessionKey, Status, StatusCode,
+    constants::RELAY_HEADER_BYTES, constants::RELAY_MAGIC, ephemeral_public,
+    is_handshake_initiation,
 };
 use rand_core::CryptoRng;
 use std::{collections::BTreeMap, time::Instant};

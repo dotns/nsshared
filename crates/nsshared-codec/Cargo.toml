@@ -1,0 +1,20 @@
+[package]
+name = "nsshared-codec"
+description = "NS shared encodings: canonical CBOR (NS array profile and M6 value profile) and strict base64"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+base64.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+base64.workspace = true
+proptest.workspace = true
+
+[lints]
+workspace = true

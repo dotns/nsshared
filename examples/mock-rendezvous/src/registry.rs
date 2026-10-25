@@ -4,7 +4,7 @@
 //! `BLAKE2s-96(I)`, plus the mock's own directory entry and the served [`Directory`].
 //! The publish proof, the responsibility check, record acceptance (quick-v2 §3.3),
 //! `lookup_node` answers, deletion and directory update rules all come from
-//! `nsshared_proto::rendezvous::registry` and `nsshared_proto::rendezvous::directory`; the store adds
+//! `nsshared_rendezvous::registry` and `nsshared_rendezvous::directory`; the store adds
 //! storage, the record cap (quick-v2 §7.4) and the sweep. The mock is a single instance:
 //! its registry domain is its own entry (quick-v2 §7.1), so it is responsible for every
 //! node ID.
@@ -17,13 +17,12 @@
 //! [`RegistryStore::publish`] runs both steps without a limiter.
 
 use crate::config::Limits;
-use nsshared_proto::NodeId;
-use nsshared_proto::rendezvous::{
-    capability::{self, Capabilities, Capability},
-    directory::{self, Directory, RelayEntry},
-    error::ErrorCode,
-    message::{LookupNodeRequest, PublishRequest, Published, RecordResult},
-    registry::{self, RegistryEntry, VerifiedPublish},
+use nsshared_identity::identity::NodeId;
+use nsshared_rendezvous::{
+    capability, capability::Capabilities, capability::Capability, directory, directory::Directory,
+    directory::RelayEntry, error::ErrorCode, message::LookupNodeRequest, message::PublishRequest,
+    message::Published, message::RecordResult, registry, registry::RegistryEntry,
+    registry::VerifiedPublish,
 };
 use std::{collections::HashMap, net::IpAddr};
 

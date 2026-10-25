@@ -1,0 +1,32 @@
+[package]
+name = "nsshared-relay"
+description = "NS shared relay packets v2: header and bodies, REGISTER, session key, MACs, DATA admission and budget defaults"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+ed25519-dalek.workspace = true
+hmac.workspace = true
+nsshared-codec.workspace = true
+nsshared-identity.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+x25519-dalek.workspace = true
+
+[dev-dependencies]
+ed25519-dalek.workspace = true
+hkdf.workspace = true
+hmac.workspace = true
+nsshared-codec.workspace = true
+nsshared-identity.workspace = true
+nsshared-testkit.workspace = true
+proptest.workspace = true
+sha2.workspace = true
+x25519-dalek.workspace = true
+
+[lints]
+workspace = true

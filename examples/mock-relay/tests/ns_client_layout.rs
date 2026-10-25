@@ -1,5 +1,5 @@
 //! The ns `RelayClient` byte layout against the mock. The client side is rebuilt here from
-//! `nsshared-proto` calls that mirror ns `crates/overlay/src/relay/{session,data}.rs` and
+//! `nsshared-relay` calls that mirror ns `crates/overlay/src/relay/{session,data}.rs` and
 //! `carrier/{udp,wss}.rs`, without depending on ns and without the `testing` helpers, so
 //! it checks the wire layout independently.
 #![allow(clippy::unwrap_used, clippy::panic, reason = "test fixture helpers")]
@@ -12,14 +12,13 @@ mod common;
 
 use common::{Link, start, stop, unix_now};
 use ed25519_dalek::SigningKey;
+use nsshared_identity::{identity::NodeId, record::NodeRecord, record::NodeRecordFields};
 use nsshared_mock_relay::MockRelay;
-use nsshared_proto::rendezvous::capability::{self, Capabilities, Capability};
-use nsshared_proto::{
-    NodeId, NodeRecord, constants::RELAY_HEADER_BYTES, constants::RELAY_MAGIC,
-    record::NodeRecordFields, relay::Presence, relay::RELAY_SLOT, relay::Register,
-    relay::RelayBody, relay::RelayPacket, relay::RelayType, relay::SessionKey,
-    relay::accept_relayed_data, relay::ephemeral_public,
+use nsshared_relay::{
+    Presence, RELAY_SLOT, Register, RelayBody, RelayPacket, RelayType, SessionKey,
+    accept_relayed_data, constants::RELAY_HEADER_BYTES, constants::RELAY_MAGIC, ephemeral_public,
 };
+use nsshared_rendezvous::{capability, capability::Capabilities, capability::Capability};
 use std::net::SocketAddr;
 
 /// A one-week record lifetime, like the ns session tests' default record.

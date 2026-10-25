@@ -1,3 +1,616 @@
+## 2026-10-25 [feat]
+
+Version 0.7.0 (unreleased; no tag). The workspace version moves from 0.6.0 to
+0.7.0: the facades are deprecated and the defining crates are new.
+
+- New crates: `nsshared-codec`, `nsshared-identity`, `nsshared-relay`,
+  `nsshared-rendezvous`, `nsshared-control` and the development-only
+  `nsshared-testkit`. `nsshared-proto` and `nsshared-service-control` are
+  deprecated facades that keep their 0.6 paths.
+- `nsshared_control::account` is a candidate contract behind the new
+  `unstable-account` feature of `nsshared-control` (default off). It is not
+  covered by semver and may change incompatibly before the gate is removed and a
+  release is made. `service`, `node_control` and both facades build and behave
+  the same without it; the dependencies only `account` needs (`base64`,
+  `ed25519-dalek`, `hmac`, `idna`, `serde`, `serde_json`) are optional.
+- `just qa` runs clippy, tests, doctests and documentation with and without the
+  feature, and the scoped self-check does too when `nsshared-control` is
+  affected. The account test binary requires the feature. `just semver` checks
+  default features only.
+- The account migration map, rewrite script and guide name the feature; the
+  rewrite script's dependency advice adds it.
+
+## 2026-10-25 [refactor]
+
+Split the shared crates and reorganize the account contracts without changing
+wire bytes.
+
+- New crates: `nsshared-codec` (one canonical CBOR implementation with the NS
+  array profile and the M6 value profile, strict base64), `nsshared-identity`,
+  `nsshared-relay`, `nsshared-rendezvous`, `nsshared-control` (M6 `service`,
+  `node_control`, `account`) and the development-only `nsshared-testkit`.
+- `nsshared-proto` and `nsshared-service-control` are deprecated facades that keep
+  their existing public paths; `nsshared-proto` no longer exports the unreleased
+  `account` module, now `nsshared_control::account`. The M6 `CborError` and
+  `ContractError` are non-exhaustive.
+- Account contracts are organized by layer (node, control, publication) and family
+  (realm, grants, subnet, edge, relay, usage) with one public path per item, shared
+  private codec, limits and signing helpers, all signature domains in
+  `account::domains` (bytes unchanged), consistent non-exhaustive error types and
+  renamed generic items (`validate_admission_snapshot`, `ServiceDirection`,
+  `USAGE_PART_DIGEST_DOMAIN`,
+  `FrameKind`, `RouteError`, `L3AuthorityError`).
+- Tests are one binary per crate area on the testkit; vectors live in
+  `crates/<crate>/tests/vectors/` named after their test modules and producers;
+  every base case is byte-identical (checked case by case against the base).
+- Account migration kit for consumers: `docs/review/account-migration.json` maps
+  every public `nsshared_proto::account` item and error variant of `1bc1d39e` to
+  its successor (generated from rustdoc, `just account-migration-check`),
+  `scripts/migrate-account-imports.py` rewrites a consumer's Rust imports and
+  paths from it, and `docs/review/account-migration.md` lists the manual steps.
+- Specifications are folded into `docs/spec/`; review, handoff, adoption and
+  inventory state moved to `docs/review/`.
+- `just semver` covers every library crate present at the release tag, checking
+  the facades with `scripts/api_surface.py`.
+
+The only behaviour change is the stricter scope text rule recorded below.
+
+## 2026-10-25 [fix]
+
+Apply one scope text rule to every opaque authority scope: 1 to 256 UTF-8 bytes
+without whitespace or control characters. Behaviour change: publication content
+now refuses control characters and whitespace in its scope (it checked only
+emptiness and length), and subscription, snapshot request, source binding and
+authentication source selection now refuse whitespace. Public-edge, material and
+confidential configuration scopes keep their existing rule. Refusal vectors were
+added to the publication, subscription, snapshot request, source selection and
+control exchange fixtures; no existing case changed.
+
+Bound M6 decoder reservations by the remaining input. Arrays and maps reserved
+their declared member count before reading any member; a short nested input
+could reserve megabytes. A regression vector covers nested unsatisfiable lengths.
+
+## 2026-10-25 [docs]
+
+Record review request delivery and the verified immutable package/consumer pair.
+Clarify registration-only zero incarnation placeholders, preserve independent
+grant and reporter custody, and add five canonical transition vectors without
+changing crate sources or codecs.
+
+Validation: immutable comparison matched 259 package inputs and four consumer
+manifest/lock pairs; self-check passed with 542 tests and zero skips. Review
+replies, producer adoption and live interoperability remain outstanding.
+
+## 2026-10-24 [feat]
+
+Add a separate provider-mappings Snapshot inventory with bounded canonical ids
+and Subnet prefixes, exact nodes-source and membership checks, and isolated
+replacement/withdrawal behavior. Validate typed inventory before exposing actions
+through single-event or whole-snapshot APIs; preserve existing report and route bytes.
+
+Validation: independent replacement and atomic mixed-snapshot vectors, unchanged
+regression assertions and self-check passed with 541 tests and zero skips.
+External producer and activation adoption remain outstanding.
+
+## 2026-10-24 [docs]
+
+Document the immutable shared candidate, delivered contracts and corrections,
+verified gateway package pins, external adoption gaps and drafting ownership.
+Add a read-only manifest/lock/source/vector comparison with temporary Git tests
+that reject drift. Preserve historical delivery separately from approval.
+
+Validation: all four selected consumer input pairs agree, 251 candidate inputs
+match, and self-check passed with 537 tests and zero skips. External producer
+review, interoperability, main publication and release remain outstanding.
+
+## 2026-10-23 [feat]
+
+Require canonical hostnames for HTTP routes and null names with empty aliases
+and domains for raw TCP/UDP routes. Preserve HTTP bytes, realm-qualified route
+identity, gateway-wide listener conflicts and backend endpoint uniqueness.
+Regenerate existing raw-route fixtures without a compatibility fallback.
+
+Validation: independent protocol/name and conflict vectors and self-check passed
+with 537 tests and zero skips. NSD producer adoption remains outstanding.
+
+## 2026-10-23 [fix]
+
+Update tokio from 1.53.2 to 1.54.1 to resolve RUSTSEC-2026-0386. Preserve
+existing manifests and advisory policy; only the package version and checksum
+change in the lockfile. No affected AsyncFd constructor calls were found.
+
+Validation: advisory checks and self-check passed with 536 tests and zero skips,
+including compatibility checks, doctests and documentation.
+
+## 2026-10-23 [fix]
+
+Correct anonymous public-edge matching fixtures so group labels deny under every
+selector, even when presented with a verified classification. Preserve matching
+for verified explicit group members and all serialized policy and subject bytes.
+
+Validation: all six group-label cases deny, the 42-case matching matrix passes,
+and self-check passed with 536 tests and zero skips. No codec or wire change.
+
+## 2026-10-23 [feat]
+
+Add an explicit Anonymous subject-rule selector while preserving verified-only
+null and qualified identity encodings. Document anonymous HTTP/TCP/UDP policy
+matching, default deny and continued enforcement of required Auth dependencies.
+Identity subjects and confidential authentication configuration remain unchanged.
+
+Validation: independent policy, matching and public-edge vectors and self-check
+passed with 535 tests and zero skips. External producer adoption and runtime
+matching remain consumer obligations.
+
+## 2026-10-23 [feat]
+
+Define publication stream event/query names and inclusive decoded, encoded and
+framed bounds. Require source-bound snapshot responses with exact pending
+scope/source and delivery context validation, rejecting plain or mixed entries
+atomically. Enforce the pending request's complete 8192-byte encoding ceiling.
+
+Validation: independent stream and snapshot vectors, unchanged request-boundary
+regressions and self-check passed with 532 tests and zero skips. NSD producer
+and Node adapter adoption remain outstanding.
+
+## 2026-10-23 [fix]
+
+Update ctutils from 0.4.2 to 0.4.4 to resolve RUSTSEC-2026-0385 without
+changing dependency requirements or advisory policy. Only the package version
+and checksum change in the lockfile.
+
+Validation: advisory checks passed; self-check passed with 527 tests and zero
+skips, including compatibility checks and documentation.
+
+## 2026-10-23 [feat]
+
+Add exact Node L3 application-status requests and receipts, signed-inner-event
+digests and retained source/context comparisons. Clarify that mapped Subnet
+routes use exact resource selection without provider-wide Node host permission.
+Existing policy, grant, Subnet and service-control bytes remain unchanged.
+
+Validation: independent route and status vectors and self-check passed with
+527 tests and zero skips. NSD issuance retention and Node runtime application
+and reporting adoption remain outstanding.
+
+## 2026-10-23 [docs]
+
+Clarify that the current gateway emits no EchoReplySend usage rows because the
+frozen packet runtime provides no per-packet successful-send receipt. Synthetic
+replies remain unbilled; queue admission is never completed sending. Preserve
+EchoProbeSend and all existing contracts, vectors and wire bytes.
+
+Validation: documentation assertions and self-check passed with 521 tests and
+zero skips. Runtime completion receipts and later billing qualification remain
+outstanding.
+
+## 2026-10-23 [feat]
+
+Declare `node_local_names.v1` through the existing enrollment capability set.
+Document identity-derived Node naming, retirement of four legacy registration
+values and consumer-owned atomic cutover without changing exchange tuples.
+
+Validation: independent registration and authenticated acceptance vectors,
+canonical capability refusals and self-check passed with 522 tests and zero skips.
+Producer adoption, consumer cutover and interoperability remain outstanding.
+
+## 2026-10-22 [feat]
+
+Add authenticated M6 unary and stream carrier contracts with exact pending
+request correlation, singleton lease results, reverse proposal comparisons and
+eight-field publication subscriptions. Bound sessions reject zero runtime and
+session request identifiers while preserving existing M6 message bytes.
+
+Validation: independent carrier and subscription vectors and original identifier
+regressions passed; self-check passed with 523 tests and zero skips. NSD adoption,
+durable session custody and runtime interoperability remain external obligations.
+
+## 2026-10-22 [feat]
+
+Add confidential certificate and client-CA acquisition contracts with exact
+pending-request echoes, typed kind/realm/generation refusals and redacted secret
+values. Preserve auth-only acquisition and installation-status ACK bytes.
+
+Validation: independent payload and signed-carrier vectors passed; self-check
+passed with 517 tests and zero skips. Producer adoption, current dependency
+checks and runtime installation remain external obligations.
+
+## 2026-10-22 [feat]
+
+Allow mock relay startup with a caller-owned UDP socket and assigned-port DNS
+identity. Preserve the original receive queue without rebinding or retries;
+reject conflicting settings and release the socket on failure and shutdown.
+Existing startup and command-line behavior remain unchanged.
+
+Validation: four real UDP ownership tests passed; the runtime suite passed all
+15 tests and self-check passed 515 tests with zero skips.
+
+## 2026-10-22 [feat]
+
+Separate provider Exit grants from client Subnet route snapshots by exact kind.
+Validate independent recipient and membership context and enforce nodes authority
+for Exit views while retaining egress contribution authority for Egress grants.
+Replacement and withdrawal remain isolated per complete publication key.
+
+Validation: independent multi-provider view and refusal vectors passed; self-check
+passed with 511 tests and zero skips. Existing grant and route bytes remain
+unchanged. NSD projection and client route adoption remain outstanding.
+
+## 2026-10-22 [feat]
+
+Add source-qualified ordinary provider Subnet route reports and correlated
+allocation responses. Validate committed mapping authority, complete generations
+and stable retained M6 references through withdrawal and reoffer. Refuse stale
+reports and delayed responses without restoring withdrawn offers.
+
+Validation: independent lifecycle and carrier vectors passed; self-check passed
+with 510 tests and zero skips. NSD ingestion/allocation/persistence and provider
+adoption remain outstanding; shared contracts add no runtime or I/O.
+
+## 2026-10-22 [feat]
+
+Add validated canonical content encoding, domain-separated signing input and
+inner publication event encoding with supplied signatures. Preserve wire bytes
+and consumer decisions; reject unknown ownership, invalid structural fields and
+full-event overflow while retaining partial content and opaque family payloads.
+
+Validation: independent byte/signature round trips and exact-size boundary checks
+passed; self-check passed with 504 tests and zero skips. NSD producer adoption
+and producer-owned interoperability vectors remain outstanding.
+
+## 2026-10-21 [feat]
+
+Add typed usage and Node-control catalogue publications with strict canonical
+payloads and independent reporter/membership comparisons. Refuse malformed
+replacement before advancing versions; preserve exact-key withdrawal and replay
+tombstones without changing existing usage or control message bytes.
+
+Validation: independent payload and source-bound replacement vectors passed;
+self-check passed with 503 tests and zero skips. Producer review, adoption and
+gateway persistence verification remain outstanding.
+
+## 2026-10-21 [feat]
+
+Require an explicit canonical realm and publication scope in authentication
+requests. Constrain registration source authority to nodes in the accepted
+Network, including Equal, and retain independent authority for each scope.
+Old request shapes and mismatched response scopes refuse.
+
+Validation: independent source-selection vectors and signature, correlation and
+UTF-8 boundary checks passed. Candidate self-check passed with 500 tests and zero
+skips; additional conformance checks passed with 502 tests and zero skips.
+NSD producer adoption and interoperability vectors remain outstanding.
+
+## 2026-10-21 [feat]
+
+Require signed source authority alongside successful registration results and
+authentication tokens. Verify nested authority against independent enrollment
+facts and exact pending request correlation; refuse old response shapes.
+
+Validation: independent response and source-selection vectors passed; candidate
+self-check passed with 500 tests and zero skips. Additional conformance checks
+passed with 501 tests and zero skips. NSD producer adoption and interoperability
+vectors remain outstanding.
+
+## 2026-10-21 [feat]
+
+Add shared participant enrollment and renewal frames with fresh connection proofs,
+exact request correlation and retained authorization deadlines. Add signed relay
+owner and realm bindings with withdrawal and durable version-floor replay refusal.
+Keep global directory and existing roster/report formats unchanged.
+
+Validation: independent credential/binding sequences and refusal checks passed;
+self-check passed with 496 tests and zero skips. Producer review and runtime
+adoption remain outstanding.
+
+## 2026-10-21 [feat]
+
+Qualify grant, payer and active-authority identities by TCP, UDP or Exit protocol.
+Permit equal or later expiry renewal only when all other owned content remains
+identical. Preserve token ownership, retirement history and exact payer joins.
+
+Validation: independent contract vectors and additional boundary checks passed;
+self-check passed with 498 tests and zero skips. Family 5/6 tuples change;
+producer adoption and independently owned interoperability vectors remain outstanding.
+
+## 2026-10-21 [feat]
+
+Add signed source bindings and exact delivery fences before publication decisions.
+Define Node route select/clear commands with immutable source-owned receipts and
+exact selection generations. Reject complete source snapshots on wrong-channel
+entries while preserving authenticated unknown snapshot extensions.
+
+Validation: 129 independent cases and retained regression assertions passed;
+self-check passed with 492 tests, zero skips and static/API/docs checks. Producer
+review, transaction persistence and consumer adoption remain outstanding.
+
+## 2026-10-21 [feat]
+
+Unify candidate membership realm identities as a 16-byte RealmId with strict
+uppercase ULID text. Migrate affected publication, membership, policy, payer and
+material fields while preserving existing binary wire bytes and separate discovery
+and external identity namespaces. Arbitrary realm labels now refuse.
+
+Validation: canonical and malformed identities, authenticated two-realm membership
+removal and affected family checks passed. Self-check passed with 487 tests and
+zero skips. NSD/ns producer confirmation and consumer adaptation remain outstanding.
+
+## 2026-10-20 [feat]
+
+Add canonical signed snapshot poll requests with exact authority scopes and
+pending response correlation. Reuse existing publication snapshots and per-key
+versions, retaining authenticated unknown extensions beside known updates while
+refusing known stream-owned events and invalid authentication or scope.
+
+Validation: 44 independent cases and unchanged mixed-snapshot regressions passed.
+Self-check passed with 482 tests, zero skips and static/API/docs checks. Exact
+producer confirmation and independently owned vectors remain outstanding.
+
+## 2026-10-20 [fix]
+
+Update rustls-webpki to 0.103.16 and remove unused bundled root packages from
+the mock-rendezvous development dependency. Retain the existing explicit
+aws-lc-rs Rustls connector and generated certificate trust configuration.
+This clears RUSTSEC-2026-0382 and RUSTSEC-2026-0381 without audit exemptions.
+
+Validation: dependency audit and API compatibility passed, no active ring
+dependency was found across targets, and all 479 tests passed with zero skips.
+The TLS smoke test also passed independently with unchanged assertions.
+
+## 2026-10-20 [feat]
+
+Add confidential authentication configuration values and exact pending/current
+material correlation using existing signed control envelopes. Carry actual private
+catalog values with redacted debug output, enforce credential identities across
+methods and preserve query parameters in fixed HTTPS key acquisition endpoints.
+
+Validation: 126 independent vectors and focused regressions passed. Self-check
+passed with 473 tests, zero skips and static/API/docs checks. Producer confirmation
+and independently owned vectors remain outstanding.
+
+## 2026-10-20 [feat]
+
+Add signed heartbeat, gateway observation, services, usage and material status
+operations on the existing confidential carrier. Complete service and Exit floor
+metadata and per-reference outcomes, preserve exact data text, and correlate
+material installation status with its full pending context.
+
+Validation: independent report and floor-text vectors and unchanged regression
+assertions passed. Self-check passed with 475 tests, zero skips and all static,
+API and documentation checks. Producer confirmation remains outstanding.
+
+## 2026-10-20 [feat]
+
+Add canonical authenticated publication subscription requests with exact
+issuer/recipient/realm/scope entries, capability declarations, public ingress
+indices and bounded logical attempt identity. Reuse existing signed carriers
+and retain per-publication versions and channel ownership.
+
+Validation: 35 independent vectors cover payload and signed-carrier acceptance
+and refusals. Self-check passed with 469 workspace tests, zero skips and all
+static/API/docs checks. Matching producer confirmation remains outstanding.
+
+## 2026-10-20 [feat]
+
+Add pure public-edge routing, generation-qualified material acknowledgements and
+correlated declarations using existing service-control objects. Validate listener
+and backend endpoint ownership across complete realm replacements while keeping
+discovery names and material references realm-qualified.
+
+Validation: 151 independent fixture cases and 12 focused tests passed; self-check
+passed with 461 workspace tests, zero skips and static/API/docs checks. Standalone
+service labels, open OIDC carriers and producer confirmation remain outstanding.
+
+## 2026-10-20 [feat]
+
+Add pure registration, authentication and information exchange contracts with
+exact signed acceptance comparisons. Preserve machine claim, key qualification,
+pin ownership and rotation predicates, including separate gateway and server
+audience boundaries. Reuse existing bootstrap signing bytes and enrollment types.
+
+Validation: 66 independent vectors and six consumer tests passed; self-check
+passed with 455 workspace tests, zero skips, 41 selection tests and static/API/docs
+checks. Producer confirmation and independently owned vectors remain outstanding.
+
+## 2026-10-20 [feat]
+
+Add pure qualified policy subjects, bindings, ordered admin claims and signed
+request inputs using existing account signature domains. Preserve exact JWT
+claim names and values, including whitespace and empty strings, within UTF-8
+byte bounds. Retain reference and token syntax checks and existing carrier owners.
+
+Validation: 122 independent cases cover canonical bytes, claim data, scope and
+request-domain refusals. Candidate self-check passed with 449 Rust tests, zero
+skips, 41 selection tests and static/API/docs checks. Open aggregate carriers
+and independent producer confirmation remain documented.
+
+## 2026-10-20 [fix]
+
+Scope member manifest and lockfile changes by resolved dependency closures at
+the merge base and working tree. Include versions, sources, checksums and enabled
+features, select changed members and reverse consumers, and explain differences.
+Global configuration and failed or incomparable metadata retain complete QA.
+
+Validation: 41 selection tests cover added/removed dependencies, shared versions,
+checksums, features, global inputs, failures and temporary export cleanup.
+Self-check passed with 434 Rust tests, zero skips and all static/API/docs checks.
+
+## 2026-10-20 [feat]
+
+Add complete realm membership payloads with existing Node bindings and signed
+records, plus observation-only policy counters. Keep authentication and scope in
+the existing signed publication carrier. Validate exact bindings, ordering,
+uniqueness and bounds before complete replacement without granting L3 permission.
+
+Validation: 47 independent fixtures cover replacement, malformed non-renewal,
+omission, empty withdrawal and replay refusal. Candidate self-check passed with
+438 Rust tests, zero skips, 28 selection tests and static/API/docs checks.
+Producer confirmation and independently owned producer vectors remain outstanding.
+
+## 2026-10-20 [feat]
+
+Replace the service usage subject with exact 16-byte realm-local UserId bytes.
+Add separate completed-I/O and accepted relay DATA profiles, immutable report
+parts and correlated acknowledgement, conflict, rejection and mapping-repair
+contracts. Preserve historical payer and roster attribution without runtime I/O.
+
+Validation: 77 independent fixture cases cover canonical bytes, historical
+ownership, duplicate delivery and exact answer correlation. Candidate self-check
+passed with 439 Rust tests, zero skips, 28 selection tests and static/API/docs
+checks. Producer confirmation and live consumer instrumentation remain outstanding.
+
+## 2026-10-20 [feat]
+
+Add pure Egress/Exit grant publications, explicit binary realm/UserId payer
+bindings, resource retirement snapshots and complete Node identity-to-key
+authority. Validate payer ambiguity, exact resource context, retained retirement
+history and fresh incarnations while preserving existing policy and Subnet bytes.
+Runtime installation, expiry enforcement and persistence remain consumer-owned.
+
+Validation: 72 independent fixture cases and five new consumer tests cover
+accepted contracts, typed refusals and selective withdrawal. Self-check passed
+with 434 Rust tests, zero skips, 28 selection tests and static/API/vector/docs
+checks. Independent conformance checks found no departures. Producer confirmation
+and independently owned producer vectors remain outstanding.
+
+## 2026-10-20 [feat]
+
+Share the pure Node-control v2 codec with unchanged message bytes, constants,
+ACK hashes, endpoint selection and validation. Document ACK as at least accepted;
+transport, persistence, retransmission and sessions remain consumer-owned.
+Independent Python vectors reproduce all nine pinned gateway fixtures.
+
+Validation: all ten predecessor tests, independent vectors and selection-budget
+checks passed. Repository self-check passed with 429 Rust tests, zero skips,
+28 selection tests, one documentation test and static checks.
+
+## 2026-10-20 [fix]
+
+Scope self-check package tests by tracked build and test inputs. Unreferenced
+records and documents retain static checks without package tests; included files,
+directory reads, unresolved computed inputs, configuration and vectors retain
+complete QA. Input diagnostics identify referencing sources or uncertainty.
+
+Validation: failing-first regressions cover documentation-only selection and
+unresolved shell and Rust inclusion paths. All 28 selection tests, 416 Rust tests
+with zero skips, one documentation test and static checks passed.
+
+## 2026-10-19 [fix]
+
+Remove the external WSS test's assumption that an allocated UDP port is free on
+TCP. Hold an occupied configured WSS address through relay shutdown while UDP
+allocates independently, preserving listener, certificate, registration and
+capability assertions. Runtime behavior is unchanged.
+
+Validation: the original TCP conflict was reproduced deliberately. All four
+external integration tests passed twice; complete QA passed with 416 Rust tests,
+0 skipped, 10 selection tests and 1 documentation test.
+
+## 2026-10-19 [feat]
+
+Add signed publication events with explicit scope, kind, owning channel, version
+and validity. Distinguish complete replacement, empty withdrawal, absence and
+authenticated ACL failure while retaining versions for withdrawn or denied state.
+Borrow bounded encoded input, terminate streams on events over 1 MiB and reject
+invalid snapshots before exposing any action. Existing M6 payloads stay opaque.
+
+Validation: 95 independent signed fixtures and additional allocation, mutation,
+version and snapshot-boundary checks passed. Complete QA passed with 416 Rust
+tests, 0 skipped, 10 selection tests and 1 documentation test. All 330 previous
+account fixtures retain their bytes; NSD producer confirmation remains requested.
+
+## 2026-10-19 [feat]
+
+Add confidential bootstrap discovery and signed opaque call carriers with ordered
+endpoint selection, explicit pin intersection and supplied clock/replay checks.
+Validate canonical origins with IDNA ToASCII and exact ASCII equality. Preserve
+existing service-control bytes and leave transport authentication and replay
+persistence with callers. Producer confirmation remains requested in the review.
+
+Validation: 172 independent bootstrap vectors and the original invalid-IDNA
+regression pass. Complete QA passed with 415 Rust tests, 0 skipped, 10 selection
+tests and 1 documentation test; all existing fixture records remain unchanged.
+
+## 2026-10-19 [feat]
+
+Add complete Subnet route publications with M6 resource references, exact real
+and mapped prefixes, full provider/client identities and tagged route selection.
+Return minimal destination CIDR covers after exclusions, retain distinct bypasses
+and advertise TCP, UDP and echo coverage only for selected real IPv4 destinations.
+The contract uses the existing service-control crate through a one-way dependency.
+
+Validation: 52 independent vectors cover 15 accepted and 37 refused publications,
+including default/host prefixes, both address families and input bounds. Complete
+QA passed with 408 Rust tests, 0 skipped, 10 selection tests and 1 documentation test.
+
+## 2026-10-19 [feat]
+
+Add typed verification of complete signed participant roster generations within
+the existing issuer/recipient scope. Return membership, classes, epoch and signed
+times together. Supplied-clock lifecycle status degrades diagnostically after
+24 hours since authenticated renewal and expires at the exclusive signed deadline.
+Complete empty, omission and class-only replacement update the whole generation.
+
+Validation: 27 independent signed lifecycle vectors and complete QA passed with
+406 Rust tests, 0 skipped, 10 selection tests and 1 documentation test. Existing
+signed bytes and all 79 earlier account vectors are preserved.
+
+## 2026-10-19 [feat]
+
+Add the pure enrollment contract with bounded canonical capabilities and explicit
+membership binding acceptance. Reuse the existing lifecycle for identity
+replacement and authorized stable-identity key rotation; refuse rollback and
+unlinked staged-version restarts. Preserve registry bytes and existing vectors.
+Keep producer-profile questions explicit in the review request.
+
+Validation: 29 independent enrollment vectors verify canonical bytes, binding
+decisions and derived NodeId, N6 and N4 values. Complete QA passed with 405 Rust
+tests, 0 skipped, 10 selection tests and 1 documentation test.
+
+## 2026-10-19 [docs]
+
+Prepare the L8 candidate review request for the NSD and node owners, pinned
+to `41149fe1febf2ecee07f077d68a500e18822442c`. Include eleven family states,
+the gateway inventory summary, 23 questions and two M6 API/vector requests.
+All 25 dispositions are prepared; delivery and answers remain to be recorded.
+Link the request and published candidate revision from the specification.
+Complete QA passed, including spelling and documentation checks.
+
+## 2026-10-19 [feat]
+
+Add the pure `nsshared-proto::account` candidate and its specification: eleven
+versioned families, distinct lifecycle counters and incarnations, normalized
+Node L3 rules, explicit service byte units, and atomic identity/class rosters.
+Local admission JSON requires named object fields; signed participant rosters
+bind issuer, recipient, version and validity. Existing M6 types and bytes remain
+in `nsshared-service-control`.
+
+Validation: 50 independent candidate vectors, named-field regression tests,
+and complete QA passed with 402 Rust tests, 0 skipped, 10 selection tests and
+1 documentation test. Both vector drift checks and API compatibility passed.
+
+## 2026-10-18 [feat]
+
+Add `just self-check base`, defaulting to `main`. Crate-only changes retain
+all workspace static, vector and API checks, then restrict tests and
+documentation to the changed packages and their reverse dependencies.
+Global inputs and empty diffs select the complete `just qa` recipe.
+Selection tests run as part of complete QA.
+
+Validation: 10 selection tests, 393 Rust tests with 0 skipped, and
+1 documentation test passed. A temporary crate-only change verified scoped
+selection and was restored before the final complete check.
+
+## 2026-10-18 [chore]
+
+Import the existing M6 service-control contract at
+`aba1c5d5350550f85631034cf613e780bc4dbbe0` so the L8 account payload profile
+extends its shared declarations and messages. Preserve the original commits,
+canonical bytes, service-label rules, vectors, and rustls update.
+
+Validation: `just qa` passed with 393 tests, 0 skipped, and 1 documentation
+test; both vector drift checks and API compatibility checks passed.
+
 ## 2026-10-11 [docs]
 
 Re-pin both spec coverage tables from docs `957de97a79f7` to `27a794d`: every

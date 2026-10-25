@@ -3,19 +3,18 @@
 #![allow(clippy::unwrap_used, reason = "test fixture helpers")]
 
 use ed25519_dalek::SigningKey;
+use nsshared_identity::{
+    identity::NodeId, record::NodeRecord, record::NodeRecordFields, relay_id::RelayId,
+};
 use nsshared_mock_rendezvous::{
     config::Limits,
     registry::{RegistryStore, self_entry},
 };
-use nsshared_proto::rendezvous::{
-    capability::{self, Capabilities},
-    directory::{Directory, RelayEntry},
-    error::ErrorCode,
-    message::DnsPublication,
-    message::{LookupNodeRequest, PublishRequest, RecordResult},
-    registry,
+use nsshared_rendezvous::{
+    capability, capability::Capabilities, directory::Directory, directory::RelayEntry,
+    error::ErrorCode, message::DnsPublication, message::LookupNodeRequest, message::PublishRequest,
+    message::RecordResult, registry,
 };
-use nsshared_proto::{NodeId, NodeRecord, RelayId, record::NodeRecordFields};
 use std::net::IpAddr;
 
 const NOW: u64 = 1_800_000_000;

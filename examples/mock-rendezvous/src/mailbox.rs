@@ -1,7 +1,7 @@
 //! Mailbox broker state (rendezvous §5.1-§5.3, §6).
 //!
 //! [`MailboxBroker`] stores the mailboxes and the bookkeeping around them; every phase
-//! rule, permission check and payload comes from `nsshared_proto::rendezvous::phase`. The
+//! rule, permission check and payload comes from `nsshared_rendezvous::phase`. The
 //! broker adds the digits lookup index, per-actor live-mailbox counts, the global
 //! queued-byte total, id and digits allocation, removal and a per-mailbox change signal
 //! for long polls. It is synchronous and meant to sit behind a `std::sync::Mutex`; it
@@ -10,14 +10,12 @@
 //! cadence are the server's job.
 
 use crate::config::Limits;
-use nsshared_proto::rendezvous::{
-    error::ErrorCode,
-    limits::{DIGITS_LEN, MAILBOX_ID_BYTES},
-    message::{Digits, Found, MailboxId, MailboxView, OpenRequest, Opened, Sent},
-    phase::{
-        Actor, IndexChange, Mailbox, Outcome, check_actor_mailboxes_within,
-        check_queued_bytes_within, check_stored_mailboxes_within,
-    },
+use nsshared_rendezvous::{
+    error::ErrorCode, limits::DIGITS_LEN, limits::MAILBOX_ID_BYTES, message::Digits,
+    message::Found, message::MailboxId, message::MailboxView, message::OpenRequest,
+    message::Opened, message::Sent, phase::Actor, phase::IndexChange, phase::Mailbox,
+    phase::Outcome, phase::check_actor_mailboxes_within, phase::check_queued_bytes_within,
+    phase::check_stored_mailboxes_within,
 };
 use rand_core::TryCryptoRng;
 use std::collections::{HashMap, HashSet};
@@ -412,11 +410,10 @@ fn random_digits<R: TryCryptoRng + ?Sized>(rng: &mut R) -> Result<Digits, ErrorC
 mod tests {
     use super::MailboxBroker;
     use crate::config::Limits;
-    use nsshared_proto::rendezvous::{
-        error::ErrorCode,
-        limits::{CLOSING_GRACE_SECONDS, INACTIVITY_SECONDS, MAX_DATA_BYTES},
-        message::{Admission, Digits, Kind, MailboxId, OpenRequest, Stage},
-        phase::Actor,
+    use nsshared_rendezvous::{
+        error::ErrorCode, limits::CLOSING_GRACE_SECONDS, limits::INACTIVITY_SECONDS,
+        limits::MAX_DATA_BYTES, message::Admission, message::Digits, message::Kind,
+        message::MailboxId, message::OpenRequest, message::Stage, phase::Actor,
     };
     use rand_core::{Infallible, TryCryptoRng, TryRng};
     use std::collections::VecDeque;

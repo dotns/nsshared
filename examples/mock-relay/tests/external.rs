@@ -14,7 +14,7 @@ use nsshared_mock_relay::{
     Carrier, MockRelay, MockRelayConfig, accept_relay_request, relay_websocket_config,
     testing::TestNode,
 };
-use nsshared_proto::{constants::RELAY_WSS_PATH, constants::RELAY_WSS_SUBPROTOCOL};
+use nsshared_relay::{constants::RELAY_WSS_PATH, constants::RELAY_WSS_SUBPROTOCOL};
 use rustls::{
     ServerConfig,
     crypto::aws_lc_rs,
@@ -256,7 +256,11 @@ async fn external_connections_share_the_per_ip_limit() {
 
 #[tokio::test]
 async fn external_mode_announces_wss_without_a_tcp_listener() {
+    // External WSS must ignore the occupied TCP address; UDP allocates independently.
+    let listener = StdTcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
     let relay = MockRelay::start(MockRelayConfig {
+        wss_listen: Some(addr),
         external_wss: true,
         ..MockRelayConfig::default()
     });
@@ -265,8 +269,6 @@ async fn external_mode_announces_wss_without_a_tcp_listener() {
     assert!(relay.generated_cert().is_none());
     let udp = relay.udp_addr().unwrap();
     assert_eq!(relay.relay_id().as_str(), udp.to_string());
-    // The caller can bind the TCP side of the identifier port itself.
-    drop(StdTcpListener::bind(udp).unwrap());
 
     let node = TestNode::new([4; 32], relay.relay_id(), unix_now() - 60).unwrap();
     let attempt = node
@@ -277,4 +279,5 @@ async fn external_mode_announces_wss_without_a_tcp_listener() {
     let (registered, _) = attempt.accept(&link.recv().await).unwrap();
     assert_eq!(registered.capabilities, ["udp", "wss"]);
     timeout(WAIT, relay.shutdown()).await.unwrap();
+    drop(listener);
 }

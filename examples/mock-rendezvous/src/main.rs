@@ -5,7 +5,7 @@
 //! interrupted.
 
 use nsshared_mock_rendezvous::{Config, RendezvousServer, TlsSource};
-use nsshared_proto::rendezvous::directory::Directory;
+use nsshared_rendezvous::directory::Directory;
 use std::{net::SocketAddr, path::PathBuf, process::ExitCode};
 
 const USAGE: &str = "usage: nsshared-mock-rendezvous [--listen <ip:port>] [--host <tls name>]

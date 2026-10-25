@@ -111,3 +111,53 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20261002-1516-quick-rendezvous Define the quick-rendezvous message types**](20261002-1516-quick-rendezvous.md) `P1`
 - [ ] [**20261002-1516-quick-consumers Move nsgw and ns onto the shared Quick crates**](20261002-1516-quick-consumers.md) `P2`
 - [x] [**20261003-2200-shared-scope-trim Remove relay-internal region protocol and the transfer mapping**](20261003-2200-shared-scope-trim.md) `P1`
+- [x] [**Import the existing M6 service-control contract**](20261018-1204-m6-service-control-import.md) `P1`
+- [x] [**Add scoped workspace self-checks**](20261018-2214-scoped-self-check.md) `P1`
+- [x] [**Define the L8 account payload profile**](20261019-0029-l8-account-payload-profile.md) `P1`
+- [x] [**Prepare the L8 candidate review request**](20261019-0203-l8-candidate-review-request.md) `P1`
+- [x] [**Define enrollment and membership identity**](20261019-1120-enrollment-identity.md) `P1`
+- [x] [**Define the signed participant roster lifecycle**](20261019-1200-participant-roster-lifecycle.md) `P1`
+- [x] [**Define Subnet route selection**](20261019-1214-subnet-selection.md) `P1`
+- [x] [**Define bootstrap discovery and envelope trust**](20261019-1241-bootstrap-envelope-trust.md) `P1`
+- [x] [**Define signed publication events**](20261019-1413-signed-publication-events.md) `P1`
+- [x] [**Fix external WSS listener ownership checks**](20261019-1447-external-wss-listener-ownership.md) `P1`
+- [x] [**20261020-1118-build-input-self-check Scope self-check by build and test inputs**](20261020-1118-build-input-self-check.md)
+- [x] [**Share the Node-control codec**](20261020-1230-node-control-codec.md) `P1`
+- [x] [**Define service grants and Node authority**](20261020-1509-grant-authority.md) `P1`
+- [x] [**Define service and relay usage contracts**](20261020-1607-usage-contracts.md) `P1`
+- [x] [**Define complete realm publication payloads**](20261020-1620-realm-publication-payloads.md) `P1`
+- [x] [**Scope self-check by resolved dependency changes**](20261020-1640-resolved-dependency-self-check.md) `P1`
+- [x] [**Define policy and claim canonical values**](20261020-1625-policy-claims.md) `P1`
+- [x] [**Define control exchange contracts**](20261020-1744-control-exchange.md) `P1`
+- [x] [**Define public-edge material and declaration contracts**](20261020-1727-public-edge-contract.md) `P1`
+- [x] [**Define publication subscription requests**](20261020-1839-publication-subscription.md) `P1`
+- [x] [**Complete control report exchanges**](20261020-1848-control-report-exchanges.md) `P1`
+- [x] [**Define confidential authentication configuration**](20261020-1902-confidential-auth.md) `P1`
+- [x] [**Update certificate dependencies**](20261020-2033-update-certificate-dependencies.md) `P1`
+- [x] [**Define publication snapshot poll requests**](20261020-2213-publication-snapshot-request.md) `P1`
+- [x] [**Define canonical realm identity**](20261021-0335-canonical-realm-identity.md) `P1`
+- [x] [**Define source binding and route selection**](20261021-0357-source-selection.md) `P1`
+- [x] [**Protocol-qualified grant identity and expiry renewal**](20261021-0451-protocol-grant-renewal.md) `P1`
+- [x] [**Define participant credentials and directory bindings**](20261021-0447-participant-credentials-directory-bindings.md) `P1`
+- [x] [**Carry signed source authority in control responses**](20261021-1109-source-response-binding.md) `P1`
+- [x] [**Select authentication source scope explicitly**](20261021-1355-authentication-source-scope.md) `P1`
+- [x] [**Define usage and Node-control profile publications**](20261021-2159-profile-publications.md) `P1`
+- [x] [**Encode inner signed publication events**](20261022-0839-publication-event-producer.md) `P1`
+- [x] [**Define ordinary provider Subnet route reports**](20261022-1014-provider-subnet-report.md) `P1`
+- [x] [**Separate Exit grants and client Subnet route views**](20261022-1615-subnet-publication-views.md) `P1`
+- [x] [**Start the mock relay with an owned UDP socket**](20261022-1938-owned-udp-socket.md) `P1`
+- [x] [**Define confidential certificate and client-CA acquisition**](20261022-2227-confidential-material.md) `P1`
+- [x] [**Define the authenticated M6 control carrier**](20261022-2237-service-control-carrier.md) `P1`
+- [x] [**Declare local Node naming**](20261023-0317-node-local-naming.md) `P1`
+- [x] [**Document current echo reply non-emission**](20261023-0324-echo-reply-non-emission.md) `P1`
+- [x] [**Define Node L3 route admission and applied status**](20261023-0450-node-l3-status.md) `P1`
+- [x] [**Update the constant-time utility dependency**](20261023-0918-fix-constant-time-dependency.md) `P1`
+- [x] [**Define publication stream and snapshot delivery**](20261023-0905-publication-delivery.md) `P1`
+- [x] [**Define explicit anonymous public-edge selectors**](20261023-1118-anonymous-public-edge.md) `P1`
+- [x] [**Refuse group labels as policy principals**](20261023-1153-group-label-principals.md) `P1`
+- [x] [**Update the asynchronous I/O dependency**](20261023-1548-fix-async-io-dependency.md) `P1`
+- [x] [**Define protocol-specific public-edge route names**](20261023-1548-public-edge-protocol-names.md) `P1`
+- [x] [**Prepare the immutable candidate handoff**](20261024-1115-candidate-handoff.md) `P1`
+- [x] [**Define provider mapping eligibility snapshots**](20261024-1655-provider-mapping-eligibility.md) `P1`
+- [x] [**Record review delivery and registration lifecycle placeholders**](20261025-0157-review-request-delivery.md) `P1`
+- [x] [**20261025-0802-nsshared-restructure Restructure the shared crates and apply the review revisions**](20261025-0802-nsshared-restructure.md) `P1`
