@@ -241,6 +241,50 @@ version; stable-I rotation requires an explicit producer-profile authorization
 and supplied K. Quick's K-per-generation derivation is a different profile.
 Please provide independent vectors for these restart and authorization decisions.
 
+The candidate registration profile now explicitly treats Lifecycle's final two
+mandatory 16-byte positions as wire placeholders. The requesting Node sends
+sixteen zero bytes in each even with no grants and no reporter. Receivers decode
+structurally and ignore values, including historical nonzero fixtures; they must
+not compare them with grants, reports or accepted registration or persist them
+as lifecycle custody or retirement state. No NSD response, provisioning or token
+acquisition produces them. They are not authority or transition inputs; nonzero
+fixtures do not define a registration producer form.
+
+NSD compares requested membership and authenticated presented I with provisioned
+enrollment authority and its accepted binding. Lifecycle.before must equal that
+complete accepted binding and Lifecycle.after the presented binding.
+IdentityReplacement increases membership version and changes I and K, with
+record generation allowed to restart under the new I. RecordRotation preserves
+I and membership version, changes K and increases generation, and requires
+explicit reviewed producer-profile RebindAuthorization. Initial enrollment still
+has no lifecycle; Equal compares the complete binding; rollback, authentication
+and scope checks remain. Ordinary stable-I self-initiated rebind remains disabled
+without the reviewed profile, regardless of placeholder values.
+
+The ns or gateway consumer compares its retained binding for the exact membership
+and signing authority. Before commit it verifies authenticated acceptance against
+staged membership, complete binding, profile, capabilities and locally computed
+EnrollmentDecision, with response correlation, recipient and nodes-source checks.
+Rejection or mismatch preserves committed identity. Accepted history and selected
+acceptance remain custody; placeholders add no durable state.
+
+Identity replacement fences old resources without transferring grants. NSD
+produces fresh grant incarnations for newly authorized replacement-identity grants
+under the existing signed grant/payer/resource-authority contracts and exact
+resource/client/provider/protocol/payer and retirement-history comparisons.
+K-only rotation alone changes no identity-keyed grant token; NSD publishes the
+changed authenticated I-to-K binding through Node L3. The reporter produces and
+durably retains its own lifecycle token, with fresh tokens for new reporter
+lifecycles under the usage contract. Registration assigns or retires neither
+token; pending rows and parts retain original attribution and settlement custody.
+
+The independent zero-placeholder `enrollment_consumer_vectors` preserve
+before/after mismatch and unauthorized-rotation refusals alongside valid identity
+replacement and authorized rotation. These are candidate fixtures, not producer
+confirmation. NSD N24/N26 and ns S17 adoption and producer-owned vectors remain
+outstanding; no response or approval is recorded. No schema, crate-source or
+codec change, gateway source change or gateway repin is required by this delta.
+
 ### Q08: Complete replacement semantics — NSD and node owners
 
 For all eleven families, can the registry's publication/`clears` strings and

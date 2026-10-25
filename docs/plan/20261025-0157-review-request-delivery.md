@@ -43,3 +43,9 @@ The new comparison confirms 259 shared inputs and the workspace lock resolutions
 The selected shared and gateway revisions are updated, and the old comparison remains explicitly historical. Per-contract revision rows and outstanding review/adoption dispositions are unchanged. Selection and delivery assertions pass. The unchanged handoff comparison test passes. Formatting, lint and `just self-check feat/l8-account-profile` pass at `5aedf7df9c49516bb7af34c095948bfc9509a003`; only these records change afterward.
 
 The required comparison exits 1 because two gateway fixture manifests still select the historical shared revision. Shared package equality succeeds for 259 inputs, and the workspace lock comparison succeeds for three shared resolutions. The documentation work is complete; qualification remains blocked by the external manifest pins, without a claim of complete acceptance.
+
+## Registration lifecycle placeholder clarification
+
+The existing enrollment vectors carry nonzero example incarnation fields. Registration needs no grant or reporter to replace identity or rotate an explicitly authorized K. Keep the six-element lifecycle and existing codec/comparator, document zero-valued registration placeholders, and add independent zero-placeholder vectors for both valid transitions, mismatched before/after and unauthorized rotation. Retain all existing nonzero fixtures as structural coverage rather than a producer form.
+
+Update Lifecycle, RegistrationRequest and Q07 with the exact authority/binding comparisons and separate grant/reporter custody. The delivered package selection remains historical to this additive documentation/vector change. Complete handoff comparison still requires a newly supplied immutable gateway revision with all four input pairs aligned; none is supplied yet. No schema or crate-source change is needed.

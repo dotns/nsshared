@@ -43,6 +43,11 @@ reuse Enrollment's sorted unique bounded identifier set. No normalization occurs
   lifecycle_bytes_or_null]`. Credential is opaque, nonempty and at most 16 KiB;
   it is interpreted only by the provisioned authority. No auth-key/OAuth inference
   occurs. Lifecycle is absent for initial enrollment and otherwise reuses Lifecycle.
+  Its last two mandatory 16-byte slots are registration-only placeholders:
+  the requesting Node supplies sixteen zero bytes in each, including without
+  grants or a reporter. Receivers decode them structurally and ignore values,
+  including historical nonzero fixtures; no response or token acquisition
+  produces them. They are neither authority nor transition inputs or custody.
 - Registration acceptance: `[1, scope, enrollment_bytes, profile, decision, source_binding_bytes]`.
   Decision is 0 initial, 1 equal, 2 identity replacement, 3 record rotation.
   Matching compares scope, the entire binding (I/K/version/generation), exact
@@ -65,6 +70,35 @@ EnvelopeExpectation as well as the staged request and prior binding. It verifies
 all envelope expectations and exact payload equality before deciding enrollment.
 Request validation likewise verifies the request envelope and checks its signer
 against the presented I. Pure helpers never store authority.
+
+For a differing registration binding, NSD compares provisioned membership
+authority and authenticated presented I with the accepted membership binding;
+Lifecycle.before must equal that complete accepted binding and Lifecycle.after
+must equal the presented enrollment binding. IdentityReplacement increases
+membership version and changes both I and K, allowing generation to restart
+under the new I. RecordRotation keeps I and membership version, changes K and
+increases generation, with explicit reviewed producer-profile RebindAuthorization.
+Initial enrollment has no lifecycle, Equal compares the complete binding, and
+rollback, authentication and scope refusals remain. Zero placeholders grant no
+rebind authorization; ordinary self-initiated stable-I rebind remains disabled.
+
+The ns or gateway consumer compares its retained binding for the exact membership
+and signing authority. Authenticated acceptance must match the staged membership,
+complete binding, profile, capabilities and locally computed EnrollmentDecision,
+with existing response correlation, recipient and nodes-source checks. Rejection
+or mismatch preserves committed identity. Accepted history and selected-acceptance
+custody remain authoritative; placeholders are not persisted, compared with grant
+or usage tokens, or stored as lifecycle/retirement state.
+
+Grant and reporter token production and custody follow the
+[separate lifecycle contracts](l8-account-payload-profile.md#registration-only-incarnation-placeholders).
+Identity replacement fences old resources and never transfers grants; NSD
+produces fresh incarnations for new grants and publishes K-only binding changes
+through Node L3. A K rotation alone does not change identity-keyed grants.
+The reporter owns its durable reporter token; pending usage keeps original
+attribution and settlement custody. Neither registration transition assigns or
+retires those tokens. Existing nonzero fixtures are structural receiver coverage,
+not a registration producer form. Schema, codecs and comparator remain unchanged.
 
 ## Machine claims and key sets
 
