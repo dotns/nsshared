@@ -117,9 +117,14 @@ Gates after every phase:
 2. `just vectors-check` exits 0, and the case-by-case comparison against
    `1bc1d39e` (every old case found at its mapped path with identical lines; every new
    case listed as an intended addition) exits 0.
-3. `cargo semver-checks` on `nsshared-proto` against `v0.6.0` and against `aba1c5d5`
-   (consumer pin), and on `nsshared-service-control` against `aba1c5d5`, reports no
-   breaking change other than the intended deltas listed under Risks.
+3. API compatibility of the facades: `scripts/api_surface.py check` on `nsshared-proto`
+   against `v0.6.0`, `aba1c5d5` (consumer pin) and `1bc1d39e` (account excluded), and on
+   `nsshared-service-control` against `aba1c5d5` and `1bc1d39e`, reports no missing line
+   other than the intended deltas listed under Risks. cargo-semver-checks reports
+   every item re-exported from another workspace crate as removed, so it cannot check
+   the facades; it still checks every other library crate in `just semver`.
+   In addition the `1bc1d39e` integration tests of both facades (account tests
+   excluded: 30 files, 287 tests) are compiled and run against the branch.
 4. A scratch crate outside the repository that imports every `nsshared_proto` and
    `nsshared_service_control` item used by the consumer main lines builds against the
    branch.
@@ -211,7 +216,7 @@ push, merge or tag without the owner's word.
 | --- | --- | --- | --- |
 | P0 | done | ab9c885 | plan and task |
 | A | done | 4f623d3 | A1-A4; gates: qa 0, vectors-check 0, cases 0 (2714 unchanged, 9 added), semver 0 x5, consumer paths 0 |
-| P1 | pending | | |
+| P1 | done | 42c4810 | qa 0, vectors 0, cases 0, api_surface proto 0 x3, service-control 2 missing lines = intended `#[non_exhaustive]` on `CborError`, consumer paths 0, base tests 287/287 |
 | P2 | pending | | |
 | P3 | pending | | |
 | P4 | pending | | |
