@@ -193,7 +193,7 @@ rewrite this retained ownership.
 `part_digest` is SHA-256 over `ns.account.usage.part.v1` followed by a zero byte and
 the canonical eleven-field array obtained by omitting `part_digest` from the report
 (`UsageReport::computed_digest`, using `nsshared_control::service::domain_digest`
-with `domains::USAGE_PART_DOMAIN`). It therefore commits all ownership, profile,
+with `domains::USAGE_PART_DIGEST_DOMAIN`). It therefore commits all ownership, profile,
 sequence, window, partition metadata and rows. A changed payload must not reuse a
 frozen digest; a digest that does not commit the supplied part is
 `UsageError::Digest`.
@@ -339,7 +339,7 @@ reserve a version, renew validity or replace state.
 | Usage answers | `crates/nsshared-control/src/account/families/usage/answer.rs` | `nsshared_control::account::usage::{UsageAnswer, UsageOutcome, UsageWatermark, UsageRejection}` |
 | Profile publications | `crates/nsshared-control/src/account/families/usage/catalog.rs` | `nsshared_control::account::usage::{UsageProfilePublication, NodeControlProfilePublication, ProfilePublicationPayload}` |
 | Publication payload mapping | `crates/nsshared-control/src/account/publication/payloads.rs` | `nsshared_control::account::publication::PublicationEvent::decode_profile_payload` |
-| Part digest domain | `crates/nsshared-control/src/account/domains.rs` | `nsshared_control::account::domains::USAGE_PART_DOMAIN` |
+| Part digest domain | `crates/nsshared-control/src/account/domains.rs` | `nsshared_control::account::domains::USAGE_PART_DIGEST_DOMAIN` |
 
 | Vectors | Producer | Test module |
 | --- | --- | --- |

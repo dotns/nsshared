@@ -16,6 +16,7 @@ wire bytes.
   private codec, limits and signing helpers, all signature domains in
   `account::domains` (bytes unchanged), consistent non-exhaustive error types and
   renamed generic items (`validate_admission_snapshot`, `ServiceDirection`,
+  `USAGE_PART_DIGEST_DOMAIN`,
   `FrameKind`, `RouteError`, `L3AuthorityError`).
 - Tests are one binary per crate area on the testkit; vectors live in
   `crates/<crate>/tests/vectors/` named after their test modules and producers;

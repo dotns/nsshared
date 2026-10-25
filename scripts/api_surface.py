@@ -163,7 +163,8 @@ class Surface:
         elif kind == "function":
             self.emit(f"fn {full}{function(inner)}")
         elif kind == "constant":
-            self.emit(f"const {full}: {ty(inner['type'])} = {inner['const']['expr']}")
+            constant = inner["const"]
+            self.emit(f"const {full}: {ty(inner['type'])} = {constant.get('value') or constant['expr']}")
         elif kind == "static":
             self.emit(f"static {full}: {ty(inner['type'])}")
         elif kind == "type_alias":
@@ -188,6 +189,8 @@ class Surface:
         inner = item["inner"]["variant"]
         shape = inner["kind"]
         line = f"variant {full}{attributes(item)}"
+        if inner.get("discriminant"):
+            line += f" = {inner['discriminant']['value']}"
         if shape == "plain":
             self.emit(line)
         elif "tuple" in shape:
@@ -202,12 +205,23 @@ class Surface:
             impl = self.docs[crate]["index"][str(impl_id)]["inner"]["impl"]
             if impl["blanket_impl"] is not None:
                 continue
-            # Impls naming the type only in trait arguments belong to their own type.
-            if impl["for"].get("resolved_path", {}).get("id") != item_id:
+            target = impl["for"].get("resolved_path", {}).get("id")
+            if target != item_id:
+                # Impls for another workspace type are listed with that type; impls for
+                # foreign types (arrays, std types) are listed here.
+                if target is not None and self.resolve(crate, target) is not None:
+                    continue
+                if impl["trait"] is not None:
+                    self.emit(f"impl {path_type(impl['trait'])} for {ty(impl['for'])}")
                 continue
             if impl["trait"] is not None:
                 negative = "!" if impl["is_negative"] else ""
                 self.emit(f"impl {negative}{path_type(impl['trait'])} for {full}")
+                for member in impl["items"]:
+                    member_item = self.docs[crate]["index"][str(member)]
+                    if "assoc_type" in member_item["inner"]:
+                        value = member_item["inner"]["assoc_type"].get("type")
+                        self.emit(f"type {full}::<{path_type(impl['trait'])}>::{member_item['name']} = {ty(value)}")
                 continue
             for member in impl["items"]:
                 member_item = self.docs[crate]["index"][str(member)]
@@ -365,7 +379,8 @@ def excluded(line, prefixes):
     """True when the line describes an item, member or impl under one of PREFIXES."""
     words = line.split(" ")
     subjects = words[1:2] + (words[-1:] if words[0] == "impl" else [])
-    return any(word.startswith(prefix) for word in subjects for prefix in prefixes)
+    return any(word == prefix or word.startswith(prefix + "::") or word.startswith(prefix + ".")
+               for word in subjects for prefix in prefixes)
 
 
 def main():

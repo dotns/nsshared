@@ -90,7 +90,7 @@ separator; `nsshared_control::account::domains` holds them all:
 | `DIRECTORY_BINDING_DOMAIN` | `ns.account.directory-binding.v1\0` | directory binding ([relay](relay.md)) |
 | `PARTICIPANT_PROOF_DOMAIN` | `nsgw-participant-candidate-v1\0` | participant connection proof ([relay](relay.md)) |
 
-`USAGE_PART_DOMAIN` (`ns.account.usage.part.v1`) is the digest domain of usage report
+`USAGE_PART_DIGEST_DOMAIN` (`ns.account.usage.part.v1`) is the digest domain of usage report
 parts, digested with `service::domain_digest`, which appends the zero separator
 ([usage](usage.md)). `PARTICIPANT_EXPORTER_LABEL`
 (`EXPORTER-nsgw-participant-candidate-v1`) is the TLS exporter label of participant
