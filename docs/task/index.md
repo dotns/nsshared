@@ -1,5 +1,7 @@
 # ns-shared - Task List
 
+- [x] [**Account adoption evidence**](20261027-2017-account-adoption-evidence.md)
+
 - [x] [**Merge release history**](20261027-1909-merge-release-history.md)
 
 - [x] [**20260924-1228-quick-explicit-relay-pin Remove URI invitations**](20260924-1228-quick-explicit-relay-pin.md)

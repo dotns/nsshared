@@ -1,3 +1,9 @@
+## 2026-10-27 [docs]
+
+Reconcile account adoption records with immutable producer and consumer revisions.
+Record six matching corpora and the enrollment mismatch separately, preserving
+open owner answers, live qualification and the unstable-account restriction.
+
 ## 2026-10-27 [chore]
 
 Merge the released v0.7.0 history while preserving both parent histories.
