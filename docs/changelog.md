@@ -15,6 +15,17 @@ statistics. Retain registry/git source caching in a new namespace, with target
 and binary caching disabled. Document the fixed checkout path and cache setup;
 `just qa` and workflow triggers are unchanged.
 
+## 2026-10-27 [docs]
+
+Reconcile account adoption records with immutable producer and consumer revisions.
+Record six matching corpora and the enrollment mismatch separately, preserving
+open owner answers, live qualification and the unstable-account restriction.
+
+## 2026-10-27 [chore]
+
+Merge the released v0.7.0 history while preserving both parent histories.
+Add the completed plan and validation records; source and tests are unchanged.
+
 ## 2026-10-27 [release]
 
 Release `v0.7.0` at `95f1688` (the 2026-10-25 entries below): the restructured
