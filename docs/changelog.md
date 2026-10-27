@@ -1,3 +1,8 @@
+## 2026-10-27 [chore]
+
+Merge the released v0.7.0 history while preserving both parent histories.
+Add the completed plan and validation records; source and tests are unchanged.
+
 ## 2026-10-27 [release]
 
 Release `v0.7.0` at `95f1688` (the 2026-10-25 entries below): the restructured
