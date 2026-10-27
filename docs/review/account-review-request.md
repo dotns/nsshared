@@ -4,8 +4,7 @@ Membership realm identities follow the [canonical RealmId contract](../spec/real
 Affected text positions retain text but require the exact uppercase 26-character
 spelling and decode to RealmId; binary positions retain their exact 16 bytes.
 This incompatible candidate delta refuses arbitrary realm labels without fallback.
-NSD/ns producer and consumer updates, including the other active consumer delivery,
-remain outstanding. Encoding equality is not authentication. Discovery realm hints,
+Canonical realm/source publication production and ns recorded-byte consumption are adopted; complete owner confirmation, refusal coverage and live source retirement remain open. See [adoption evidence](account-handoff.md#adoption-publication). Encoding equality is not authentication. Discovery realm hints,
 external provider subject namespaces and opaque scopes retain their meanings.
 Signed usage bytes and the historical payer pair remain unchanged.
 
@@ -21,6 +20,15 @@ producer vectors and implementation. Unreceived answers remain outstanding and
 do not block the candidate. The candidate is merged into `main` behind the
 `unstable-account` feature; review is still required before the gate is removed or a
 release is made.
+
+2026-10-27 adoption update: ns `6ea11348` (request #543) and NSD `ff278641`
+(request #467) consume shared `95f1688` with `unstable-account`. The
+[handoff evidence](account-handoff.md#unresolved-producer-consumer-and-review-obligations)
+names adopted source, actual producer corpora, exact byte comparisons and each
+remaining confirmation. Neither merge is an answer to the questions below.
+Pending ns `3b9adf5156ad` (#545) and NSD `aa2caaf381fd` (#468) repair test
+environments only. Review approval, retention sealing and live real-component
+evidence still precede the later release and feature restriction removal.
 
 ## Candidate package
 
@@ -93,17 +101,17 @@ explicitly frame only. NSD supplies producer vectors for every row.
 
 | ID / family | State at the candidate revision | Detailed contract work / review question |
 | --- | --- | --- |
-| 1 `enrollment` | Binding/lifecycle and complete control exchange specified in the control-exchange delta | Q11; producer confirmation outstanding |
-| 2 `realms-peers` | Complete canonical realm contributions, NodeBinding/NodeRecord checks and independent replacement/refusal vectors delivered | NSD producer confirmation and vectors; Q12 |
-| 3 `egress` | Pure grant publication and independent consumer vectors delivered | Grants contract B39; Q13 |
-| 4 `exit-subnet` | Provider grants and separate client route selection retain exact bytes; mapped route admission needs no ordinary provider host rule | Q14; NSD/ns producer adoption and route admission confirmation outstanding |
-| 5 `payer` | Binary realm/UserId assignment publication and cardinality refusals delivered | Grants B39; Q15 |
-| 6 `withdrawal` | Resource authority snapshots and pure successor validation delivered | Grants B39; Q16 |
-| 7 `public-edge` | Pure scoped public-edge, confidential AuthConfiguration and certificate/client-CA acquisition request/response, material and exact M6 declaration/report/listener integration with independent consumer vectors delivered | NSD confirmation/producer vectors and explicitly open carrier rows; Q17 |
-| 8 `relay` | Signed roster, shared participant credentials and separate signed directory binding delivered; NSD producer review and adoption outstanding | Q01–Q06, Q18 |
-| 9 `usage` | Typed scoped usage-profile payload and independent publication vectors newly delivered; existing quantities and report/answer bytes unchanged | New candidate delta below; NSD/ns review and producer adoption outstanding; Q10, Q19 |
-| 10 `node-control` | Typed scoped node-control-profile payload and independent publication vectors newly delivered; existing v2 codec unchanged | New candidate delta below; NSD/ns review and producer adoption outstanding; Q20 |
-| 11 `v1-replacement` | Exact Node L3 applied-status codec, signed-event digest, retained-context comparison and independent vectors delivered; existing policy observation and M6 carrier unchanged | Q09; NSD N08 producer and Node S03/S24 consumer adoption outstanding; Q12 and Q21 remain open |
+| 1 `enrollment` | Binding/lifecycle and complete control exchange specified in the control-exchange delta | Registration/source and lifecycle handling are adopted in source; current matched enrollment corpus bytes, live confirmation and the Q07/Q11 owner answers remain open. See [adoption evidence](account-handoff.md#adoption-core). |
+| 2 `realms-peers` | Complete canonical realm contributions, NodeBinding/NodeRecord checks and independent replacement/refusal vectors delivered | Canonical realm/source publication production and ns recorded-byte consumption are adopted; complete owner confirmation, refusal coverage and live source retirement remain open. See [adoption evidence](account-handoff.md#adoption-publication). |
+| 3 `egress` | Pure grant publication and independent consumer vectors delivered | Protocol-qualified grant, payer and withdrawal projection is adopted in source; complete independent producer vectors, owner answers and live joins remain open. See [adoption evidence](account-handoff.md#adoption-grants). |
+| 4 `exit-subnet` | Provider grants and separate client route selection retain exact bytes; mapped route admission needs no ordinary provider host rule | NSD grant/client-route production and ns recorded-byte consumers are adopted; live installation/replacement/withdrawal and default/nested Exit qualification remain open. See [adoption evidence](account-handoff.md#adoption-subnet). |
+| 5 `payer` | Binary realm/UserId assignment publication and cardinality refusals delivered | Protocol-qualified grant, payer and withdrawal projection is adopted in source; complete independent producer vectors, owner answers and live joins remain open. See [adoption evidence](account-handoff.md#adoption-grants). |
+| 6 `withdrawal` | Resource authority snapshots and pure successor validation delivered | Protocol-qualified grant, payer and withdrawal projection is adopted in source; complete independent producer vectors, owner answers and live joins remain open. See [adoption evidence](account-handoff.md#adoption-grants). |
+| 7 `public-edge` | Pure scoped public-edge, confidential AuthConfiguration and certificate/client-CA acquisition request/response, material and exact M6 declaration/report/listener integration with independent consumer vectors delivered | NSD public-edge projection, anonymous/raw-name vectors and actual producer corpus are adopted; a matching downstream corpus reader, live policy/name enforcement and Q17 confirmation remain open. See [adoption evidence](account-handoff.md#adoption-edge). |
+| 8 `relay` | Signed roster, shared participant credentials and separate signed directory binding delivered | NSD signed roster/participant and directory production plus ns recorded directory consumption are adopted; local file-writer proof, live rollback/carrier transitions and complete unsettled-reference sealing remain open. See [adoption evidence](account-handoff.md#adoption-roster). |
+| 9 `usage` | Typed scoped usage-profile payload and independent publication vectors newly delivered; existing quantities and report/answer bytes unchanged | NSD usage/Node-control catalogue production and actual corpus are adopted; matching ns/gateway corpus consumption, live preserved state and Q19/Q20 answers remain open. See [adoption evidence](account-handoff.md#adoption-profiles). |
+| 10 `node-control` | Typed scoped node-control-profile payload and independent publication vectors newly delivered; existing v2 codec unchanged | NSD usage/Node-control catalogue production and actual corpus are adopted; matching ns/gateway corpus consumption, live preserved state and Q19/Q20 answers remain open. See [adoption evidence](account-handoff.md#adoption-profiles). |
+| 11 `v1-replacement` | Exact Node L3 applied-status codec, signed-event digest, retained-context comparison and independent vectors delivered; existing policy observation and M6 carrier unchanged | NSD issuance/digest/status persistence and ns recorded status adapters are adopted; live enforcement-to-Applied association remains open. See [adoption evidence](account-handoff.md#adoption-status). |
 
 Only an authenticated, valid, complete publication replaces its listed kinds
 in the explicitly named issuer/recipient scope. A complete empty publication
@@ -182,12 +190,16 @@ to one question does not imply acceptance of any other question.
 
 ### Q01: Signed roster entry format — NSD and node owners
 
+2026-10-27 status: NSD signed roster/participant and directory production plus ns recorded directory consumption are adopted; local file-writer proof, live rollback/carrier transitions and complete unsettled-reference sealing remain open. See [adoption evidence](account-handoff.md#adoption-roster).
+
 For relay admission, can NSD produce and the node consume atomic `[I, class]`
 entries with full validated 32-byte `IdentityKey`, class 0 `ordinary_node` or
 1 `gateway_node`, sorted uniquely by identity? Please identify producer vectors
 for both classes, empty withdrawal, duplicate identity and unknown class.
 
 ### Q02: Local schema 2 entry format — NSD and node owners
+
+2026-10-27 status: NSD signed roster/participant and directory production plus ns recorded directory consumption are adopted; local file-writer proof, live rollback/carrier transitions and complete unsettled-reference sealing remain open. See [adoption evidence](account-handoff.md#adoption-roster).
 
 Can the local relay snapshot writer emit required object fields `identity`
 (canonical full key text) and `class` (`ordinary_node` or `gateway_node`) in
@@ -196,6 +208,8 @@ every `identities` entry, with required root `schema_version: 2`,
 missing/duplicate/unknown fields, positional arrays and non-string classes.
 
 ### Q03: Signed roster attribution epoch — NSD and node owners
+
+2026-10-27 status: NSD signed roster/participant and directory production plus ns recorded directory consumption are adopted; local file-writer proof, live rollback/carrier transitions and complete unsettled-reference sealing remain open. See [adoption evidence](account-handoff.md#adoption-roster).
 
 Can signed `roster_version` be the positive, strictly increasing attribution
 epoch per issuer/participant, captured atomically with membership and class?
@@ -215,6 +229,8 @@ lifetime; bad signature; and missing, duplicate or unknown class.
 
 ### Q04: Local schema 2 attribution epoch — NSD and node owners
 
+2026-10-27 status: NSD signed roster/participant and directory production plus ns recorded directory consumption are adopted; local file-writer proof, live rollback/carrier transitions and complete unsettled-reference sealing remain open. See [adoption evidence](account-handoff.md#adoption-roster).
+
 Can local `roster_version` identify the same admission/class epoch rather than
 the issue timestamp? Specify how the controlled file's configured issuer and
 participant scope corresponds to the signed scope, and how its version sequence
@@ -222,6 +238,8 @@ is retained across restart and carrier changes. The JSON contains no issuer,
 recipient or signature; consumer rollback persistence remains necessary.
 
 ### Q05: Historical report lookup — NSD owner
+
+2026-10-27 status: NSD usage receipt/history handling and actual answer corpora are adopted; live completed-I/O capture, exclusion/repair, matching downstream corpus consumption and the retention seal remain open. See [adoption evidence](account-handoff.md#adoption-usage).
 
 For delayed relay usage, can NSD resolve identity/class using the original roster
 scope and version, even after reclassification, withdrawal or identity replacement?
@@ -232,6 +250,8 @@ Provide delayed-report, changed-class and unavailable-history vectors.
 
 ### Q06: Delivery of writer fields — NSD owner
 
+2026-10-27 status: NSD signed roster/participant and directory production plus ns recorded directory consumption are adopted; local file-writer proof, live rollback/carrier transitions and complete unsettled-reference sealing remain open. See [adoption evidence](account-handoff.md#adoption-roster).
+
 Which separately owned NSD/`ns` implementation work will deliver both `class`
 and `roster_version` in the atomic local schema 2 file? Please name its delivery
 reference, field source and mapping to the signed roster, controlled regular-file
@@ -240,6 +260,8 @@ The writer must publish membership and classes together; missing or invalid
 input must never install an empty roster. This request does not implement it.
 
 ### Q07: Identity lifecycle — node owner, with NSD confirmation
+
+2026-10-27 status: Registration/source and lifecycle handling are adopted in source; current matched enrollment corpus bytes, live confirmation and the Q07/Q11 owner answers remain open. See [adoption evidence](account-handoff.md#adoption-core).
 
 Does the node contract agree that `MembershipIdentityVersion` advances within
 one NSD membership, `RecordGeneration` advances only within one full identity
@@ -307,11 +329,13 @@ token; pending rows and parts retain original attribution and settlement custody
 The independent zero-placeholder `enrollment_consumer_vectors` preserve
 before/after mismatch and unauthorized-rotation refusals alongside valid identity
 replacement and authorized rotation. These are candidate fixtures, not producer
-confirmation. NSD N24/N26 and ns S17 adoption and producer-owned vectors remain
+confirmation. NSD N24/N26 and ns S17 live adoption confirmation and complete requested producer-owned vector coverage remain
 outstanding; no response or approval is recorded. No schema, crate-source or
 codec change, gateway source change or gateway repin is required by this delta.
 
 ### Q08: Complete replacement semantics — NSD and node owners
+
+2026-10-27 status: Canonical realm/source publication production and ns recorded-byte consumption are adopted; complete owner confirmation, refusal coverage and live source retirement remain open. See [adoption evidence](account-handoff.md#adoption-publication).
 
 For all eleven families, can the registry's publication/`clears` strings and
 explicit issuer/recipient scopes be used as specified? Identify any missing
@@ -331,6 +355,8 @@ decision, including unrelated scopes and absent/empty/failure distinctions.
 
 ### Q09: Normalized Node L3 schema — NSD and node owners
 
+2026-10-27 status: Canonical realm/source publication production and ns recorded-byte consumption are adopted; complete owner confirmation, refusal coverage and live source retirement remain open. See [adoption evidence](account-handoff.md#adoption-publication).
+
 The delivered [complete Node L3 authority](../spec/account/node.md#normalized-node-l3-form)
 is `[1, bindings, policy_bytes]`. Each binding is `[full_identity_I, authorized_WireGuard_K]`:
 I is a validated full Ed25519 identity, K is a nonzero 32-byte string, bindings
@@ -349,7 +375,7 @@ direct N6/N4 identity resolution remain in consumers; mapped Subnet routes
 resolve their exact resource and selection without a provider-wide Node rule. Confirm the 8,192-entry
 bounds and 1 MiB wrapper limit.
 
-Outstanding NSD/ns producer deltas: resolve current string machine/owner
+Owner confirmation of NSD/ns producer mappings remains open: resolve current string machine/owner
 identifiers and the NodeL3Config resource graph into full I/K authority,
 opaque namespaces and explicit rules; encode peer keys as byte strings rather
 than integer arrays. Please confirm this delivered wrapper and provide
@@ -359,6 +385,8 @@ selective withdrawal, port ranges and bounds. Candidate fixture agreement is
 not producer confirmation or live interoperability.
 
 ### Q10: Service byte unit — NSD owner
+
+2026-10-27 status: NSD usage receipt/history handling and actual answer corpora are adopted; live completed-I/O capture, exclusion/repair, matching downstream corpus consumption and the retention seal remain open. See [adoption evidence](account-handoff.md#adoption-usage).
 
 Will NSD explicitly accept Egress/Exit completed host-write/send layer-4 bytes,
 partial completions only, zero for failures, and the unchanged public-ingress
@@ -379,6 +407,8 @@ outstanding runtime capability, not a contract change or recorded agreement.
 
 ### Q11: Enrollment payload — NSD owner
 
+2026-10-27 status: Registration/source and lifecycle handling are adopted in source; current matched enrollment corpus bytes, live confirmation and the Q07/Q11 owner answers remain open. See [adoption evidence](account-handoff.md#adoption-core).
+
 Confirm the [independent snapshot poll candidate](../spec/account/control.md): PublicationSnapshotRequest, config.snapshot on the existing confidential control endpoint, exact sorted scopes, retained active subscription boot nonce/attempt and signed response nonce correlation. The only response is a signed B43 Response with canonical `[1, [bstr(SourcePublication), ...]]` payload, request-derived Snapshot delivery and independently accepted exact source for each requested scope, retaining existing per-key versions. Plain and mixed entries reject the whole poll; snapshot entries have no SSE/Base64 framing limit. No predecessor kind selector exists; only snapshot-owned kinds are requested, and explicit stream selectors are refused as unknown fields. Confirm exact scope authorization, active subscription binding and response correlation echo. Independent publication-snapshot-request.vec fixtures are not real producer output; NSD confirmation remains outstanding.
 
 Confirm the exact [publication subscription candidate](../spec/account/control.md): PublicationSubscriptionRequest, config.stream, /api/v1/config/stream, full issuer/recipient/realm/scope entries, enrollment capability syntax, family 7 public ingress indices and required nonzero boot nonce/positive u32 attempt counter. Confirm `request` as the subscription query parameter, `config-envelope.v1` as the single SourcePublication Base64 event, the shared inclusive 1,398,139-byte framing ceiling and independent decoded 1,048,576-byte ceiling. Confirm producer bytes and external scope authorization, confidential signed carrier use and unchanged publication versions/channel ownership. NSD confirmation remains outstanding; independent fixture vectors do not constitute producer agreement.
@@ -389,7 +419,7 @@ InformationRequest/Response and their exact tuple fields and constants. Confirm
 the provisioned membership/credential join, accepted profile/capabilities and
 I/K/version/generation comparison, including lifecycle refusal. Consumer vectors
 are independently generated in `control-exchange.vec`, not NSD producer output.
-Confirmation and producer-owned vectors remain outstanding; no agreement is recorded.
+Confirmation and complete requested producer-owned vector coverage remain outstanding; no agreement is recorded.
 
 
 The [Enrollment section](../spec/account/node.md#enrollment) adds the
@@ -420,6 +450,8 @@ missing trust, empty intersections, noncanonical/duplicate pins and downgrades.
 
 ### Q12: Realm and peer payload — NSD owner
 
+2026-10-27 status: Canonical realm/source publication production and ns recorded-byte consumption are adopted; complete owner confirmation, refusal coverage and live source retirement remain open. See [adoption evidence](account-handoff.md#adoption-publication).
+
 The [realm publication candidate](../spec/account/realm.md) now specifies
 `[1, 2, contributions]`: complete served-realm collections with full NodeBinding
 and signed NodeRecord I/K/generation checks, strict realm/member ordering, global
@@ -437,8 +469,7 @@ Its exact key and enclosing publication version control acceptance, including
 counter decreases under a newer publication.
 
 Please confirm these realm contribution, binding, withdrawal and diagnostic counter
-schemas and supply independently owned NSD producer vectors. Outstanding NSD/ns
-work includes mapping string machine/owner identifiers and the NodeL3Config
+schemas and supply independently owned NSD producer vectors. NSD/ns owner confirmation remains open for mapping string machine/owner identifiers and the NodeL3Config
 resource graph to full identities. Candidate fixture success does not establish
 producer confirmation; no producer reply has been received.
 
@@ -453,6 +484,8 @@ producer bytes. Labelled fixture success is not producer confirmation.
 
 ### Q13: Egress grant payload — NSD owner
 
+2026-10-27 status: Protocol-qualified grant, payer and withdrawal projection is adopted in source; complete independent producer vectors, owner answers and live joins remain open. See [adoption evidence](account-handoff.md#adoption-grants).
+
 What schema completes `egress` using M6 provider/resource and declaration
 references, address view, protocol/virtual port, authorized client, paying realm
 and subject, fresh grant incarnation and realm limits? Name NSD vectors for
@@ -464,11 +497,13 @@ full client/provider, exact local floor reference and projected name, concrete
 protocol/virtual port, optional positive alias generation, one binary payer
 realm/UserId pair, fresh incarnation and absolute expiry. Independent consumers
 compare every context field and refuse absent/ambiguous payer and invalid fields.
-NSD confirmation and producer vectors remain outstanding, including conversion
+NSD confirmation and complete requested producer-vector coverage remain outstanding, including conversion
 from current string ULIDs to exact 16-byte unsigned big-endian UserId bytes.
 No acceptance proof or local host binding is added to the payload.
 
 ### Q14: Exit grant and selection payload — NSD owner
+
+2026-10-27 status: Select/clear production, immutable receipts and ns restart/replay consumption are adopted; live routing and matched default/nested Exit confirmation remain open. See [adoption evidence](account-handoff.md#adoption-routes).
 
 What schema completes `exit-subnet` with stable route/resource identity,
 family-neutral prefixes, actual IPv4 and mapped IPv6 range, exclusions,
@@ -511,11 +546,14 @@ source/profile, request and selection identities. NSD-signed committed receipts
 carry selection generation; clear targets that exact generation. Replay retrieves
 the original immutable profile/source/request receipt without changing current
 selection, including after source replacement and restart. Changed content under
-one request identity conflicts. NSD transaction rechecks, all-receipt persistence,
-producer vectors and ns pending-journal/route adoption remain outstanding; the
+one request identity conflicts. NSD transaction rechecks, all-receipt persistence and ns pending-journal handling
+are adopted as recorded above; complete requested producer-vector coverage and
+live route confirmation remain open; the
 predecessor latest-clear-receipt-per-machine store cannot supply this ownership.
 
 ### Q15: Payer binding payload — NSD owner
+
+2026-10-27 status: Protocol-qualified grant, payer and withdrawal projection is adopted in source; complete independent producer vectors, owner answers and live joins remain open. See [adoption evidence](account-handoff.md#adoption-grants).
 
 What schema and resource scope complete `payer`, so each grant has an explicit
 paying realm/subject and ambiguous cross-realm grants are withheld? Name NSD
@@ -536,6 +574,8 @@ for the incompatible predecessor and the exact candidate bytes.
 
 ### Q16: Withdrawal and regrant payload — NSD owner
 
+2026-10-27 status: Protocol-qualified grant, payer and withdrawal projection is adopted in source; complete independent producer vectors, owner answers and live joins remain open. See [adoption evidence](account-handoff.md#adoption-grants).
+
 What schema completes `withdrawal` with resource removal or empty authority,
 current incarnation, real deadlines and payer/binding changes? Name NSD vectors
 for immediate removal, expiry and identical-content regrant with a fresh token;
@@ -550,10 +590,12 @@ succeeds and retired tokens fail. Equal or later deadline-only renewal may keep
 the token at a strictly newer valid revision; every other content change requires
 a fresh token.
 Runtime fencing, durable history and actual expiry comparisons remain consumer
-responsibilities. NSD producer vectors and publication/history delivery remain
+responsibilities. NSD complete requested producer-vector coverage and publication/history delivery remain
 outstanding; candidate fixtures do not assert deployed interoperability.
 
 ### Q17: Public-edge payload — NSD owner
+
+2026-10-27 status: NSD public-edge projection, anonymous/raw-name vectors and actual producer corpus are adopted; a matching downstream corpus reader, live policy/name enforcement and Q17 confirmation remain open. See [adoption evidence](account-handoff.md#adoption-edge).
 
 The delivered [candidate specification](../spec/account/edge.md) defines
 PublicEdge complete realm contributions under the existing signed family 7
@@ -579,6 +621,8 @@ changes are claimed; Q17 was sent on 2026-10-25; its answer is outstanding.
 
 ### Q18: Relay directory and participant payload — NSD owner
 
+2026-10-27 status: NSD signed roster/participant and directory production plus ns recorded directory consumption are adopted; local file-writer proof, live rollback/carrier transitions and complete unsettled-reference sealing remain open. See [adoption evidence](account-handoff.md#adoption-roster).
+
 The owner choice is settled: use a shared participant credential and a separate
 NSD-signed directory binding. The global directory, its entry identities and its
 existing format remain unchanged. Relay clients, independent participants and
@@ -593,7 +637,7 @@ route candidate only cross-references this boundary. The shared definition is
 delivered at immutable revision `28bf972db2e1f434114adc324a26fabad545aed1`; producer
 confirmation must name its immutable consumed revision.
 
-NSD producer review, independently owned producer vectors and NSD/ns adoption
+NSD producer review, independently owned complete requested producer-vector coverage and NSD/ns live adoption confirmation
 remain outstanding. The existing participant roster retains its signed
 issuer/recipient scope; its concrete carriers remain reviewed in Q01–Q06.
 Confirm Q03's retained complete authority and diagnostic degradation rule and
@@ -603,6 +647,8 @@ boundaries. Candidate fixture vectors establish neither producer confirmation
 nor live interoperability.
 
 ### Q19: Service and relay report schemas — NSD owner
+
+2026-10-27 status: NSD usage receipt/history handling and actual answer corpora are adopted; live completed-I/O capture, exclusion/repair, matching downstream corpus consumption and the retention seal remain open. See [adoption evidence](account-handoff.md#adoption-usage).
 
 What exact schemas complete `usage` reporter identity/sequence, report windows,
 acknowledgements, durable watermarks and errors for both independent reporters?
@@ -629,11 +675,13 @@ The version 1 nine-element tuple and every other field are unchanged. The exact
 implementation revision is `05ee100f4eba547cd1e7025c92860a20f79fefc2`; predecessor integration
 revision `c71148388636da72f3808623529e1946d1cee1ba` still uses the incompatible identity subject.
 The immutable candidate handoff must include the implementation revision. There is no old-subject fallback or tagged union. NSD confirmation,
-producer-owned vectors, historical ledgers and live exclusion remain outstanding;
+complete requested producer-owned vector coverage, historical ledgers and live exclusion remain outstanding;
 fixture answers establish none of them. Current gateway echo message quantities
 require completed-byte instrumentation before this profile can be adopted.
 
 ### Q20: Node-control vocabulary — node owner and NSD owner
+
+2026-10-27 status: NSD usage/Node-control catalogue production and actual corpus are adopted; matching ns/gateway corpus consumption, live preserved state and Q19/Q20 answers remain open. See [adoption evidence](account-handoff.md#adoption-profiles).
 
 The candidate now supplies `nsshared_proto::node_control` for ACK, ENDPOINTS,
 RECORD, PROBE_REQUEST and PROBE_REPLY, with unchanged version 2 and port 47900.
@@ -650,6 +698,8 @@ persistence, retransmission and state machines remain in consumers.
 
 ### Q21: Complete v1 replacement map — NSD and node owners
 
+2026-10-27 status: Exact shared control-report producer bytes, admin scope/subject/JWT/signed-URL/header review, unplaced carriers and any gateway audience decision remain open; partial family-7 implementation is recorded. See [adoption evidence](account-handoff.md#adoption-policy).
+
 The [source/selection candidate](../spec/account/publication.md) records the
 assigned `explicit-gateway-profile` vocabulary and mandatory source/profile
 comparisons. New signed forms refuse retired gateway-ID selections, carrier
@@ -657,7 +707,7 @@ credentials and old-profile receipts without compatibility translation. The
 `source_selection_fence` independent fixture sequence preserves I/K/addresses
 while replacing source authority, refuses delayed higher-version A content and
 keeps A's original clear receipt and B's selection intact across restart. NSD/ns
-retained-cohort inventory and retirement decisions, producer review and adoption
+retained-cohort inventory and retirement decisions, producer review and live adoption confirmation
 remain outstanding. This is candidate delivery, not approval or interoperability.
 
 Confirm the exact [publication subscription candidate](../spec/account/control.md): PublicationSubscriptionRequest, config.stream, /api/v1/config/stream, full issuer/recipient/realm/scope entries, enrollment capability syntax, family 7 public ingress indices and required nonzero boot nonce/positive u32 attempt counter. Confirm `request` as the subscription query parameter, `config-envelope.v1` as the single SourcePublication Base64 event, the shared inclusive 1,398,139-byte framing ceiling and independent decoded 1,048,576-byte ceiling. Confirm producer bytes and external scope authorization, confidential signed carrier use and unchanged publication versions/channel ownership. NSD confirmation remains outstanding; independent fixture vectors do not constitute producer agreement.
@@ -675,7 +725,7 @@ absent, unrelated single and array audiences keep their current outcome.
 Wrong-audience refusal vectors are explicitly labelled as the distinct NSD
 machine verifier boundary. Open owner-review item: should a later gateway
 candidate require the expected machine audience? No such change is decided or
-implemented here. NSD confirmation, independent producer vectors and any later
+implemented here. NSD confirmation, independent complete requested producer-vector coverage and any later
 policy agreement remain outstanding.
 
 
@@ -715,6 +765,8 @@ were sent on 2026-10-25; candidate fixture signatures are not NSD output.
 
 ### Q22: Independent family producer vectors — NSD owner
 
+2026-10-27 status: Named NSD producer corpora and bounded ns readers are adopted; the complete eleven-family refusal/limit inventory, matching remaining readers and Q22/Q23 owner answers remain open. See [adoption evidence](account-handoff.md#adoption-vectors).
+
 Where will NSD publish its independently generated vectors for each of
 `enrollment`, `realms-peers`, `egress`, `exit-subnet`, `payer`, `withdrawal`,
 `public-edge`, `relay`, `usage`, `node-control` and `v1-replacement`?
@@ -724,6 +776,8 @@ cannot stand in for NSD's producer output. Identify unresolved schemas explicitl
 
 ### Q23: M6 composition boundary — NSD and node owners
 
+2026-10-27 status: NSD M6 carrier and ns recorded-byte adapters are adopted; Q23 composition agreement and real per-Network session/proposal/lease confirmation remain open. See [adoption evidence](account-handoff.md#adoption-m6).
+
 Does each detailed family retain the exact types, message variants, codecs,
 constants and vector domains in the reuse table? For any additional needed M6
 change, identify the affected type, message or vector, family and concrete need
@@ -731,6 +785,8 @@ so the owner can forward it to the M6 contract owner. No additional M6 schema
 change is established by this frame; standalone label validation is requested below.
 
 ### Q24: Gateway report ingress scopes — NSD owner
+
+2026-10-27 status: Open: NSD must classify GatewayReport ingress values as publication scopes or report-only labels. No answer or stricter validation is inferred.
 
 Are the `public_ingress_scopes` values of `GatewayReport` (see the
 [gateway observations](../spec/account/control.md#gateway-observations)) publication
@@ -778,39 +834,41 @@ retain the delivery date and any partial answer reference. Outstanding answers
 do not block candidate preparation and do not imply approval. The owner reported
 delivery of every row on 2026-10-25; no answer has been received.
 These statuses track external producer review; Q18's owner design choice is
-settled; shared definitions are delivered, while external producer review and
-adoption remain outstanding.
+settled. Shared definitions and bounded upstream adoption are delivered; owner
+answers and live confirmation remain open as detailed in the linked evidence.
 
 | Reference | Addressee | Status | Sent date (reported by owner) | Answer location |
 | --- | --- | --- | --- | --- |
-| Q01 | NSD and node | sent | 2026-10-25 | — |
-| Q02 | NSD and node | sent | 2026-10-25 | — |
-| Q03 | NSD and node | sent | 2026-10-25 | — |
-| Q04 | NSD and node | sent | 2026-10-25 | — |
-| Q05 | NSD | sent | 2026-10-25 | — |
-| Q06 | NSD | sent | 2026-10-25 | — |
-| Q07 | Node, with NSD | sent | 2026-10-25 | — |
-| Q08 | NSD and node | sent | 2026-10-25 | — |
-| Q09 | NSD and node | sent | 2026-10-25 | — |
-| Q10 | NSD | sent | 2026-10-25 | — |
-| Q11 | NSD | sent | 2026-10-25 | — |
-| Q12 | NSD | sent | 2026-10-25 | — |
-| Q13 | NSD | sent | 2026-10-25 | — |
-| Q14 | NSD | sent | 2026-10-25 | — |
-| Q15 | NSD | sent | 2026-10-25 | — |
-| Q16 | NSD | sent | 2026-10-25 | — |
-| Q17 | NSD | sent | 2026-10-25 | — |
-| Q18 | NSD | sent | 2026-10-25 | — |
-| Q19 | NSD | sent | 2026-10-25 | — |
-| Q20 | Node and NSD | sent | 2026-10-25 | — |
-| Q21 | NSD and node | sent | 2026-10-25 | — |
-| Q22 | NSD | sent | 2026-10-25 | — |
-| Q23 | NSD and node | sent | 2026-10-25 | — |
-| Q24 | NSD | open, not sent | — | — |
-| M01 | M6 contract owner, through owner | sent | 2026-10-25 | — |
-| M02 | M6 contract owner, through owner | sent | 2026-10-25 | — |
+| Q01 | NSD and node | sent; answer open | 2026-10-25 | No received owner answer; [adoption evidence](account-handoff.md#adoption-roster) |
+| Q02 | NSD and node | sent; answer open | 2026-10-25 | No received owner answer; [adoption evidence](account-handoff.md#adoption-roster) |
+| Q03 | NSD and node | sent; answer open | 2026-10-25 | No received owner answer; [adoption evidence](account-handoff.md#adoption-roster) |
+| Q04 | NSD and node | sent; answer open | 2026-10-25 | No received owner answer; [adoption evidence](account-handoff.md#adoption-roster) |
+| Q05 | NSD | sent; answer open | 2026-10-25 | No received owner answer; [adoption evidence](account-handoff.md#adoption-usage) |
+| Q06 | NSD | sent; answer open | 2026-10-25 | No received owner answer; [adoption evidence](account-handoff.md#adoption-roster) |
+| Q07 | Node, with NSD | sent; answer open | 2026-10-25 | No received owner answer; [adoption evidence](account-handoff.md#adoption-core) |
+| Q08 | NSD and node | sent; answer open | 2026-10-25 | No received owner answer; [adoption evidence](account-handoff.md#adoption-publication) |
+| Q09 | NSD and node | sent; answer open | 2026-10-25 | No received owner answer; [adoption evidence](account-handoff.md#adoption-publication) |
+| Q10 | NSD | sent; answer open | 2026-10-25 | No received owner answer; [adoption evidence](account-handoff.md#adoption-usage) |
+| Q11 | NSD | sent; answer open | 2026-10-25 | No received owner answer; [adoption evidence](account-handoff.md#adoption-core) |
+| Q12 | NSD | sent; answer open | 2026-10-25 | No received owner answer; [adoption evidence](account-handoff.md#adoption-publication) |
+| Q13 | NSD | sent; answer open | 2026-10-25 | No received owner answer; [adoption evidence](account-handoff.md#adoption-grants) |
+| Q14 | NSD | sent; answer open | 2026-10-25 | No received owner answer; [adoption evidence](account-handoff.md#adoption-routes) |
+| Q15 | NSD | sent; answer open | 2026-10-25 | No received owner answer; [adoption evidence](account-handoff.md#adoption-grants) |
+| Q16 | NSD | sent; answer open | 2026-10-25 | No received owner answer; [adoption evidence](account-handoff.md#adoption-grants) |
+| Q17 | NSD | sent; answer open | 2026-10-25 | No received owner answer; [adoption evidence](account-handoff.md#adoption-edge) |
+| Q18 | NSD | sent; answer open | 2026-10-25 | No received owner answer; [adoption evidence](account-handoff.md#adoption-roster) |
+| Q19 | NSD | sent; answer open | 2026-10-25 | No received owner answer; [adoption evidence](account-handoff.md#adoption-usage) |
+| Q20 | Node and NSD | sent; answer open | 2026-10-25 | No received owner answer; [adoption evidence](account-handoff.md#adoption-profiles) |
+| Q21 | NSD and node | sent; answer open | 2026-10-25 | No received owner answer; [adoption evidence](account-handoff.md#adoption-policy) |
+| Q22 | NSD | sent; answer open | 2026-10-25 | No received owner answer; [adoption evidence](account-handoff.md#adoption-vectors) |
+| Q23 | NSD and node | sent; answer open | 2026-10-25 | No received owner answer; [adoption evidence](account-handoff.md#adoption-m6) |
+| Q24 | NSD | open, not sent | — | Need NSD scope-versus-label classification; not answered |
+| M01 | M6 contract owner, through owner | sent; answer open | 2026-10-25 | Need explicit API agreement and independent label vectors; [adoption evidence](account-handoff.md#adoption-labels) |
+| M02 | M6 contract owner, through owner | sent; answer open | 2026-10-25 | Need explicit API agreement and independent label vectors; [adoption evidence](account-handoff.md#adoption-labels) |
 
 ## Policy, subject and admin claim review delta
+
+2026-10-27 status: Exact shared control-report producer bytes, admin scope/subject/JWT/signed-URL/header review, unplaced carriers and any gateway audience decision remain open; partial family-7 implementation is recorded. See [adoption evidence](account-handoff.md#adoption-policy).
 
 Review the [pure policy and claim values](../spec/account/realm.md)
 and independent [policy-claims vectors](../../crates/nsshared-control/tests/vectors/account/realm/claims.vec).
@@ -874,20 +932,24 @@ producer cases in family 7 review, independently of its reference/token syntax.
 
 ## Control exchange family state delta
 
+2026-10-27 status: Registration/source and lifecycle handling are adopted in source; current matched enrollment corpus bytes, live confirmation and the Q07/Q11 owner answers remain open. See [adoption evidence](account-handoff.md#adoption-core).
+
 Implementation revision: `1c9602c5e626e186ea6c8c0d85b42536c43c508e`.
 Review the exact source, tuple specification and independent fixture bytes at
 that revision; the earlier package revision does not include this delta.
 
 | Family | Current candidate state | Review status |
 | --- | --- | --- |
-| Enrollment | Registration, explicit acceptance and lifecycle comparison implemented | NSD confirmation outstanding |
-| Bootstrap / v1 replacement | Information and authentication values reuse confidential signed envelopes and public signing input | NSD confirmation outstanding |
+| Enrollment | Registration, explicit acceptance and lifecycle comparison implemented | Registration/source and lifecycle handling are adopted in source; current matched enrollment corpus bytes, live confirmation and the Q07/Q11 owner answers remain open. See [adoption evidence](account-handoff.md#adoption-core). |
+| Bootstrap / v1 replacement | Information and authentication values reuse confidential signed envelopes and public signing input | Registration/source and lifecycle handling are adopted in source; current matched enrollment corpus bytes, live confirmation and the Q07/Q11 owner answers remain open. See [adoption evidence](account-handoff.md#adoption-core). |
 | Machine claims / v1 replacement | RS256 public claims, JWK forms, pin qualification and distinct audience predicates implemented | Producer vectors and possible later gateway audience requirement open |
 
 This delta accompanies the changed source and independent fixtures; the earlier
 published revision above is historical and does not contain this delta.
 
 ## Control reports delta for Q11/Q21
+
+2026-10-27 status: Exact shared control-report producer bytes, admin scope/subject/JWT/signed-URL/header review, unplaced carriers and any gateway audience decision remain open; partial family-7 implementation is recorded. See [adoption evidence](account-handoff.md#adoption-policy).
 
 Implementation and independent fixture revision: `e8f03746d26ac26491ba644704a4357934f43bdd`.
 The earlier package does not include this explicit candidate delta.
@@ -921,6 +983,8 @@ interoperability remain outstanding. Fixture acceptance records no agreement.
 
 ## Exact floor text acceptance
 
+2026-10-27 status: Exact shared control-report producer bytes, admin scope/subject/JWT/signed-URL/header review, unplaced carriers and any gateway audience decision remain open; partial family-7 implementation is recorded. See [adoption evidence](account-handoff.md#adoption-policy).
+
 Source and independent fixture revision: `300e72c13c36c10cdb9374179913e0ea329aa9e3`.
 The floor wrapper preserves valid unchanged M6 declaration keys, and nonempty
 control-free Exit references and policy-label keys, including internal, leading
@@ -931,13 +995,15 @@ policy-label values retain their separate existing meaning. No trimming, folding
 or normalization is applied before serialization, digesting or correlation.
 Independent floor-text.vec cases cover these accepted/refused boundaries and
 exact matching acknowledgements. Tuple shapes and existing valid fixture bytes
-are unchanged; NSD confirmation and producer-owned vectors remain outstanding.
+are unchanged; NSD confirmation and complete requested producer-owned vector coverage remain outstanding.
 
 ## Confidential authentication family state delta
 
+2026-10-27 status: NSD confidential acquisition/dispatch is adopted in source; independent material/auth producer corpora, JWT projection review and live installation remain open. See [adoption evidence](account-handoff.md#adoption-material).
+
 | Family | Current candidate state | Review status |
 | --- | --- | --- |
-| Public edge | Public references unchanged; complete confidential catalog DTOs, pure codecs and exact pending/current dependency refusal implemented | NSD producer confirmation and producer-owned vectors outstanding |
+| Public edge | Public references unchanged; complete confidential catalog DTOs, pure codecs and exact pending/current dependency refusal implemented | NSD confidential acquisition/dispatch is adopted in source; independent material/auth producer corpora, JWT projection review and live installation remain open. See [adoption evidence](account-handoff.md#adoption-material). |
 | Bootstrap / control exchange | Existing request/response envelopes carry edge.auth.config.get; no new transport or publication kind | Accepted authority/recipient binding and installation remain consumer-owned |
 
 The pinned NSD projection supplies client secrets, cookie keys and API/Basic/
@@ -950,6 +1016,8 @@ JWKS stale refusal remain unchanged in consumers.
 
 ## Protocol-qualified grant and renewal delta
 
+2026-10-27 status: Protocol-qualified grant, payer and withdrawal projection is adopted in source; complete independent producer vectors, owner answers and live joins remain open. See [adoption evidence](account-handoff.md#adoption-grants).
+
 The [grant authority specification](../spec/account/grants.md) changes family 5
 bindings to `[resource_bytes, client, incarnation, payers, discriminator]` and
 family 6 active claims to `[resource_bytes, client, incarnation, discriminator]`.
@@ -961,11 +1029,13 @@ Strictly newer valid grant publications allow equal or later deadlines with
 all other fields unchanged, including embedded Subnet bytes. Any other reuse
 refuses and retired lifetimes cannot renew. ServiceGrant and usage tuple bytes
 are unchanged. `protocol_grant_renewal` provides independent fixture producer
-and consumer coverage. NSD N06 protocol/token/deadline producer adoption and
-producer-owned vectors remain outstanding; this incompatible candidate delta
+and consumer coverage. NSD N06 protocol/token/deadline producer live adoption confirmation and
+complete requested producer-owned vector coverage remain outstanding; this incompatible candidate delta
 is not contained in the earlier published package revision.
 
 ## Signed source authority response delta
+
+2026-10-27 status: Registration/source and lifecycle handling are adopted in source; current matched enrollment corpus bytes, live confirmation and the Q07/Q11 owner answers remain open. See [adoption evidence](account-handoff.md#adoption-core).
 
 Successful registration now requires `[1, scope, bstr(Enrollment), profile,
 decision, bstr(SignedSourceBinding)]`, including Equal. Successful authentication
@@ -976,18 +1046,20 @@ The [control exchange](../spec/account/control.md) and
 [source authority](../spec/account/publication.md) specify envelope trust, exact
 pending nonce correlation, nested signature and independent enrollment comparisons.
 Independent fixture vectors precede the pure codecs; fixtures are not NSD output.
-NSD N04 adoption, producer-owned vectors and real interoperability remain outstanding.
+NSD N04 live adoption confirmation, complete requested producer-owned vector coverage and real interoperability remain outstanding.
 Prior delivered revisions retain their original attribution; consumers must name
 the immutable revision containing this response extension when adopting it.
 
 ## Explicit authentication source selection
+
+2026-10-27 status: Registration/source and lifecycle handling are adopted in source; current matched enrollment corpus bytes, live confirmation and the Q07/Q11 owner answers remain open. See [adoption evidence](account-handoff.md#adoption-core).
 
 AuthenticationRequest is exactly `[1, membership_scope, NodeBinding, "control",
 [served_realm, publication_scope]]`. The selector is required, with no default or
 old-shape fallback. Realm text is canonical 26-character RealmId; scope uses the
 existing nonempty, control-free UTF-8 encoding bounded to 256 bytes. This is an
 incompatible candidate request delta. AuthenticationResponse and SignedSourceBinding
-encodings and signing domains are unchanged. NSD N04 adoption remains outstanding.
+encodings and signing domains are unchanged. NSD N04 live adoption confirmation remains outstanding.
 
 Registration, including pending gateway enrollment and Equal, returns nodes authority
 in the accepted registration Network. Recipient and source_node equal the enrolled
@@ -1005,6 +1077,8 @@ including swapped-scope and swapped-realm refusal.
 
 ## Usage and Node-control catalogue payload delivery
 
+2026-10-27 status: NSD usage/Node-control catalogue production and actual corpus are adopted; matching ns/gateway corpus consumption, live preserved state and Q19/Q20 answers remain open. See [adoption evidence](account-handoff.md#adoption-profiles).
+
 Review the new [profile payload specification](../spec/account/usage.md)
 and independent `profile-publications.vec` producer/consumer fixtures. Family 9
 now carries `[1, reporter, profiles]`; family 10 carries
@@ -1020,11 +1094,13 @@ never authority, permission or runtime negotiation; captured usage and received
 control state survive replacement and withdrawal. The source-bound fixture sequence
 is available for gateway adoption using the same independent bytes.
 
-NSD/ns review, producer-owned canonical/refusal vectors and producer adoption
+NSD/ns review, producer-owned canonical/refusal vectors and producer live adoption confirmation
 remain outstanding. This delta was sent on 2026-10-25; no answer or live
 interoperability is recorded by candidate fixture acceptance.
 
 ## Inner publication producer addition
+
+2026-10-27 status: Canonical realm/source publication production and ns recorded-byte consumption are adopted; complete owner confirmation, refusal coverage and live source retirement remain open. See [adoption evidence](account-handoff.md#adoption-publication).
 
 The additive producer API keeps existing inner wire bytes unchanged:
 `PublicationContent::canonical()` returns validated signed content bytes,
@@ -1046,12 +1122,14 @@ unchanged, including unknown-kind forward compatibility and incomplete refusal.
 Independent fixtures round-trip producer-valid content and assert producer refusal
 for decodable invalid content; they are not NSD output.
 
-NSD N06, N08 and N21 producers should adopt implementation revision
-`2391ebd5e59574cb318fbc2c7b1ca3615426796a`;
-earlier package revisions do not include it. Producer-owned vectors and adoption
-remain outstanding.
+NSD adopted shared `95f1688` containing implementation revision
+`2391ebd5e59574cb318fbc2c7b1ca3615426796a`; the producer evidence above
+supersedes the request to adopt that older revision. Complete requested refusal
+coverage, owner review and live confirmation remain open beyond the named corpora.
 
 ## Ordinary provider Subnet report review addition
+
+2026-10-27 status: NSD report handling and ns report/custody adapters are adopted in source; matched actual producer report bytes and real provider activation remain open; gateway self-reporting stays deferred. See [adoption evidence](account-handoff.md#adoption-provider).
 
 Review the additive `node.subnet.report` operation in both directions on the
 confidential BootstrapEnvelope under the
@@ -1064,11 +1142,13 @@ allocations and stale generation/source refusal. M6 declarations, Subnet
 publications and select/clear bytes remain unchanged.
 
 NSD N30 ingestion/allocation/persistence, N07/N08 selection/projection and ns
-S11/S25 production/custody adoption and producer-owned interoperability evidence
+S11/S25 production/custody live adoption confirmation and producer-owned interoperability evidence
 remain outstanding. Gateway self-reporting is deferred to later ordinary-provider
 integration. Prepared shared contracts do not demonstrate external adoption.
 
 ## Exit grant and client route view review addition
+
+2026-10-27 status: NSD grant/client-route production and ns recorded-byte consumers are adopted; live installation/replacement/withdrawal and default/nested Exit qualification remain open. See [adoption evidence](account-handoff.md#adoption-subnet).
 
 Review the two family 4 snapshot kinds and their distinct payloads in the
 [grant specification](../spec/account/grants.md).
@@ -1079,9 +1159,11 @@ recipient, served realm and revision comparisons and exact collection isolation.
 
 The independent subnet_publication_views sequence is prepared for consumer reuse.
 NSD N07/N08 projection, producer-owned canonical/refusal vectors and ns route
-installation/adoption remain outstanding; fixture acceptance is not interoperability.
+installation/live adoption confirmation remain outstanding; fixture acceptance is not interoperability.
 
 ## M6 carrier and subscription review delta
+
+2026-10-27 status: NSD M6 carrier and ns recorded-byte adapters are adopted; Q23 composition agreement and real per-Network session/proposal/lease confirmation remain open. See [adoption evidence](account-handoff.md#adoption-m6).
 
 Review the [canonical M6 carrier](../spec/account/control.md), its pure
 `account::service_control` APIs and independent `service-control-carrier.vec`
@@ -1102,11 +1184,11 @@ The reference lifecycle is `ns/docs/plan/20261017-m6-service-contract.md` at
 carrier is replaced by the candidate mapping. M6 message and declaration bytes
 are unchanged. No runtime or persistence is added to shared contracts.
 
-| Family surface | Delivered shared candidate | Review/adoption status |
+| Family surface | Delivered shared candidate | Review/live adoption confirmation status |
 | --- | --- | --- |
-| Bootstrap / v1 replacement | Unary context, empty receipts, failures and bound M6 events with independent vectors | NSD M6 carrier adoption and independent real producer vectors outstanding |
-| Public edge / service integration | Unchanged M6 bytes, singleton leases and exact reverse port result comparison | Consumer current-contribution/proposal custody and real NSD interoperability outstanding |
-| Subscription | Breaking optional typed M6 binding in eight-element request | NSD and consumer byte adoption outstanding; no agreement is recorded |
+| Bootstrap / v1 replacement | Unary context, empty receipts, failures and bound M6 events with independent vectors | NSD M6 carrier and ns recorded-byte adapters are adopted; Q23 composition agreement and real per-Network session/proposal/lease confirmation remain open. See [adoption evidence](account-handoff.md#adoption-m6). |
+| Public edge / service integration | Unchanged M6 bytes, singleton leases and exact reverse port result comparison | NSD M6 carrier and ns recorded-byte adapters are adopted; Q23 composition agreement and real per-Network session/proposal/lease confirmation remain open. See [adoption evidence](account-handoff.md#adoption-m6). |
+| Subscription | Breaking optional typed M6 binding in eight-element request | NSD M6 carrier and ns recorded-byte adapters are adopted; Q23 composition agreement and real per-Network session/proposal/lease confirmation remain open. See [adoption evidence](account-handoff.md#adoption-m6). |
 
 The `contribution_network_sessions` shared vector test establishes candidate
 bytes and refusals across two Networks. It does not claim gateway lifecycle
@@ -1114,6 +1196,8 @@ execution or real NSD agreement. Request explicit producer review of the full
 reverse-event, receipt and singleton-lease mapping before live interoperability.
 
 ## Confidential certificate and client-CA acquisition addition
+
+2026-10-27 status: NSD confidential acquisition/dispatch is adopted in source; independent material/auth producer corpora, JWT projection review and live installation remain open. See [adoption evidence](account-handoff.md#adoption-material).
 
 Review the [canonical material contract](../spec/account/edge.md) and
 `confidential_edge_material_generation` consumer vectors for `edge.material.get`.
@@ -1124,15 +1208,17 @@ for ClientCa, a trust domain. No private value is present in public publications
 The auth-only operation and installation ACK bytes remain unchanged; certificate
 and client-CA ACK ids are independently minted installation-status ids.
 
-Please supply NSD-owned exact producer bytes and refusals, authorize material
-release against authenticated custody, and adopt the confidential operation's
-production and dispatch. Current dependency validation, host coverage, trust-domain
+Please confirm the adopted confidential production/dispatch against authenticated
+custody and supply the complete independent producer-byte/refusal coverage. Current dependency validation, host coverage, trust-domain
 comparison, X.509 parsing and installation stay with the gateway. The independent
 Python candidate vectors do not establish NSD agreement or live interoperability.
-NSD confirmation, producer implementation, dispatch adoption and producer-owned
-vectors remain outstanding; this review request records no received agreement.
+NSD implementation and dispatch are adopted as recorded above. Complete independent
+material producer vectors, the owner answer and live installation confirmation
+remain open; this review request records no received agreement.
 
 ## R3 local Node naming and legacy registration retirement
+
+2026-10-27 status: Local-name enrollment and ns authenticated commit/restart handling are adopted in source; live cutover and owner confirmation remain open; the portability follow-up is pending. See [adoption evidence](account-handoff.md#adoption-naming).
 
 R3 enrollment declares `node_local_names.v1` using the public
 `account::NODE_LOCAL_NAMES_V1` constant in the existing Enrollment.capabilities
@@ -1182,13 +1268,15 @@ labels, public-edge names and authorization retain their existing contracts.
 
 The external R3 runtime consumer owns cutover and its commit/restart regression:
 matching acceptance must drop every active old pin and Short DNS authority; mismatched acceptance or supplied legacy values must leave the prior
-profile intact. NSD N04/N09 producer adoption and ns S05/S06/S11 consumer/cutover
-adoption remain outstanding, including independent producer confirmation.
+profile intact. NSD N04/N09 producer live adoption confirmation and ns S05/S06/S11 consumer/cutover
+live adoption confirmation remain outstanding, including independent producer confirmation.
 The review delta is a candidate, never agreement or interoperability evidence.
 No new field, carrier, P-item or dependency edge is introduced; previous delivery
 evidence does not establish this delta or release external cutover acceptance.
 
 ## Node L3 route admission and applied status review delta
+
+2026-10-27 status: NSD issuance/digest/status persistence and ns recorded status adapters are adopted; live enforcement-to-Applied association remains open. See [adoption evidence](account-handoff.md#adoption-status).
 
 The [status specification](../spec/account/control.md) defines the confidential
 `node.l3.status` request, exact signed-inner-event digest, current issuance/source
@@ -1197,17 +1285,19 @@ Applied; complete-empty Applied proves removal. Independent shared vectors cover
 route selection without ordinary host permission and the applied-status sequence.
 NodeL3, NodeL3Authority, grant, Subnet and service-control bytes are unchanged.
 
-NSD N08 producer and Node S03/S24 consumer adoption remains outstanding:
+NSD N08 producer and Node S03/S24 consumer live adoption confirmation remains outstanding:
 NSD retains and correlates exact issuance/source, and the Node associates actual
 collection application with status.
 These are review requests, never recorded agreement or live interoperability.
 
-Publication delivery adoption by the NSD N09 producer and Node S23 adapter
-remains outstanding; fixture bytes and shared delivery do not record
-producer/adapter agreement.
+Publication delivery source adoption and matched bytes are recorded in the
+[delivery evidence](account-handoff.md#adoption-delivery); real NSD N09 / ns S23
+delivery, disconnect and expiry confirmation remains open.
 
 
 ## Explicit anonymous public-edge selector delta
+
+2026-10-27 status: NSD public-edge projection, anonymous/raw-name vectors and actual producer corpus are adopted; a matching downstream corpus reader, live policy/name enforcement and Q17 confirmation remain open. See [adoption evidence](account-handoff.md#adoption-edge).
 
 SubjectRule now uses SubjectSelector: AnyVerified retains sole null, Subject
 retains canonical PolicySubject bytes, and Anonymous is the byte string
@@ -1219,14 +1309,16 @@ The independent `anonymous-public-edge.vec` fixtures distinguish anonymous,
 verified user, Node and group matching, malformed selectors, and no-Auth
 HTTP/TCP/UDP routes. They are consumer fixtures, not external producer evidence.
 
-NSD producer adoption of accepted service public-ingress policy and ACL remains
-outstanding, including the separately tracked N20 producer adoption. No producer
+NSD producer live adoption confirmation of accepted service public-ingress policy and ACL remains
+outstanding, including the separately tracked N20 producer live adoption confirmation. No producer
 agreement, external interoperability or live promotion is recorded. PolicySubject,
 credential bindings, group members, admin claims and confidential authentication
 configuration remain unchanged. Consumers must preserve payload-free anonymous
 classification, verified-only null semantics and required Auth dependencies.
 
 ## Protocol-specific public-edge names
+
+2026-10-27 status: NSD public-edge projection, anonymous/raw-name vectors and actual producer corpus are adopted; a matching downstream corpus reader, live policy/name enforcement and Q17 confirmation remain open. See [adoption evidence](account-handoff.md#adoption-edge).
 
 Family 7 retains version 1 and thirteen route positions, with `name_or_null`
 at the existing name position. HTTP requires its canonical hostname and retains
@@ -1239,11 +1331,13 @@ hostname is accepted. The independent `public_edge_protocol_names` sequence
 covers these shapes and conflicts; existing named raw fixtures are regenerated
 to null, while HTTP-only bytes stay unchanged.
 
-NSD N20 producer adoption remains outstanding. Confirm NSD HTTP public_host
+NSD N20 producer live adoption confirmation remains outstanding. Confirm NSD HTTP public_host
 and raw protocol/port projection, with producer-owned accepted/refused vectors.
 Independent candidate fixtures are not producer agreement.
 
 ## Provider mapping inventory
+
+2026-10-27 status: The separate provider-mappings publication and authenticated ns activation remain open; report/selection implementations do not establish this inventory or its independent producer vectors. See [adoption evidence](account-handoff.md#adoption-mapping).
 
 The [provider mapping specification](../spec/account/edge.md)
 adds family 4 Snapshot kind `provider-mappings`, clears `mappings`, canonical
@@ -1257,6 +1351,6 @@ operate only on that exact collection. Existing report/grant/route bytes are unc
 
 The independent `provider_mapping_replacement` consumer sequence proves populated,
 changed/omitted and empty sets and authority/payload refusals with fixture authorities.
-NSD N07/N09 publication and current-source handoff, and ns S25/S11 activation adoption
-remain outstanding requests; no agreement, producer delivery or external adoption is
+NSD N07/N09 publication and current-source handoff, and ns S25/S11 activation live adoption confirmation
+remain outstanding requests; no agreement, producer delivery or external live adoption confirmation is
 inferred. Gateway self-reporting/inventory consumption remains deferred to C06.
