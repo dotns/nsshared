@@ -1,3 +1,20 @@
+## 2026-10-27 23:07 [ci]
+
+Record shared-cache validation and complete the CI cache task. Sequential SSD
+QA runs 4198 and 4202 passed on `b5f2fc3` in 12m35s and 14m07s, versus baseline
+run 4182 at 28m28s. Both reported 99.62% overall cache hits, 99.25% Rust hits,
+and zero cache errors. Verify the writable host bind mount in both jobs and
+record old-disk comparisons, concurrent-load limitations and test timings in
+`docs/task/20261027-1938-ci-sccache.md`. This record does not change the workflow.
+
+## 2026-10-27 19:38 [ci]
+
+Use checksum-verified sccache 0.19.0 with the runner's shared `/sccache` cache
+for Workspace QA. Disable incremental compilation and always print cache
+statistics. Retain registry/git source caching in a new namespace, with target
+and binary caching disabled. Document the fixed checkout path and cache setup;
+`just qa` and workflow triggers are unchanged.
+
 ## 2026-10-27 [docs]
 
 Reconcile account adoption records with immutable producer and consumer revisions.

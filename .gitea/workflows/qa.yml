@@ -23,7 +23,14 @@ jobs:
   qa:
     name: Workspace QA
     runs-on: ubuntu-latest
+    env:
+      RUSTC_WRAPPER: sccache
+      SCCACHE_DIR: /sccache
+      SCCACHE_CACHE_SIZE: 60G
+      SCCACHE_IDLE_TIMEOUT: "0"
+      CARGO_INCREMENTAL: "0"
     steps:
+      # Keep the runner checkout at /workspace/nsiod/nsshared: paths affect sccache keys.
       - name: Checkout repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -54,17 +61,36 @@ jobs:
             --component clippy
           echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
-      - name: Restore Rust cache
+      - name: Install sccache
+        run: |
+          set -euo pipefail
+          sccache_version=0.19.0
+          sccache_package="sccache-v${sccache_version}-x86_64-unknown-linux-musl"
+          sccache_sha256=aa73c7270c997894038c0d8f0d297865f57569e1687883322bc431713d4bb9dd
+          sccache_tmp="$(mktemp -d)"
+          trap 'rm -rf "$sccache_tmp"' EXIT
+
+          curl --proto '=https' --tlsv1.2 --location --fail --silent --show-error \
+            --connect-timeout 15 --max-time 180 \
+            --output "$sccache_tmp/sccache.tar.gz" \
+            "https://github.com/mozilla/sccache/releases/download/v${sccache_version}/${sccache_package}.tar.gz"
+          printf '%s  %s\n' "$sccache_sha256" "$sccache_tmp/sccache.tar.gz" \
+            | sha256sum --check --status
+          tar -xzf "$sccache_tmp/sccache.tar.gz" -C "$sccache_tmp" "$sccache_package/sccache"
+          install -m 0755 "$sccache_tmp/$sccache_package/sccache" "$HOME/.cargo/bin/sccache"
+          sccache --version
+
+      - name: Restore Rust source cache
         uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32
         with:
-          prefix-key: nsshared-qa-v1
+          prefix-key: nsshared-qa-sources-v2
           shared-key: workspace
           add-job-id-key: "false"
           add-rust-environment-hash-key: "true"
-          cache-targets: "true"
-          cache-bin: "true"
+          cache-targets: "false"
+          cache-bin: "false"
           save-if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
-          # Build outputs stay valid when a test fails.
+          # Registry and git sources stay valid when a test fails.
           cache-on-failure: "true"
 
       - name: Install just
@@ -106,3 +132,7 @@ jobs:
           set -euo pipefail
           . "$HOME/.cargo/env"
           timeout --signal=TERM --kill-after=30s 30m just qa
+
+      - name: Show sccache statistics
+        if: ${{ always() }}
+        run: sccache --show-stats
