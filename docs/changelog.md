@@ -1,3 +1,11 @@
+## 2026-10-27 19:38 [ci]
+
+Use checksum-verified sccache 0.19.0 with the runner's shared `/sccache` cache
+for Workspace QA. Disable incremental compilation and always print cache
+statistics. Retain registry/git source caching in a new namespace, with target
+and binary caching disabled. Document the fixed checkout path and cache setup;
+`just qa` and workflow triggers are unchanged.
+
 ## 2026-10-27 [release]
 
 Release `v0.7.0` at `95f1688` (the 2026-10-25 entries below): the restructured
