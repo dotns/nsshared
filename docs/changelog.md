@@ -1,3 +1,12 @@
+## 2026-10-27 [release]
+
+Release `v0.7.0` at `95f1688` (the 2026-10-25 entries below): the restructured
+workspace with the new defining crates, the deprecated `nsshared-proto` and
+`nsshared-service-control` facades, and the `nsshared_control::account`
+candidate behind the default-off `unstable-account` feature. The account
+contract stays outside semver until the gate is removed in a later release. ns
+`main` and nsd `refactor/unified-engine` already pin this revision.
+
 ## 2026-10-25 [feat]
 
 Version 0.7.0 (unreleased; no tag). The workspace version moves from 0.6.0 to
