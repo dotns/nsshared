@@ -46,6 +46,7 @@ from nsvec.producers.control.account.subnet import selection as control_account_
 from nsvec.producers.control.account.subnet import views as control_account_subnet_views
 from nsvec.producers.control.account.usage import catalog as control_account_usage_catalog
 from nsvec.producers.control.account.usage import reports as control_account_usage_reports
+from nsvec.producers.control.account.usage import retention as control_account_usage_retention
 from nsvec.producers.control.node_control import messages as control_node_control_messages
 from nsvec.producers.control.service import canonical as control_service_canonical
 
@@ -90,6 +91,7 @@ PRODUCERS = [
     control_account_subnet_views,
     control_account_usage_catalog,
     control_account_usage_reports,
+    control_account_usage_retention,
     control_node_control_messages,
     control_service_canonical,
 ]

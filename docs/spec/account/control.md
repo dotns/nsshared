@@ -570,6 +570,10 @@ the original immutable reporter/incarnation/profile/sequence/part/digest domain
 fails `validate_for` and is never an acknowledgement, even if every other
 correlation field matches.
 
+Retention seals and their acknowledgements are participant-session-only payloads
+([retention](usage.md#retention-seals-and-acknowledgements)); this control carrier
+does not accept them as usage reports or answers.
+
 ### Material status
 
 Material status requests reuse the exact `EdgeMaterialAck` bytes ([edge](edge.md#edgematerialack)).
