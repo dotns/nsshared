@@ -1,3 +1,10 @@
+## 2026-10-27 [feat]
+
+Add bounded canonical retention seals and correlated acknowledgements behind
+`unstable-account`, carried by the existing participant REPORT/ANSWER frames.
+Include independent vectors, typed identity and replay refusals, and protocol
+documentation. Durable closure, settlement and cleanup remain consumer-owned.
+
 ## 2026-10-27 [docs]
 
 Reconcile account adoption records with immutable producer and consumer revisions.

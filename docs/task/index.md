@@ -1,5 +1,7 @@
 # ns-shared - Task List
 
+- [x] [**Retention seal and acknowledgement**](20261027-2313-retention-seal.md)
+
 - [x] [**Account adoption evidence**](20261027-2017-account-adoption-evidence.md)
 
 - [x] [**Merge release history**](20261027-1909-merge-release-history.md)
