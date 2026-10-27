@@ -13,6 +13,15 @@ approval. No external owner forwarding, received answer, NSD/ns adoption or live
 interoperability is established by the gateway pins. Merge into main and release
 remain separate decisions.
 
+
+2026-10-27 reconciliation: ns `6ea11348` (request #543) and NSD `ff278641`
+(request #467) adopted shared `95f1688a9d210a5ea4b9ad46c5e8623e5ba3adfa`
+with `unstable-account` in their root manifests and locks. This supersedes the
+unimplemented status below, not the historical package comparison or unanswered
+review questions. The evidence table separates source adoption from missing live
+confirmation. The feature restriction remains until review approval, the retention
+seal contract and real-component evidence support the later shared release.
+
 ## Delivered contracts
 
 Every row is included at the selected revision. The revision column identifies
@@ -147,7 +156,7 @@ snapshot qualification or external producer adoption on their own.
 
 Frozen `e2e/r1/client/Cargo.toml` pins proto and the three mocks to
 `fc1c884dd9d27d4b2238961b0e64d9442baf8ad8`. These are historical pre-adoption
-inputs, excluded from the current candidate comparison. No NSD/ns pin is claimed.
+inputs, excluded from the current candidate comparison. That historical gateway comparison establishes no NSD/ns pin; the 2026-10-27 source inspection above records their later root pins.
 
 Run the package comparison against an immutable export of the selected shared
 revision. Supply an empty `SELECTED_EXPORT` directory and the read-only gateway
@@ -220,41 +229,52 @@ The [review request delivery](account-review-request.md) was completed
 through the owner route on 2026-10-25 (UTC), at the delivered revision. The owner forwarded the candidate
 review package to the NSD owner as producer and the ns owner as consumer reviewer.
 No answer has been received. Silence approves nothing. Q18's separate design
-choice is settled; shared P07 definitions are delivered, while producer
-review/adoption remains open. Gateway manifest delivery is established only
+choice is settled; shared P07 definitions are delivered, while the owner answer and live confirmation remain open; merged adoption is recorded below. Gateway manifest delivery is established only
 for the four pairs above.
 
-| Surface | Outstanding external delivery / review |
-| --- | --- |
-| Enrollment/lifecycle/control | NSD confirmation, producer-owned bytes, capability meanings, accepted identity transitions, independent key/address comparisons; stable-I self-initiated K-only rebind stays disabled without producer-profile authority |
-| Realm, grants and source | NSD canonical RealmId and complete publication production, durable source/profile allocation and retirement, signed register/auth source selection; N04 adoption; N06 protocol/token/deadline joins; ns exact-source consumers |
-| Inner publication producer API | NSD N06/N08/N21 adoption of `2391ebd5e59574cb318fbc2c7b1ca3615426796a`, producer-owned refusal/canonical vectors |
-| Subnet selection | NSD transactional source recheck, stable generations and immutable all-receipt history; ns pending journal, CLI/libns and route application; live default Exit awaits matched ns nesting |
-| P12 provider reports | NSD N30 ingestion/allocation/persistence, N07/N08 projection; ns S11/S25 report production and response custody; gateway self-reporting deferred |
-| P13 subnet-routes | NSD N07/N08 provider-grant/client-view projection and nodes-source binding; ns installation, replacement and withdrawal; no remote enablement floor |
-| P14 material | NSD confidential certificate/client-CA production and dispatch, producer vectors; received acquisition is not installed status |
-| P15 M6 | Actual NSD unary/stream carrier production, empty receipts, reverse port operations, singleton lease and independent producer vectors; real per-Network interoperability |
-| P16 status | NSD N08 exact issuance/digest/source retention and status persistence; ns S03/S24 actual application/status association |
-| P17 delivery forms | NSD N09 producer and ns S23 adapter adoption of framing, bounds and source-bound snapshot, independent producer vectors |
-| P18 selector | NSD N20 public-ingress policy/ACL production, distinct anonymous versus verified matching and accepted/refused vectors |
-| P19 names | NSD N20 HTTP public_host and raw protocol/port projection, null raw names, empty name collections and producer vectors |
-| Local Node naming | NSD N04/N09 producer adoption; ns S05/S06/S11 authenticated old-pin cutover/restart and consumer adoption |
-| Usage and profiles | NSD completed-I/O/history/repair and realm-local payer assignment, relay class history by original roster scope/version, usage and Node-control profile producer adoption; ns consumers; no current-role reinterpretation |
-| Roster | NSD atomic membership/class/version signed and local-schema-2 writer, independent canonical/refusal vectors, rollback custody and historical lookup; ns consumer confirmation; old schema-1 fixture projection is not real writer adoption |
-| Public edge/auth/policy/admin | NSD confidential configuration/material generations, qualified subjects and exact admin principal/realm projection; producer-owned vectors and ns review; public-edge candidate serving remains unbilled, with shared/NSD billing contract and gateway capture follow-up still open |
-| Independent family production and M6 composition | Q22 requires producer-owned vectors for all eleven families; Q23 requires exact M6 type/variant/domain composition confirmation from NSD and ns |
-| M6 labels | M01 public standalone existing label validator and M02 independent label vectors remain requested; existing M6 bytes/domains stay owned by service-control |
-| External release assets | Shared main/publication ownership, placement/trust, durable security/registry store, settlement/rollback and release cohorts remain external; no release or live promotion follows from preparation |
+The following evidence is source inspection at NSD `ff278641` and ns `6ea11348`,
+not a new execution of either repository's tests. Every NSD or ns locator in this
+table is relative to its named repository at that commit. `producer_core_readers`
+is in NSD `crates/nsd-api/tests/producer_core/mod.rs`; its slice files and producer
+corpora below are relative to `crates/nsd-api/tests/producer_core/`. Shared vector
+paths are relative to `crates/nsshared-control/tests/vectors/` at `95f1688`.
+An adopted slice does not answer its owner's review question.
 
-NSD and ns adoption tracked by the parallel adoption effort remains unresolved;
-no package pin is inferred for either repository. Each producer must supply its
-own vectors; candidate fixture success cannot close that obligation.
+| Surface | Adoption evidence and exact remaining confirmation |
+| --- | --- |
+| <a id="adoption-core"></a>Enrollment/lifecycle/control | **Adopted in source:** NSD `producer_core_readers`, `enrollment.rs`, `enrollment/mounted.rs` and `enrollment/verify.rs` exercise actual Connector Initial/Equal registration, signed source responses, explicit authentication selection and approved identity/key transitions; corpus `fixtures/enrollment.json`. NSD `crates/nsd-store/tests/m6_lineage_vectors.rs::enrollment_consumer_vectors` compares zero-placeholder cases in shared `account/node/enrollment.vec`. ns `crates/control/tests/channel_trust_control_exchange_vectors.rs::fixture_fed_control_exchange_vectors` reads `crates/control/tests/fixtures/channel-trust/control-exchange.vec`; `crates/control/tests/recorded_control_cases/enrollment.rs::recorded_enrollment_exchanges` reads its historical `enrollment.json`. **Open:** these two enrollment JSON corpora are not byte-identical at the named merges; matching current producer bytes, live enrollment, capability meanings, refresh/counter questions and owner approval of any stable-I rebind profile remain unconfirmed. No self-initiated rotation is authorized by this record. |
+| <a id="adoption-publication"></a>Realm, source and inner publication producer API | **Adopted:** NSD `producer_core_readers`, `mod.rs::check`, `corpus.rs::compare`, `NodeL3Producer::publish_network` produce and reread signed family 2/11 content with canonical RealmId and I/K authority, plus family 4. `fixtures/publications.json` is byte-identical to ns `crates/control/tests/fixtures/channel-trust/publications.json`, consumed by `crates/control/tests/channel_trust_producer_publications.rs::independent_producer_consumer_families`. NSD `crates/nsd-api/tests/account_scope.rs::subscription_scope_rejects_whitespace` and `producer_core/delivery.rs::mounted_snapshot` cover scope refusal, including unchanged custody and reuse of a valid nonce; ns `crates/control/tests/channel_trust_publication_vectors.rs::signed_publication_scope_whitespace_is_refused_without_installing` covers consumer refusal. **Open:** full owner confirmation of collection authority, all requested refusal/limit cases and live source retirement; this evidence does not cover every active consumer. |
+| <a id="adoption-grants"></a>Protocol grants, payer and withdrawal | **Adopted in source:** NSD `crates/nsd-api/tests/effective_grant_ownership/captured_retirements.rs::projected_family_payloads_join_captured_history_and_withdrawal` exercises `encode_projected_families`, families 3/5/6, complete payer/resource/protocol joins, retained tokens and withdrawal. `crates/nsd-api/tests/effective_grant_ownership.rs::effective_grant_incarnation` and `ambiguous_payer_withheld` cover accepted assignment and ambiguity. These are decoded-field/storage assertions, not an independently exported byte corpus for every requested grant case. **Open:** owner answers for Q13/Q15/Q16, complete independent canonical/refusal vectors, live protocol/deadline/payer and consumer joins. |
+| <a id="adoption-routes"></a>Subnet selection | **Adopted:** NSD `producer_core_readers`, `routes.rs::check` exercises mounted select/reselect/clear, retained immutable receipts and wrong-source refusal; `fixtures/routes.json` equals ns `crates/control/tests/fixtures/channel-trust/routes.json` byte for byte. ns `crates/control/tests/channel_selection_roundtrip.rs::channel_selection_roundtrip` checks request/receipt bytes; `crates/ns/src/config_store/store/node_route/tests.rs::recorded_route_receipts_survive_reopen_and_clear_replay` checks durable replay. **Open:** live CLI/libns-to-routing confirmation, matched default/nested Exit qualification and the owner's review answer. |
+| <a id="adoption-provider"></a>P12 provider reports | **Adopted in source:** NSD `crates/nsd-api/src/envelope/node_routes.rs` dispatches the shared report to persistent selection custody; `crates/nsd-api/tests/machine_plane_day2b_flow/gateway_enrollment/source_issuance_responses/node_routes.rs::provider_subnet_report_history` and `provider_report_qualifies_its_own_mapping` cover the producer boundary. ns `crates/control/tests/provider_report_adapter.rs::shared_vectors_replace_withdraw_and_reoffer_keep_exact_allocations` and `shared_vectors_restart_resends_pending_generation_and_content` cover reporting/custody against `crates/control/tests/fixtures/channel-trust/provider-subnet-report.vec`. **Open:** independent matched actual producer report corpus and real provider activation/complete report custody; gateway self-reporting remains deferred. |
+| <a id="adoption-subnet"></a>P13 subnet-routes | **Adopted:** NSD `crates/nsd-api/tests/subnet_publications.rs::subnet_selection_projection` and `producer_core_readers` cover provider grants/client routes and current nodes authority; shared `account/subnet/views.vec` is read by `subnet_vectors.rs`. The matching `publications.json` pair and ns `independent_producer_consumer_families` above prove consumer handling of actual recorded family-4 bytes and withdrawal. **Open:** live route installation/replacement/withdrawal and default/nesting acceptance; no remote enablement floor is introduced. |
+| <a id="adoption-mapping"></a>Provider mapping inventory | **Open:** source inspection finds provider report/selection implementation, but no demonstrated NSD producer of the separate `provider-mappings` snapshot or matching ns installation of that inventory at these merges. ns `crates/ns/src/provider_report_driver.rs::AuthenticatedProviderMapping` is a supplied runtime input, not proof of that signed publication. Need the N07/N09 producer and source handoff, S25/S11 authenticated activation and matching independent populated/changed/empty/refused vectors. Report/grant corpus evidence does not close this inventory; gateway consumption remains deferred. |
+| <a id="adoption-material"></a>P14 material and confidential auth | **Adopted in source:** NSD `crates/nsd-api/tests/machine_plane_day2b_flow/gateway_enrollment/source_issuance_responses/edge_material_acquisition.rs::edge_material_acquisition` covers mounted certificate/client-CA acquisition, correlation and rotation. `crates/nsd-api/tests/machine_plane_day2b_flow/gateway_enrollment/public_edge_publications/wire/auth_configuration.rs::acquire_current` exercises signed `edge.auth.config.get` with exact current dependency/request comparison. **Open:** independent producer-owned material/auth canonical/refusal corpus, full JWT issuer projection review and live consumer installation; acquisition is not installation ACK evidence. |
+| <a id="adoption-m6"></a>P15 M6 | **Adopted:** NSD `producer_core_readers`, `service_control/mod.rs::check`, `service_control/flow.rs` and `service_control/verify.rs` cover mounted unary, eight-element subscription, empty receipts and reverse events. `fixtures/service_control.json` equals ns `crates/control/tests/fixtures/channel-trust/service_control.json`; ns `crates/control/tests/recorded_control_corpora.rs::independent_producer_consumer_families` invokes `recorded_control_cases/service.rs::check`. NSD `crates/nsd-store/tests/m6_lineage_vectors.rs::m6_lineage_vectors` checks unchanged report/listener/snapshot bytes and digests against shared `service/canonical.json`. **Open:** Q23 agreement on every composition variant and real per-Network contribution/session/proposal/lease interoperability. |
+| <a id="adoption-status"></a>P16 status | **Adopted:** NSD `producer_core_readers`, `status.rs::check` and `status/custody.rs` correlate actual issuance/digest/source with stored status. `fixtures/status.json` equals ns `crates/control/tests/fixtures/channel-trust/status.json`; the ns `recorded_control_corpora.rs::independent_producer_consumer_families` selector invokes `recorded_control_cases/status.rs::check` through `NodeL3StatusSender`. **Open:** actual remote enforcement-to-Applied association and empty removal in live components; stored or fixture-fed Applied is not that proof. |
+| <a id="adoption-delivery"></a>P17 delivery forms | **Adopted:** NSD `producer_core_readers`, `delivery.rs::check` covers snapshot/SSE bounds and signed source binding with shared `account/publication/delivery.vec`, `subscription.vec`, `snapshot-request.vec` and `snapshot-pending-boundaries.vec`. `fixtures/delivery.json` equals ns `crates/control/tests/fixtures/channel-trust/delivery.json`; ns `recorded_control_corpora.rs::independent_producer_consumer_families` invokes `recorded_control_cases/delivery.rs::check` and framing controls. **Open:** live adapter/producer confirmation of complete delivery, disconnect and expiry behavior; Q11/Q21 answers remain absent. |
+| <a id="adoption-edge"></a>P18 selector / P19 names / public edge | **Adopted producer slice:** NSD `producer_core_readers`, `edge.rs::check` and `edge.rs::compare` exercise `PublicEdgeProducer` compile/sign/commit, actual HTTP/raw route projection and withdrawal against exact `fixtures/edge.json`; `edge/vectors.rs::load` reads shared `account/edge/routing.vec` and `anonymous.vec`. **Open:** independent matching downstream producer-corpus reader and live accepted policy/ACL, anonymous-versus-verified enforcement, names/material joins and owner answers. This is not public-ingress billing qualification. |
+| <a id="adoption-naming"></a>Local Node naming | **Adopted:** NSD enrollment production above accepts the local-name capability; ns `crates/ns/src/engine/startup/source_registration/shared_enrollment_tests.rs::r3_runtime_enrollment_selects_approves_commits_and_authenticates_after_restart` covers authenticated commit/restart and retired-field refusal. ns `crates/control/tests/channel_trust_control_exchange_vectors.rs::fixture_fed_r3_runtime_enrollment_requires_local_names` and `fixture_fed_r3_runtime_enrollment_builder_is_canonical` read `control-exchange.vec`. **Open:** live NSD/ns cutover confirmation and owner answer; historical producer-corpus drift is recorded under enrollment. Pending ns `3b9adf5156ad` (request #545), `docs/task/20261027-1748-portable-subnet-naming-tests.md`, records environment-independent subnet/rollback fixtures, not a new naming contract or a merged fix. |
+| <a id="adoption-usage"></a>Usage and historical ledgers | **Adopted producer/storage slice:** NSD `producer_core_readers`, `ledger/resource.rs::check`, `ledger/relay.rs` and `ledger.rs::check_vectors` cover mounted resource answers and actual TLS participant answers with reopened receipts; `fixtures/ledger.json`, shared `account/usage/reports.vec` and `account/relay/session.vec` retain payer pairs, domains and historical classes. Resource outer carriers use time-dependent signatures with verified field/payload comparison; relay application frames compare exactly. **Open:** actual completed-I/O capture and live exclusion/repair across components, exact downstream ledger-corpus consumer and owner agreement on units; fixtures supply completed quantities/history and cannot prove capture. Retention deletion also awaits the seal contract. |
+| <a id="adoption-profiles"></a>Usage and Node-control profiles | **Adopted producer slice:** NSD `producer_core_readers`, `mod.rs::check_profiles`, `corpus.rs::compare_profiles` exercise `ProfileProducer::publish_network`, exact `fixtures/profiles.json` and shared `account/usage/catalog.vec` with scoped empty replacement and unrelated-Network retention. **Open:** independently demonstrated ns/gateway consumption of that actual corpus, live preserved capture/control custody, Q19/Q20 review and standalone Node-control transport agreement. Catalogue adoption is not proof of every Node-control runtime. |
+| <a id="adoption-roster"></a>Roster and participant/directory | **Adopted producer slice:** NSD `producer_core_readers`, `rosters.rs::check`, `fixtures/rosters.json` compare production Renderer signatures and immutable epochs; shared `account/relay/participant-roster.vec` supplies independent refusals. `directory.rs::check` and `fixtures/directory.json` cover actual assignment/removal/source replacement. This directory corpus equals ns `crates/control/tests/fixtures/channel-trust/directory.json`, consumed by `crates/ns/src/account_engine/relay_v2/tests/recorded_directory.rs::recorded_directory_snapshots_preserve_source_local_custody`. Participant TLS and shared FrameKind adoption are covered by the ledger slice. **Open:** executable local schema-2 file writer/controlled replacement proof (the corpus uses a fixture-fed local union), complete rollback/carrier-switch and live participant confirmation. NSD retention `56d65c1a256a`, included in `ff278641`, preserves history but production deletion remains held until a seal supplies complete unsettled-reference coverage; see `docs/task/20261027-1222-roster-history-retention.md`. |
+| <a id="adoption-policy"></a>Policy/admin and remaining control reports | **Partially adopted:** family-7 producer and confidential acquisition slices above exist. NSD `producer_core_readers`, `retained.rs::check` and `fixtures/retained.json` exercise legacy heartbeat and service reports, explicitly including R3 heartbeat HTTP 403; they are not the shared five-operation report contract. **Open:** exact shared heartbeat/gateway/material/service report producer corpus including floor-text cases, authenticated admin scope projection, complete subject/JWT/signed-URL/header vectors and unplaced policy carriers. Gateway machine audience remains an owner decision; source merges supply no answer. |
+| <a id="adoption-vectors"></a>Independent family production and M6 composition | **Partially adopted:** the named actual NSD corpora and six byte-identical ns copies above replace the blanket claim that no producer vectors exist. Enrollment copies differ, and profiles/edge/ledger/roster lack a demonstrated matching downstream corpus reader here. **Open:** Q22's complete eleven-family positive/empty/refusal/scope/limit inventory and Q23's owner confirmation of all types/variants/domains, beyond the bounded tests above. |
+| <a id="adoption-labels"></a>M6 labels | **Open:** M01's explicit owner answer for the standalone API and M02's independent boundary vectors are not established by these producer/consumer merges. Existing labels inside M6 objects and unchanged digest checks do not close either request. |
+| <a id="adoption-release"></a>External release assets | **Open:** review answers, retention seal contract, live real-component evidence, released immutable shared revision and re-verification at that revision; placement/trust, durable security/registry store, settlement/rollback and release cohorts remain externally owned. `unstable-account` stays enabled. Pending NSD `aa2caaf381fd` (request #468), `docs/task/20261027-1734-fixture-python.md`, repairs provisioned Python selection for `pair_authority` tests; it supplies no live qualification or new contract approval. |
+
+The six byte-identical JSON pairs were compared directly at the named merge
+commits. Enrollment request/response carrier bytes differ in all nine records;
+no current byte-for-byte enrollment pairing is claimed. Independent vectors and
+actual producer corpora remain distinct, and neither replaces owner review.
 
 ## Later matched external handoffs
 
-NSD D-N1–D-N7, ns D-S1–D-S4 and the released shared-contract handoff remain
-outstanding external artifacts, each requiring its actual owner, revision and
-producer/consumer evidence. No fixture or gateway manifest closes them.
+NSD D-N1–D-N7 and ns D-S1–D-S4 now have the bounded merged implementation
+and corpus evidence above. Their matched real-component handoffs remain open:
+each still needs live producer/consumer identity, source, service, accounting and
+fault/restart observations. The released shared-contract handoff also awaits
+review, the retention seal contract and re-verification at a released revision.
 The explicit dependencies retained for later real-component qualification are:
 
 | Continuation | Required external inputs |
@@ -279,14 +299,15 @@ cohorts remain independently owned. No earlier result is promoted by this handof
 
 | Surface | Shared drafting/delivery owner | External implementation owner / remaining disposition |
 | --- | --- | --- |
-| Node/route select-clear | P06, delivered source-selection contract | NSD transaction/persistence/producer; ns pending journal, CLI/libns and route application; committed receipt never means applied routing |
-| Directory entry-to-participant binding | P07, separate signed binding | NSD N10 produces; N26 and S17 consume; immutable global directory rules stay unchanged, withdrawal changes eligibility only |
-| Participant credential | P07 shared credential/session contract; P08 gateway adoption | NSD N13 producer/review/vectors and real interoperability; C10 adoption/qualification; no binary-local replacement |
-| Retained profiles and retired surfaces | P06 small profile/refusal vocabulary; NSD/ns inventory owners | NSD N21/N29/N31 inventory and cohort retirement, ns corresponding consumers; predecessor cohort deletion remains with R3/NSD owners; original custody preserved |
-| Exact source binding | P06 signed binding/publication/command definitions | NSD committed source identity/epoch/generation, register/auth production and durable retirement; ns exact-current-source/session application; local attachment generation never becomes producer authority |
+| Node/route select-clear | P06, delivered source-selection contract | NSD transaction/persistence/producer; ns pending journal, CLI/libns and route application; committed receipt never means applied routing  Implementation and remaining live/review limits: [evidence](#adoption-routes). |
+| Directory entry-to-participant binding | P07, separate signed binding | NSD N10 produces; N26 and S17 consume; immutable global directory rules stay unchanged, withdrawal changes eligibility only  Implementation and remaining live/review limits: [evidence](#adoption-roster). |
+| Participant credential | P07 shared credential/session contract; P08 gateway adoption | NSD N13 producer/review/vectors and real interoperability; C10 adoption/qualification; no binary-local replacement  Implementation and remaining live/review limits: [evidence](#adoption-roster). |
+| Retained profiles and retired surfaces | P06 small profile/refusal vocabulary; NSD/ns inventory owners | NSD N21/N29/N31 inventory and cohort retirement, ns corresponding consumers; predecessor cohort deletion remains with R3/NSD owners; original custody preserved  Implementation and remaining live/review limits: [evidence](#adoption-policy). |
+| Exact source binding | P06 signed binding/publication/command definitions | NSD committed source identity/epoch/generation, register/auth production and durable retirement; ns exact-current-source/session application; local attachment generation never becomes producer authority  Implementation and remaining live/review limits: [evidence](#adoption-core). |
 
 These assignments define candidate drafting responsibility. They neither transfer
 external runtime ownership into shared code nor record external review approval.
+
 
 ## Provider mapping inventory delivery
 
@@ -301,9 +322,8 @@ sets remain separate from other providers, grants and client route views.
 The report/allocation and grant/client-route bytes remain unchanged.
 
 This is a new contract revision beyond the historical package comparison above;
-that comparison does not establish consumer adoption of this inventory. NSD
-N07/N09 production and current-source handoff, and ns S25/S11 provider activation
-remain outstanding. Review requests record no agreement. Gateway self-reporting
+that comparison does not establish consumer adoption of this inventory. NSD N07/N09 production and ns S25/S11 activation of this separate inventory
+remain open for the specific evidence missing in the [mapping row](#adoption-mapping). Review requests record no agreement. Gateway self-reporting
 and inventory consumption remain deferred to the existing C06 handoff; fixture
 success supplies no evidence of external implementation or live eligibility.
 
@@ -327,6 +347,7 @@ before/after mismatch and unauthorized-rotation refusals.
 
 This documentation/vector addition is later than the selected shared package;
 that package's immutable export comparison does not establish these new vectors.
-It requires no gateway source change or repin. NSD N24/N26 and ns S17 adoption,
-producer-owned vectors and review remain outstanding as recorded in Q07. No
+It requires no gateway source change or repin. NSD zero-placeholder vector adoption and the bounded ns enrollment reader are
+recorded in the [enrollment row](#adoption-core); current matching producer bytes,
+live transition confirmation and the Q07 owner answer remain open. No
 reply, agreement or live interoperability is implied.
