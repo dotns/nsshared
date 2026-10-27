@@ -4,6 +4,7 @@ pub(in crate::account) mod answer;
 pub(in crate::account) mod catalog;
 pub(in crate::account) mod relay;
 pub(in crate::account) mod report;
+pub(in crate::account) mod retention;
 pub(in crate::account) mod service;
 
 pub use answer::{UsageAnswer, UsageOutcome, UsageRejection, UsageWatermark};
@@ -15,3 +16,7 @@ pub use report::{
     ServiceOperation, ServiceUsageRow, UsageError, UsageProfile, UsageReport, UsageRows,
 };
 pub use service::{BatchLossWindow, ServiceBoundary, ServiceDirection, ServiceUsage};
+
+pub use retention::{
+    RetentionError, RetentionOutcome, RetentionPart, RetentionSeal, RetentionSealAck,
+};

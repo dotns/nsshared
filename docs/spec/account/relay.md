@@ -188,8 +188,8 @@ the `FrameKind` enum; each discriminant is the wire kind byte (`FrameKind::byte`
 | 2 | `Authenticated` | authenticated | optional deadline: 1 or 9 |
 | 3 | `Refused` | refused | empty: 0 |
 | 4 | `Roster` | complete roster | unchanged signed roster: 1..=1,048,576 |
-| 5 | `Report` | usage report | unchanged report: 1..=1,048,576 |
-| 6 | `Answer` | usage answer | unchanged answer: 1..=1,048,576 |
+| 5 | `Report` | usage report or retention seal | unchanged payload: 1..=1,048,576 |
+| 6 | `Answer` | usage answer or retention seal acknowledgement | unchanged payload: 1..=1,048,576 |
 | 7 | `Enroll` | enroll | issuer32, recipient32, correlation16, enrollment credential32, proof64: 176 |
 | 8 | `Enrolled` | enrolled | issuer32, recipient32, correlation16, optional deadline: 81 or 89 |
 | 9 | `Renew` | renew | issuer32, recipient32, correlation16: 80 |
@@ -204,7 +204,10 @@ retained finite bound (`retained_credential_deadline`).
 Roster, report and answer frames carry the signed roster, the
 [usage report](usage.md#usage-reports) and the
 [usage answer](usage.md#usage-answers-watermarks-and-repair) bytes unchanged, and the
-signed roster domain applies unchanged.
+signed roster domain applies unchanged. REPORT and ANSWER also carry the distinct
+[retention seal and acknowledgement](usage.md#retention-seals-and-acknowledgements)
+canonical bytes. Payload tags and arities distinguish these from usage contracts;
+no frame kind is added.
 
 ### Bounds
 

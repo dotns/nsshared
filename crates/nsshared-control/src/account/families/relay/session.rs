@@ -27,9 +27,9 @@ pub enum FrameKind {
     Refused = 3,
     /// Unchanged signed complete roster bytes.
     Roster = 4,
-    /// Unchanged immutable usage report bytes.
+    /// Unchanged immutable usage report or retention seal bytes.
     Report = 5,
-    /// Unchanged usage answer bytes.
+    /// Unchanged usage answer or retention seal acknowledgement bytes.
     Answer = 6,
     /// Dedicated enrollment request.
     Enroll = 7,
