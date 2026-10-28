@@ -18,6 +18,7 @@ from nsvec.producers.control.account.control import envelope as control_account_
 from nsvec.producers.control.account.control import exchange as control_account_control_exchange
 from nsvec.producers.control.account.control import node_l3_route_admission as control_account_control_node_l3_route_admission
 from nsvec.producers.control.account.control import node_l3_status as control_account_control_node_l3_status
+from nsvec.producers.control.account.control import node_liveness as control_account_control_node_liveness
 from nsvec.producers.control.account.control import reports as control_account_control_reports
 from nsvec.producers.control.account.control import service_control as control_account_control_service_control
 from nsvec.producers.control.account.edge import anonymous as control_account_edge_anonymous
@@ -64,6 +65,7 @@ PRODUCERS = [
     control_account_control_node_l3_route_admission,
     control_account_control_node_l3_status,
     control_account_control_reports,
+    control_account_control_node_liveness,
     control_account_control_service_control,
     control_account_edge_anonymous,
     control_account_edge_auth,

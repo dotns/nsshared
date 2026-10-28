@@ -19,6 +19,10 @@ pub const MACHINE_AUTH: &str = "machine.auth";
 pub const INFO_GET: &str = "info.get";
 /// Signed process heartbeat operation.
 pub const MACHINE_HEARTBEAT: &str = "machine.heartbeat";
+/// Signed ordinary Node heartbeat operation.
+pub const NODE_HEARTBEAT: &str = "node.heartbeat";
+/// Signed ordinary Node disconnect operation.
+pub const MACHINE_DISCONNECT: &str = "machine.disconnect";
 /// Signed gateway observation report operation.
 pub const GATEWAY_REPORT: &str = "gateway.report";
 /// Signed complete local service and Exit floor operation.
