@@ -292,7 +292,7 @@ carry no legacy Node naming values; see [Node](node.md#local-node-naming) for lo
 ### Authentication
 
 `AuthenticationRequest` (`machine.auth`) is exactly `[1, membership_scope,
-NodeBinding, "control", [served_realm, publication_scope]]`.
+NodeBinding, "control", [served_realm, publication_scope], registration_condition]`.
 
 - The purpose is `control` (`MACHINE_AUTH_PURPOSE`). No WebSocket leg, companion
   token or gateway role is carried, and there is no second authentication path.
@@ -301,6 +301,27 @@ NodeBinding, "control", [served_realm, publication_scope]]`.
   (`AuthenticationSourceScope`) is required, with no default and no fallback to a
   selector-free shape. Realm text is canonical RealmId; scope uses the nonempty,
   control-free UTF-8 encoding bounded to 256 bytes.
+
+
+- `registration_condition` is either `[node_id, credential_incarnation,
+  activation_generation]`, each a nonzero 16-byte server identifier, or explicit
+  CBOR null. The immutable server Node record identifier is distinct from the
+  identity-derived Node ID. Account-owned Connectors must supply all three facts
+  from their authenticated enrollment receipt; an independently established
+  gateway without an Account may send null. The server decides this from stored
+  ownership and kind, never from an untrusted client role or a missing field.
+- The server compares the condition atomically with current Account standing,
+  the exact shared binding (including I/K), and source selection before issuing
+  any token or source. An earlier receipt lookup or a second check after signing
+  is insufficient. A stale condition must not fall back to unconditional auth.
+- Account activation, credential incarnation, Node binding generation and source
+  generation are independent. Same-I/K Account A to B to A requires a fresh
+  receipt condition; a legitimate source refresh within the same registration
+  may return a newer source without changing this condition.
+- The six-field request is an incompatible unstable-account contract change.
+  Old five-field requests are rejected, including for gateways; null must be
+  explicitly encoded. Producers, consumers and copied vectors adopt together.
+  Decoding a null condition does not establish gateway authority.
 
 `AuthenticationResponse` is `[1, compact_token, source_binding_bytes]`. The token
 is opaque bounded ASCII; decoding is not signature verification, trust or
@@ -1004,7 +1025,7 @@ Code, in `crates/nsshared-control/src/account/control/` with public items at
 | `bootstrap.rs` | `BootstrapDiscovery`, `BootstrapEndpoint`, `ConfidentialCarrier`, `EnvelopePins`, `ControlBoundary`, `validate_control_input`, boundary constants, `BootstrapError` |
 | `envelope.rs` | `BootstrapEnvelope`, `EnvelopeDirection`, `EnvelopeExpectation`, clock and replay constants |
 | `methods.rs` | Operation and endpoint path constants |
-| `exchange.rs` | `MembershipScope`, `RegistrationRequest`, `RegistrationAcceptance`, `compare_registration_acceptance`, `AuthenticationRequest`, `AuthenticationSourceScope`, `AuthenticationResponse`, `InformationRequest`, `InformationResponse`, `ExchangeError` |
+| `exchange.rs` | `MembershipScope`, `RegistrationRequest`, `RegistrationAcceptance`, `compare_registration_acceptance`, `AuthenticationRequest`, `RegistrationCondition`, `AuthenticationSourceScope`, `AuthenticationResponse`, `InformationRequest`, `InformationResponse`, `ExchangeError` |
 | `machine_token.rs` | `MachineClaims`, `TokenAudience`, `MachineTokenHeader`, `RsaJwk`, `JwkSet`, `QualifiedKeySet`, `KeySetOwner`, `StoredKeyPins`, `qualify_key_set`, `qualify_owned_key_set`, `machine_refresh_needed`, `TokenError` |
 | `reports.rs` | `ControlReportOperation`, `HeartbeatRequest`, `HeartbeatResponse`, `GatewayReport`, `GatewayCertificateObservation`, `GatewayReportResponse`, `MaterialStatusResponse` |
 | `signed_request.rs` | `SignedAccountRequest`, `SignedUrlScope` |

@@ -321,6 +321,44 @@ impl AuthenticationSourceScope {
     }
 }
 
+/// Exact registration custody observed from an authenticated enrollment receipt.
+///
+/// These identifiers are independent of Node binding and publication generations.
+/// The authority must compare all three under the same locks as current Account
+/// standing and shared custody, before issuing any token or source. They do not
+/// themselves authorize anything; gateways without an Account do not fabricate them.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RegistrationCondition {
+    /// Immutable server Node record identifier, not the identity-derived Node ID.
+    pub node_id: Id,
+    /// Exact credential incarnation established by explicit enrollment.
+    pub credential_incarnation: Id,
+    /// Exact deployment Account activation established by explicit enrollment.
+    pub activation_generation: Id,
+}
+
+impl RegistrationCondition {
+    fn write(&self, out: &mut CborWriter) -> Result<(), AccountError> {
+        require(self.node_id != [0; 16])?;
+        require(self.credential_incarnation != [0; 16])?;
+        require(self.activation_generation != [0; 16])?;
+        out.array(3)
+            .bytes(&self.node_id)
+            .bytes(&self.credential_incarnation)
+            .bytes(&self.activation_generation);
+        Ok(())
+    }
+
+    fn read(input: &mut CborReader<'_>) -> Result<Self, AccountError> {
+        input.array(3)?;
+        Ok(Self {
+            node_id: input.fixed_bytes()?,
+            credential_incarnation: input.fixed_bytes()?,
+            activation_generation: input.fixed_bytes()?,
+        })
+    }
+}
+
 /// Authentication of the already accepted binding; grants no enrollment acceptance.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AuthenticationRequest {
@@ -330,6 +368,9 @@ pub struct AuthenticationRequest {
     pub binding: NodeBinding,
     /// Required exact source selector retained with the pending request nonce.
     pub source_scope: AuthenticationSourceScope,
+    /// Required for Account-owned Connectors. Only an independently established
+    /// non-Account gateway may use None; decoding cannot determine that role.
+    pub registration: Option<RegistrationCondition>,
 }
 impl AuthenticationRequest {
     /// Authenticates a request against the already committed scope and binding.
@@ -361,18 +402,23 @@ impl AuthenticationRequest {
     pub fn canonical(&self) -> Result<Vec<u8>, AccountError> {
         self.binding.validate()?;
         let mut out = CborWriter::default();
-        out.array(5).uint(SCHEMA);
+        out.array(6).uint(SCHEMA);
         self.scope.write(&mut out);
         self.binding.write(&mut out);
         out.text(MACHINE_AUTH_PURPOSE);
         self.source_scope.write(&mut out)?;
+        if let Some(registration) = &self.registration {
+            registration.write(&mut out)?;
+        } else {
+            out.null();
+        }
         bounded(out.into_bytes())
     }
     /// Decodes a canonical authentication request.
     /// # Errors
     /// Refuses unsupported purpose or invalid fields.
     pub fn decode(bytes: &[u8]) -> Result<Self, AccountError> {
-        let mut input = reader(bytes, 5)?;
+        let mut input = reader(bytes, 6)?;
         let scope = MembershipScope::read(&mut input)?;
         let binding = NodeBinding::read(&mut input)?;
         require(input.text_up_to(MAX_TEXT_BYTES)? == MACHINE_AUTH_PURPOSE)?;
@@ -380,6 +426,11 @@ impl AuthenticationRequest {
             scope,
             binding,
             source_scope: AuthenticationSourceScope::read(&mut input)?,
+            registration: if input.take_null() {
+                None
+            } else {
+                Some(RegistrationCondition::read(&mut input)?)
+            },
         };
         input.finish()?;
         value.canonical()?;

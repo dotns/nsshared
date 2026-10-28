@@ -1,3 +1,10 @@
+## 2026-10-28 [feat]
+
+shared 认证请求增加精确 registration 条件：Node 记录、credential incarnation 与
+Account activation。固定六字段，拒绝旧五字段；owned Connector 必须提供条件，
+非 Account Gateway 可显式 null，由服务端确定身份类型。保留同代 source 更新语义，
+独立规范向量与 133 项 Account 测试通过；跨仓原子认证及 ABA 验收仍由 C05 接入。
+
 ## 2026-10-27 23:07 [ci]
 
 Record shared-cache validation and complete the CI cache task. Sequential SSD
