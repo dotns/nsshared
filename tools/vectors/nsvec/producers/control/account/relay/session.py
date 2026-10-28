@@ -31,6 +31,7 @@ def vectors():
     credential = bytes([7])*32
     pair_request = context + correlation
     deadline = b"\1" + (2000).to_bytes(8, "big")
+    generation = (17).to_bytes(8, "big")
     incarnation = bytes([6])*16
     node = lambda identity: hashlib.blake2s(identity, digest_size=12, key=b"ns-node-id-v2").digest()
     relay_row = [1, node(issuer), node(participant), 0, 1, issuer, participant, 1, 0, incarnation, 1248]
@@ -57,7 +58,7 @@ def vectors():
               False, exporter=exporter, action="enroll")
     transport("enroll-wrong-credential", 7, pair_request + bytes([8])*32 + proof,
               False, exporter=exporter, action="enroll")
-    transport("enrolled", 8, pair_request + deadline, action="response")
+    transport("enrolled", 8, pair_request + b"\2" + deadline + generation, action="response")
     transport("authenticate", 1, context + proof, exporter=exporter, action="authenticate")
     transport("old-connection-proof", 1, context + proof, False,
               exporter=next_exporter, action="authenticate")
@@ -71,7 +72,7 @@ def vectors():
     transport("renewed", 10, pair_request + deadline, action="response")
     transport("response-wrong-correlation", 10, context + bytes([8])*16 + deadline,
               False, action="response")
-    transport("response-wrong-pair", 8, issuer + stranger + correlation + deadline,
+    transport("response-wrong-pair", 8, issuer + stranger + correlation + b"\2" + deadline + generation,
               False, action="response")
     transport("response-expired", 10, pair_request + b"\1" + bytes(8), False, action="response")
     transport("revoked-authenticate", 1, context + next_proof, False,
@@ -80,8 +81,8 @@ def vectors():
     transport("accepted-report", 5, report_bytes, action="report")
     emit("accepted-answer", "frame", frame(6, answer_bytes))
     transport("revoked-report", 5, report_bytes, False, action="report", enabled=0)
-    for name, kind, body in [("absent-deadline", 2, b"\0"),
-                              ("finite-deadline", 2, deadline), ("refused", 3, b""),
+    for name, kind, body in [("absent-deadline", 2, context + b"\2\0" + generation),
+                              ("finite-deadline", 2, context + b"\2" + deadline + generation), ("refused", 3, b""),
                               ("roster-content", 4, b"unchanged-roster"),
                               ("report-content", 5, b"unchanged-report"),
                               ("answer-content", 6, b"unchanged-answer")]:
@@ -93,6 +94,38 @@ def vectors():
                               ("zero-correlation", 9, context+bytes(16)),
                               ("truncated-proof", 1, context+proof[:-1])]:
         emit(name, "frame", frame(kind, body), False)
+    for label, kind, prefix in [("authenticated", 2, context), ("enrolled", 8, pair_request)]:
+        for deadline_label, deadline_bytes in [("absent", b"\0"), ("finite", deadline),
+                                                ("expired", b"\1" + bytes(8))]:
+            body = prefix + b"\2" + deadline_bytes
+            for gen_label, value in [("one", 1), ("maximum", 2**64-1)]:
+                emit(f"{label}-{deadline_label}-{gen_label}", "frame",
+                     frame(kind, body + value.to_bytes(8, "big")), generation=value)
+            emit(f"{label}-{deadline_label}-zero-generation", "frame",
+                 frame(kind, body + bytes(8)), False, error="Frame")
+            emit(f"{label}-{deadline_label}-missing-generation", "frame",
+                 frame(kind, body), False, error="Frame")
+            old_body = deadline_bytes if kind == 2 else prefix + deadline_bytes
+            emit(f"{label}-{deadline_label}-legacy", "frame",
+                 frame(kind, old_body), False, error="Version")
+            emit(f"{label}-{deadline_label}-unknown-version", "frame",
+                 frame(kind, prefix + b"\3" + deadline_bytes + generation), False, error="Version")
+        for malformed_label, malformed in [("bad-deadline", b"\2"),
+                                             ("short-deadline", b"\1"),
+                                             ("long-deadline", b"\0" + bytes(8))]:
+            emit(f"{label}-{malformed_label}", "frame",
+                 frame(kind, prefix + b"\2" + malformed + generation), False, error="Frame")
+        for pair_label, pair in [("wrong-issuer", stranger + participant),
+                                 ("wrong-participant", issuer + stranger)]:
+            pair_prefix = pair + (correlation if kind == 8 else b"")
+            emit(f"{label}-{pair_label}", "custody",
+                 frame(kind, pair_prefix + b"\2" + deadline + generation), False,
+                 error="Correlation")
+        emit(f"{label}-expired", "custody",
+             frame(kind, prefix + b"\2\1" + bytes(8) + generation), False,
+             error="Unauthorized")
+        emit(f"{label}-accepted", "custody",
+             frame(kind, prefix + b"\2" + deadline + generation), generation=17)
     emit("frame-trailing", "frame", frame(3, b"")+b"\0", False)
     emit("frame-zero-length", "frame", bytes(4), False)
     emit("frame-over-bound", "frame", (1048578).to_bytes(4, "big")+b"\4", False)

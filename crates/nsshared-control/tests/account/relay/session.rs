@@ -60,8 +60,41 @@ fn participant_authority_independent_vectors() {
             "frame" => {
                 let result = Frame::decode(&bytes);
                 assert_eq!(result.is_ok(), expected, "{}: {result:?}", v.name());
+                if let Some(error) = v.opt("error") {
+                    assert_session_error(result.as_ref().unwrap_err(), error);
+                }
                 if let Ok(frame) = result {
                     assert_eq!(frame.canonical().unwrap(), bytes);
+                    if v.opt("generation").is_some() {
+                        assert_eq!(frame.owner_generation().unwrap(), v.u64("generation"));
+                    }
+                }
+            }
+            "custody" => {
+                let frame = Frame::decode(&bytes).unwrap();
+                assert_eq!(frame.canonical().unwrap(), bytes);
+                let result = if frame.kind() == FrameKind::Authenticated {
+                    frame.validate_authenticated(
+                        &Frame::decode(&raw(&fixtures(), "authenticate")).unwrap(),
+                        1000,
+                    )
+                } else {
+                    frame.validate_response(
+                        &PendingResponse {
+                            kind: FrameKind::Enrolled,
+                            issuer: key(1),
+                            participant: key(2),
+                            correlation: [6; 16],
+                        },
+                        1000,
+                    )
+                };
+                assert_eq!(result.is_ok(), expected, "{}: {result:?}", v.name());
+                if let Some(error) = v.opt("error") {
+                    assert_session_error(result.as_ref().unwrap_err(), error);
+                } else {
+                    assert_eq!(result.unwrap(), Some(2000));
+                    assert_eq!(frame.owner_generation().unwrap(), v.u64("generation"));
                 }
             }
             "transport" => {
@@ -304,7 +337,7 @@ fn participant_constructors_correlation_and_deadlines() {
         participant: key(2),
         correlation: [6; 16],
     };
-    let response = Frame::response(&pending, Some(2000)).unwrap();
+    let response = Frame::enrolled(&pending, 17, Some(2000)).unwrap();
     assert_eq!(response.canonical().unwrap(), raw(&vectors, "enrolled"));
     assert_eq!(response.scope().unwrap(), (key(1), key(2)));
     assert_eq!(response.correlation().unwrap(), [6; 16]);
@@ -325,26 +358,40 @@ fn participant_constructors_correlation_and_deadlines() {
         Some(2000)
     );
     assert_eq!(
-        Frame::response(&pending, None)
+        Frame::enrolled(&pending, 17, None)
             .unwrap()
             .validate_response(&pending, 1000)
             .unwrap(),
         None
     );
     assert_eq!(
-        Frame::authenticated(None).unwrap().canonical().unwrap(),
+        Frame::authenticated(key(1), key(2), 17, None)
+            .unwrap()
+            .canonical()
+            .unwrap(),
         raw(&vectors, "absent-deadline")
     );
     assert_eq!(
-        Frame::authenticated(Some(2000))
+        Frame::authenticated(key(1), key(2), 17, Some(2000))
             .unwrap()
             .canonical()
             .unwrap(),
         raw(&vectors, "finite-deadline")
     );
     assert!(Frame::renewal(key(1), key(2), [0; 16]).is_err());
-    assert!(Frame::authenticated(None).unwrap().scope().is_err());
-    assert!(Frame::authenticated(None).unwrap().correlation().is_err());
+    assert_eq!(
+        Frame::authenticated(key(1), key(2), 17, None)
+            .unwrap()
+            .scope()
+            .unwrap(),
+        (key(1), key(2))
+    );
+    assert!(
+        Frame::authenticated(key(1), key(2), 17, None)
+            .unwrap()
+            .correlation()
+            .is_err()
+    );
     for (old, new, expected) in [
         (None, None, None),
         (Some(2000), None, Some(2000)),
@@ -435,6 +482,137 @@ fn binding_signature_covers_every_field_and_scope() {
     assert!(
         original
             .eligible(key(1), 17, key(2), original.content.realms[0], 2000)
+            .is_err()
+    );
+}
+
+#[test]
+fn participant_custody_answer_version_roundtrip() {
+    for (kind, correlation) in [
+        (FrameKind::Authenticated, None),
+        (FrameKind::Enrolled, Some([6; 16])),
+    ] {
+        for deadline in [vec![0], [vec![1], 2000_u64.to_be_bytes().to_vec()].concat()] {
+            let mut body = exporter_context(key(1), key(2)).to_vec();
+            if let Some(value) = correlation {
+                body.extend_from_slice(&value);
+            }
+            body.push(2);
+            body.extend_from_slice(&deadline);
+            body.extend_from_slice(&17_u64.to_be_bytes());
+            let frame = Frame::new(kind, body).expect("versioned custody answer");
+            assert_eq!(Frame::decode(&frame.canonical().unwrap()).unwrap(), frame);
+        }
+    }
+}
+
+fn assert_session_error(error: &SessionError, expected: &str) {
+    assert!(
+        match expected {
+            "Frame" => matches!(error, SessionError::Frame),
+            "Version" => matches!(error, SessionError::Version),
+            "Correlation" => matches!(error, SessionError::Correlation),
+            "Unauthorized" => matches!(error, SessionError::Unauthorized),
+            _ => false,
+        },
+        "expected {expected}, received {error:?}"
+    );
+}
+
+#[test]
+fn participant_custody_constructors_and_pending_exchange() {
+    let pending = PendingResponse {
+        kind: FrameKind::Enrolled,
+        issuer: key(1),
+        participant: key(2),
+        correlation: [6; 16],
+    };
+    let request = Frame::authentication(key(1), key(2), [1; 64]).unwrap();
+    for generation in [1, 17, u64::MAX] {
+        for deadline in [None, Some(2000)] {
+            let enrolled = Frame::enrolled(&pending, generation, deadline).unwrap();
+            let authenticated = Frame::authenticated(key(1), key(2), generation, deadline).unwrap();
+            assert_eq!(enrolled.owner_generation().unwrap(), generation);
+            assert_eq!(authenticated.owner_generation().unwrap(), generation);
+            assert_eq!(
+                enrolled.validate_response(&pending, 1000).unwrap(),
+                deadline
+            );
+            assert_eq!(
+                authenticated
+                    .validate_authenticated(&request, 1000)
+                    .unwrap(),
+                deadline
+            );
+            assert!(matches!(
+                authenticated.validate_authenticated(&enrolled, 1000),
+                Err(SessionError::Correlation)
+            ));
+            assert!(matches!(
+                enrolled.validate_authenticated(&request, 1000),
+                Err(SessionError::Correlation)
+            ));
+            for changed in [
+                PendingResponse {
+                    issuer: key(3),
+                    ..pending
+                },
+                PendingResponse {
+                    participant: key(3),
+                    ..pending
+                },
+                PendingResponse {
+                    correlation: [8; 16],
+                    ..pending
+                },
+                PendingResponse {
+                    correlation: [0; 16],
+                    ..pending
+                },
+                PendingResponse {
+                    kind: FrameKind::Renewed,
+                    ..pending
+                },
+            ] {
+                assert!(matches!(
+                    enrolled.validate_response(&changed, 1000),
+                    Err(SessionError::Correlation)
+                ));
+            }
+        }
+    }
+    assert!(matches!(
+        Frame::enrolled(&pending, 0, None),
+        Err(SessionError::Frame)
+    ));
+    assert!(matches!(
+        Frame::authenticated(key(1), key(2), 0, None),
+        Err(SessionError::Frame)
+    ));
+    assert!(
+        Frame::enrolled(
+            &PendingResponse {
+                correlation: [0; 16],
+                ..pending
+            },
+            17,
+            None
+        )
+        .is_err()
+    );
+    let renewed = PendingResponse {
+        kind: FrameKind::Renewed,
+        ..pending
+    };
+    assert!(Frame::enrolled(&renewed, 17, None).is_err());
+    assert!(Frame::response(&pending, None).is_err());
+    let renewal = Frame::response(&renewed, Some(2000)).unwrap();
+    assert_eq!(renewal.canonical().unwrap(), raw(&fixtures(), "renewed"));
+    assert!(renewal.owner_generation().is_err());
+    assert!(
+        Frame::authenticated(key(1), key(2), 17, Some(2000))
+            .unwrap()
+            .validate_authenticated(&request, 2000)
             .is_err()
     );
 }

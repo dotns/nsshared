@@ -250,7 +250,10 @@ parts = [[incarnation, profile, sequence, part_index, part_digest], ...]
 The schema is 1, family is 9 and kind is 2 (usage reports use kinds 0 and 1).
 Issuer and recipient are validated full 32-byte identity keys in
 `ParticipantRosterScope`. Owner generation is a positive u64 from retained
-participant custody, and epoch is a positive `RosterVersion` from the captured
+participant custody, delivered by the pair-bound version 2 `Enrolled` or
+`Authenticated` [session answer](relay.md#frames) and persisted with enrollment
+completion and durable spool custody. Later authentication cannot relabel an old
+manifest with a newer generation. Epoch is a positive `RosterVersion` from the captured
 signed roster. A part contains the original 16-byte `ReporterIncarnation`, exact
 `UsageProfile` text, positive u64 sequence, zero-based index less than 8,192,
 and original 32-byte usage part digest. No field substitutes current attribution
