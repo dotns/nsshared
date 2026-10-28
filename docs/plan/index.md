@@ -1,5 +1,7 @@
 # ns-shared - Plan Index
 
+- [x] [**Discovery representation selector**](20261028-0318-discovery-media-type.md)
+
 - [x] [**Snapshot admission history**](20261028-0131-snapshot-admission-history.md)
 
 - [x] [**Ordinary Node liveness**](20261028-0104-node-liveness.md)

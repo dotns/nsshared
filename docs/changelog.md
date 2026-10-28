@@ -1,5 +1,11 @@
 ## 2026-10-28 [feat]
 
+Export the discovery CBOR media type alongside its endpoint and document exact
+Accept selection, response Content-Type, Vary handling and strict client decoding.
+Discovery tuples, signed envelopes and vectors remain unchanged.
+
+## 2026-10-28 [feat]
+
 Require schema 3 for controlled admission snapshots and return each identity
 with its class and admission-start version. Refuse legacy schemas and missing
 or invalid history. Preserve signed roster bytes and participant transport,
