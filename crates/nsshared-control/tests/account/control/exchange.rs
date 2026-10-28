@@ -304,6 +304,7 @@ fn exact_exchange_roundtrips_and_claim_object_refusals() {
     assert_eq!(INFO_GET, "info.get");
     assert_eq!(CONTROL_ENVELOPE_PATH, "/api/v1/control");
     assert_eq!(DISCOVERY_PATH, "/api/v1/info");
+    assert_eq!(DISCOVERY_MEDIA_TYPE, "application/cbor");
     assert_eq!(JWKS_PATH, "/.well-known/jwks.json");
 }
 

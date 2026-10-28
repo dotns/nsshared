@@ -67,6 +67,8 @@ pub const MACHINE_AUTH_PURPOSE: &str = "control";
 pub const CONTROL_ENVELOPE_PATH: &str = "/api/v1/control";
 /// WebPKI discovery endpoint.
 pub const DISCOVERY_PATH: &str = "/api/v1/info";
+/// Request Accept selector and response Content-Type for canonical CBOR bootstrap discovery.
+pub const DISCOVERY_MEDIA_TYPE: &str = "application/cbor";
 /// Confidential machine key-set endpoint.
 pub const JWKS_PATH: &str = "/.well-known/jwks.json";
 
