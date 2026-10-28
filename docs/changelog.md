@@ -1,5 +1,12 @@
 ## 2026-10-28 [feat]
 
+Extend ordinary Node heartbeats with optional UDP reachability, full unhealthy-pair
+snapshots and identity-keyed gateway RTT observations. Preserve omitted-field
+semantics and original payload bytes, with bounded canonical validation, endpoint
+feature negotiation and exact receipt correlation.
+
+## 2026-10-28 [feat]
+
 Export the discovery CBOR media type alongside its endpoint and document exact
 Accept selection, response Content-Type, Vary handling and strict client decoding.
 Discovery tuples, signed envelopes and vectors remain unchanged.
