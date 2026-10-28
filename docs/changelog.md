@@ -1,3 +1,8 @@
+## 2026-10-28 [build]
+
+Use union merging for the changelog and plan/task indexes so parallel appended
+entries are retained. Preserve the existing fixture line-ending attribute.
+
 ## 2026-10-28 [feat]
 
 Bind shared gateway reports and drain intent to accepted membership and runtime

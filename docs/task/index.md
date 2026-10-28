@@ -1,5 +1,7 @@
 # ns-shared - Task List
 
+- [x] [**Preserve appended documentation entries**](20261028-merge-documentation-entries.md)
+
 - [x] [**Fenced gateway reports**](20261028-1442-fenced-gateway-report.md)
 
 - [x] [**Participant custody generation**](20261028-1156-participant-custody-generation.md)
