@@ -21,7 +21,7 @@ family is specified separately:
 | [Relay](relay.md) | Family 8: admission and participant rosters, participant sessions, directory bindings |
 | [Usage](usage.md) | Families 9 and 10: service and relay usage, reports and answers, profile publications |
 
-Contracts use schema 1 (`SCHEMA`); local admission JSON uses schema 2. They are pure:
+Contracts use schema 1 (`SCHEMA`); local admission JSON uses schema 3. They are pure:
 no runtime, transport session, policy compiler or v1 adapter, and no clock or file
 access. Membership realm identities follow the [canonical RealmId](../realm-id.md).
 
