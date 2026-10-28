@@ -450,7 +450,7 @@ publishes a diagnostic failure and never extends freshness.
 
 ### Carrier
 
-The five report operations `machine.heartbeat`, `gateway.report`,
+The report operations `machine.heartbeat`, `node.heartbeat`, `machine.disconnect`, `gateway.report`,
 `gateway.services_report`, `gateway.usage_report` and `gateway.material_status`
 (`ControlReportOperation`) use the confidential `BootstrapDiscovery` carrier,
 `BootstrapEnvelope` request/response domains and `CONTROL_ENVELOPE_PATH`. The
@@ -487,6 +487,62 @@ policy_version_or_null]`.
 
 `HeartbeatResponse` is `[1, request_id_16, features]`. Features are ordered unique
 tokens, preserved including unknown tokens; they grant no authority.
+
+### Ordinary Node heartbeat and disconnect
+
+`node.heartbeat` (`ControlReportOperation::NodeHeartbeat`) is distinct from the
+existing gateway `machine.heartbeat` operation. `NodeHeartbeatRequest` is
+`[1, membership_scope, runtime_fence, heartbeat_request_bytes]`.
+`NodeHeartbeatResponse` is
+`[1, membership_scope, runtime_fence, heartbeat_response_bytes]`.
+The nested bytes are the canonical `HeartbeatRequest` and `HeartbeatResponse`
+forms defined above, including request ID, uptime, local IPs, policy counter and
+inert response features. Node and gateway outer tuples have different arities:
+neither decoder accepts the other form. Nested lists retain the 256-item bound,
+checked before allocation, and the whole payload retains the 1 MiB ceiling.
+
+`machine.disconnect` (`ControlReportOperation::NodeDisconnect`) uses
+`NodeDisconnectRequest`:
+`[1, membership_scope, runtime_fence, request_id_16]`.
+`NodeDisconnectResponse` is `[1, canonical_request_bytes]`, an exact receipt of
+the committed disconnect intent. A receipt introduces no new runtime authority.
+Both response types provide `validate_for` to compare the retained request's
+membership, runtime fence and request identifier. Consumers authenticate the
+response carrier and correlate it before accepting the receipt.
+
+`membership_scope` is `[nsd_id_16, network_id_16]` (`MembershipScope`). These are
+provisioned identifiers, never signing keys or an internal machine row ID.
+`runtime_fence` is `[runtime_id_16, runtime_generation, authority_epoch]`
+(`NodeRuntimeFence`), using the same field types as `ServiceControlBinding`.
+The runtime ID must be nonzero and both u64 counters must be positive. The
+Node supplies scope from its accepted registration and source custody, and
+supplies the fence from its accepted service runtime. The Node creates a pending
+request ID; uptime and IPs are process observations, and the optional policy
+counter retains its diagnostic meaning.
+
+`NodeReportContext` is trusted input from the consumer's persisted accepted
+state, never copied from the incoming payload. It contains the accepted
+`MembershipScope`, the enrolled Node signing identity (`subject`) and the NSD
+signing identity (`authority`) for that membership. Its additive
+`validate_envelope(operation, envelope, expected)` API authenticates the existing
+carrier using `EnvelopeExpectation`, requires a Node heartbeat or disconnect
+request, compares signer with subject and explicit recipient with authority,
+and compares both provisioned scope identifiers exactly. `NodeReportError`
+distinguishes carrier, contract, operation, subject, authority and scope refusals.
+The context-free `ControlReportOperation::validate_envelope` refuses the two new
+operations with `ExchangeError::Scope`; validation of all existing operations is
+unchanged. `validate_payload` only validates canonical shape, for either direction;
+it cannot authorize membership or renew a runtime. Responses use the existing
+carrier verification followed by exact pending-request correlation.
+
+NSD supplies the trusted context from persisted enrollment and source custody,
+and compares the carried runtime ID, generation and authority epoch with its
+persisted current runtime before selecting its internal machine row and
+committing renewal or disconnect. Shared decoding checks fence shape only:
+success does not establish freshness, capability admission, current source
+custody or a committed effect. Those checks and transactions remain consumer
+responsibilities. No transport, registration acceptance field, or payload
+identity key is added. These contracts remain behind `unstable-account`.
 
 ### Gateway observations
 
@@ -1011,6 +1067,7 @@ Code, in `crates/nsshared-control/src/account/control/` with public items at
 | `exchange.rs` | `MembershipScope`, `RegistrationRequest`, `RegistrationAcceptance`, `compare_registration_acceptance`, `AuthenticationRequest`, `AuthenticationSourceScope`, `AuthenticationResponse`, `InformationRequest`, `InformationResponse`, `ExchangeError` |
 | `machine_token.rs` | `MachineClaims`, `TokenAudience`, `MachineTokenHeader`, `RsaJwk`, `JwkSet`, `QualifiedKeySet`, `KeySetOwner`, `StoredKeyPins`, `qualify_key_set`, `qualify_owned_key_set`, `machine_refresh_needed`, `TokenError` |
 | `reports.rs` | `ControlReportOperation`, `HeartbeatRequest`, `HeartbeatResponse`, `GatewayReport`, `GatewayCertificateObservation`, `GatewayReportResponse`, `MaterialStatusResponse` |
+| `reports/node.rs` | `NodeRuntimeFence`, `NodeHeartbeatRequest`, `NodeHeartbeatResponse`, `NodeDisconnectRequest`, `NodeDisconnectResponse`, `NodeReportContext`, `NodeReportError` |
 | `signed_request.rs` | `SignedAccountRequest`, `SignedUrlScope` |
 | `route_command.rs` | `RouteCommand`, `RouteAction`, `RouteReceipt`, `RouteOutcome`, `RouteResponse`, `CommittedSelection`, `RouteDecision`, `decide_route_command`, `RouteError` |
 | `node_l3_status.rs` | `NodeL3StatusRequest`, `NodeL3StatusKey`, `NodeL3Status`, `NodeL3StatusContext`, `NodeL3StatusResponse`, `node_l3_event_digest` |
@@ -1032,6 +1089,7 @@ without using Rust output as producer input.
 | `account::control::bootstrap_origins` | (inline) | Invalid IDNA origin refusal |
 | `account::control::exchange` | `crates/nsshared-control/tests/vectors/account/control/exchange.vec` | Exchange tuples, registration acceptance comparison, signed source binding in responses, machine claims, audience, refresh, key selection and pin ownership |
 | `account::control::reports` | `crates/nsshared-control/tests/vectors/account/control/reports.vec`, `crates/nsshared-control/tests/vectors/account/edge/routing.vec` | Report tuples, receipts, kind 1 floor outcomes, usage and material correlation |
+| `account::control::reports::node_liveness` | `crates/nsshared-control/tests/vectors/account/control/node-liveness.vec` | Independent Node request/response bytes, gateway separation, typed shape and trusted-context refusals, exact receipts |
 | `account::edge::auth` | `crates/nsshared-control/tests/vectors/account/edge/auth.vec` | Pending/current auth configuration dependency correlation and private configuration refusals used by material status |
 | `account::realm::claims` | `crates/nsshared-control/tests/vectors/account/realm/claims.vec` | `SignedAccountRequest` and `SignedUrlScope` inputs and refusals |
 | `account::publication::source_selection` | `crates/nsshared-control/tests/vectors/account/publication/source-selection.vec` | Route command fence (`source_selection_fence`), pending registration, Equal and nodes/egress authentication in one Network including swapped-scope and swapped-realm refusal, exact clear target and source request namespace |
