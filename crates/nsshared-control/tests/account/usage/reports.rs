@@ -42,6 +42,7 @@ fn history(version: u64, destination_class: IdentityClass) -> ParticipantRosterG
             recipient: b,
         },
         version: RosterVersion(version),
+        attribution_epoch: RosterVersion(version),
         identities: vec![
             RosterEntry {
                 identity: a,
@@ -245,6 +246,23 @@ fn relay_usage_vectors() {
         original.validate_history(Some(&historical)).unwrap(),
         RelayBilling::GatewayExcluded
     );
+    let captured = original.canonical().unwrap();
+    let mut renewed = historical.clone();
+    for publication_version in [8, 9, 100] {
+        renewed.version = RosterVersion(publication_version);
+        assert_eq!(
+            original.validate_history(Some(&renewed)).unwrap(),
+            RelayBilling::GatewayExcluded
+        );
+        assert_eq!(original.canonical().unwrap(), captured);
+    }
+    // Matching publication version alone cannot authenticate a different billing epoch.
+    renewed.version = original.epoch;
+    renewed.attribution_epoch = RosterVersion(original.epoch.0 + 1);
+    assert!(matches!(
+        original.validate_history(Some(&renewed)),
+        Err(UsageError::UnknownMapping)
+    ));
     let mut missing = historical.clone();
     missing.identities.pop();
     assert!(matches!(

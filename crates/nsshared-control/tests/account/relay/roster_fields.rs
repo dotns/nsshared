@@ -98,3 +98,44 @@ fn schema_three_admission_history_is_required() {
     .unwrap();
     assert!(validate_admission_snapshot(&input, 1000, 0).is_ok());
 }
+
+#[test]
+fn separate_attribution_epoch_schema_round_trips() {
+    use nsshared_codec::cbor::CborWriter;
+    use nsshared_control::account::relay::Roster;
+
+    let issuer = IdentitySecret::from_seed([1; 32]).public();
+    let recipient = IdentitySecret::from_seed([2; 32]).public();
+    let mut writer = CborWriter::default();
+    writer
+        .array(8)
+        .uint(2)
+        .bytes(issuer.as_bytes())
+        .bytes(recipient.as_bytes())
+        .uint(8)
+        .uint(3)
+        .uint(1000)
+        .uint(86_401_000)
+        .array(0);
+    let bytes = writer.into_bytes();
+    let roster =
+        Roster::decode(&bytes).expect("schema 2 must carry an independent attribution epoch");
+    assert_eq!(roster.canonical().unwrap(), bytes);
+    assert_eq!(roster.version.0, 8);
+    assert_eq!(roster.attribution_epoch.0, 3);
+    let mut invalid = roster.clone();
+    invalid.attribution_epoch.0 = 0;
+    assert!(invalid.canonical().is_err());
+    invalid = roster.clone();
+    invalid.schema_version = 1;
+    assert!(invalid.canonical().is_err());
+    invalid = roster;
+    invalid.schema_version = 3;
+    assert!(invalid.canonical().is_err());
+    for (arity, schema) in [(7, 2), (8, 1), (8, 3)] {
+        let mut invalid = bytes.clone();
+        invalid[0] = 0x80 + arity;
+        invalid[1] = schema;
+        assert!(Roster::decode(&invalid).is_err());
+    }
+}

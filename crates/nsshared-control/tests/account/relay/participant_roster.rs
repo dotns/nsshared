@@ -31,6 +31,7 @@ fn decision(result: &Result<ParticipantRosterGeneration, ParticipantRosterError>
         Err(ParticipantRosterError::Issuer) => "wrong-issuer",
         Err(ParticipantRosterError::Recipient) => "wrong-recipient",
         Err(ParticipantRosterError::Stale) => "stale-version",
+        Err(ParticipantRosterError::EpochDecrease) => "epoch-decrease",
         Err(ParticipantRosterError::FutureIssue) => "future-issue",
         Err(ParticipantRosterError::Expired) => "expired",
         Err(ParticipantRosterError::ShortLifetime) => "short-lifetime",
@@ -60,6 +61,13 @@ fn check_generation(vector: &Vector, generation: &ParticipantRosterGeneration) {
         identity(vector["generation_recipient"])
     );
     assert_eq!(generation.version.0, number(vector, "generation_version"));
+    assert_eq!(
+        generation.attribution_epoch.0,
+        vector.get("generation_epoch").map_or_else(
+            || number(vector, "generation_version"),
+            |v| v.parse().unwrap()
+        )
+    );
     assert_eq!(
         generation.issued_at_unix_ms,
         number(vector, "generation_issued_ms")
@@ -112,6 +120,16 @@ fn participant_roster_vectors() {
     let vectors = fixtures();
     for name in [
         "accepted",
+        "separate-epoch",
+        "repeated-epoch",
+        "repeated-epoch-again",
+        "epoch-above-version",
+        "epoch-decrease",
+        "legacy-epoch-decrease",
+        "zero-epoch",
+        "new-epoch",
+        "nonminimal-epoch",
+        "epoch-signature-tampering",
         "complete-empty",
         "revocation",
         "class-only-change",
@@ -165,6 +183,7 @@ fn participant_roster_vectors() {
                 issuer,
                 recipient,
                 number(vector, "previous_last_version"),
+                0,
                 number(vector, "previous_now_ms"),
             )
             .unwrap()
@@ -172,12 +191,18 @@ fn participant_roster_vectors() {
         if let Some(previous) = &previous {
             assert_eq!(previous.version.0, number(vector, "last_version"));
         }
+        if let (Some(previous), Some(epoch)) = (&previous, vector.get("last_epoch")) {
+            assert_eq!(previous.attribution_epoch.0, epoch.parse::<u64>().unwrap());
+        }
         let input = bytes(vector["bytes"]);
         let result = verify_participant_roster(
             &input,
             issuer,
             recipient,
             number(vector, "last_version"),
+            vector
+                .get("last_epoch")
+                .map_or_else(|| number(vector, "last_version"), |v| v.parse().unwrap()),
             number(vector, "now_ms"),
         );
         assert_eq!(
@@ -187,6 +212,24 @@ fn participant_roster_vectors() {
             vector["name"]
         );
         assert_eq!(result.is_ok(), vector["expect"] == "accept");
+        if let Ok(signed) = SignedRoster::decode(&input) {
+            assert_eq!(
+                signed
+                    .verify(
+                        issuer,
+                        recipient,
+                        number(vector, "last_version"),
+                        vector
+                            .get("last_epoch")
+                            .map_or_else(|| number(vector, "last_version"), |v| v.parse().unwrap()),
+                        number(vector, "now_ms")
+                    )
+                    .is_ok(),
+                result.is_ok(),
+                "{}",
+                vector["name"]
+            );
+        }
         if let Ok(generation) = &result {
             let signed = SignedRoster::decode(&input).unwrap();
             assert_eq!(signed.canonical().unwrap(), bytes(vector["canonical"]));
@@ -200,6 +243,9 @@ fn participant_roster_vectors() {
                         issuer,
                         recipient,
                         number(vector, "last_version"),
+                        vector
+                            .get("last_epoch")
+                            .map_or_else(|| number(vector, "last_version"), |v| v.parse().unwrap()),
                         number(vector, "now_ms")
                     )
                     .unwrap(),
