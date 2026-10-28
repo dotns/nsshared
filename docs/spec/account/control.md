@@ -1169,3 +1169,61 @@ immutable receipts and current selection from canonical bytes, keeping A's
 receipt and leaving B intact; accept the current B publication. Variants refuse
 wrong request, boot/attempt or poll context, wrong profile, missing binding,
 gateway-ID and carrier-credential fields.
+
+## Ordinary Node device posture
+
+`NODE_POSTURE` (`node.posture`) is a distinct `ControlReportOperation::NodePosture`
+operation in the existing signed confidential control carrier, behind
+`unstable-account`. It is independent of `node.heartbeat`; existing heartbeat,
+disconnect and observation tuples retain their bytes.
+
+`NodePostureRequest` is exactly `[1, membership_scope, runtime_fence, request_id,
+snapshot]`. Membership and runtime fence use the same tuples and validity rules
+as Node liveness. `request_id` is a 16-byte string, unique for each pending exact
+snapshot. There is no machine id. `NodePostureSnapshot` is exactly:
+
+`[os, os_version, arch, client_version, hostname, disk_encryption, uptime_seconds,
+local_ips]`.
+
+The first five fields are UTF-8 strings, each at most 1024 bytes; empty strings
+remain explicit collected values. `DiskEncryptionStatus` is exactly the text
+`encrypted`, `unencrypted` or `unknown`. Uptime is an unsigned 64-bit number of
+seconds. The complete local IP list has at most 256 entries, each a valid IPv4 or
+IPv6 literal of at most 45 bytes. Supplied spelling, order and duplicates are
+preserved. An empty list explicitly replaces the previous addresses. The request
+is a complete snapshot, never a partial update. Strict canonical CBOR, exact
+arity, the existing overall account byte bound and typed `AccountError` refusals
+apply. In-memory bounds violations return `Bounds`; decoding oversized fields or
+lists returns `Cbor`; invalid literals and unknown enum values within the text
+bound return `Field`.
+
+The ns platform collector produces the facts. Accepted registration and source
+custody supply the membership scope; the accepted service runtime supplies the
+fence. `NodeReportContext::validate_envelope` verifies the signed request and
+compares signer, recipient and membership with persisted enrolled Node and NSD
+identities, returning typed `NodeReportError` refusals. The generic report
+validator refuses this operation without that context. NSD additionally checks
+current source custody and runtime freshness, resolves the internal Node from
+that authority, and commits through its existing posture store transaction and
+topology notification before emitting a receipt. Client version maps to stored
+`nsn_version`; NSD supplies `reported_at` at commit. Client facts neither select
+an internal machine id nor grant policy or route admission by themselves.
+
+`NodePostureResponse` is exactly `[1, membership_scope, runtime_fence,
+request_id]`. The signed Response uses the existing trust, recipient, direction,
+operation and pending envelope nonce checks. `validate_for` compares both scope
+identifiers, all three fence fields and the request id with the retained sent
+request. Senders retain the exact snapshot under that unique id and only mark
+it delivered after the matching receipt. The receipt acknowledges only that
+snapshot, never a later sample; missing or mismatched receipts acknowledge
+nothing. It does not renew a runtime or establish current posture freshness.
+
+Collection and reporting retain their independent periodic/triggered cadence;
+they are not attached to every heartbeat. Missing, stale or nonmatching posture
+continues to deny posture-conditioned policy through the existing evaluator.
+
+The implementation is `reports/node_posture.rs`; tests in
+`account::control::reports::node_posture` consume independent Python-produced
+`account/control/node-posture.vec` fixtures for complete and empty snapshots,
+each encryption value, exact boundaries, typed refusals, authenticated context
+and each receipt correlation field.
