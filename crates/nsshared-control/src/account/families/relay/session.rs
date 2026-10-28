@@ -68,7 +68,7 @@ impl FrameKind {
 
     /// True for the kinds that carry the issuer/participant pair.
     const fn has_pair(self) -> bool {
-        matches!(self, Self::Authenticate) || self.has_correlation()
+        matches!(self, Self::Authenticate | Self::Authenticated) || self.has_correlation()
     }
 
     /// True for the kinds that carry a request correlation.
@@ -90,6 +90,9 @@ pub enum SessionError {
     /// Unknown kind, invalid length, malformed field or trailing bytes.
     #[error("invalid participant frame")]
     Frame,
+    /// Incompatible participant answer version, including legacy unversioned answers.
+    #[error("incompatible participant answer version")]
+    Version,
     /// Pair is not provisioned, enabled or currently valid.
     #[error("participant authorization refused")]
     Unauthorized,
@@ -204,13 +207,20 @@ pub fn validate_header(length: u32, kind: u8) -> Result<usize, SessionError> {
         .and_then(|n| n.checked_sub(1))
         .filter(|n| *n <= MAX_FRAME_BODY)
         .ok_or(SessionError::Frame)?;
+    if matches!(
+        (FrameKind::from_byte(kind), body_len),
+        (Some(FrameKind::Authenticated), 1 | 9) | (Some(FrameKind::Enrolled), 81 | 89)
+    ) {
+        return Err(SessionError::Version);
+    }
     let valid = match FrameKind::from_byte(kind) {
         Some(FrameKind::Authenticate) => body_len == 128,
-        Some(FrameKind::Authenticated) => matches!(body_len, 1 | 9),
+        Some(FrameKind::Authenticated) => matches!(body_len, 74 | 82),
         Some(FrameKind::Refused) => body_len == 0,
         Some(FrameKind::Roster | FrameKind::Report | FrameKind::Answer) => body_len > 0,
         Some(FrameKind::Enroll) => body_len == 176,
-        Some(FrameKind::Enrolled | FrameKind::Renewed) => matches!(body_len, 81 | 89),
+        Some(FrameKind::Enrolled) => matches!(body_len, 90 | 98),
+        Some(FrameKind::Renewed) => matches!(body_len, 81 | 89),
         Some(FrameKind::Renew) => body_len == 80,
         None => false,
     };
@@ -258,7 +268,8 @@ fn identity(bytes: &[u8]) -> Result<IdentityKey, SessionError> {
 impl Frame {
     /// Construct a bounded frame with exact operation fields; no session is granted.
     /// # Errors
-    /// Refuses malformed lengths, identities, correlations and deadline encodings.
+    /// Refuses incompatible answer versions, malformed lengths, identities,
+    /// correlations, deadline encodings and zero custody generations.
     pub fn new(kind: FrameKind, body: Vec<u8>) -> Result<Self, SessionError> {
         let length = u32::try_from(body.len())
             .ok()
@@ -272,16 +283,22 @@ impl Frame {
         if kind.has_correlation() && body[64..80] == [0; 16] {
             return Err(SessionError::Frame);
         }
+        let frame = Self { kind, body };
         match kind {
-            FrameKind::Authenticated => {
-                credential_deadline(&body)?;
+            FrameKind::Authenticated | FrameKind::Enrolled => {
+                let offset = if kind == FrameKind::Enrolled { 80 } else { 64 };
+                if frame.body[offset] != 2 {
+                    return Err(SessionError::Version);
+                }
+                frame.answer_deadline()?;
+                frame.owner_generation()?;
             }
-            FrameKind::Enrolled | FrameKind::Renewed => {
-                credential_deadline(&body[80..])?;
+            FrameKind::Renewed => {
+                frame.answer_deadline()?;
             }
             _ => {}
         }
-        Ok(Self { kind, body })
+        Ok(frame)
     }
     /// Construct the existing connection authentication tuple.
     /// # Errors
@@ -323,14 +340,14 @@ impl Frame {
         body.extend_from_slice(&correlation);
         Self::new(FrameKind::Renew, body)
     }
-    /// Construct enrolled/renewed metadata for the exact request and actual deadline.
+    /// Construct renewed metadata for the exact request and actual deadline.
     /// # Errors
     /// Refuses a different operation or zero correlation.
     pub fn response(
         pending: &PendingResponse,
         deadline_ms: Option<u64>,
     ) -> Result<Self, SessionError> {
-        if !matches!(pending.kind, FrameKind::Enrolled | FrameKind::Renewed) {
+        if pending.kind != FrameKind::Renewed {
             return Err(SessionError::Frame);
         }
         let mut body = exporter_context(pending.issuer, pending.participant).to_vec();
@@ -338,11 +355,95 @@ impl Frame {
         body.extend_from_slice(&deadline_bytes(deadline_ms));
         Self::new(pending.kind, body)
     }
-    /// Construct existing authenticated metadata without inventing a finite bound.
+    /// Construct enrollment acceptance from NSD's committed participant custody.
     /// # Errors
-    /// Refuses invalid frame bounds.
-    pub fn authenticated(deadline_ms: Option<u64>) -> Result<Self, SessionError> {
-        Self::new(FrameKind::Authenticated, deadline_bytes(deadline_ms))
+    /// Refuses a different operation, zero correlation or zero generation.
+    pub fn enrolled(
+        pending: &PendingResponse,
+        owner_generation: u64,
+        deadline_ms: Option<u64>,
+    ) -> Result<Self, SessionError> {
+        if pending.kind != FrameKind::Enrolled {
+            return Err(SessionError::Frame);
+        }
+        let mut body = exporter_context(pending.issuer, pending.participant).to_vec();
+        body.extend_from_slice(&pending.correlation);
+        Self::custody_answer(pending.kind, body, owner_generation, deadline_ms)
+    }
+    /// Construct authenticated metadata from NSD's committed participant custody.
+    /// # Errors
+    /// Refuses a zero generation or invalid frame fields.
+    pub fn authenticated(
+        issuer: IdentityKey,
+        participant: IdentityKey,
+        owner_generation: u64,
+        deadline_ms: Option<u64>,
+    ) -> Result<Self, SessionError> {
+        Self::custody_answer(
+            FrameKind::Authenticated,
+            exporter_context(issuer, participant).to_vec(),
+            owner_generation,
+            deadline_ms,
+        )
+    }
+    fn custody_answer(
+        kind: FrameKind,
+        mut body: Vec<u8>,
+        owner_generation: u64,
+        deadline_ms: Option<u64>,
+    ) -> Result<Self, SessionError> {
+        body.push(2);
+        body.extend_from_slice(&deadline_bytes(deadline_ms));
+        body.extend_from_slice(&owner_generation.to_be_bytes());
+        Self::new(kind, body)
+    }
+    /// Read the positive generation delivered by NSD; decoding alone grants no custody.
+    /// Persist only after validating the pending exchange on verified TLS.
+    /// # Errors
+    /// Refuses other operations and missing or zero generations.
+    pub fn owner_generation(&self) -> Result<u64, SessionError> {
+        if !matches!(self.kind, FrameKind::Authenticated | FrameKind::Enrolled) {
+            return Err(SessionError::Frame);
+        }
+        let generation = u64::from_be_bytes(
+            self.body[self.body.len() - 8..]
+                .try_into()
+                .map_err(|_| SessionError::Frame)?,
+        );
+        if generation == 0 {
+            return Err(SessionError::Frame);
+        }
+        Ok(generation)
+    }
+    fn answer_deadline(&self) -> Result<Option<u64>, SessionError> {
+        match self.kind {
+            FrameKind::Authenticated => credential_deadline(&self.body[65..self.body.len() - 8]),
+            FrameKind::Enrolled => credential_deadline(&self.body[81..self.body.len() - 8]),
+            FrameKind::Renewed => credential_deadline(&self.body[80..]),
+            _ => Err(SessionError::Frame),
+        }
+    }
+    /// Compare metadata with the outstanding authentication on the same verified TLS connection.
+    /// The caller tracks and consumes that pending exchange, refusing unsolicited responses.
+    /// Returned absence never erases a retained finite credential bound.
+    /// # Errors
+    /// Refuses a wrong operation, issuer, participant or expired deadline.
+    pub fn validate_authenticated(
+        &self,
+        pending: &Self,
+        now_ms: u64,
+    ) -> Result<Option<u64>, SessionError> {
+        if self.kind != FrameKind::Authenticated
+            || pending.kind != FrameKind::Authenticate
+            || self.pair()? != pending.pair()?
+        {
+            return Err(SessionError::Correlation);
+        }
+        let deadline = self.answer_deadline()?;
+        if deadline.is_some_and(|value| now_ms >= value) {
+            return Err(SessionError::Unauthorized);
+        }
+        Ok(deadline)
     }
     /// Read exact request correlation without exposing enrollment credentials.
     /// # Errors
@@ -495,7 +596,7 @@ impl Frame {
         {
             return Err(SessionError::Correlation);
         }
-        let deadline = credential_deadline(&self.body[80..])?;
+        let deadline = self.answer_deadline()?;
         if deadline.is_some_and(|value| now_ms >= value) {
             return Err(SessionError::Unauthorized);
         }

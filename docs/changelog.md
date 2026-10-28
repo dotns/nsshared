@@ -1,5 +1,12 @@
 ## 2026-10-28 [feat]
 
+Carry positive participant custody generations in versioned enrollment and
+authentication answers, bound to the issuer, participant and pending exchange.
+Refuse legacy or incomplete answers and document durable custody provenance.
+Other session frames, signed rosters and retention seal bytes remain unchanged.
+
+## 2026-10-28 [feat]
+
 Add a distinct Node posture operation behind `unstable-account` with bounded
 complete snapshots, trusted membership validation and correlated receipts.
 Include independent vectors and typed refusal coverage while preserving existing
