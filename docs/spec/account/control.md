@@ -492,7 +492,12 @@ tokens, preserved including unknown tokens; they grant no authority.
 
 `node.heartbeat` (`ControlReportOperation::NodeHeartbeat`) is distinct from the
 existing gateway `machine.heartbeat` operation. `NodeHeartbeatRequest` is
-`[1, membership_scope, runtime_fence, heartbeat_request_bytes]`.
+`[1, membership_scope, runtime_fence, heartbeat_request_bytes]` when all transport
+observations are absent. With any transport observation it is
+`[1, membership_scope, runtime_fence, heartbeat_request_bytes, udp_reachable,
+pair_transport, gateway_rtt]`. The three extension positions use CBOR null for
+omission; an all-null extension is refused because the four-item form is its
+unique canonical encoding. Existing four-item vectors remain byte-identical.
 `NodeHeartbeatResponse` is
 `[1, membership_scope, runtime_fence, heartbeat_response_bytes]`.
 The nested bytes are the canonical `HeartbeatRequest` and `HeartbeatResponse`
@@ -500,6 +505,49 @@ forms defined above, including request ID, uptime, local IPs, policy counter and
 inert response features. Node and gateway outer tuples have different arities:
 neither decoder accepts the other form. Nested lists retain the 256-item bound,
 checked before allocation, and the whole payload retains the 1 MiB ceiling.
+
+The Node-only extension fields are:
+
+| Field | Canonical value | Meaning |
+| --- | --- | --- |
+| `udp_reachable` | boolean or null | Node transport verdict; null preserves the stored verdict, including a previous false value. |
+| `pair_transport` | `[runtime_id_16, revision, unhealthy]` or null | Full unhealthy set for the reporter/runtime. Null leaves it unchanged; a present empty `unhealthy` explicitly clears it. |
+| `gateway_rtt` | array of `[gateway_identity_32, tier, samples, timeouts]` or null | Probe measurements; null supplies no observation. An empty array reports no entries and is distinct from omission. |
+
+Each unhealthy entry is `[peer_identity_32, gateway_identity_32]`. Both keys must
+be valid full shared `IdentityKey` values, as used by GatewayNode roster entries;
+legacy machine IDs and derived NodeIds are refused. Entries are strictly sorted
+lexicographically by full peer bytes, then full gateway bytes, with no duplicate
+pair. RTT entries are strictly sorted and unique by full gateway bytes. Each
+list is bounded to `MAX_NODE_OBSERVATIONS` (256) before allocation. Invalid
+fields, including a pair runtime ID different from the enclosing fence, return
+`AccountError::Field`; malformed CBOR, invalid byte lengths and oversized decoded
+lists return `AccountError::Cbor`. Oversized in-memory lists return
+`AccountError::Bounds`. The complete payload remains bounded to 1 MiB.
+
+`revision`, `samples` and `timeouts` are u64, including zero. Consumers compare
+pair revisions with stored state for that exact reporter/runtime before replacing
+the set; shared decoding does not claim freshness. RTT tier strings are exactly
+`lt30`, `lt100`, `ge100`, and `unreachable`; other strings are refused. Identities
+come from authenticated peer/gateway publications used by the actual reporters.
+The consumer resolves them against authoritative records within the membership
+scope. It must not silently drop unresolved identities from a full pair snapshot
+or acknowledge that snapshot as consumed. Observations grant no authority.
+
+`NodeHeartbeatResponse.heartbeat.features` advertises the features consumed by
+that endpoint, including `gateway_rtt.v1` and `pair_transport_fallback.v1`.
+Pair and RTT reporting require both discovery and current endpoint support; pair
+reporting also retains the enrolled capability requirement. An empty feature list
+withdraws optional reporting. Feature tokens are ordered and unique; unknown
+ones remain inert. The response wire form is unchanged.
+
+A successful authenticated, correlated receipt acknowledges only observations
+included in that exact retained request. Consumers compare request ID, both
+membership IDs and every runtime fence field before marking those observations
+delivered. The receipt follows heartbeat persistence and pair-snapshot acceptance,
+with RTT passed to its existing best-effort measurement consumer; it does not
+prove durable RTT storage. Omitted, unmapped or failed observations remain
+undelivered. A liveness-only receipt cannot acknowledge a richer source report.
 
 `machine.disconnect` (`ControlReportOperation::NodeDisconnect`) uses
 `NodeDisconnectRequest`:

@@ -55,6 +55,10 @@ fn node_liveness_vectors_and_bounded_refusals() {
                 let mut trailing = raw.clone();
                 trailing.push(0);
                 assert!(roundtrip(operation, direction, &trailing).is_err());
+                let mut noncanonical_header = raw.clone();
+                let arity = noncanonical_header[0] & 0x1f;
+                noncanonical_header.splice(0..1, [0x98, arity]);
+                assert!(roundtrip(operation, direction, &noncanonical_header).is_err());
                 let mut noncanonical = raw;
                 noncanonical.splice(1..2, [0x18, 1]);
                 assert!(roundtrip(operation, direction, &noncanonical).is_err());
@@ -186,4 +190,155 @@ fn node_liveness_receipts_match_exact_requests() {
         }
         assert!(response.validate_for(&changed).is_err());
     }
+}
+
+#[test]
+fn node_heartbeat_observation_vectors_roundtrip() {
+    let vectors = nsshared_testkit::vectors!("account/control/node-liveness");
+    for name in [
+        "udp-true",
+        "udp-false",
+        "pair-present",
+        "pair-empty",
+        "rtt-present",
+        "rtt-empty",
+        "observations-all",
+    ] {
+        let bytes = vectors
+            .iter()
+            .find(|v| v.name() == name)
+            .unwrap()
+            .hex("bytes");
+        let decoded =
+            NodeHeartbeatRequest::decode(&bytes).unwrap_or_else(|error| panic!("{name}: {error}"));
+        assert_eq!(decoded.canonical().unwrap(), bytes, "{name}");
+    }
+}
+
+#[test]
+fn node_heartbeat_observations_preserve_omission_and_exact_receipts() {
+    let vectors = nsshared_testkit::vectors!("account/control/node-liveness");
+    let raw = |name| {
+        vectors
+            .iter()
+            .find(|v| v.name() == name)
+            .unwrap()
+            .hex("bytes")
+    };
+    let decode = |name| NodeHeartbeatRequest::decode(&raw(name)).unwrap();
+    let absent = decode("node.heartbeat-0");
+    assert_eq!(absent.udp_reachable, None);
+    assert_eq!(absent.pair_transport, None);
+    assert_eq!(absent.gateway_rtt, None);
+    assert_eq!(decode("udp-true").udp_reachable, Some(true));
+    assert_eq!(decode("udp-false").udp_reachable, Some(false));
+    let empty = decode("pair-empty").pair_transport.unwrap();
+    assert!(empty.unhealthy.is_empty());
+    assert_eq!(empty.runtime_id, absent.fence.runtime_id);
+    assert_eq!(empty.revision, 0);
+    assert_eq!(decode("rtt-empty").gateway_rtt, Some(vec![]));
+    assert_eq!(
+        decode("pair-at-bound")
+            .pair_transport
+            .unwrap()
+            .unhealthy
+            .len(),
+        MAX_NODE_OBSERVATIONS
+    );
+    let boundary_rtt = decode("rtt-at-bound").gateway_rtt.unwrap();
+    assert_eq!(boundary_rtt.len(), MAX_NODE_OBSERVATIONS);
+    assert!(
+        boundary_rtt
+            .iter()
+            .all(|entry| entry.samples == 0 && entry.timeouts == u64::MAX)
+    );
+    let request = decode("observations-all");
+    let pair = request.pair_transport.as_ref().unwrap();
+    assert_eq!(pair.revision, u64::MAX);
+    assert_eq!(pair.runtime_id, request.fence.runtime_id);
+    assert_eq!(pair.unhealthy.len(), 3);
+    let rtt = request.gateway_rtt.as_ref().unwrap();
+    assert_eq!(pair.unhealthy[0].peer, rtt[0].gateway);
+    assert_eq!(pair.unhealthy[0].gateway, rtt[2].gateway);
+    assert_eq!(pair.unhealthy[1].peer, rtt[0].gateway);
+    assert_eq!(pair.unhealthy[1].gateway, rtt[3].gateway);
+    assert_eq!(pair.unhealthy[2].peer, rtt[1].gateway);
+    assert_eq!(pair.unhealthy[2].gateway, rtt[2].gateway);
+    assert_eq!(
+        rtt.iter().map(|entry| entry.tier).collect::<Vec<_>>(),
+        [
+            GatewayRttTier::Lt30,
+            GatewayRttTier::Lt100,
+            GatewayRttTier::Ge100,
+            GatewayRttTier::Unreachable,
+        ]
+    );
+    assert!(
+        rtt.iter()
+            .all(|entry| entry.samples == u64::MAX && entry.timeouts == 0)
+    );
+    let response = NodeHeartbeatResponse::decode(&raw("endpoint-features")).unwrap();
+    assert_eq!(
+        response.heartbeat.features,
+        [GATEWAY_RTT_FEATURE, PAIR_TRANSPORT_FALLBACK_FEATURE]
+    );
+    response.validate_for(&request).unwrap();
+    let withdrawal = NodeHeartbeatResponse::decode(&raw("withdraw-features")).unwrap();
+    assert!(withdrawal.heartbeat.features.is_empty());
+    withdrawal.validate_for(&request).unwrap();
+    for field in 0..6 {
+        let mut changed = response.clone();
+        match field {
+            0 => changed.scope.nsd_id[0] ^= 1,
+            1 => changed.scope.network_id[0] ^= 1,
+            2 => changed.fence.runtime_id[0] ^= 1,
+            3 => changed.fence.runtime_generation += 1,
+            4 => changed.fence.authority_epoch += 1,
+            _ => changed.heartbeat.request_id[0] ^= 1,
+        }
+        assert!(matches!(
+            changed.validate_for(&request),
+            Err(AccountError::Field)
+        ));
+    }
+}
+
+#[test]
+fn node_heartbeat_in_memory_observation_refusals() {
+    let vectors = nsshared_testkit::vectors!("account/control/node-liveness");
+    let raw = vectors
+        .iter()
+        .find(|v| v.name() == "observations-all")
+        .unwrap()
+        .hex("bytes");
+    let request = NodeHeartbeatRequest::decode(&raw).unwrap();
+    let mut changed = request.clone();
+    changed.pair_transport.as_mut().unwrap().runtime_id[0] ^= 1;
+    assert!(matches!(changed.canonical(), Err(AccountError::Field)));
+    for duplicate in [false, true] {
+        let mut changed = request.clone();
+        let entries = &mut changed.pair_transport.as_mut().unwrap().unhealthy;
+        if duplicate {
+            entries[1] = entries[0].clone();
+        } else {
+            entries.swap(0, 1);
+        }
+        assert!(matches!(changed.canonical(), Err(AccountError::Field)));
+        let mut changed = request.clone();
+        let entries = changed.gateway_rtt.as_mut().unwrap();
+        if duplicate {
+            entries[1].gateway = entries[0].gateway;
+        } else {
+            entries.swap(0, 1);
+        }
+        assert!(matches!(changed.canonical(), Err(AccountError::Field)));
+    }
+    let mut changed = request.clone();
+    let entries = &mut changed.pair_transport.as_mut().unwrap().unhealthy;
+    entries.resize(MAX_NODE_OBSERVATIONS + 1, entries[0].clone());
+    assert!(matches!(changed.canonical(), Err(AccountError::Bounds)));
+    let mut changed = request;
+    let entries = changed.gateway_rtt.as_mut().unwrap();
+    entries.resize(MAX_NODE_OBSERVATIONS + 1, entries[0].clone());
+    assert!(matches!(changed.canonical(), Err(AccountError::Bounds)));
 }
