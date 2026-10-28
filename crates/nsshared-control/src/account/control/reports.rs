@@ -1,8 +1,10 @@
 //! Pure observations and authenticated report operation dispatch.
 mod node;
 mod node_observations;
+mod node_posture;
 pub use node::*;
 pub use node_observations::*;
+pub use node_posture::*;
 
 use crate::{
     account::AccountError, account::MAX_BYTES, account::codec::bounded, account::codec::data_text,
@@ -336,6 +338,8 @@ pub enum ControlReportOperation {
     NodeHeartbeat,
     /// Scoped ordinary Node disconnect.
     NodeDisconnect,
+    /// Complete ordinary Node device posture.
+    NodePosture,
     /// Gateway observations.
     Gateway,
     /// Existing complete M6 service and local Exit floor.
@@ -351,6 +355,7 @@ impl ControlReportOperation {
     /// Refuses names outside this report contract.
     pub fn parse(name: &str) -> Result<Self, AccountError> {
         match name {
+            NODE_POSTURE => Ok(Self::NodePosture),
             NODE_HEARTBEAT => Ok(Self::NodeHeartbeat),
             MACHINE_DISCONNECT => Ok(Self::NodeDisconnect),
             MACHINE_HEARTBEAT => Ok(Self::Heartbeat),
@@ -367,6 +372,7 @@ impl ControlReportOperation {
         match self {
             Self::Heartbeat => MACHINE_HEARTBEAT,
             Self::NodeHeartbeat => NODE_HEARTBEAT,
+            Self::NodePosture => NODE_POSTURE,
             Self::NodeDisconnect => MACHINE_DISCONNECT,
             Self::Gateway => GATEWAY_REPORT,
             Self::Services => GATEWAY_SERVICES_REPORT,
@@ -383,6 +389,12 @@ impl ControlReportOperation {
         bytes: &[u8],
     ) -> Result<(), AccountError> {
         match (self, direction) {
+            (Self::NodePosture, EnvelopeDirection::Request) => {
+                NodePostureRequest::decode(bytes)?;
+            }
+            (Self::NodePosture, EnvelopeDirection::Response) => {
+                NodePostureResponse::decode(bytes)?;
+            }
             (Self::NodeHeartbeat, EnvelopeDirection::Request) => {
                 NodeHeartbeatRequest::decode(bytes)?;
             }
@@ -439,7 +451,10 @@ impl ControlReportOperation {
     ) -> Result<(), ExchangeError> {
         envelope.verify(expected)?;
         // Node operations require the persisted membership context API.
-        if matches!(self, Self::NodeHeartbeat | Self::NodeDisconnect) {
+        if matches!(
+            self,
+            Self::NodeHeartbeat | Self::NodeDisconnect | Self::NodePosture
+        ) {
             return Err(ExchangeError::Scope);
         }
         if envelope.kind != self.as_str() {

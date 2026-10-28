@@ -19,6 +19,8 @@ pub const MACHINE_AUTH: &str = "machine.auth";
 pub const INFO_GET: &str = "info.get";
 /// Signed process heartbeat operation.
 pub const MACHINE_HEARTBEAT: &str = "machine.heartbeat";
+/// Signed ordinary Node complete device posture operation.
+pub const NODE_POSTURE: &str = "node.posture";
 /// Signed ordinary Node heartbeat operation.
 pub const NODE_HEARTBEAT: &str = "node.heartbeat";
 /// Signed ordinary Node disconnect operation.
