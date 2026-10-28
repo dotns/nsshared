@@ -6,6 +6,7 @@ module that reads it. SPEC names the specification in this repository and EXTERN
 the sections of the external docs; either may be None.
 """
 
+from nsvec.producers.control.account.control import fenced_gateway as control_account_control_fenced_gateway
 from nsvec.producers.identity import discovery as identity_discovery
 from nsvec.producers.identity import identity as identity_identity
 from nsvec.producers.identity import record as identity_record
@@ -54,6 +55,7 @@ from nsvec.producers.control.node_control import messages as control_node_contro
 from nsvec.producers.control.service import canonical as control_service_canonical
 
 PRODUCERS = [
+    control_account_control_fenced_gateway,
     identity_discovery,
     identity_identity,
     identity_record,
