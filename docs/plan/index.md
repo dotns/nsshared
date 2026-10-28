@@ -1,5 +1,7 @@
 # ns-shared - Plan Index
 
+- [x] [**Enrollment review answers**](20261028-0421-enrollment-review-answers.md)
+
 - [x] [**Node heartbeat observations**](20261028-0309-node-heartbeat-observations.md)
 
 - [x] [**Discovery representation selector**](20261028-0318-discovery-media-type.md)

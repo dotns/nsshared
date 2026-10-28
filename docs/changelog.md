@@ -1,3 +1,10 @@
+## 2026-10-28 [docs]
+
+Record verified identity lifecycle and bounded enrollment review answers at
+explicit shared, producer and consumer revisions. Distinguish the planned shared
+bootstrap adoption from historical JSON behavior, and retain remaining producer
+vectors and live confirmation as open obligations.
+
 ## 2026-10-28 [feat]
 
 Extend ordinary Node heartbeats with optional UDP reachability, full unhealthy-pair
