@@ -1,3 +1,10 @@
+## 2026-10-28 [feat]
+
+Add ordinary Node heartbeat and disconnect contracts behind `unstable-account`,
+with trusted membership and endpoint validation, bounded canonical codecs, exact
+receipts and independent vectors. Existing gateway heartbeat forms remain intact;
+runtime freshness and durable effects remain consumer-owned.
+
 ## 2026-10-28 [chore]
 
 Merge the upstream CI cache configuration and documentation while retaining

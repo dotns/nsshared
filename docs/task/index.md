@@ -1,5 +1,7 @@
 # ns-shared - Task List
 
+- [x] [**Ordinary Node liveness**](20261028-0104-node-liveness.md)
+
 - [x] [**Merge CI cache history**](20261028-0013-merge-ci-cache-history.md)
 
 - [x] [**Retention seal and acknowledgement**](20261027-2313-retention-seal.md)
