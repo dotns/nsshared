@@ -1,1 +1,6 @@
 crates/keynet-proto/tests/fixtures/keynet-v1/* text eol=lf
+
+# Keep both sides' entries when parallel branches append to these files.
+docs/changelog.md merge=union
+docs/plan/index.md merge=union
+docs/task/index.md merge=union
