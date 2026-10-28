@@ -66,9 +66,9 @@ def vectors():
         changed = copy.deepcopy(content)
         changed[index] = value
         signed(name, changed, "reject")
-    snapshot = {"schema_version": 2, "issued_at_unix_ms": 1000, "roster_version": 7,
-                "identities": [{"identity": base64.urlsafe_b64encode(identity).rstrip(b"=").decode(), "class": cls}
-                               for identity, cls in [(a, "ordinary_node"), (b, "gateway_node")]]}
+    snapshot = {"schema_version": 3, "issued_at_unix_ms": 1000, "roster_version": 7,
+                "identities": [{"identity": base64.urlsafe_b64encode(identity).rstrip(b"=").decode(), "class": cls, "admission_since": since}
+                               for identity, cls, since in [(a, "ordinary_node", 3), (b, "gateway_node", 7)]]}
 
     def local(name, obj, expect="reject", pad_to=None):
         raw = obj if isinstance(obj, str) else json.dumps(obj, separators=(",", ":"))
@@ -98,8 +98,8 @@ def vectors():
     local("local-future", {**snapshot, "issued_at_unix_ms": 1001})
     local("local-stale", {**snapshot, "issued_at_unix_ms": 899})
     local("local-old-schema", {**snapshot, "schema_version": 1})
-    local("local-duplicate-field", '{"schema_version":2,"schema_version":2,"issued_at_unix_ms":1000,"roster_version":7,"identities":[]}')
-    local("local-invalid-key", {**snapshot, "identities": [{"identity": "invalid", "class": "ordinary_node"}]})
+    local("local-duplicate-field", '{"schema_version":3,"schema_version":3,"issued_at_unix_ms":1000,"roster_version":7,"identities":[]}')
+    local("local-invalid-key", {**snapshot, "identities": [{"identity": "invalid", "class": "ordinary_node", "admission_since": 3}]})
     # Refusal bytes are generated independently, including complete-but-invalid sets.
     def refuse(name, kind, value):
         vector(name, kind, value)

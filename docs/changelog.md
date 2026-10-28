@@ -1,3 +1,50 @@
+## 2026-10-28 [docs]
+
+Record verified identity lifecycle and bounded enrollment review answers at
+explicit shared, producer and consumer revisions. Distinguish the planned shared
+bootstrap adoption from historical JSON behavior, and retain remaining producer
+vectors and live confirmation as open obligations.
+
+## 2026-10-28 [feat]
+
+Extend ordinary Node heartbeats with optional UDP reachability, full unhealthy-pair
+snapshots and identity-keyed gateway RTT observations. Preserve omitted-field
+semantics and original payload bytes, with bounded canonical validation, endpoint
+feature negotiation and exact receipt correlation.
+
+## 2026-10-28 [feat]
+
+Export the discovery CBOR media type alongside its endpoint and document exact
+Accept selection, response Content-Type, Vary handling and strict client decoding.
+Discovery tuples, signed envelopes and vectors remain unchanged.
+
+## 2026-10-28 [feat]
+
+Require schema 3 for controlled admission snapshots and return each identity
+with its class and admission-start version. Refuse legacy schemas and missing
+or invalid history. Preserve signed roster bytes and participant transport,
+with independent vectors and strict validation coverage.
+
+## 2026-10-28 [feat]
+
+Add ordinary Node heartbeat and disconnect contracts behind `unstable-account`,
+with trusted membership and endpoint validation, bounded canonical codecs, exact
+receipts and independent vectors. Existing gateway heartbeat forms remain intact;
+runtime freshness and durable effects remain consumer-owned.
+
+## 2026-10-28 [chore]
+
+Merge the upstream CI cache configuration and documentation while retaining
+the retention seal contract and both histories. The merged tree passes local
+validation without source or test changes.
+
+## 2026-10-27 [feat]
+
+Add bounded canonical retention seals and correlated acknowledgements behind
+`unstable-account`, carried by the existing participant REPORT/ANSWER frames.
+Include independent vectors, typed identity and replay refusals, and protocol
+documentation. Durable closure, settlement and cleanup remain consumer-owned.
+
 ## 2026-10-27 23:07 [ci]
 
 Record shared-cache validation and complete the CI cache task. Sequential SSD

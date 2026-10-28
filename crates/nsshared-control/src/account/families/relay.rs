@@ -11,8 +11,8 @@ pub use participant_roster::{
     ParticipantRosterStatus, participant_roster_status, verify_participant_roster,
 };
 pub use roster::{
-    AdmissionSnapshot, IdentityClass, MIN_ROSTER_VALIDITY_MS, Roster, RosterEntry, RosterVersion,
-    SignedRoster, validate_admission_snapshot,
+    AdmissionSnapshot, AdmissionSnapshotEntry, IdentityClass, MIN_ROSTER_VALIDITY_MS, Roster,
+    RosterEntry, RosterVersion, SignedRoster, validate_admission_snapshot,
 };
 pub use session::{
     Authorization, EnrollmentProvision, Frame, FrameKind, MAX_FRAME_BODY, PendingResponse,

@@ -63,6 +63,30 @@ fn control_report_contract_vectors() {
                 );
                 if accepted {
                     let encoded = match (operation, direction) {
+                        (ControlReportOperation::NodeHeartbeat, EnvelopeDirection::Request) => {
+                            NodeHeartbeatRequest::decode(&raw)
+                                .unwrap()
+                                .canonical()
+                                .unwrap()
+                        }
+                        (ControlReportOperation::NodeHeartbeat, EnvelopeDirection::Response) => {
+                            NodeHeartbeatResponse::decode(&raw)
+                                .unwrap()
+                                .canonical()
+                                .unwrap()
+                        }
+                        (ControlReportOperation::NodeDisconnect, EnvelopeDirection::Request) => {
+                            NodeDisconnectRequest::decode(&raw)
+                                .unwrap()
+                                .canonical()
+                                .unwrap()
+                        }
+                        (ControlReportOperation::NodeDisconnect, EnvelopeDirection::Response) => {
+                            NodeDisconnectResponse::decode(&raw)
+                                .unwrap()
+                                .canonical()
+                                .unwrap()
+                        }
                         (ControlReportOperation::Heartbeat, EnvelopeDirection::Request) => {
                             HeartbeatRequest::decode(&raw).unwrap().canonical().unwrap()
                         }
@@ -268,3 +292,11 @@ fn report_receipts_preserve_observations_and_exact_pending_context() {
     let response = EdgeServiceResponse::decode(&bytes("gateway.services_report-response")).unwrap();
     assert!(response.validate_request(&changed).is_err());
 }
+
+#[test]
+fn ordinary_node_report_operations_are_registered() {
+    assert!(ControlReportOperation::parse("node.heartbeat").is_ok());
+    assert!(ControlReportOperation::parse("machine.disconnect").is_ok());
+}
+
+mod node_liveness;

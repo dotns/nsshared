@@ -19,6 +19,10 @@ pub const MACHINE_AUTH: &str = "machine.auth";
 pub const INFO_GET: &str = "info.get";
 /// Signed process heartbeat operation.
 pub const MACHINE_HEARTBEAT: &str = "machine.heartbeat";
+/// Signed ordinary Node heartbeat operation.
+pub const NODE_HEARTBEAT: &str = "node.heartbeat";
+/// Signed ordinary Node disconnect operation.
+pub const MACHINE_DISCONNECT: &str = "machine.disconnect";
 /// Signed gateway observation report operation.
 pub const GATEWAY_REPORT: &str = "gateway.report";
 /// Signed complete local service and Exit floor operation.
@@ -63,6 +67,8 @@ pub const MACHINE_AUTH_PURPOSE: &str = "control";
 pub const CONTROL_ENVELOPE_PATH: &str = "/api/v1/control";
 /// WebPKI discovery endpoint.
 pub const DISCOVERY_PATH: &str = "/api/v1/info";
+/// Request Accept selector and response Content-Type for canonical CBOR bootstrap discovery.
+pub const DISCOVERY_MEDIA_TYPE: &str = "application/cbor";
 /// Confidential machine key-set endpoint.
 pub const JWKS_PATH: &str = "/.well-known/jwks.json";
 

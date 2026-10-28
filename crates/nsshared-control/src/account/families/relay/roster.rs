@@ -38,17 +38,28 @@ pub struct RosterEntry {
     pub class: IdentityClass,
 }
 
-/// Validated local JSON schema 2 content. No file ownership or I/O is implied.
+/// Identity, class and the start of its current uninterrupted admission.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AdmissionSnapshotEntry {
+    /// Full, validated identity, never NodeId alone.
+    pub identity: IdentityKey,
+    /// Class held throughout this admission.
+    pub class: IdentityClass,
+    /// Version when admission with this class began; removal or reclassification resets it.
+    pub admission_since: RosterVersion,
+}
+
+/// Validated local JSON schema 3 content. No file ownership or I/O is implied.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AdmissionSnapshot {
-    /// Local JSON schema, always 2 after validation.
+    /// Local JSON schema, always 3 after validation.
     pub schema_version: u8,
     /// Issue time supplied by the controlled-file producer.
     pub issued_at_unix_ms: u64,
     /// Attribution epoch for both membership and classes.
     pub roster_version: RosterVersion,
-    /// Complete identity/class set; empty withdraws admission.
-    pub identities: Vec<RosterEntry>,
+    /// Complete identity/class/admission-start set; empty withdraws admission.
+    pub identities: Vec<AdmissionSnapshotEntry>,
 }
 
 // Derived structs also accept positional sequences. Forward map access directly
@@ -89,6 +100,7 @@ struct JsonSnapshot {
 struct JsonEntry {
     identity: String,
     class: String,
+    admission_since: u64,
 }
 
 /// Validates local snapshot bytes, including strict shape, identity and freshness.
@@ -96,7 +108,7 @@ struct JsonEntry {
 ///
 /// # Errors
 /// Rejects missing/unknown/duplicate fields, invalid keys/classes, duplicate identities,
-/// unsupported schemas, zero versions, bounds, future issue times and stale content.
+/// unsupported schemas, zero versions, invalid admission starts, bounds and stale/future times.
 pub fn validate_admission_snapshot(
     bytes: &[u8],
     now_ms: u64,
@@ -106,7 +118,7 @@ pub fn validate_admission_snapshot(
         return Err(AccountError::Bounds);
     }
     let JsonObject(snapshot): JsonObject<JsonSnapshot> = serde_json::from_slice(bytes)?;
-    require(snapshot.schema_version == 2 && snapshot.roster_version > 0)?;
+    require(snapshot.schema_version == 3 && snapshot.roster_version > 0)?;
     if snapshot.identities.len() > MAX_IDENTITIES {
         return Err(AccountError::Bounds);
     }
@@ -126,7 +138,12 @@ pub fn validate_admission_snapshot(
             "gateway_node" => IdentityClass::GatewayNode,
             _ => return Err(AccountError::Field),
         };
-        identities.push(RosterEntry { identity, class });
+        require(entry.admission_since > 0 && entry.admission_since <= snapshot.roster_version)?;
+        identities.push(AdmissionSnapshotEntry {
+            identity,
+            class,
+            admission_since: RosterVersion(entry.admission_since),
+        });
     }
     Ok(AdmissionSnapshot {
         schema_version: snapshot.schema_version,

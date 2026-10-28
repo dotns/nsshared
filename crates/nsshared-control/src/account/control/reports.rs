@@ -1,4 +1,9 @@
 //! Pure observations and authenticated report operation dispatch.
+mod node;
+mod node_observations;
+pub use node::*;
+pub use node_observations::*;
+
 use crate::{
     account::AccountError, account::MAX_BYTES, account::codec::bounded, account::codec::data_text,
     account::codec::read_optional_text, account::codec::read_optional_uint,
@@ -327,6 +332,10 @@ impl MaterialStatusResponse {
 pub enum ControlReportOperation {
     /// Process heartbeat.
     Heartbeat,
+    /// Scoped ordinary Node heartbeat.
+    NodeHeartbeat,
+    /// Scoped ordinary Node disconnect.
+    NodeDisconnect,
     /// Gateway observations.
     Gateway,
     /// Existing complete M6 service and local Exit floor.
@@ -342,6 +351,8 @@ impl ControlReportOperation {
     /// Refuses names outside this report contract.
     pub fn parse(name: &str) -> Result<Self, AccountError> {
         match name {
+            NODE_HEARTBEAT => Ok(Self::NodeHeartbeat),
+            MACHINE_DISCONNECT => Ok(Self::NodeDisconnect),
             MACHINE_HEARTBEAT => Ok(Self::Heartbeat),
             GATEWAY_REPORT => Ok(Self::Gateway),
             GATEWAY_SERVICES_REPORT => Ok(Self::Services),
@@ -355,6 +366,8 @@ impl ControlReportOperation {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Heartbeat => MACHINE_HEARTBEAT,
+            Self::NodeHeartbeat => NODE_HEARTBEAT,
+            Self::NodeDisconnect => MACHINE_DISCONNECT,
             Self::Gateway => GATEWAY_REPORT,
             Self::Services => GATEWAY_SERVICES_REPORT,
             Self::Usage => GATEWAY_USAGE_REPORT,
@@ -370,6 +383,18 @@ impl ControlReportOperation {
         bytes: &[u8],
     ) -> Result<(), AccountError> {
         match (self, direction) {
+            (Self::NodeHeartbeat, EnvelopeDirection::Request) => {
+                NodeHeartbeatRequest::decode(bytes)?;
+            }
+            (Self::NodeHeartbeat, EnvelopeDirection::Response) => {
+                NodeHeartbeatResponse::decode(bytes)?;
+            }
+            (Self::NodeDisconnect, EnvelopeDirection::Request) => {
+                NodeDisconnectRequest::decode(bytes)?;
+            }
+            (Self::NodeDisconnect, EnvelopeDirection::Response) => {
+                NodeDisconnectResponse::decode(bytes)?;
+            }
             (Self::Heartbeat, EnvelopeDirection::Request) => {
                 HeartbeatRequest::decode(bytes)?;
             }
@@ -404,6 +429,7 @@ impl ControlReportOperation {
         Ok(())
     }
     /// Authenticates the carrier before checking its report payload form.
+    /// Node operations require [`NodeReportContext::validate_envelope`] instead.
     /// # Errors
     /// Refuses trust, expected direction/operation/recipient or invalid payloads.
     pub fn validate_envelope(
@@ -412,6 +438,10 @@ impl ControlReportOperation {
         expected: &EnvelopeExpectation<'_>,
     ) -> Result<(), ExchangeError> {
         envelope.verify(expected)?;
+        // Node operations require the persisted membership context API.
+        if matches!(self, Self::NodeHeartbeat | Self::NodeDisconnect) {
+            return Err(ExchangeError::Scope);
+        }
         if envelope.kind != self.as_str() {
             return Err(crate::account::control::BootstrapError::Kind.into());
         }
