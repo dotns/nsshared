@@ -34,20 +34,27 @@ pub use machine_token::{
 };
 pub use methods::{
     CONFIG_PUBLICATION_EVENT, CONFIG_SNAPSHOT, CONFIG_SNAPSHOT_PATH, CONFIG_STREAM,
-    CONFIG_STREAM_PATH, CONFIG_STREAM_REQUEST_PARAM, CONTROL_ENVELOPE_PATH, DISCOVERY_PATH,
-    EDGE_AUTH_CONFIG_GET, EDGE_MATERIAL_GET, GATEWAY_MATERIAL_STATUS, GATEWAY_REPORT,
-    GATEWAY_SERVICES_REPORT, GATEWAY_USAGE_REPORT, INFO_GET, JWKS_PATH, MACHINE_AUTH,
-    MACHINE_AUTH_PURPOSE, MACHINE_HEARTBEAT, MACHINE_REGISTER, MAX_PUBLICATION_BYTES,
-    MAX_PUBLICATION_ENCODED_BYTES, MAX_PUBLICATION_FRAMED_BYTES, NODE_L3_STATUS, NODE_ROUTE_CLEAR,
-    NODE_ROUTE_SELECT, NODE_SUBNET_REPORT, SERVICE_CONTROL,
+    CONFIG_STREAM_PATH, CONFIG_STREAM_REQUEST_PARAM, CONTROL_ENVELOPE_PATH, DISCOVERY_MEDIA_TYPE,
+    DISCOVERY_PATH, EDGE_AUTH_CONFIG_GET, EDGE_MATERIAL_GET, GATEWAY_MATERIAL_STATUS,
+    GATEWAY_REPORT, GATEWAY_SERVICES_REPORT, GATEWAY_USAGE_REPORT, INFO_GET, JWKS_PATH,
+    MACHINE_AUTH, MACHINE_AUTH_PURPOSE, MACHINE_DISCONNECT, MACHINE_HEARTBEAT, MACHINE_REGISTER,
+    MAX_PUBLICATION_BYTES, MAX_PUBLICATION_ENCODED_BYTES, MAX_PUBLICATION_FRAMED_BYTES,
+    NODE_HEARTBEAT, NODE_L3_STATUS, NODE_POSTURE, NODE_ROUTE_CLEAR, NODE_ROUTE_SELECT,
+    NODE_SUBNET_REPORT, SERVICE_CONTROL,
 };
 pub use node_l3_status::{
     NodeL3Status, NodeL3StatusContext, NodeL3StatusKey, NodeL3StatusRequest, NodeL3StatusResponse,
     node_l3_event_digest,
 };
 pub use reports::{
-    ControlReportOperation, GatewayCertificateObservation, GatewayReport, GatewayReportResponse,
-    HeartbeatRequest, HeartbeatResponse, MaterialStatusResponse,
+    ControlReportOperation, DiskEncryptionStatus, GATEWAY_RTT_FEATURE,
+    GatewayCertificateObservation, GatewayReport, GatewayReportResponse, GatewayRttObservation,
+    GatewayRttTier, HeartbeatRequest, HeartbeatResponse, MAX_NODE_OBSERVATIONS,
+    MAX_NODE_POSTURE_IP_BYTES, MAX_NODE_POSTURE_IPS, MAX_NODE_POSTURE_TEXT_BYTES,
+    MaterialStatusResponse, NodeDisconnectRequest, NodeDisconnectResponse, NodeHeartbeatRequest,
+    NodeHeartbeatResponse, NodePostureRequest, NodePostureResponse, NodePostureSnapshot,
+    NodeReportContext, NodeReportError, NodeRuntimeFence, PAIR_TRANSPORT_FALLBACK_FEATURE,
+    PairTransportSnapshot, PairTransportUnhealthy,
 };
 pub use route_command::{
     CommittedSelection, RouteAction, RouteCommand, RouteDecision, RouteError, RouteOutcome,

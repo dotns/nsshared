@@ -1,5 +1,21 @@
 # ns-shared - Task List
 
+- [x] [**Shared Node posture contract**](20261028-0826-node-posture.md)
+
+- [x] [**Enrollment review answers**](20261028-0421-enrollment-review-answers.md)
+
+- [x] [**Node heartbeat observations**](20261028-0309-node-heartbeat-observations.md)
+
+- [x] [**Discovery representation selector**](20261028-0318-discovery-media-type.md)
+
+- [x] [**Snapshot admission history**](20261028-0131-snapshot-admission-history.md)
+
+- [x] [**Ordinary Node liveness**](20261028-0104-node-liveness.md)
+
+- [x] [**Merge CI cache history**](20261028-0013-merge-ci-cache-history.md)
+
+- [x] [**Retention seal and acknowledgement**](20261027-2313-retention-seal.md)
+
 - [x] [**Account adoption evidence**](20261027-2017-account-adoption-evidence.md)
 
 - [x] [**Merge release history**](20261027-1909-merge-release-history.md)

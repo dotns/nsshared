@@ -25,3 +25,6 @@ pub const USAGE_PART_DIGEST_DOMAIN: &str = "ns.account.usage.part.v1";
 /// Completed-handshake TLS exporter label of a participant connection, including
 /// resumed handshakes.
 pub const PARTICIPANT_EXPORTER_LABEL: &[u8] = b"EXPORTER-nsgw-participant-candidate-v1";
+
+/// Retention seal content domain for `service::domain_digest`.
+pub const RETENTION_SEAL_DIGEST_DOMAIN: &str = "ns.account.retention.seal.v1";

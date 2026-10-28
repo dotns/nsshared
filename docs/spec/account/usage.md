@@ -233,6 +233,84 @@ caller-owned; participant relays carry reports and answers in frames 5 and 6 (se
 [frames](relay.md#frames)); the control report carrier reuses the same bytes
 ([control reports](control.md#usage)).
 
+## Retention seals and acknowledgements
+
+These pure contracts are available only behind `unstable-account` and carried
+only by the confidential authenticated participant session: REPORT (5) contains
+`RetentionSeal`, ANSWER (6) contains `RetentionSealAck`. They are distinct from
+usage reports and answers; they are not control-report payloads or publications.
+
+The canonical seal is an eight-element CBOR array:
+
+```text
+[1, 9, 2, issuer, recipient, owner_generation, epoch, parts]
+parts = [[incarnation, profile, sequence, part_index, part_digest], ...]
+```
+
+The schema is 1, family is 9 and kind is 2 (usage reports use kinds 0 and 1).
+Issuer and recipient are validated full 32-byte identity keys in
+`ParticipantRosterScope`. Owner generation is a positive u64 from retained
+participant custody, and epoch is a positive `RosterVersion` from the captured
+signed roster. A part contains the original 16-byte `ReporterIncarnation`, exact
+`UsageProfile` text, positive u64 sequence, zero-based index less than 8,192,
+and original 32-byte usage part digest. No field substitutes current attribution
+for historical attribution. Parts are strictly increasing by the tuple
+(incarnation bytes, profile UTF-8 bytes, sequence, part_index); duplicate keys are
+refused even when their digests differ. Both existing quantity profile identifiers
+are encoded unchanged; consumers verify each reference against historical receipts.
+
+At most 8,192 parts and 1,048,576 total encoded bytes are accepted. Decoding checks
+array bounds before collecting parts, requires exact widths and arities, rejects
+nonminimal or indefinite CBOR and trailing data, and never sorts caller input.
+An oversized manifest is refused; truncation or partial closure is not permitted.
+An empty parts array explicitly declares that no part was captured.
+
+The content digest is `domain_digest("ns.account.retention.seal.v1", canonical_seal)`
+(`RETENTION_SEAL_DIGEST_DOMAIN`): SHA-256 over the ASCII domain, one zero byte,
+and the complete canonical seal. The seal contains no self-referential digest.
+Every identity field and part reference participates in the commitment.
+
+`RetentionSeal::validate_for(authenticated_scope, expected_generation)` validates
+the seal and refuses issuer, recipient or retained custody generation mismatch
+with `RetentionError::{Issuer, Recipient, OwnerGeneration}` respectively.
+`validate_duplicate(previous)` accepts exact replay, rejects another identity
+(including `Epoch`), and returns `Conflict` for changed content under the same
+identity. It does not persist or replace a receipt.
+
+The acknowledgement is a nine-element CBOR array, distinct from the arity-eight
+usage answer:
+
+```text
+[1, 9, 3, issuer, recipient, owner_generation, epoch, seal_digest, outcome]
+```
+
+Generation and epoch remain positive. The digest is exactly 32 bytes. Outcome is
+one unsigned integer (`RetentionOutcome`):
+
+| Value | Variant | Meaning |
+| --- | --- | --- |
+| 0 | `Committed` | The exact seal has committed to durable custody. |
+| 1 | `Forbidden` | Participant scope or custody authority is forbidden. |
+| 2 | `InvalidRequest` | The seal is permanently invalid. |
+| 3 | `Conflict` | Different content already occupies this seal identity. |
+| 4 | `UnknownMapping` | Retained custody or historical projection is missing; repair is required. |
+
+Unknown values are refused. `RetentionSealAck::validate_for(seal)` compares every
+echoed identity component and the computed digest, returning a typed outcome;
+a mismatch yields the corresponding identity error or `Digest`. A successfully
+correlated refusal is still a refusal. Only `Committed` acknowledges seal delivery,
+and it does not assert settlement of every listed usage part.
+
+The producer must durably stop capture under the epoch and finish all in-flight
+aggregation before sealing. Its complete manifest includes predecessor incarnations
+and already submitted parts, surviving restart and takeover. Retrying preserves
+identical bytes. The receiver authenticates the scope, verifies retained ownership
+and signed projection, and commits the seal before acknowledging. Cleanup separately
+requires complete coverage of every issued recipient/custody and committed original
+historical attribution for every referenced part. A missing seal, unknown history,
+repair result, watermark or lost answer never establishes empty coverage or settlement.
+The contract itself performs no authentication, storage, cleanup or consumer changes.
+
 ## Usage and Node-control profile publications
 
 ### Payloads
@@ -336,6 +414,8 @@ reserve a version, renew validity or replace state.
 | Service usage unit | `crates/nsshared-control/src/account/families/usage/service.rs` | `nsshared_control::account::usage::{ServiceUsage, ServiceBoundary, ServiceDirection, BatchLossWindow}` |
 | Relay usage | `crates/nsshared-control/src/account/families/usage/relay.rs` | `nsshared_control::account::usage::{RelayUsage, RelayDirection, RelayBilling}` |
 | Usage reports | `crates/nsshared-control/src/account/families/usage/report.rs` | `nsshared_control::account::usage::{UsageReport, UsageRows, UsageProfile, ServiceUsageRow, ServiceOperation, UsageError}` |
+| Retention seals and acknowledgements | `crates/nsshared-control/src/account/families/usage/retention.rs` | `nsshared_control::account::usage::{RetentionSeal, RetentionPart, RetentionSealAck, RetentionOutcome, RetentionError}` |
+| Retention digest domain | `crates/nsshared-control/src/account/domains.rs` | `nsshared_control::account::domains::RETENTION_SEAL_DIGEST_DOMAIN` |
 | Usage answers | `crates/nsshared-control/src/account/families/usage/answer.rs` | `nsshared_control::account::usage::{UsageAnswer, UsageOutcome, UsageWatermark, UsageRejection}` |
 | Profile publications | `crates/nsshared-control/src/account/families/usage/catalog.rs` | `nsshared_control::account::usage::{UsageProfilePublication, NodeControlProfilePublication, ProfilePublicationPayload}` |
 | Publication payload mapping | `crates/nsshared-control/src/account/publication/payloads.rs` | `nsshared_control::account::publication::PublicationEvent::decode_profile_payload` |
@@ -346,6 +426,7 @@ reserve a version, renew validity or replace state.
 | `crates/nsshared-control/tests/vectors/account/profile.vec` (kind `usage`) | `tools/vectors/nsvec/producers/control/account/profile.py` | `account::profile` |
 | `crates/nsshared-control/tests/vectors/account/usage/reports.vec` | `tools/vectors/nsvec/producers/control/account/usage/reports.py` | `account::usage::reports` |
 | `crates/nsshared-control/tests/vectors/account/usage/catalog.vec` | `tools/vectors/nsvec/producers/control/account/usage/catalog.py` | `account::usage::catalog` |
+| `crates/nsshared-control/tests/vectors/account/usage/retention.vec` | `tools/vectors/nsvec/producers/control/account/usage/retention.py` | `account::usage::retention` |
 
 The Python standard-library producers generate bytes without reading Rust output.
 Every negative case records its exact input and refusal.

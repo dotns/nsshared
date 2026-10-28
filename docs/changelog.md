@@ -5,6 +5,60 @@ Account activation。固定六字段，拒绝旧五字段；owned Connector 必�
 非 Account Gateway 可显式 null，由服务端确定身份类型。保留同代 source 更新语义，
 独立规范向量与 133 项 Account 测试通过；跨仓原子认证及 ABA 验收仍由 C05 接入。
 
+## 2026-10-28 [feat]
+
+Add a distinct Node posture operation behind `unstable-account` with bounded
+complete snapshots, trusted membership validation and correlated receipts.
+Include independent vectors and typed refusal coverage while preserving existing
+heartbeat and disconnect payloads and independent posture reporting cadence.
+
+## 2026-10-28 [docs]
+
+Record verified identity lifecycle and bounded enrollment review answers at
+explicit shared, producer and consumer revisions. Distinguish the planned shared
+bootstrap adoption from historical JSON behavior, and retain remaining producer
+vectors and live confirmation as open obligations.
+
+## 2026-10-28 [feat]
+
+Extend ordinary Node heartbeats with optional UDP reachability, full unhealthy-pair
+snapshots and identity-keyed gateway RTT observations. Preserve omitted-field
+semantics and original payload bytes, with bounded canonical validation, endpoint
+feature negotiation and exact receipt correlation.
+
+## 2026-10-28 [feat]
+
+Export the discovery CBOR media type alongside its endpoint and document exact
+Accept selection, response Content-Type, Vary handling and strict client decoding.
+Discovery tuples, signed envelopes and vectors remain unchanged.
+
+## 2026-10-28 [feat]
+
+Require schema 3 for controlled admission snapshots and return each identity
+with its class and admission-start version. Refuse legacy schemas and missing
+or invalid history. Preserve signed roster bytes and participant transport,
+with independent vectors and strict validation coverage.
+
+## 2026-10-28 [feat]
+
+Add ordinary Node heartbeat and disconnect contracts behind `unstable-account`,
+with trusted membership and endpoint validation, bounded canonical codecs, exact
+receipts and independent vectors. Existing gateway heartbeat forms remain intact;
+runtime freshness and durable effects remain consumer-owned.
+
+## 2026-10-28 [chore]
+
+Merge the upstream CI cache configuration and documentation while retaining
+the retention seal contract and both histories. The merged tree passes local
+validation without source or test changes.
+
+## 2026-10-27 [feat]
+
+Add bounded canonical retention seals and correlated acknowledgements behind
+`unstable-account`, carried by the existing participant REPORT/ANSWER frames.
+Include independent vectors, typed identity and replay refusals, and protocol
+documentation. Durable closure, settlement and cleanup remain consumer-owned.
+
 ## 2026-10-27 23:07 [ci]
 
 Record shared-cache validation and complete the CI cache task. Sequential SSD

@@ -2,3 +2,5 @@
 
 mod catalog;
 mod reports;
+
+mod retention;

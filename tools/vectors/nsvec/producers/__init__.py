@@ -18,6 +18,8 @@ from nsvec.producers.control.account.control import envelope as control_account_
 from nsvec.producers.control.account.control import exchange as control_account_control_exchange
 from nsvec.producers.control.account.control import node_l3_route_admission as control_account_control_node_l3_route_admission
 from nsvec.producers.control.account.control import node_l3_status as control_account_control_node_l3_status
+from nsvec.producers.control.account.control import node_liveness as control_account_control_node_liveness
+from nsvec.producers.control.account.control import node_posture as control_account_control_node_posture
 from nsvec.producers.control.account.control import reports as control_account_control_reports
 from nsvec.producers.control.account.control import service_control as control_account_control_service_control
 from nsvec.producers.control.account.edge import anonymous as control_account_edge_anonymous
@@ -37,6 +39,7 @@ from nsvec.producers.control.account.publication import subscription as control_
 from nsvec.producers.control.account.realm import claims as control_account_realm_claims
 from nsvec.producers.control.account.realm import membership as control_account_realm_membership
 from nsvec.producers.control.account.realm import peers as control_account_realm_peers
+from nsvec.producers.control.account.relay import admission_snapshot as control_account_relay_admission_snapshot
 from nsvec.producers.control.account.relay import participant_roster as control_account_relay_participant_roster
 from nsvec.producers.control.account.relay import session as control_account_relay_session
 from nsvec.producers.control.account.subnet import mapping as control_account_subnet_mapping
@@ -46,6 +49,7 @@ from nsvec.producers.control.account.subnet import selection as control_account_
 from nsvec.producers.control.account.subnet import views as control_account_subnet_views
 from nsvec.producers.control.account.usage import catalog as control_account_usage_catalog
 from nsvec.producers.control.account.usage import reports as control_account_usage_reports
+from nsvec.producers.control.account.usage import retention as control_account_usage_retention
 from nsvec.producers.control.node_control import messages as control_node_control_messages
 from nsvec.producers.control.service import canonical as control_service_canonical
 
@@ -63,6 +67,8 @@ PRODUCERS = [
     control_account_control_node_l3_route_admission,
     control_account_control_node_l3_status,
     control_account_control_reports,
+    control_account_control_node_liveness,
+    control_account_control_node_posture,
     control_account_control_service_control,
     control_account_edge_anonymous,
     control_account_edge_auth,
@@ -81,6 +87,7 @@ PRODUCERS = [
     control_account_realm_claims,
     control_account_realm_membership,
     control_account_realm_peers,
+    control_account_relay_admission_snapshot,
     control_account_relay_participant_roster,
     control_account_relay_session,
     control_account_subnet_mapping,
@@ -90,6 +97,7 @@ PRODUCERS = [
     control_account_subnet_views,
     control_account_usage_catalog,
     control_account_usage_reports,
+    control_account_usage_retention,
     control_node_control_messages,
     control_service_canonical,
 ]

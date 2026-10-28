@@ -47,6 +47,15 @@ discovery through HTTPS WebPKI, supplies the authenticated HTTPS origin, clock
 and replay observations, and performs transport execution. No legacy key field,
 JSON fallback, discovery age denial or plaintext is defined.
 
+The client requests `GET DISCOVERY_PATH` (`/api/v1/info`) with exactly
+`Accept: application/cbor`, using `DISCOVERY_MEDIA_TYPE`. This selector chooses
+the canonical family-11 `BootstrapDiscovery` CBOR tuple. The response carries
+`Content-Type: application/cbor` (the same `DISCOVERY_MEDIA_TYPE`) and
+`Vary: Accept` to keep cached representations separate. An absent Accept, a
+wildcard-only Accept or any other request gets the producer's other
+representation, which is outside this contract. The client decodes only the
+CBOR tuple and has no fallback to that other representation.
+
 Discovery CBOR is `[1, 1, https_origin, [1], endpoints, noise_key_or_null,
 quic_spki_pins, envelope_pins]`: schema, trust version, authenticated discovery
 origin, supported envelope versions, ordered endpoints and trust material.
@@ -164,6 +173,7 @@ supported. Unknown operations are refused.
 | --- | --- | --- |
 | `CONTROL_ENVELOPE_PATH` | `/api/v1/control` | this document |
 | `DISCOVERY_PATH` | `/api/v1/info` | this document |
+| `DISCOVERY_MEDIA_TYPE` | `application/cbor` | this document |
 | `JWKS_PATH` | `/.well-known/jwks.json` | this document |
 | `MACHINE_REGISTER` | `machine.register` | this document |
 | `MACHINE_AUTH` | `machine.auth` | this document |
@@ -471,7 +481,7 @@ publishes a diagnostic failure and never extends freshness.
 
 ### Carrier
 
-The five report operations `machine.heartbeat`, `gateway.report`,
+The report operations `machine.heartbeat`, `node.heartbeat`, `machine.disconnect`, `gateway.report`,
 `gateway.services_report`, `gateway.usage_report` and `gateway.material_status`
 (`ControlReportOperation`) use the confidential `BootstrapDiscovery` carrier,
 `BootstrapEnvelope` request/response domains and `CONTROL_ENVELOPE_PATH`. The
@@ -508,6 +518,110 @@ policy_version_or_null]`.
 
 `HeartbeatResponse` is `[1, request_id_16, features]`. Features are ordered unique
 tokens, preserved including unknown tokens; they grant no authority.
+
+### Ordinary Node heartbeat and disconnect
+
+`node.heartbeat` (`ControlReportOperation::NodeHeartbeat`) is distinct from the
+existing gateway `machine.heartbeat` operation. `NodeHeartbeatRequest` is
+`[1, membership_scope, runtime_fence, heartbeat_request_bytes]` when all transport
+observations are absent. With any transport observation it is
+`[1, membership_scope, runtime_fence, heartbeat_request_bytes, udp_reachable,
+pair_transport, gateway_rtt]`. The three extension positions use CBOR null for
+omission; an all-null extension is refused because the four-item form is its
+unique canonical encoding. Existing four-item vectors remain byte-identical.
+`NodeHeartbeatResponse` is
+`[1, membership_scope, runtime_fence, heartbeat_response_bytes]`.
+The nested bytes are the canonical `HeartbeatRequest` and `HeartbeatResponse`
+forms defined above, including request ID, uptime, local IPs, policy counter and
+inert response features. Node and gateway outer tuples have different arities:
+neither decoder accepts the other form. Nested lists retain the 256-item bound,
+checked before allocation, and the whole payload retains the 1 MiB ceiling.
+
+The Node-only extension fields are:
+
+| Field | Canonical value | Meaning |
+| --- | --- | --- |
+| `udp_reachable` | boolean or null | Node transport verdict; null preserves the stored verdict, including a previous false value. |
+| `pair_transport` | `[runtime_id_16, revision, unhealthy]` or null | Full unhealthy set for the reporter/runtime. Null leaves it unchanged; a present empty `unhealthy` explicitly clears it. |
+| `gateway_rtt` | array of `[gateway_identity_32, tier, samples, timeouts]` or null | Probe measurements; null supplies no observation. An empty array reports no entries and is distinct from omission. |
+
+Each unhealthy entry is `[peer_identity_32, gateway_identity_32]`. Both keys must
+be valid full shared `IdentityKey` values, as used by GatewayNode roster entries;
+legacy machine IDs and derived NodeIds are refused. Entries are strictly sorted
+lexicographically by full peer bytes, then full gateway bytes, with no duplicate
+pair. RTT entries are strictly sorted and unique by full gateway bytes. Each
+list is bounded to `MAX_NODE_OBSERVATIONS` (256) before allocation. Invalid
+fields, including a pair runtime ID different from the enclosing fence, return
+`AccountError::Field`; malformed CBOR, invalid byte lengths and oversized decoded
+lists return `AccountError::Cbor`. Oversized in-memory lists return
+`AccountError::Bounds`. The complete payload remains bounded to 1 MiB.
+
+`revision`, `samples` and `timeouts` are u64, including zero. Consumers compare
+pair revisions with stored state for that exact reporter/runtime before replacing
+the set; shared decoding does not claim freshness. RTT tier strings are exactly
+`lt30`, `lt100`, `ge100`, and `unreachable`; other strings are refused. Identities
+come from authenticated peer/gateway publications used by the actual reporters.
+The consumer resolves them against authoritative records within the membership
+scope. It must not silently drop unresolved identities from a full pair snapshot
+or acknowledge that snapshot as consumed. Observations grant no authority.
+
+`NodeHeartbeatResponse.heartbeat.features` advertises the features consumed by
+that endpoint, including `gateway_rtt.v1` and `pair_transport_fallback.v1`.
+Pair and RTT reporting require both discovery and current endpoint support; pair
+reporting also retains the enrolled capability requirement. An empty feature list
+withdraws optional reporting. Feature tokens are ordered and unique; unknown
+ones remain inert. The response wire form is unchanged.
+
+A successful authenticated, correlated receipt acknowledges only observations
+included in that exact retained request. Consumers compare request ID, both
+membership IDs and every runtime fence field before marking those observations
+delivered. The receipt follows heartbeat persistence and pair-snapshot acceptance,
+with RTT passed to its existing best-effort measurement consumer; it does not
+prove durable RTT storage. Omitted, unmapped or failed observations remain
+undelivered. A liveness-only receipt cannot acknowledge a richer source report.
+
+`machine.disconnect` (`ControlReportOperation::NodeDisconnect`) uses
+`NodeDisconnectRequest`:
+`[1, membership_scope, runtime_fence, request_id_16]`.
+`NodeDisconnectResponse` is `[1, canonical_request_bytes]`, an exact receipt of
+the committed disconnect intent. A receipt introduces no new runtime authority.
+Both response types provide `validate_for` to compare the retained request's
+membership, runtime fence and request identifier. Consumers authenticate the
+response carrier and correlate it before accepting the receipt.
+
+`membership_scope` is `[nsd_id_16, network_id_16]` (`MembershipScope`). These are
+provisioned identifiers, never signing keys or an internal machine row ID.
+`runtime_fence` is `[runtime_id_16, runtime_generation, authority_epoch]`
+(`NodeRuntimeFence`), using the same field types as `ServiceControlBinding`.
+The runtime ID must be nonzero and both u64 counters must be positive. The
+Node supplies scope from its accepted registration and source custody, and
+supplies the fence from its accepted service runtime. The Node creates a pending
+request ID; uptime and IPs are process observations, and the optional policy
+counter retains its diagnostic meaning.
+
+`NodeReportContext` is trusted input from the consumer's persisted accepted
+state, never copied from the incoming payload. It contains the accepted
+`MembershipScope`, the enrolled Node signing identity (`subject`) and the NSD
+signing identity (`authority`) for that membership. Its additive
+`validate_envelope(operation, envelope, expected)` API authenticates the existing
+carrier using `EnvelopeExpectation`, requires a Node heartbeat or disconnect
+request, compares signer with subject and explicit recipient with authority,
+and compares both provisioned scope identifiers exactly. `NodeReportError`
+distinguishes carrier, contract, operation, subject, authority and scope refusals.
+The context-free `ControlReportOperation::validate_envelope` refuses the two new
+operations with `ExchangeError::Scope`; validation of all existing operations is
+unchanged. `validate_payload` only validates canonical shape, for either direction;
+it cannot authorize membership or renew a runtime. Responses use the existing
+carrier verification followed by exact pending-request correlation.
+
+NSD supplies the trusted context from persisted enrollment and source custody,
+and compares the carried runtime ID, generation and authority epoch with its
+persisted current runtime before selecting its internal machine row and
+committing renewal or disconnect. Shared decoding checks fence shape only:
+success does not establish freshness, capability admission, current source
+custody or a committed effect. Those checks and transactions remain consumer
+responsibilities. No transport, registration acceptance field, or payload
+identity key is added. These contracts remain behind `unstable-account`.
 
 ### Gateway observations
 
@@ -590,6 +704,10 @@ the original immutable reporter/incarnation/profile/sequence/part/digest domain
 `UnknownMapping` is valid only for relay reports: a service answer carrying it
 fails `validate_for` and is never an acknowledgement, even if every other
 correlation field matches.
+
+Retention seals and their acknowledgements are participant-session-only payloads
+([retention](usage.md#retention-seals-and-acknowledgements)); this control carrier
+does not accept them as usage reports or answers.
 
 ### Material status
 
@@ -1028,6 +1146,7 @@ Code, in `crates/nsshared-control/src/account/control/` with public items at
 | `exchange.rs` | `MembershipScope`, `RegistrationRequest`, `RegistrationAcceptance`, `compare_registration_acceptance`, `AuthenticationRequest`, `RegistrationCondition`, `AuthenticationSourceScope`, `AuthenticationResponse`, `InformationRequest`, `InformationResponse`, `ExchangeError` |
 | `machine_token.rs` | `MachineClaims`, `TokenAudience`, `MachineTokenHeader`, `RsaJwk`, `JwkSet`, `QualifiedKeySet`, `KeySetOwner`, `StoredKeyPins`, `qualify_key_set`, `qualify_owned_key_set`, `machine_refresh_needed`, `TokenError` |
 | `reports.rs` | `ControlReportOperation`, `HeartbeatRequest`, `HeartbeatResponse`, `GatewayReport`, `GatewayCertificateObservation`, `GatewayReportResponse`, `MaterialStatusResponse` |
+| `reports/node.rs` | `NodeRuntimeFence`, `NodeHeartbeatRequest`, `NodeHeartbeatResponse`, `NodeDisconnectRequest`, `NodeDisconnectResponse`, `NodeReportContext`, `NodeReportError` |
 | `signed_request.rs` | `SignedAccountRequest`, `SignedUrlScope` |
 | `route_command.rs` | `RouteCommand`, `RouteAction`, `RouteReceipt`, `RouteOutcome`, `RouteResponse`, `CommittedSelection`, `RouteDecision`, `decide_route_command`, `RouteError` |
 | `node_l3_status.rs` | `NodeL3StatusRequest`, `NodeL3StatusKey`, `NodeL3Status`, `NodeL3StatusContext`, `NodeL3StatusResponse`, `node_l3_event_digest` |
@@ -1049,6 +1168,7 @@ without using Rust output as producer input.
 | `account::control::bootstrap_origins` | (inline) | Invalid IDNA origin refusal |
 | `account::control::exchange` | `crates/nsshared-control/tests/vectors/account/control/exchange.vec` | Exchange tuples, registration acceptance comparison, signed source binding in responses, machine claims, audience, refresh, key selection and pin ownership |
 | `account::control::reports` | `crates/nsshared-control/tests/vectors/account/control/reports.vec`, `crates/nsshared-control/tests/vectors/account/edge/routing.vec` | Report tuples, receipts, kind 1 floor outcomes, usage and material correlation |
+| `account::control::reports::node_liveness` | `crates/nsshared-control/tests/vectors/account/control/node-liveness.vec` | Independent Node request/response bytes, gateway separation, typed shape and trusted-context refusals, exact receipts |
 | `account::edge::auth` | `crates/nsshared-control/tests/vectors/account/edge/auth.vec` | Pending/current auth configuration dependency correlation and private configuration refusals used by material status |
 | `account::realm::claims` | `crates/nsshared-control/tests/vectors/account/realm/claims.vec` | `SignedAccountRequest` and `SignedUrlScope` inputs and refusals |
 | `account::publication::source_selection` | `crates/nsshared-control/tests/vectors/account/publication/source-selection.vec` | Route command fence (`source_selection_fence`), pending registration, Equal and nodes/egress authentication in one Network including swapped-scope and swapped-realm refusal, exact clear target and source request namespace |
@@ -1070,3 +1190,61 @@ immutable receipts and current selection from canonical bytes, keeping A's
 receipt and leaving B intact; accept the current B publication. Variants refuse
 wrong request, boot/attempt or poll context, wrong profile, missing binding,
 gateway-ID and carrier-credential fields.
+
+## Ordinary Node device posture
+
+`NODE_POSTURE` (`node.posture`) is a distinct `ControlReportOperation::NodePosture`
+operation in the existing signed confidential control carrier, behind
+`unstable-account`. It is independent of `node.heartbeat`; existing heartbeat,
+disconnect and observation tuples retain their bytes.
+
+`NodePostureRequest` is exactly `[1, membership_scope, runtime_fence, request_id,
+snapshot]`. Membership and runtime fence use the same tuples and validity rules
+as Node liveness. `request_id` is a 16-byte string, unique for each pending exact
+snapshot. There is no machine id. `NodePostureSnapshot` is exactly:
+
+`[os, os_version, arch, client_version, hostname, disk_encryption, uptime_seconds,
+local_ips]`.
+
+The first five fields are UTF-8 strings, each at most 1024 bytes; empty strings
+remain explicit collected values. `DiskEncryptionStatus` is exactly the text
+`encrypted`, `unencrypted` or `unknown`. Uptime is an unsigned 64-bit number of
+seconds. The complete local IP list has at most 256 entries, each a valid IPv4 or
+IPv6 literal of at most 45 bytes. Supplied spelling, order and duplicates are
+preserved. An empty list explicitly replaces the previous addresses. The request
+is a complete snapshot, never a partial update. Strict canonical CBOR, exact
+arity, the existing overall account byte bound and typed `AccountError` refusals
+apply. In-memory bounds violations return `Bounds`; decoding oversized fields or
+lists returns `Cbor`; invalid literals and unknown enum values within the text
+bound return `Field`.
+
+The ns platform collector produces the facts. Accepted registration and source
+custody supply the membership scope; the accepted service runtime supplies the
+fence. `NodeReportContext::validate_envelope` verifies the signed request and
+compares signer, recipient and membership with persisted enrolled Node and NSD
+identities, returning typed `NodeReportError` refusals. The generic report
+validator refuses this operation without that context. NSD additionally checks
+current source custody and runtime freshness, resolves the internal Node from
+that authority, and commits through its existing posture store transaction and
+topology notification before emitting a receipt. Client version maps to stored
+`nsn_version`; NSD supplies `reported_at` at commit. Client facts neither select
+an internal machine id nor grant policy or route admission by themselves.
+
+`NodePostureResponse` is exactly `[1, membership_scope, runtime_fence,
+request_id]`. The signed Response uses the existing trust, recipient, direction,
+operation and pending envelope nonce checks. `validate_for` compares both scope
+identifiers, all three fence fields and the request id with the retained sent
+request. Senders retain the exact snapshot under that unique id and only mark
+it delivered after the matching receipt. The receipt acknowledges only that
+snapshot, never a later sample; missing or mismatched receipts acknowledge
+nothing. It does not renew a runtime or establish current posture freshness.
+
+Collection and reporting retain their independent periodic/triggered cadence;
+they are not attached to every heartbeat. Missing, stale or nonmatching posture
+continues to deny posture-conditioned policy through the existing evaluator.
+
+The implementation is `reports/node_posture.rs`; tests in
+`account::control::reports::node_posture` consume independent Python-produced
+`account/control/node-posture.vec` fixtures for complete and empty snapshots,
+each encryption value, exact boundaries, typed refusals, authenticated context
+and each receipt correlation field.
