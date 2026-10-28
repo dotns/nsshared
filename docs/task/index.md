@@ -1,5 +1,7 @@
 # ns-shared - Task List
 
+- [x] [**Participant custody generation**](20261028-1156-participant-custody-generation.md)
+
 - [x] [**Shared Node posture contract**](20261028-0826-node-posture.md)
 
 - [x] [**Enrollment review answers**](20261028-0421-enrollment-review-answers.md)
