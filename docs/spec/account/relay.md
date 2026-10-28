@@ -7,7 +7,7 @@ signed directory binding. Public items are at `nsshared_control::account::relay`
 signature domains are at `nsshared_control::account::domains`. Membership realm
 identities follow the [canonical RealmId](../realm-id.md).
 
-This is a pure contract with CBOR content schema 1 and local admission JSON schema 2.
+This is a pure contract with CBOR content schema 1 and local admission JSON schema 3.
 It defines no runtime or transport session. TLS, provisioning, custody, storage and
 installation are consumer responsibilities. CBOR follows the [account encoding
 rules](profile.md#encoding). The family registry bytes and the directory and roster
@@ -60,16 +60,32 @@ locally.
 
 ### Local admission snapshot
 
-The local admission snapshot (`AdmissionSnapshot`) is strict JSON schema 2:
+The local admission snapshot (`AdmissionSnapshot`) is strict JSON schema 3:
 
 ```json
-{"schema_version":2,"issued_at_unix_ms":1000,"roster_version":7,"identities":[{"identity":"<canonical IdentityKey text>","class":"ordinary_node"}]}
+{"schema_version":3,"issued_at_unix_ms":1000,"roster_version":7,"identities":[{"identity":"<canonical IdentityKey text>","class":"ordinary_node","admission_since":3}]}
 ```
 
-All four root fields and both entry fields are required. Unknown or duplicate JSON
+All four root fields and all three entry fields are required. Unknown or duplicate JSON
 fields, non-string or unknown classes, invalid or noncanonical key text, a duplicate
 identity, a wrong schema, version zero, more than 8,192 entries and input over
 1,048,576 bytes fail.
+
+Each validated entry is an `AdmissionSnapshotEntry`: identity, class and
+`admission_since: RosterVersion`. The required admission start satisfies
+`0 < admission_since <= roster_version`. It is the version at which this
+identity's current uninterrupted admission with this class began. Unchanged
+admission preserves it; removal then readmission, or a class change, starts a new
+value. Consumers compare the `(class, admission_since)` pair per identity even
+when intermediate snapshots were not observed. The producer derives and retains
+history from committed roster transitions; validation checks the supplied value,
+not historical truth.
+
+Schema 2 is refused, including empty snapshots. Missing admission history is
+`AccountError::Json`; unsupported schemas and out-of-range admission starts are
+`AccountError::Field` (malformed JSON is rejected first). No missing or invalid
+history is interpreted as history-free admission. This schema change does not
+alter signed `Roster`/`SignedRoster` bytes or participant transport.
 
 `validate_admission_snapshot(bytes, now_ms, max_age_ms)` also rejects future
 timestamps and ages greater than `max_age_ms`; equality at the freshness boundary is
@@ -331,7 +347,7 @@ entries, codes, update rules and Quick behavior are not changed by bindings.
 
 | Contract | Source | Public items |
 | --- | --- | --- |
-| Admission rosters and local snapshot | `crates/nsshared-control/src/account/families/relay/roster.rs` | `nsshared_control::account::relay::{Roster, SignedRoster, RosterEntry, RosterVersion, IdentityClass, AdmissionSnapshot, MIN_ROSTER_VALIDITY_MS, validate_admission_snapshot}` |
+| Admission rosters and local snapshot | `crates/nsshared-control/src/account/families/relay/roster.rs` | `nsshared_control::account::relay::{Roster, SignedRoster, RosterEntry, RosterVersion, IdentityClass, AdmissionSnapshot, AdmissionSnapshotEntry, MIN_ROSTER_VALIDITY_MS, validate_admission_snapshot}` |
 | Participant rosters | `crates/nsshared-control/src/account/families/relay/participant_roster.rs` | `nsshared_control::account::relay::{ParticipantRosterScope, ParticipantRosterGeneration, ParticipantRosterError, ParticipantRosterStatus, verify_participant_roster, participant_roster_status}` |
 | Participant sessions | `crates/nsshared-control/src/account/families/relay/session.rs` | `nsshared_control::account::relay::{Frame, FrameKind, MAX_FRAME_BODY, Authorization, EnrollmentProvision, PendingResponse, SessionError, exporter_context, proof_input, validate_header, credential_deadline, retained_credential_deadline}` |
 | Directory bindings | `crates/nsshared-control/src/account/families/relay/directory.rs` | `nsshared_control::account::relay::{DirectoryBinding, SignedDirectoryBinding, BindingDecision, BindingError}` |
@@ -340,6 +356,7 @@ entries, codes, update rules and Quick behavior are not changed by bindings.
 | Vectors | Producer | Test module |
 | --- | --- | --- |
 | `crates/nsshared-control/tests/vectors/account/profile.vec` (kinds `signed-roster`, `snapshot`) | `tools/vectors/nsvec/producers/control/account/profile.py` | `account::profile` |
+| `crates/nsshared-control/tests/vectors/account/relay/admission-snapshot.vec` | `tools/vectors/nsvec/producers/control/account/relay/admission_snapshot.py` | `account::relay::admission_snapshot` |
 | none (named snapshot fields) | none | `account::relay::roster_fields` |
 | `crates/nsshared-control/tests/vectors/account/relay/participant-roster.vec` | `tools/vectors/nsvec/producers/control/account/relay/participant_roster.py` | `account::relay::participant_roster` |
 | `crates/nsshared-control/tests/vectors/account/relay/session.vec` | `tools/vectors/nsvec/producers/control/account/relay/session.py` | `account::relay::session` |

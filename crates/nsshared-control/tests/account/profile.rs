@@ -171,7 +171,7 @@ fn independently_signed_participant_roster_vectors() {
 fn roster_freshness_and_empty_replacement() {
     let issuer = IdentitySecret::from_seed([1; 32]).public();
     let snapshot =
-        r#"{"schema_version":2,"issued_at_unix_ms":900,"roster_version":7,"identities":[]}"#;
+        r#"{"schema_version":3,"issued_at_unix_ms":900,"roster_version":7,"identities":[]}"#;
     assert!(
         validate_admission_snapshot(snapshot.as_bytes(), 1000, 100)
             .unwrap()
@@ -203,12 +203,12 @@ fn admission_identity_count_bound_and_atomic_classes() {
             let mut seed = [0; 32];
             seed[..8].copy_from_slice(&(index as u64).to_le_bytes());
             let identity = IdentitySecret::from_seed(seed).public();
-            serde_json::json!({"identity": identity.to_string(), "class": "gateway_node"})
+            serde_json::json!({"identity": identity.to_string(), "class": "gateway_node", "admission_since": 3})
         })
         .collect();
     let local = |count| {
         serde_json::to_vec(&serde_json::json!({
-            "schema_version": 2, "issued_at_unix_ms": 1000, "roster_version": 7,
+            "schema_version": 3, "issued_at_unix_ms": 1000, "roster_version": 7,
             "identities": &entries[..count],
         }))
         .unwrap()
@@ -232,7 +232,14 @@ fn admission_identity_count_bound_and_atomic_classes() {
         version: RosterVersion(7),
         issued_at_unix_ms: 1000,
         valid_until_unix_ms: 86_401_000,
-        identities: accepted.identities,
+        identities: accepted
+            .identities
+            .into_iter()
+            .map(|entry| nsshared_control::account::relay::RosterEntry {
+                identity: entry.identity,
+                class: entry.class,
+            })
+            .collect(),
     };
     assert_eq!(
         Roster::decode(&roster.canonical().unwrap()).unwrap(),
