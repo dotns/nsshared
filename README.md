@@ -107,3 +107,21 @@ silently within one.
 just dev-check   # fmt + clippy
 just qa          # full quality gate
 ```
+
+### CI cache
+
+The Gitea `Workspace QA` job runs the same `just qa` gate on `ci-pvv-cc`.
+It installs checksum-verified sccache 0.19.0 and sets `RUSTC_WRAPPER=sccache`,
+`CARGO_INCREMENTAL=0`, `SCCACHE_DIR=/sccache`, `SCCACHE_CACHE_SIZE=60G` and
+`SCCACHE_IDLE_TIMEOUT=0`. The runner mounts its persistent host directory
+`/var/srv/gitea-runner/sccache` at `/sccache` in every job container. Keep the
+checkout at `/workspace/nsiod/nsshared`, since paths affect compiler cache keys.
+The final step prints `sccache --show-stats` even when QA fails.
+
+Swatinem/rust-cache retains Cargo registry and git sources to avoid repeated
+source downloads. Target directories and tool binaries are not archived;
+compiler results use the shared sccache and tools use pinned release downloads.
+The source cache is saved only on main pushes or manual main runs. Its separate
+cache namespace avoids restoring legacy target archives. To measure a warm
+compiler cache, dispatch `qa.yml` twice on the same branch head and compare the
+QA timings and final cache statistics; neither run changes the checks.
