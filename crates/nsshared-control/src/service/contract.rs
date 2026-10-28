@@ -105,6 +105,21 @@ pub enum ContractError {
     /// A counter has no successor.
     #[error("counter-exhausted")]
     CounterExhausted,
+    /// Invalid, empty or overlapping explicit CIDRs.
+    #[error("invalid-floor-cidr")]
+    InvalidFloorCidr,
+    /// Metadata references a declaration absent from this report.
+    #[error("invalid-floor-binding")]
+    InvalidFloorBinding,
+    /// Floor entries are duplicated or out of canonical order.
+    #[error("invalid-floor-order")]
+    InvalidFloorOrder,
+    /// Default Exit selection is not reportable.
+    #[error("default-exit-unsupported")]
+    DefaultExitUnsupported,
+    /// A floor collection, text or byte limit is exceeded.
+    #[error("floor-limit")]
+    FloorLimit,
 }
 
 impl ContractError {
@@ -117,6 +132,11 @@ impl ContractError {
             Self::UnsupportedField => "unsupported-field",
             Self::InvalidField => "invalid-encoding",
             Self::DigestConflict => "digest-conflict",
+            Self::InvalidFloorCidr => "invalid-floor-cidr",
+            Self::InvalidFloorBinding => "invalid-floor-binding",
+            Self::InvalidFloorOrder => "invalid-floor-order",
+            Self::DefaultExitUnsupported => "default-exit-unsupported",
+            Self::FloorLimit => "floor-limit",
             Self::CounterExhausted => "counter-exhausted",
         }
     }

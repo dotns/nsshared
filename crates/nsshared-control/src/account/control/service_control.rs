@@ -137,6 +137,7 @@ pub struct PendingRequest {
     message: Message,
     authority: IdentityKey,
     nonce: [u8; 16],
+    floor: Option<crate::service::FloorReportMessage>,
 }
 impl PendingRequest {
     /// Retains the exact authenticated request and outer correlation facts.
@@ -146,13 +147,29 @@ impl PendingRequest {
         envelope: &BootstrapEnvelope,
         expected: &EnvelopeExpectation<'_>,
     ) -> Result<Self, ServiceControlError> {
+        verify(envelope, expected, EnvelopeDirection::Request)?;
+        let floor = crate::service::FloorReportMessage::decode(&envelope.payload).ok();
+        let message = if let Some(floor) = &floor {
+            let message = floor.context().clone();
+            require(message.subject_identity == *envelope.signer.as_bytes())?;
+            message
+        } else {
+            validate_unary_request(envelope, expected)?
+        };
         Ok(Self {
-            message: validate_unary_request(envelope, expected)?,
+            message,
             authority: expected.recipient,
             nonce: envelope.nonce,
+            floor,
         })
     }
-    /// Exact retained logical request; retries preserve its bytes.
+    /// Complete retained floor, when this request carries report.replace.
+    #[must_use]
+    pub const fn floor_report(&self) -> Option<&crate::service::FloorReportMessage> {
+        self.floor.as_ref()
+    }
+    /// Retained envelope context and legacy declaration projection.
+    /// For complete floor retry bytes use [`Self::floor_report`].
     #[must_use]
     pub const fn message(&self) -> &Message {
         &self.message
@@ -225,7 +242,11 @@ pub fn validate_unary_reply(
         return Ok(UnaryReply::Failure(reply));
     }
     require(request.session_seq == reply.session_seq)?;
-    validate_pair(request, &reply)?;
+    if let Some(floor) = &pending.floor {
+        floor.validate_accepted(&reply)?;
+    } else {
+        validate_pair(request, &reply)?;
+    }
     Ok(UnaryReply::Message(reply))
 }
 fn validate_pair(request: &Message, reply: &Message) -> Result<(), ServiceControlError> {
@@ -339,4 +360,20 @@ pub fn validate_reverse_result(
         }
         _ => false,
     })
+}
+
+impl crate::service::FloorReportMessage {
+    /// Validates an authenticated complete-floor request under the Node runtime fence.
+    /// Current custody, explicit-profile admission and revision persistence remain external.
+    /// # Errors
+    /// Refuses authentication, signer/subject, canonical floor or M6 context mismatches.
+    pub fn from_envelope(
+        envelope: &BootstrapEnvelope,
+        expected: &EnvelopeExpectation<'_>,
+    ) -> Result<Self, ServiceControlError> {
+        verify(envelope, expected, EnvelopeDirection::Request)?;
+        let message = Self::decode(&envelope.payload)?;
+        require(message.context().subject_identity == *envelope.signer.as_bytes())?;
+        Ok(message)
+    }
 }

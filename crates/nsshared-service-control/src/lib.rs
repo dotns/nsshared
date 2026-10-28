@@ -38,3 +38,9 @@ pub use cbor::{CborError, Value, decode_canonical, encode_canonical};
 pub use contract::*;
 pub use message::*;
 pub use snapshot::*;
+
+/// Versioned whole-floor report types on the existing M6 carrier.
+pub use nsshared_control::service::{
+    ExitSelection, FloorContent, FloorExitProfile, FloorMetadata, FloorReportMessage,
+    FloorReportReplace, MAX_FLOOR_BYTES, MAX_FLOOR_ITEMS, MAX_FLOOR_TEXT,
+};

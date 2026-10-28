@@ -3,6 +3,8 @@
 //! transitions belong to the caller.
 
 mod contract;
+mod floor;
+mod floor_message;
 mod message;
 mod message_codec;
 mod snapshot;
@@ -10,3 +12,6 @@ mod snapshot;
 pub use contract::*;
 pub use message::*;
 pub use snapshot::*;
+
+pub use floor::*;
+pub use floor_message::*;
