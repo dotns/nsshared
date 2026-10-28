@@ -1,5 +1,12 @@
 ## 2026-10-28 [feat]
 
+Require schema 3 for controlled admission snapshots and return each identity
+with its class and admission-start version. Refuse legacy schemas and missing
+or invalid history. Preserve signed roster bytes and participant transport,
+with independent vectors and strict validation coverage.
+
+## 2026-10-28 [feat]
+
 Add ordinary Node heartbeat and disconnect contracts behind `unstable-account`,
 with trusted membership and endpoint validation, bounded canonical codecs, exact
 receipts and independent vectors. Existing gateway heartbeat forms remain intact;

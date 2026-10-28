@@ -1,5 +1,7 @@
 # ns-shared - Task List
 
+- [x] [**Snapshot admission history**](20261028-0131-snapshot-admission-history.md)
+
 - [x] [**Ordinary Node liveness**](20261028-0104-node-liveness.md)
 
 - [x] [**Merge CI cache history**](20261028-0013-merge-ci-cache-history.md)
