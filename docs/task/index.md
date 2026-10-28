@@ -10,7 +10,7 @@
 
 > Historical Mesh task entries are retained as implementation records. Standalone Mesh removal is tracked in [SH-MESH-003](SH-MESH-003.md).
 
-> Updated: 2026-09-18
+> Updated: 2026-10-27
 
 ## Usage
 
@@ -167,3 +167,5 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**Define provider mapping eligibility snapshots**](20261024-1655-provider-mapping-eligibility.md) `P1`
 - [x] [**Record review delivery and registration lifecycle placeholders**](20261025-0157-review-request-delivery.md) `P1`
 - [x] [**20261025-0802-nsshared-restructure Restructure the shared crates and apply the review revisions**](20261025-0802-nsshared-restructure.md) `P1`
+
+- [x] [**20261027-1938-ci-sccache Use the runner shared compiler cache**](20261027-1938-ci-sccache.md) `P1`
