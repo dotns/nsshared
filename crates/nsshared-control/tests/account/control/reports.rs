@@ -63,6 +63,18 @@ fn control_report_contract_vectors() {
                 );
                 if accepted {
                     let encoded = match (operation, direction) {
+                        (ControlReportOperation::NodePosture, EnvelopeDirection::Request) => {
+                            NodePostureRequest::decode(&raw)
+                                .unwrap()
+                                .canonical()
+                                .unwrap()
+                        }
+                        (ControlReportOperation::NodePosture, EnvelopeDirection::Response) => {
+                            NodePostureResponse::decode(&raw)
+                                .unwrap()
+                                .canonical()
+                                .unwrap()
+                        }
                         (ControlReportOperation::NodeHeartbeat, EnvelopeDirection::Request) => {
                             NodeHeartbeatRequest::decode(&raw)
                                 .unwrap()
@@ -300,3 +312,10 @@ fn ordinary_node_report_operations_are_registered() {
 }
 
 mod node_liveness;
+
+#[test]
+fn ordinary_node_posture_operation_is_registered() {
+    assert!(ControlReportOperation::parse("node.posture").is_ok());
+}
+
+mod node_posture;

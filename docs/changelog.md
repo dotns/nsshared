@@ -1,3 +1,10 @@
+## 2026-10-28 [feat]
+
+Add a distinct Node posture operation behind `unstable-account` with bounded
+complete snapshots, trusted membership validation and correlated receipts.
+Include independent vectors and typed refusal coverage while preserving existing
+heartbeat and disconnect payloads and independent posture reporting cadence.
+
 ## 2026-10-28 [docs]
 
 Record verified identity lifecycle and bounded enrollment review answers at

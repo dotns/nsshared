@@ -1,7 +1,7 @@
 //! Ordinary Node liveness contracts and persisted-context validation.
 use super::{
     ControlReportOperation, GatewayRttObservation, HeartbeatRequest, HeartbeatResponse,
-    PairTransportSnapshot,
+    NodePostureRequest, PairTransportSnapshot,
     node_observations::{read_rtt, write_rtt},
 };
 use crate::{
@@ -28,7 +28,7 @@ pub struct NodeRuntimeFence {
     pub authority_epoch: u64,
 }
 impl NodeRuntimeFence {
-    fn write(&self, out: &mut CborWriter) -> Result<(), AccountError> {
+    pub(super) fn write(&self, out: &mut CborWriter) -> Result<(), AccountError> {
         require(
             self.runtime_id != [0; 16] && self.runtime_generation > 0 && self.authority_epoch > 0,
         )?;
@@ -38,7 +38,7 @@ impl NodeRuntimeFence {
             .uint(self.authority_epoch);
         Ok(())
     }
-    fn read(input: &mut CborReader<'_>) -> Result<Self, AccountError> {
+    pub(super) fn read(input: &mut CborReader<'_>) -> Result<Self, AccountError> {
         input.array(3)?;
         Ok(Self {
             runtime_id: input.fixed_bytes()?,
@@ -276,7 +276,7 @@ pub enum NodeReportError {
     /// Canonical contract decoding failed.
     #[error(transparent)]
     Contract(#[from] AccountError),
-    /// Operation or direction is not a Node liveness request.
+    /// Operation or direction is not a Node report request.
     #[error("invalid Node report operation or direction")]
     Operation,
     /// Signer differs from the enrolled Node.
@@ -290,7 +290,7 @@ pub enum NodeReportError {
     Scope,
 }
 impl NodeReportContext {
-    /// Authenticates a Node liveness request against persisted membership custody.
+    /// Authenticates a Node report request against persisted membership custody.
     /// Runtime freshness and durable effects remain the consumer's responsibility.
     /// # Errors
     /// Refuses authentication, operation, subject, authority, scope or shape mismatch.
@@ -305,6 +305,9 @@ impl NodeReportContext {
             return Err(NodeReportError::Operation);
         }
         let scope = match operation {
+            ControlReportOperation::NodePosture => {
+                NodePostureRequest::decode(&envelope.payload)?.scope
+            }
             ControlReportOperation::NodeHeartbeat => {
                 NodeHeartbeatRequest::decode(&envelope.payload)?.scope
             }
