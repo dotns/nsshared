@@ -47,6 +47,15 @@ discovery through HTTPS WebPKI, supplies the authenticated HTTPS origin, clock
 and replay observations, and performs transport execution. No legacy key field,
 JSON fallback, discovery age denial or plaintext is defined.
 
+The client requests `GET DISCOVERY_PATH` (`/api/v1/info`) with exactly
+`Accept: application/cbor`, using `DISCOVERY_MEDIA_TYPE`. This selector chooses
+the canonical family-11 `BootstrapDiscovery` CBOR tuple. The response carries
+`Content-Type: application/cbor` (the same `DISCOVERY_MEDIA_TYPE`) and
+`Vary: Accept` to keep cached representations separate. An absent Accept, a
+wildcard-only Accept or any other request gets the producer's other
+representation, which is outside this contract. The client decodes only the
+CBOR tuple and has no fallback to that other representation.
+
 Discovery CBOR is `[1, 1, https_origin, [1], endpoints, noise_key_or_null,
 quic_spki_pins, envelope_pins]`: schema, trust version, authenticated discovery
 origin, supported envelope versions, ordered endpoints and trust material.
@@ -164,6 +173,7 @@ supported. Unknown operations are refused.
 | --- | --- | --- |
 | `CONTROL_ENVELOPE_PATH` | `/api/v1/control` | this document |
 | `DISCOVERY_PATH` | `/api/v1/info` | this document |
+| `DISCOVERY_MEDIA_TYPE` | `application/cbor` | this document |
 | `JWKS_PATH` | `/.well-known/jwks.json` | this document |
 | `MACHINE_REGISTER` | `machine.register` | this document |
 | `MACHINE_AUTH` | `machine.auth` | this document |
