@@ -47,14 +47,14 @@ pub use node_l3_status::{
     node_l3_event_digest,
 };
 pub use reports::{
-    ControlReportOperation, DiskEncryptionStatus, GATEWAY_RTT_FEATURE,
-    GatewayCertificateObservation, GatewayReport, GatewayReportResponse, GatewayRttObservation,
-    GatewayRttTier, HeartbeatRequest, HeartbeatResponse, MAX_NODE_OBSERVATIONS,
-    MAX_NODE_POSTURE_IP_BYTES, MAX_NODE_POSTURE_IPS, MAX_NODE_POSTURE_TEXT_BYTES,
-    MaterialStatusResponse, NodeDisconnectRequest, NodeDisconnectResponse, NodeHeartbeatRequest,
-    NodeHeartbeatResponse, NodePostureRequest, NodePostureResponse, NodePostureSnapshot,
-    NodeReportContext, NodeReportError, NodeRuntimeFence, PAIR_TRANSPORT_FALLBACK_FEATURE,
-    PairTransportSnapshot, PairTransportUnhealthy,
+    ControlReportOperation, DiskEncryptionStatus, FencedGatewayReportRequest,
+    FencedGatewayReportResponse, GATEWAY_RTT_FEATURE, GatewayCertificateObservation, GatewayReport,
+    GatewayReportResponse, GatewayRttObservation, GatewayRttTier, HeartbeatRequest,
+    HeartbeatResponse, MAX_NODE_OBSERVATIONS, MAX_NODE_POSTURE_IP_BYTES, MAX_NODE_POSTURE_IPS,
+    MAX_NODE_POSTURE_TEXT_BYTES, MaterialStatusResponse, NodeDisconnectRequest,
+    NodeDisconnectResponse, NodeHeartbeatRequest, NodeHeartbeatResponse, NodePostureRequest,
+    NodePostureResponse, NodePostureSnapshot, NodeReportContext, NodeReportError, NodeRuntimeFence,
+    PAIR_TRANSPORT_FALLBACK_FEATURE, PairTransportSnapshot, PairTransportUnhealthy,
 };
 pub use route_command::{
     CommittedSelection, RouteAction, RouteCommand, RouteDecision, RouteError, RouteOutcome,

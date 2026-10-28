@@ -1,7 +1,7 @@
 //! Ordinary Node liveness contracts and persisted-context validation.
 use super::{
-    ControlReportOperation, GatewayRttObservation, HeartbeatRequest, HeartbeatResponse,
-    NodePostureRequest, PairTransportSnapshot,
+    ControlReportOperation, FencedGatewayReportRequest, GatewayRttObservation, HeartbeatRequest,
+    HeartbeatResponse, NodePostureRequest, PairTransportSnapshot,
     node_observations::{read_rtt, write_rtt},
 };
 use crate::{
@@ -305,6 +305,9 @@ impl NodeReportContext {
             return Err(NodeReportError::Operation);
         }
         let scope = match operation {
+            ControlReportOperation::Gateway => {
+                FencedGatewayReportRequest::decode(&envelope.payload)?.scope
+            }
             ControlReportOperation::NodePosture => {
                 NodePostureRequest::decode(&envelope.payload)?.scope
             }

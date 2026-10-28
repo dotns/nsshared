@@ -1,7 +1,9 @@
 //! Pure observations and authenticated report operation dispatch.
+mod fenced_gateway;
 mod node;
 mod node_observations;
 mod node_posture;
+pub use fenced_gateway::*;
 pub use node::*;
 pub use node_observations::*;
 pub use node_posture::*;
@@ -414,10 +416,10 @@ impl ControlReportOperation {
                 HeartbeatResponse::decode(bytes)?;
             }
             (Self::Gateway, EnvelopeDirection::Request) => {
-                GatewayReport::decode(bytes)?;
+                FencedGatewayReportRequest::decode(bytes)?;
             }
             (Self::Gateway, EnvelopeDirection::Response) => {
-                GatewayReportResponse::decode(bytes)?;
+                FencedGatewayReportResponse::decode(bytes)?;
             }
             (Self::Services, EnvelopeDirection::Request) => {
                 require(EdgeServiceRequest::decode(bytes)?.body.kind() == 1)?;
@@ -441,7 +443,7 @@ impl ControlReportOperation {
         Ok(())
     }
     /// Authenticates the carrier before checking its report payload form.
-    /// Node operations require [`NodeReportContext::validate_envelope`] instead.
+    /// Node and gateway operations require [`NodeReportContext::validate_envelope`] instead.
     /// # Errors
     /// Refuses trust, expected direction/operation/recipient or invalid payloads.
     pub fn validate_envelope(
@@ -450,10 +452,10 @@ impl ControlReportOperation {
         expected: &EnvelopeExpectation<'_>,
     ) -> Result<(), ExchangeError> {
         envelope.verify(expected)?;
-        // Node operations require the persisted membership context API.
+        // Node and gateway operations require the persisted membership context API.
         if matches!(
             self,
-            Self::NodeHeartbeat | Self::NodeDisconnect | Self::NodePosture
+            Self::NodeHeartbeat | Self::NodeDisconnect | Self::NodePosture | Self::Gateway
         ) {
             return Err(ExchangeError::Scope);
         }
