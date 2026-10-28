@@ -1,3 +1,9 @@
+## 2026-10-28 [chore]
+
+Merge the upstream CI cache configuration and documentation while retaining
+the retention seal contract and both histories. The merged tree passes local
+validation without source or test changes.
+
 ## 2026-10-27 [feat]
 
 Add bounded canonical retention seals and correlated acknowledgements behind
