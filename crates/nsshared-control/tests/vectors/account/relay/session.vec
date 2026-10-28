@@ -29,7 +29,7 @@ action = enroll
 
 name = enrolled
 mode = transport
-bytes = 0000005a088a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394060606060606060606060606060606060100000000000007d0
+bytes = 00000063088a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b39406060606060606060606060606060606020100000000000007d00000000000000011
 decision = accepted
 sequence = participant_auth_transport
 action = response
@@ -90,7 +90,7 @@ action = response
 
 name = response-wrong-pair
 mode = transport
-bytes = 0000005a088a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5ced4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1060606060606060606060606060606060100000000000007d0
+bytes = 00000063088a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5ced4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d106060606060606060606060606060606020100000000000007d00000000000000011
 decision = refused
 sequence = participant_auth_transport
 action = response
@@ -142,13 +142,13 @@ enabled = 0
 
 name = absent-deadline
 mode = frame
-bytes = 000000020200
+bytes = 0000004b028a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b39402000000000000000011
 decision = accepted
 sequence = participant_auth_transport
 
 name = finite-deadline
 mode = frame
-bytes = 0000000a020100000000000007d0
+bytes = 00000053028a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394020100000000000007d00000000000000011
 decision = accepted
 sequence = participant_auth_transport
 
@@ -223,6 +223,356 @@ mode = frame
 bytes = 00000080018a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394f129e42ed268d63e4fbc8eb42d3276247eac688ffe7d88ea1aeb90801d3a52f5c6ce974e0655b80458fce7978f017dfeaa8f029c29e9a047adf92dbc8feb45
 decision = refused
 sequence = participant_auth_transport
+
+name = authenticated-absent-one
+mode = frame
+bytes = 0000004b028a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b39402000000000000000001
+decision = accepted
+sequence = participant_auth_transport
+generation = 1
+
+name = authenticated-absent-maximum
+mode = frame
+bytes = 0000004b028a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b3940200ffffffffffffffff
+decision = accepted
+sequence = participant_auth_transport
+generation = 18446744073709551615
+
+name = authenticated-absent-zero-generation
+mode = frame
+bytes = 0000004b028a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b39402000000000000000000
+decision = refused
+sequence = participant_auth_transport
+error = Frame
+
+name = authenticated-absent-missing-generation
+mode = frame
+bytes = 00000043028a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b3940200
+decision = refused
+sequence = participant_auth_transport
+error = Frame
+
+name = authenticated-absent-legacy
+mode = frame
+bytes = 000000020200
+decision = refused
+sequence = participant_auth_transport
+error = Version
+
+name = authenticated-absent-unknown-version
+mode = frame
+bytes = 0000004b028a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b39403000000000000000011
+decision = refused
+sequence = participant_auth_transport
+error = Version
+
+name = authenticated-finite-one
+mode = frame
+bytes = 00000053028a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394020100000000000007d00000000000000001
+decision = accepted
+sequence = participant_auth_transport
+generation = 1
+
+name = authenticated-finite-maximum
+mode = frame
+bytes = 00000053028a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394020100000000000007d0ffffffffffffffff
+decision = accepted
+sequence = participant_auth_transport
+generation = 18446744073709551615
+
+name = authenticated-finite-zero-generation
+mode = frame
+bytes = 00000053028a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394020100000000000007d00000000000000000
+decision = refused
+sequence = participant_auth_transport
+error = Frame
+
+name = authenticated-finite-missing-generation
+mode = frame
+bytes = 0000004b028a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394020100000000000007d0
+decision = refused
+sequence = participant_auth_transport
+error = Frame
+
+name = authenticated-finite-legacy
+mode = frame
+bytes = 0000000a020100000000000007d0
+decision = refused
+sequence = participant_auth_transport
+error = Version
+
+name = authenticated-finite-unknown-version
+mode = frame
+bytes = 00000053028a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394030100000000000007d00000000000000011
+decision = refused
+sequence = participant_auth_transport
+error = Version
+
+name = authenticated-expired-one
+mode = frame
+bytes = 00000053028a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394020100000000000000000000000000000001
+decision = accepted
+sequence = participant_auth_transport
+generation = 1
+
+name = authenticated-expired-maximum
+mode = frame
+bytes = 00000053028a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b39402010000000000000000ffffffffffffffff
+decision = accepted
+sequence = participant_auth_transport
+generation = 18446744073709551615
+
+name = authenticated-expired-zero-generation
+mode = frame
+bytes = 00000053028a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394020100000000000000000000000000000000
+decision = refused
+sequence = participant_auth_transport
+error = Frame
+
+name = authenticated-expired-missing-generation
+mode = frame
+bytes = 0000004b028a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b39402010000000000000000
+decision = refused
+sequence = participant_auth_transport
+error = Frame
+
+name = authenticated-expired-legacy
+mode = frame
+bytes = 0000000a02010000000000000000
+decision = refused
+sequence = participant_auth_transport
+error = Version
+
+name = authenticated-expired-unknown-version
+mode = frame
+bytes = 00000053028a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394030100000000000000000000000000000011
+decision = refused
+sequence = participant_auth_transport
+error = Version
+
+name = authenticated-bad-deadline
+mode = frame
+bytes = 0000004b028a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b39402020000000000000011
+decision = refused
+sequence = participant_auth_transport
+error = Frame
+
+name = authenticated-short-deadline
+mode = frame
+bytes = 0000004b028a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b39402010000000000000011
+decision = refused
+sequence = participant_auth_transport
+error = Frame
+
+name = authenticated-long-deadline
+mode = frame
+bytes = 00000053028a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394020000000000000000000000000000000011
+decision = refused
+sequence = participant_auth_transport
+error = Frame
+
+name = authenticated-wrong-issuer
+mode = custody
+bytes = 0000005302ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d18139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394020100000000000007d00000000000000011
+decision = refused
+sequence = participant_auth_transport
+error = Correlation
+
+name = authenticated-wrong-participant
+mode = custody
+bytes = 00000053028a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5ced4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1020100000000000007d00000000000000011
+decision = refused
+sequence = participant_auth_transport
+error = Correlation
+
+name = authenticated-expired
+mode = custody
+bytes = 00000053028a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394020100000000000000000000000000000011
+decision = refused
+sequence = participant_auth_transport
+error = Unauthorized
+
+name = authenticated-accepted
+mode = custody
+bytes = 00000053028a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394020100000000000007d00000000000000011
+decision = accepted
+sequence = participant_auth_transport
+generation = 17
+
+name = enrolled-absent-one
+mode = frame
+bytes = 0000005b088a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b3940606060606060606060606060606060602000000000000000001
+decision = accepted
+sequence = participant_auth_transport
+generation = 1
+
+name = enrolled-absent-maximum
+mode = frame
+bytes = 0000005b088a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394060606060606060606060606060606060200ffffffffffffffff
+decision = accepted
+sequence = participant_auth_transport
+generation = 18446744073709551615
+
+name = enrolled-absent-zero-generation
+mode = frame
+bytes = 0000005b088a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b3940606060606060606060606060606060602000000000000000000
+decision = refused
+sequence = participant_auth_transport
+error = Frame
+
+name = enrolled-absent-missing-generation
+mode = frame
+bytes = 00000053088a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394060606060606060606060606060606060200
+decision = refused
+sequence = participant_auth_transport
+error = Frame
+
+name = enrolled-absent-legacy
+mode = frame
+bytes = 00000052088a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b3940606060606060606060606060606060600
+decision = refused
+sequence = participant_auth_transport
+error = Version
+
+name = enrolled-absent-unknown-version
+mode = frame
+bytes = 0000005b088a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b3940606060606060606060606060606060603000000000000000011
+decision = refused
+sequence = participant_auth_transport
+error = Version
+
+name = enrolled-finite-one
+mode = frame
+bytes = 00000063088a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b39406060606060606060606060606060606020100000000000007d00000000000000001
+decision = accepted
+sequence = participant_auth_transport
+generation = 1
+
+name = enrolled-finite-maximum
+mode = frame
+bytes = 00000063088a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b39406060606060606060606060606060606020100000000000007d0ffffffffffffffff
+decision = accepted
+sequence = participant_auth_transport
+generation = 18446744073709551615
+
+name = enrolled-finite-zero-generation
+mode = frame
+bytes = 00000063088a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b39406060606060606060606060606060606020100000000000007d00000000000000000
+decision = refused
+sequence = participant_auth_transport
+error = Frame
+
+name = enrolled-finite-missing-generation
+mode = frame
+bytes = 0000005b088a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b39406060606060606060606060606060606020100000000000007d0
+decision = refused
+sequence = participant_auth_transport
+error = Frame
+
+name = enrolled-finite-legacy
+mode = frame
+bytes = 0000005a088a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394060606060606060606060606060606060100000000000007d0
+decision = refused
+sequence = participant_auth_transport
+error = Version
+
+name = enrolled-finite-unknown-version
+mode = frame
+bytes = 00000063088a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b39406060606060606060606060606060606030100000000000007d00000000000000011
+decision = refused
+sequence = participant_auth_transport
+error = Version
+
+name = enrolled-expired-one
+mode = frame
+bytes = 00000063088a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b39406060606060606060606060606060606020100000000000000000000000000000001
+decision = accepted
+sequence = participant_auth_transport
+generation = 1
+
+name = enrolled-expired-maximum
+mode = frame
+bytes = 00000063088a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b3940606060606060606060606060606060602010000000000000000ffffffffffffffff
+decision = accepted
+sequence = participant_auth_transport
+generation = 18446744073709551615
+
+name = enrolled-expired-zero-generation
+mode = frame
+bytes = 00000063088a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b39406060606060606060606060606060606020100000000000000000000000000000000
+decision = refused
+sequence = participant_auth_transport
+error = Frame
+
+name = enrolled-expired-missing-generation
+mode = frame
+bytes = 0000005b088a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b3940606060606060606060606060606060602010000000000000000
+decision = refused
+sequence = participant_auth_transport
+error = Frame
+
+name = enrolled-expired-legacy
+mode = frame
+bytes = 0000005a088a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b39406060606060606060606060606060606010000000000000000
+decision = refused
+sequence = participant_auth_transport
+error = Version
+
+name = enrolled-expired-unknown-version
+mode = frame
+bytes = 00000063088a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b39406060606060606060606060606060606030100000000000000000000000000000011
+decision = refused
+sequence = participant_auth_transport
+error = Version
+
+name = enrolled-bad-deadline
+mode = frame
+bytes = 0000005b088a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b3940606060606060606060606060606060602020000000000000011
+decision = refused
+sequence = participant_auth_transport
+error = Frame
+
+name = enrolled-short-deadline
+mode = frame
+bytes = 0000005b088a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b3940606060606060606060606060606060602010000000000000011
+decision = refused
+sequence = participant_auth_transport
+error = Frame
+
+name = enrolled-long-deadline
+mode = frame
+bytes = 00000063088a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b39406060606060606060606060606060606020000000000000000000000000000000011
+decision = refused
+sequence = participant_auth_transport
+error = Frame
+
+name = enrolled-wrong-issuer
+mode = custody
+bytes = 0000006308ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d18139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b39406060606060606060606060606060606020100000000000007d00000000000000011
+decision = refused
+sequence = participant_auth_transport
+error = Correlation
+
+name = enrolled-wrong-participant
+mode = custody
+bytes = 00000063088a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5ced4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d106060606060606060606060606060606020100000000000007d00000000000000011
+decision = refused
+sequence = participant_auth_transport
+error = Correlation
+
+name = enrolled-expired
+mode = custody
+bytes = 00000063088a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b39406060606060606060606060606060606020100000000000000000000000000000011
+decision = refused
+sequence = participant_auth_transport
+error = Unauthorized
+
+name = enrolled-accepted
+mode = custody
+bytes = 00000063088a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b39406060606060606060606060606060606020100000000000007d00000000000000011
+decision = accepted
+sequence = participant_auth_transport
+generation = 17
 
 name = frame-trailing
 mode = frame

@@ -651,6 +651,52 @@ pins.
 request id per observation; responses are compared against the exact pending
 request after envelope verification (`validate_for`). Receipt means receipt only.
 
+### Fenced shared gateway reports
+
+The shared `gateway.report` operation carries `FencedGatewayReportRequest`:
+`[1, scope, fence, canonical_GatewayReport_bytes]`. `scope` is the exact
+`MembershipScope` pair `[nsd_id_16, network_id_16]`; `fence` is the existing
+`NodeRuntimeFence` tuple `[runtime_id_16, runtime_generation, authority_epoch]`.
+The runtime id is nonzero and both counters are positive. Missing fields, null
+context, noncanonical encodings (including nested bytes) and invalid observations
+are refused with typed `AccountError` values. The embedded `GatewayReport`
+encoding remains unchanged; its `request_id` is the request correlation. Drain
+uses this same operation with `report.draining = true`, without another payload
+or identity model.
+
+`FencedGatewayReportResponse` is
+`[1, scope, fence, canonical_GatewayReportResponse_bytes]`. It echoes the exact
+accepted scope, runtime fence and existing operation receipt. After authenticating
+the response envelope's authority signer, recipient, direction and operation,
+the gateway calls `validate_for` against its retained pending request; either
+membership id, runtime id, generation, authority epoch or request id differing
+is a typed `AccountError::Field` refusal. Receipt has the existing observation
+receipt semantics and grants no registration or readiness authority.
+
+The gateway process produces observations and drain intent from its actual
+state, membership from accepted registration/source custody and runtime fields
+from its accepted service runtime. The signed shared `BootstrapEnvelope` carries
+these bytes on `gateway.report`. `NodeReportContext::validate_envelope` verifies
+the signed request and compares its enrolled subject, NSD recipient and exact
+membership against trusted persisted context. The context-free report envelope
+validator refuses this operation with `ExchangeError::Scope`; bare observation
+and receipt bytes remain independently decodable but are not shared operation
+payloads.
+
+Before applying the existing gateway store handlers, NSD compares signer,
+membership, source custody and current runtime fence with persisted custody and
+checks the persisted accepted `explicit-gateway-profile`. Decoding or envelope
+validation alone does not prove runtime freshness or profile acceptance. A
+device-enrolled gateway acts as its own ordinary enrolled Node and needs no
+gateway identity root or legacy machine lookup. The gateway compares the signed
+response with its pending operation/request and scoped runtime. Runtime renewal
+continues to use fenced Node heartbeat; report and drain do not replace it.
+
+Independent `account/control/fenced-gateway` vectors cover report and drain,
+correlated receipts, absent/zero fences, missing scope, mismatches, canonical
+encoding and signed persisted-context checks. Existing observation, heartbeat
+and posture vector bytes remain unchanged.
+
 ### Services and floor metadata
 
 `EdgeServiceRequest`/`EdgeServiceResponse` ([edge](edge.md#service-declarations-floors-reports-responses-and-acks)) keep body kinds 0

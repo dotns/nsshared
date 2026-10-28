@@ -28,7 +28,7 @@ fn control_report_contract_vectors() {
                 let operation = ControlReportOperation::parse(vector.get("operation")).unwrap();
                 assert_eq!(
                     operation.validate_envelope(&envelope, &expected).is_ok(),
-                    accepted,
+                    accepted && operation != ControlReportOperation::Gateway,
                     "{}",
                     vector.name()
                 );
@@ -55,12 +55,18 @@ fn control_report_contract_vectors() {
                     EnvelopeDirection::Response
                 };
                 let operation = ControlReportOperation::parse(vector.get("operation")).unwrap();
-                assert_eq!(
-                    operation.validate_payload(direction, &raw).is_ok(),
-                    accepted,
-                    "{}",
-                    vector.name()
-                );
+                if operation == ControlReportOperation::Gateway {
+                    assert!(operation.validate_payload(direction, &raw).is_err());
+                }
+                let valid = if operation == ControlReportOperation::Gateway {
+                    match direction {
+                        EnvelopeDirection::Request => GatewayReport::decode(&raw).is_ok(),
+                        EnvelopeDirection::Response => GatewayReportResponse::decode(&raw).is_ok(),
+                    }
+                } else {
+                    operation.validate_payload(direction, &raw).is_ok()
+                };
+                assert_eq!(valid, accepted, "{}", vector.name());
                 if accepted {
                     let encoded = match (operation, direction) {
                         (ControlReportOperation::NodePosture, EnvelopeDirection::Request) => {
@@ -319,3 +325,5 @@ fn ordinary_node_posture_operation_is_registered() {
 }
 
 mod node_posture;
+
+mod fenced_gateway;

@@ -1,5 +1,19 @@
 ## 2026-10-28 [feat]
 
+Bind shared gateway reports and drain intent to accepted membership and runtime
+custody, with correlated receipts and trusted endpoint validation. Preserve
+existing observation encodings and add independent canonical and refusal vectors.
+Runtime freshness and accepted-profile checks remain consumer-owned.
+
+## 2026-10-28 [feat]
+
+Carry positive participant custody generations in versioned enrollment and
+authentication answers, bound to the issuer, participant and pending exchange.
+Refuse legacy or incomplete answers and document durable custody provenance.
+Other session frames, signed rosters and retention seal bytes remain unchanged.
+
+## 2026-10-28 [feat]
+
 shared 认证请求增加精确 registration 条件：Node 记录、credential incarnation 与
 Account activation。固定六字段，拒绝旧五字段；owned Connector 必须提供条件，
 非 Account Gateway 可显式 null，由服务端确定身份类型。保留同代 source 更新语义，

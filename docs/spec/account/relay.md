@@ -201,13 +201,13 @@ the `FrameKind` enum; each discriminant is the wire kind byte (`FrameKind::byte`
 | Byte | `FrameKind` | Operation | Body and exact byte length |
 | --- | --- | --- | --- |
 | 1 | `Authenticate` | authenticate | issuer32, recipient32, proof64: 128 |
-| 2 | `Authenticated` | authenticated | optional deadline: 1 or 9 |
+| 2 | `Authenticated` | authenticated | issuer32, recipient32, answer version (1 byte), optional deadline, owner_generation8: 74 or 82 |
 | 3 | `Refused` | refused | empty: 0 |
 | 4 | `Roster` | complete roster | unchanged signed roster: 1..=1,048,576 |
 | 5 | `Report` | usage report or retention seal | unchanged payload: 1..=1,048,576 |
 | 6 | `Answer` | usage answer or retention seal acknowledgement | unchanged payload: 1..=1,048,576 |
 | 7 | `Enroll` | enroll | issuer32, recipient32, correlation16, enrollment credential32, proof64: 176 |
-| 8 | `Enrolled` | enrolled | issuer32, recipient32, correlation16, optional deadline: 81 or 89 |
+| 8 | `Enrolled` | enrolled | issuer32, recipient32, correlation16, answer version (1 byte), optional deadline, owner_generation8: 90 or 98 |
 | 9 | `Renew` | renew | issuer32, recipient32, correlation16: 80 |
 | 10 | `Renewed` | renewed | issuer32, recipient32, correlation16, optional deadline: 81 or 89 |
 
@@ -216,6 +216,36 @@ validation. Correlations are nonzero 16-byte values. An optional deadline is tag
 alone for absent, or tag 1 followed by a u64 big-endian Unix milliseconds value
 (`credential_deadline`). Zero is a finite expired deadline; absence does not erase a
 retained finite bound (`retained_credential_deadline`).
+
+`Authenticated` and `Enrolled` use answer version 2: one byte with value 2
+at offset 64 or 80 respectively. `owner_generation` is a required positive u64
+in big-endian order, after the optional deadline. The old unversioned forms
+(Authenticated bodies of 1/9 bytes, Enrolled bodies of 81/89 bytes) are refused
+with `SessionError::Version`, as are unsupported answer version bytes. A missing
+or zero generation in version 2 is `SessionError::Frame`; it never means "no
+generation". Other frame forms, including Renewed, are unchanged.
+
+NSD produces the generation from the committed participant custody that authorized
+the exchange. Relayd compares the issuer and participant with its configured trusted
+issuer and retained signing identity, and validates the exact pending exchange.
+`Frame::validate_authenticated` compares the answer with the outstanding Authenticate
+frame on the same verified TLS connection and checks the actual deadline. The runtime
+must track that outstanding exchange, reject unsolicited or duplicate responses and
+consume it once; a decoded frame alone grants no session. Enrollment still requires
+its exact nonzero correlation through `Frame::validate_response`.
+`Frame::enrolled(pending, owner_generation, deadline_ms)` constructs enrollment
+acceptance; `Frame::authenticated(issuer, participant, owner_generation, deadline_ms)`
+constructs authentication acceptance. `Frame::response` constructs only Renewed
+metadata and refuses Enrolled, which requires an explicit generation.
+
+Relayd durably persists the accepted pair and `Frame::owner_generation()` with its
+enrollment completion record before exposing it to retention production, and carries
+that value into durable capture/spool custody. A completion record without a generation
+recovers it through ordinary authentication, never replaying a one-use enrollment
+credential. Restart or takeover preserves original custody. A later authentication
+may deliver a new generation but cannot relabel older parts or manifests, imply their
+closure or replace their original generation. A roster epoch, incarnation, local
+counter or configuration value cannot substitute for NSD committed custody.
 
 Roster, report and answer frames carry the signed roster, the
 [usage report](usage.md#usage-reports) and the
@@ -241,7 +271,7 @@ exclusive optional deadline before authentication, renewal and report acceptance
 Enrollment additionally requires exact comparison against the separately provisioned
 credential and pair.
 
-`SessionError` distinguishes `Contract` (invalid keys or contract fields), `Frame`
+`SessionError` distinguishes `Version` (incompatible answer format), `Contract` (invalid keys or contract fields), `Frame`
 (unknown kind, invalid length, malformed field or trailing bytes), `Unauthorized`
 (pair not provisioned, enabled or currently valid), `Proof` (proof does not match
 this connection's exporter) and `Correlation` (response differs from the exact
