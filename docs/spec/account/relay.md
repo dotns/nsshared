@@ -7,7 +7,7 @@ signed directory binding. Public items are at `nsshared_control::account::relay`
 signature domains are at `nsshared_control::account::domains`. Membership realm
 identities follow the [canonical RealmId](../realm-id.md).
 
-This is a pure contract with CBOR content schema 1 and local admission JSON schema 3.
+This is a pure contract with signed roster CBOR schemas 1 and 2 and local admission JSON schema 3.
 It defines no runtime or transport session. TLS, provisioning, custody, storage and
 installation are consumer responsibilities. CBOR follows the [account encoding
 rules](profile.md#encoding). The family registry bytes and the directory and roster
@@ -29,8 +29,16 @@ entries withdraw the recipient's entire admission roster.
 Signed roster content (`Roster`) is the CBOR array
 
 ```text
-[1, issuer, recipient, roster_version, issued_at_unix_ms, valid_until_unix_ms, entries]
+[2, issuer, recipient, publication_version, attribution_epoch, issued_at_unix_ms, valid_until_unix_ms, entries]
 ```
+
+Schema 1 remains accepted as the seven-field array
+`[1, issuer, recipient, publication_version, issued_at_unix_ms, valid_until_unix_ms, entries]`.
+Its attribution epoch equals its publication version. `Roster.schema_version`
+preserves the decoded schema, so both schemas round-trip byte for byte without
+invalidating existing signatures. Schema 1 construction requires epoch = version;
+schema 2 requires both positive values with no ordering relation between them.
+Unknown schemas, wrong arities and noncanonical encodings are refused.
 
 An entry is `[I, class]`, and entries are sorted by identity. The signature is
 Ed25519 over `ns.account.roster.v1` plus one zero byte plus the canonical content
@@ -40,9 +48,22 @@ and there are at most 8,192 identities.
 
 ### Attribution
 
-Versions (`RosterVersion`) are the attribution epoch. Membership and classes are
-captured together for relay accounting: a relay usage observation records the
-roster scope and version together with both endpoint classes (see
+NSD produces attribution epochs from committed classified membership history. An
+unchanged identity/class set reuses its epoch across refreshes; a membership or
+class change advances the epoch. Each refresh independently advances publication
+version and freshness. The recipient-bound signed roster carries both values.
+
+Relayd compares publication version with its persisted anti-replay floor and epoch
+with its independently persisted attribution floor in the same issuer/participant
+scope. Epoch is positive and non-decreasing; publication version is strictly
+increasing. There is no other numerical relation between the two values.
+
+At DATA acceptance, relayd captures the authenticated attribution epoch, scope and
+both endpoint classes into durable usage parts. NSD compares reported epochs with
+retained historical roster/projection custody for original attribution. Renewal
+never relabels pending reports or changes admission-start history. `RosterVersion`
+remains the numeric wrapper for both independently named counters; usage payloads
+continue carrying the attribution epoch with unchanged bytes (see
 [relay usage](usage.md#relay-usage)).
 
 ### Version and validity
@@ -52,9 +73,11 @@ from `issued_at_unix_ms` to `valid_until_unix_ms` must be at least 86,400,000 ms
 (`MIN_ROSTER_VALIDITY_MS`).
 
 `SignedRoster::verify` takes the trusted issuer, the expected participant, the last
-accepted version and the current time. It rejects a wrong issuer or recipient, a
-stale version, a future issue time, expiration, a short lifetime, duplicates and bad
-signatures. Persistence of the accepted version is the consumer's rollback boundary.
+accepted publication version, the last attribution epoch and the current time. It rejects a wrong issuer or recipient, a
+stale version, a decreased or zero epoch, a future issue time, expiration, a short lifetime, duplicates and bad
+signatures. The consumer atomically persists both accepted floors before exposing admission,
+including withdrawal, and restores both after restart. Zero initializes both
+floors only when the scope has no prior accepted publication.
 NSD, the issuer, renews while reachable; consumers never extend a signed deadline
 locally.
 
@@ -111,8 +134,8 @@ Directory eligibility uses the separate signed
 [directory binding](#directory-bindings).
 
 A new accepted complete version replaces the entire mapping: empty denies all
-membership, omission revokes an identity, and a class-only change advances the same
-epoch with a new complete generation. A refused publication is never withdrawal;
+membership, omission revokes an identity, and a class-only change advances the attribution
+epoch with a new complete publication. A refused publication is never withdrawal;
 the last accepted generation is retained.
 
 ### Classes
@@ -124,9 +147,9 @@ error.
 
 ### Verification
 
-`verify_participant_roster(bytes, issuer, recipient, last_version, now_ms)` decodes
+`verify_participant_roster(bytes, issuer, recipient, last_version, last_attribution_epoch, now_ms)` decodes
 and authenticates the signed carrier and returns an accepted
-`ParticipantRosterGeneration` containing the scope, the roster version as the
+`ParticipantRosterGeneration` containing the scope, the publication version and separate
 attribution epoch, the complete identity/class mapping, the issue time and the
 exclusive validity deadline.
 
@@ -136,7 +159,8 @@ exclusive validity deadline.
 | --- | --- |
 | `Issuer` | Wrong issuer |
 | `Recipient` | Wrong recipient |
-| `Stale` | Stale or replayed version (below or equal to the accepted epoch) |
+| `Stale` | Stale or replayed version (below or equal to the accepted publication version) |
+| `EpochDecrease` | Attribution epoch below the accepted epoch in this scope |
 | `FutureIssue` | Signed issue time later than the supplied clock |
 | `Expired` | Supplied clock at or beyond the exclusive deadline |
 | `ShortLifetime` | Signed lifetime below 24 hours, or ending before issue |
@@ -203,7 +227,7 @@ the `FrameKind` enum; each discriminant is the wire kind byte (`FrameKind::byte`
 | 1 | `Authenticate` | authenticate | issuer32, recipient32, proof64: 128 |
 | 2 | `Authenticated` | authenticated | issuer32, recipient32, answer version (1 byte), optional deadline, owner_generation8: 74 or 82 |
 | 3 | `Refused` | refused | empty: 0 |
-| 4 | `Roster` | complete roster | unchanged signed roster: 1..=1,048,576 |
+| 4 | `Roster` | complete roster | signed roster schema 1 or 2: 1..=1,048,576 |
 | 5 | `Report` | usage report or retention seal | unchanged payload: 1..=1,048,576 |
 | 6 | `Answer` | usage answer or retention seal acknowledgement | unchanged payload: 1..=1,048,576 |
 | 7 | `Enroll` | enroll | issuer32, recipient32, correlation16, enrollment credential32, proof64: 176 |
@@ -394,8 +418,16 @@ entries, codes, update rules and Quick behavior are not changed by bindings.
 The independent participant roster producer emits canonical signed carriers,
 explicit decisions, expected complete mappings and supplied-clock lifecycle cases.
 Its sequences carry each previous signed publication and verify new versions against
-the last accepted scope and epoch. They include retained authority after a
+the last accepted scope and independent publication/epoch floors. They include retained authority after a
 refused publication and reclassification without any separate class message.
+Legacy vectors remain unchanged. Schema 2 vectors cover repeated epochs across
+increasing publications, independent counter magnitudes, epoch decrease (including
+legacy downgrade), zero epoch, noncanonical epoch encoding and signature tampering.
+
+The Rust API changes are breaking within the opt-in `unstable-account` surface:
+roster constructors supply `schema_version` and `attribution_epoch`; verification
+calls supply both persisted floors; returned generations expose both counters.
+Released default-feature APIs remain unchanged (`just semver` classification).
 
 The `participant_auth_transport` sequence of `session.vec` supplies fixed fixture
 keys and exporter material: authorized enrollment and unprovisioned-key refusal;

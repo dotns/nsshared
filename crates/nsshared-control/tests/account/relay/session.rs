@@ -152,9 +152,15 @@ fn participant_authority_independent_vectors() {
                 }
             }
             "roster" => {
-                let generation =
-                    verify_participant_roster(&bytes, key(1), key(2), v.u64("last_version"), 1000)
-                        .unwrap();
+                let generation = verify_participant_roster(
+                    &bytes,
+                    key(1),
+                    key(2),
+                    v.u64("last_version"),
+                    v.u64("last_version"),
+                    1000,
+                )
+                .unwrap();
                 assert_eq!(generation.identities.len() as u64, v.u64("identity_count"));
                 assert_eq!(generation.version.0, v.u64("version"));
             }
@@ -208,7 +214,7 @@ fn participant_auth_transport() {
         );
     }
     let initial =
-        verify_participant_roster(&raw(&vectors, "initial-roster"), key(1), key(2), 0, 1000)
+        verify_participant_roster(&raw(&vectors, "initial-roster"), key(1), key(2), 0, 0, 1000)
             .unwrap();
     assert_eq!(initial.identities.len(), 2);
     let report_frame = Frame::decode(&raw(&vectors, "accepted-report")).unwrap();
@@ -277,6 +283,7 @@ fn participant_auth_transport() {
         key(1),
         key(2),
         initial.version.0,
+        initial.attribution_epoch.0,
         1000,
     )
     .unwrap();

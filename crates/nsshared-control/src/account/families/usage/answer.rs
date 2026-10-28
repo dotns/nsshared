@@ -44,7 +44,7 @@ pub enum UsageOutcome {
     UnknownMapping {
         /// Original roster issuer/participant domain.
         scope: ParticipantRosterScope,
-        /// Captured roster version.
+        /// Captured attribution epoch.
         epoch: RosterVersion,
         /// Endpoint whose retained historical mapping is missing.
         node: NodeId,

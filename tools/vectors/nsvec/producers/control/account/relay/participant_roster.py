@@ -33,7 +33,7 @@ def _vectors(a, b, sign):
 
     def emit(name, content=baseline, decision="accepted", last=6, now=1000,
              previous=None, status="valid", status_now=None, renewal=1000,
-             corrupt=False, raw=None):
+             corrupt=False, raw=None, last_epoch=None):
         canonical = carrier(content, corrupt)
         wire = canonical if raw is None else raw
         fields = [("name", "participant-roster-" + name), ("kind", "participant-roster"),
@@ -41,17 +41,22 @@ def _vectors(a, b, sign):
                   ("issuer", a), ("recipient", b), ("last_version", last),
                   ("now_ms", now), ("decision", decision),
                   ("expect", "accept" if decision == "accepted" else "reject")]
+        if last_epoch is not None:
+            fields.append(("last_epoch", last_epoch))
         if previous is not None:
             fields.extend([("previous", carrier(previous)), ("previous_now_ms", 1000),
                            ("previous_last_version", previous[3] - 1)])
         accepted = content if decision == "accepted" else previous
         if accepted is not None:
-            mapping = ",".join(identity.hex() + ":" + str(cls) for identity, cls in accepted[6])
+            offset = 1 if accepted[0] == 2 else 0
+            mapping = ",".join(identity.hex() + ":" + str(cls) for identity, cls in accepted[6 + offset])
+            if offset:
+                fields.append(("generation_epoch", accepted[4]))
             fields.extend([("generation_issuer", accepted[1]),
                            ("generation_recipient", accepted[2]),
                            ("generation_version", accepted[3]),
-                           ("generation_issued_ms", accepted[4]),
-                           ("generation_deadline_ms", accepted[5]),
+                           ("generation_issued_ms", accepted[4 + offset]),
+                           ("generation_deadline_ms", accepted[5 + offset]),
                            ("generation_mapping", mapping or "empty"),
                            ("last_renewal_ms", renewal),
                            ("status_now_ms", now if status_now is None else status_now),
@@ -97,4 +102,32 @@ def _vectors(a, b, sign):
     valid = carrier(baseline)
     emit("trailing", decision="trailing-bytes", raw=valid + b"\0")
     emit("nonminimal-carrier", decision="non-shortest", raw=b"\x98\x02" + valid[1:])
+    separate = [2, a, b, 7, 3, 1000, 1000 + 3 * DAY_MS, entries]
+    repeated = separate[:3] + [8] + separate[4:]
+    emit("legacy-to-separate", separate[:3] + [8, 7] + separate[5:],
+         previous=baseline, last=7, last_epoch=7)
+    emit("separate-epoch", separate, last_epoch=3)
+    emit("repeated-epoch", repeated, previous=separate, last=7, last_epoch=3)
+    emit("repeated-epoch-again", separate[:3] + [9] + separate[4:],
+         previous=repeated, last=8, last_epoch=3)
+    emit("new-epoch", separate[:3] + [9, 4] + separate[5:],
+         previous=repeated, last=8, last_epoch=3)
+    emit("epoch-above-version", separate[:4] + [100] + separate[5:], last_epoch=99)
+    emit("epoch-decrease", separate[:3] + [8, 2] + separate[5:], "epoch-decrease",
+         previous=separate, last=7, last_epoch=3)
+    high_epoch = separate[:4] + [100] + separate[5:]
+    emit("legacy-epoch-decrease", baseline[:3] + [8] + baseline[4:], "epoch-decrease",
+         previous=high_epoch, last=7, last_epoch=100)
+    emit("zero-epoch", separate[:4] + [0] + separate[5:], "invalid-field", last_epoch=0)
+    emit("epoch-does-not-bypass-version", separate[:4] + [100] + separate[5:],
+         "stale-version", previous=separate, last=7, last_epoch=3)
+    encoded = cbor.encode(separate)
+    # The epoch follows the schema, both 32-byte keys and publication version.
+    epoch_offset = len(cbor.encode(separate[:4]))
+    nonminimal = encoded[:epoch_offset] + b"\x18\x03" + encoded[epoch_offset + 1:]
+    emit("nonminimal-epoch", separate, "non-shortest", last_epoch=3,
+         raw=cbor.encode([nonminimal, sign(bytes([1]) * 32, DOMAIN + nonminimal)]))
+    changed = cbor.encode(separate[:4] + [4] + separate[5:])
+    emit("epoch-signature-tampering", separate, "bad-signature", last_epoch=3,
+         raw=cbor.encode([changed, sign(bytes([1]) * 32, DOMAIN + encoded)]))
     return out

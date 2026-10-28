@@ -39,7 +39,7 @@ pub struct RelayUsage {
     pub destination_class: IdentityClass,
     /// Original issuer and participant; participant is the reporter identity.
     pub scope: ParticipantRosterScope,
-    /// Captured roster version, never a current-role lookup.
+    /// Captured attribution epoch, never a current-role lookup.
     pub epoch: RosterVersion,
     /// DATA direction relative to the captured endpoints.
     pub direction: RelayDirection,
@@ -127,7 +127,7 @@ impl RelayUsage {
     ) -> Result<RelayBilling, UsageError> {
         self.canonical()?;
         let history = historical.ok_or(UsageError::UnknownMapping)?;
-        if history.scope != self.scope || history.version != self.epoch {
+        if history.scope != self.scope || history.attribution_epoch != self.epoch {
             return Err(UsageError::UnknownMapping);
         }
         for (node, expected) in [
