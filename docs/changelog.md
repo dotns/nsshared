@@ -1,5 +1,11 @@
 ## 2026-10-28 [feat]
 
+Separate signed roster publication versions from attribution epochs with a new
+canonical schema. Preserve legacy signed bytes, enforce both persisted floors,
+and retain original usage attribution across publication refreshes.
+
+## 2026-10-28 [feat]
+
 Carry declaration metadata and explicit-CIDR Exit profiles in versioned M6
 whole-floor reports. Preserve legacy report APIs and bytes, validate canonical
 references and bounds, and correlate acknowledgements with the complete digest.

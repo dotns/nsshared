@@ -1,5 +1,7 @@
 # ns-shared - Plan Index
 
+- [x] [**Separate roster attribution epochs**](20261028-2141-roster-attribution-epoch.md)
+
 - [x] [**M6 floor content**](20261028-2010-m6-floor-content.md)
 
 - [x] [**Fenced gateway reports**](20261028-1442-fenced-gateway-report.md)
