@@ -1,5 +1,7 @@
 # ns-shared - Plan Index
 
+- [x] [**Fenced gateway reports**](20261028-1442-fenced-gateway-report.md)
+
 - [x] [**Participant custody generation**](20261028-1156-participant-custody-generation.md)
 
 - [x] [**Shared Node posture contract**](20261028-0826-node-posture.md)

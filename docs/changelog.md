@@ -1,5 +1,12 @@
 ## 2026-10-28 [feat]
 
+Bind shared gateway reports and drain intent to accepted membership and runtime
+custody, with correlated receipts and trusted endpoint validation. Preserve
+existing observation encodings and add independent canonical and refusal vectors.
+Runtime freshness and accepted-profile checks remain consumer-owned.
+
+## 2026-10-28 [feat]
+
 Carry positive participant custody generations in versioned enrollment and
 authentication answers, bound to the issuer, participant and pending exchange.
 Refuse legacy or incomplete answers and document durable custody provenance.
