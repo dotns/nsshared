@@ -54,7 +54,10 @@ from nsvec.producers.control.account.usage import retention as control_account_u
 from nsvec.producers.control.node_control import messages as control_node_control_messages
 from nsvec.producers.control.service import canonical as control_service_canonical
 
+from nsvec.producers.control.service import floor as control_service_floor
+
 PRODUCERS = [
+    control_service_floor,
     control_account_control_fenced_gateway,
     identity_discovery,
     identity_identity,

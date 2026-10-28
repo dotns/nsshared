@@ -96,11 +96,12 @@ pub(super) fn validate(envelope: &Envelope) -> Result<(), ContractError> {
             nonzero(field(fields, "report_revision")?)?;
             let digest: Digest = fixed(field(fields, "report_digest")?)?;
             let content = byte_string(field(fields, "report_content")?)?;
-            let report = ReportContent::decode(content)?;
+            let floor = crate::service::FloorContent::decode(content)?;
+            let report = &floor.report;
             if report.publisher_identity != envelope.subject_identity
                 || report.nsd_id != envelope.nsd_id
                 || report.network_id != envelope.network_id
-                || report.canonical()?.1 != digest
+                || floor.canonical()?.1 != digest
             {
                 return Err(ContractError::DigestConflict);
             }
@@ -329,6 +330,11 @@ pub(super) fn validate(envelope: &Envelope) -> Result<(), ContractError> {
 }
 
 const ERROR_CODES: &[&str] = &[
+    "invalid-floor-cidr",
+    "invalid-floor-binding",
+    "invalid-floor-order",
+    "default-exit-unsupported",
+    "floor-limit",
     "unsupported-version",
     "unsupported-field",
     "invalid-encoding",

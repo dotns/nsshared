@@ -88,13 +88,13 @@ Relay usage is a separate unit and is never converted to the service host-write
 unit. `RelayUsage` is the eleven-field CBOR array
 
 ```text
-[1, source, destination, source_class, destination_class, issuer, participant, roster_version, direction, reporter_incarnation, encoded_bytes]
+[1, source, destination, source_class, destination_class, issuer, participant, attribution_epoch, direction, reporter_incarnation, encoded_bytes]
 ```
 
 Source and destination are existing 12-byte NodeIds. They name the fixed endpoints
 for this observation. Both classes are `relay::IdentityClass` (0 ordinary, 1
 gateway). Issuer and participant reuse `relay::ParticipantRosterScope`; participant
-is the reporter's full identity. The roster version is positive and is captured with
+is the reporter's full identity. The attribution epoch is positive and is captured with
 both classes. `reporter_incarnation` is a 16-byte byte string.
 
 `encoded_bytes` is positive: the whole accepted encoded DATA including its relay
@@ -113,12 +113,12 @@ observations.
 ### Attribution
 
 Relay attribution is historical: it records both endpoint NodeIds and classes, the
-captured roster scope and version (see [attribution](relay.md#attribution)), the
+captured roster scope and attribution epoch (see [attribution](relay.md#attribution)), the
 direction and the reporter incarnation. Delayed reports use historical attribution.
 
 `RelayUsage::validate_history` compares the retained historical
 `ParticipantRosterGeneration`, even after its expiry. Historical comparison requires
-the original complete roster scope and version and both exact endpoint classes. It
+the original complete roster scope and attribution epoch and both exact endpoint classes. It
 ignores present-day roles and current roster expiry, and performs no authentication
 or history lookup on the caller's behalf.
 
@@ -223,7 +223,7 @@ or digest is refused (`UsageError::Scope`). Outcomes (`UsageOutcome`) are:
 | `[0, accepted_through]` | `Accepted` | Durable contiguous acknowledgement, including an identical duplicate. `accepted_through` must cover this part's sequence. |
 | `[1, watermark]` | `Conflict` | Conflict, never an acknowledgement. Watermark (`UsageWatermark`) is `null` (`Absent`), `[0]` (`Malformed`), or `[1, accepted_through]` (`Present`, including zero). |
 | `[2, code]` | `Permanent` | Permanent rejection (`UsageRejection`): code 0 `Forbidden`, 1 `InvalidRequest`. |
-| `[3, issuer, participant, roster_version, node]` | `UnknownMapping` | Unknown historical relay mapping, requiring repair. The scope, version and node must belong to this relay report, and cannot acknowledge service usage or another historical epoch. |
+| `[3, issuer, participant, attribution_epoch, node]` | `UnknownMapping` | Unknown historical relay mapping, requiring repair. The scope, attribution epoch and node must belong to this relay report, and cannot acknowledge service usage or another historical epoch. |
 
 No error is an acknowledgement. Duplicate acceptance is the same ACK bytes; changed
 duplicate content has a different digest and cannot correlate to that ACK.
@@ -520,3 +520,15 @@ signature = 42d1d4f93e67bc416425e898dcd4602de8ff907fb04bc1afece16e2da67461f0535c
 source_publication = 82590227840158fc8258b78a0158208139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b39458208a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c781a3033304331473630523330433147363052333043314736305233656e6f64657378186578706c696369742d676174657761792d70726f66696c6558208a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c500a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0101584090429d8d868a806cd1794a893a62aa58d7c1bc83eb05ec01c6253b3f91d36805a08be302e720479ca897605a2ce03817f4b14441dbd2a0ac58dc91834d73330354830050040404040404040404040404040404040159010f8258ca8e0158208139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b39458208a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c781a3033304331473630523330433147363052333043314736305233656e6f646573096d75736167652d70726f66696c6500f501186418c8005849830158208a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c82726c382d636f6d706c657465642d696f2d7631706c382d72656c61792d646174612d7631584042d1d4f93e67bc416425e898dcd4602de8ff907fb04bc1afece16e2da67461f0535c7f95a02e7f503c6413e71ad1b9e61d5c9d2924507171a460fbeb94ee6e0d5840517fe4606fd23306fec9f16c2ee899e17ec2f69be23265cd368cd36556007e90bde48b86c63309d399d989ea5751736dd07ef76a2e005f30156333248224780b
 source_signature = 517fe4606fd23306fec9f16c2ee899e17ec2f69be23265cd368cd36556007e90bde48b86c63309d399d989ea5751736dd07ef76a2e005f30156333248224780b
 ```
+
+### Attribution epochs and publication refreshes
+
+Relay usage and `UnknownMapping.epoch` carry the authenticated attribution epoch,
+not the signed roster publication version. Historical validation compares
+`ParticipantRosterGeneration.attribution_epoch` and the exact issuer/participant
+scope, then both endpoint identities and classes. Refreshes with a repeated epoch
+remain valid historical evidence even with a different publication version.
+Pending report bytes, their original epochs and admission-start history remain
+unchanged after renewal. NSD resolves the epoch against retained membership and
+projection custody; missing history requires repair rather than a current-owner
+lookup. See [roster attribution](relay.md#attribution).

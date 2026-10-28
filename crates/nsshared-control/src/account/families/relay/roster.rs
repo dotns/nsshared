@@ -1,8 +1,7 @@
 use crate::{
-    account::AccountError, account::MAX_BYTES, account::MAX_IDENTITIES, account::SCHEMA,
+    account::AccountError, account::MAX_BYTES, account::MAX_IDENTITIES,
     account::codec::ascending_by, account::codec::bounded, account::codec::identity,
-    account::codec::reader, account::codec::require, account::domains::ROSTER_DOMAIN,
-    account::signing::verify,
+    account::codec::require, account::domains::ROSTER_DOMAIN, account::signing::verify,
 };
 use nsshared_codec::{cbor::CborReader, cbor::CborWriter};
 use nsshared_identity::keys::IdentityKey;
@@ -15,7 +14,7 @@ use std::{collections::BTreeSet, fmt, marker::PhantomData, str::FromStr};
 /// Minimum signed roster lifetime: 24 hours, in milliseconds.
 pub const MIN_ROSTER_VALIDITY_MS: u64 = 86_400_000;
 
-/// Strictly increasing within one issuer/participant scope; also the attribution epoch.
+/// Roster counter used for publication versions and attribution epochs independently.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct RosterVersion(pub u64);
 
@@ -34,7 +33,7 @@ pub enum IdentityClass {
 pub struct RosterEntry {
     /// Full, validated identity, never NodeId alone.
     pub identity: IdentityKey,
-    /// Class used for usage attributed to this roster version.
+    /// Class used for usage attributed to this attribution epoch.
     pub class: IdentityClass,
 }
 
@@ -45,7 +44,7 @@ pub struct AdmissionSnapshotEntry {
     pub identity: IdentityKey,
     /// Class held throughout this admission.
     pub class: IdentityClass,
-    /// Version when admission with this class began; removal or reclassification resets it.
+    /// Attribution epoch when admission with this class began; removal or reclassification resets it.
     pub admission_since: RosterVersion,
 }
 
@@ -156,12 +155,16 @@ pub fn validate_admission_snapshot(
 /// Complete signed participant roster content, before its signature wrapper.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Roster {
+    /// Signed content schema: 1 couples epoch to version; 2 carries both independently.
+    pub schema_version: u64,
     /// Issuing authority, checked against caller trust during verification.
     pub issuer: IdentityKey,
     /// Independent relay participant receiving admission authority.
     pub recipient: IdentityKey,
-    /// Monotonic version and attribution epoch.
+    /// Strictly increasing publication version within the issuer/participant scope.
     pub version: RosterVersion,
+    /// Positive billing epoch, non-decreasing independently of publication version.
+    pub attribution_epoch: RosterVersion,
     /// Issue time in Unix milliseconds.
     pub issued_at_unix_ms: u64,
     /// Exclusive validity deadline; lifetime must be at least 24 hours.
@@ -171,8 +174,37 @@ pub struct Roster {
 }
 
 impl Roster {
+    pub(super) fn read_header(input: &mut CborReader<'_>) -> Result<Self, AccountError> {
+        let arity = input.array_up_to(8)?;
+        let schema_version = input.uint()?;
+        require(matches!((schema_version, arity), (1, 7) | (2, 8)))?;
+        let issuer = identity(input)?;
+        let recipient = identity(input)?;
+        let version = RosterVersion(input.uint()?);
+        let attribution_epoch = if schema_version == 1 {
+            version
+        } else {
+            RosterVersion(input.uint()?)
+        };
+        Ok(Self {
+            schema_version,
+            issuer,
+            recipient,
+            version,
+            attribution_epoch,
+            issued_at_unix_ms: input.uint()?,
+            valid_until_unix_ms: input.uint()?,
+            identities: vec![],
+        })
+    }
+
     fn validate(&self) -> Result<(), AccountError> {
-        require(self.version.0 > 0)?;
+        require(self.version.0 > 0 && self.attribution_epoch.0 > 0)?;
+        require(match self.schema_version {
+            1 => self.attribution_epoch == self.version,
+            2 => true,
+            _ => false,
+        })?;
         require(
             self.valid_until_unix_ms
                 .checked_sub(self.issued_at_unix_ms)
@@ -187,16 +219,19 @@ impl Roster {
     /// Encodes canonical content for signing with the roster signature domain.
     ///
     /// # Errors
-    /// Rejects zero version, insufficient lifetime, duplicate/order or bound violations.
+    /// Rejects invalid schema, zero counters, inconsistent legacy epoch, lifetime or ordering.
     pub fn canonical(&self) -> Result<Vec<u8>, AccountError> {
         self.validate()?;
         let mut out = CborWriter::default();
-        out.array(7)
-            .uint(SCHEMA)
+        out.array(if self.schema_version == 1 { 7 } else { 8 })
+            .uint(self.schema_version)
             .bytes(self.issuer.as_bytes())
             .bytes(self.recipient.as_bytes())
-            .uint(self.version.0)
-            .uint(self.issued_at_unix_ms)
+            .uint(self.version.0);
+        if self.schema_version == 2 {
+            out.uint(self.attribution_epoch.0);
+        }
+        out.uint(self.issued_at_unix_ms)
             .uint(self.valid_until_unix_ms)
             .array(self.identities.len());
         for entry in &self.identities {
@@ -212,15 +247,8 @@ impl Roster {
     /// # Errors
     /// Rejects malformed fields, unknown classes, bounds and invalid lifetime/order.
     pub fn decode(bytes: &[u8]) -> Result<Self, AccountError> {
-        let mut input = reader(bytes, 7)?;
-        let mut value = Self {
-            issuer: identity(&mut input)?,
-            recipient: identity(&mut input)?,
-            version: RosterVersion(input.uint()?),
-            issued_at_unix_ms: input.uint()?,
-            valid_until_unix_ms: input.uint()?,
-            identities: vec![],
-        };
+        let mut input = CborReader::new(bytes, MAX_BYTES)?;
+        let mut value = Self::read_header(&mut input)?;
         let count = input.array_up_to(MAX_IDENTITIES)?;
         value.identities.reserve(count);
         for _ in 0..count {
@@ -273,22 +301,24 @@ impl SignedRoster {
         Ok(Self { content, signature })
     }
 
-    /// Authenticates issuer, recipient, monotonic epoch, validity and signature.
-    /// Caller persistence of `last_version` supplies rollback resistance.
+    /// Authenticates issuer, recipient, publication and epoch floors, validity and signature.
+    /// The caller persists both floors for this exact issuer/recipient scope; zero initializes them.
     ///
     /// # Errors
-    /// Rejects invalid content, wrong authority, non-increasing version, time or signature.
+    /// Rejects invalid content, wrong authority, non-increasing version, decreasing epoch, time or signature.
     pub fn verify(
         &self,
         issuer: IdentityKey,
         recipient: IdentityKey,
         last_version: u64,
+        last_attribution_epoch: u64,
         now_ms: u64,
     ) -> Result<(), AccountError> {
         let content = self.content.canonical()?;
         if self.content.issuer != issuer
             || self.content.recipient != recipient
             || self.content.version.0 <= last_version
+            || self.content.attribution_epoch.0 < last_attribution_epoch
             || now_ms < self.content.issued_at_unix_ms
             || now_ms >= self.content.valid_until_unix_ms
         {

@@ -149,18 +149,18 @@ fn independently_signed_participant_roster_vectors() {
     assert_eq!(roster.canonical().unwrap(), bytes(valid["bytes"]));
     let issuer = roster.content.issuer;
     let recipient = roster.content.recipient;
-    roster.verify(issuer, recipient, 6, 1000).unwrap();
-    assert!(roster.verify(issuer, recipient, 7, 1000).is_err());
-    assert!(roster.verify(issuer, recipient, 6, 999).is_err());
-    assert!(roster.verify(issuer, recipient, 6, 86_401_000).is_err());
-    assert!(roster.verify(recipient, recipient, 6, 1000).is_err());
-    assert!(roster.verify(issuer, issuer, 6, 1000).is_err());
+    roster.verify(issuer, recipient, 6, 6, 1000).unwrap();
+    assert!(roster.verify(issuer, recipient, 7, 6, 1000).is_err());
+    assert!(roster.verify(issuer, recipient, 6, 6, 999).is_err());
+    assert!(roster.verify(issuer, recipient, 6, 6, 86_401_000).is_err());
+    assert!(roster.verify(recipient, recipient, 6, 6, 1000).is_err());
+    assert!(roster.verify(issuer, issuer, 6, 6, 1000).is_err());
     for vector in vectors
         .iter()
         .filter(|v| v["kind"] == "signed-roster" && v["expect"] == "reject")
     {
         let result = SignedRoster::decode(&bytes(vector["bytes"]))
-            .and_then(|r| r.verify(issuer, recipient, 6, 1000));
+            .and_then(|r| r.verify(issuer, recipient, 6, 6, 1000));
         assert!(result.is_err(), "{}", vector["name"]);
     }
     let content = Roster::decode(&roster.content.canonical().unwrap()).unwrap();
@@ -180,9 +180,11 @@ fn roster_freshness_and_empty_replacement() {
     );
     assert!(validate_admission_snapshot(snapshot.as_bytes(), 1001, 100).is_err());
     let mut roster = Roster {
+        schema_version: 1,
         issuer,
         recipient: issuer,
         version: nsshared_control::account::relay::RosterVersion(1),
+        attribution_epoch: nsshared_control::account::relay::RosterVersion(1),
         issued_at_unix_ms: 0,
         valid_until_unix_ms: 86_400_000,
         identities: vec![],
@@ -227,9 +229,11 @@ fn admission_identity_count_bound_and_atomic_classes() {
     accepted.identities.sort_by_key(|entry| entry.identity);
     let issuer = accepted.identities[0].identity;
     let mut roster = Roster {
+        schema_version: 1,
         issuer,
         recipient: issuer,
         version: RosterVersion(7),
+        attribution_epoch: RosterVersion(7),
         issued_at_unix_ms: 1000,
         valid_until_unix_ms: 86_401_000,
         identities: accepted
