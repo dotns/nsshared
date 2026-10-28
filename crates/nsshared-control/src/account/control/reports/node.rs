@@ -1,5 +1,9 @@
 //! Ordinary Node liveness contracts and persisted-context validation.
-use super::{ControlReportOperation, HeartbeatRequest, HeartbeatResponse};
+use super::{
+    ControlReportOperation, GatewayRttObservation, HeartbeatRequest, HeartbeatResponse,
+    PairTransportSnapshot,
+    node_observations::{read_rtt, write_rtt},
+};
 use crate::{
     account::AccountError,
     account::MAX_BYTES,
@@ -53,6 +57,12 @@ pub struct NodeHeartbeatRequest {
     pub fence: NodeRuntimeFence,
     /// Existing process observations and pending request identifier.
     pub heartbeat: HeartbeatRequest,
+    /// Node transport verdict; omission preserves the consumer's observation.
+    pub udp_reachable: Option<bool>,
+    /// Complete unhealthy-pair set; omission is no change, empty is a clear.
+    pub pair_transport: Option<PairTransportSnapshot>,
+    /// Gateway measurements; omission supplies no measurement.
+    pub gateway_rtt: Option<Vec<GatewayRttObservation>>,
 }
 impl NodeHeartbeatRequest {
     /// Encodes bounded membership, fence and observations.
@@ -60,22 +70,64 @@ impl NodeHeartbeatRequest {
     /// Refuses invalid runtime shape or heartbeat fields and oversized input.
     pub fn canonical(&self) -> Result<Vec<u8>, AccountError> {
         let mut out = CborWriter::default();
-        out.array(4).uint(1);
+        let extended = self.udp_reachable.is_some()
+            || self.pair_transport.is_some()
+            || self.gateway_rtt.is_some();
+        out.array(if extended { 7 } else { 4 }).uint(1);
         self.scope.write(&mut out);
         self.fence.write(&mut out)?;
         out.bytes(&self.heartbeat.canonical()?);
+        if extended {
+            if let Some(value) = self.udp_reachable {
+                out.boolean(value);
+            } else {
+                out.null();
+            }
+            if let Some(snapshot) = &self.pair_transport {
+                require(snapshot.runtime_id == self.fence.runtime_id)?;
+                snapshot.write(&mut out)?;
+            } else {
+                out.null();
+            }
+            if let Some(entries) = &self.gateway_rtt {
+                write_rtt(&mut out, entries)?;
+            } else {
+                out.null();
+            }
+        }
         bounded(out.into_bytes())
     }
     /// Decodes the exact Node form, distinct from gateway heartbeat bytes.
     /// # Errors
     /// Refuses wrong arity, version, malformed fields and excessive bounds.
     pub fn decode(bytes: &[u8]) -> Result<Self, AccountError> {
-        let mut input = reader(bytes, 4)?;
-        let value = Self {
+        // Canonical arrays of four and seven items have single-byte headers.
+        let extended = bytes.first() == Some(&0x87);
+        let mut input = reader(bytes, if extended { 7 } else { 4 })?;
+        let mut value = Self {
             scope: MembershipScope::read(&mut input)?,
             fence: NodeRuntimeFence::read(&mut input)?,
             heartbeat: HeartbeatRequest::decode(input.bytes_up_to(MAX_BYTES)?)?,
+            udp_reachable: None,
+            pair_transport: None,
+            gateway_rtt: None,
         };
+        if extended {
+            if !input.take_null() {
+                value.udp_reachable = Some(input.boolean()?);
+            }
+            if !input.take_null() {
+                value.pair_transport = Some(PairTransportSnapshot::read(&mut input)?);
+            }
+            if !input.take_null() {
+                value.gateway_rtt = Some(read_rtt(&mut input)?);
+            }
+            require(
+                value.udp_reachable.is_some()
+                    || value.pair_transport.is_some()
+                    || value.gateway_rtt.is_some(),
+            )?;
+        }
         input.finish()?;
         value.canonical()?;
         Ok(value)
@@ -89,7 +141,7 @@ pub struct NodeHeartbeatResponse {
     pub scope: MembershipScope,
     /// Echo of the accepted request runtime fence.
     pub fence: NodeRuntimeFence,
-    /// Exact request receipt and inert feature observations.
+    /// Exact request receipt and endpoint-supported features; empty withdraws optional reporting.
     pub heartbeat: HeartbeatResponse,
 }
 impl NodeHeartbeatResponse {

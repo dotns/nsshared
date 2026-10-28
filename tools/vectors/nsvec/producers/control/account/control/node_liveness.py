@@ -51,4 +51,44 @@ def vectors():
     emit("gateway-request", "node.heartbeat", 0, heartbeat, "cbor")
     emit("gateway-response", "node.heartbeat", 1, [1, request_id, []], "cbor")
     emit("empty-heartbeat", "node.heartbeat", 0, [1, scope, fence, cbor.encode([1, request_id, 0, [], None])])
+    # Optional observations extend only the Node request; legacy tuples stay exact.
+    keys = sorted(ed25519.public_key(bytes([seed]) * 32) for seed in range(1, 5))
+    pairs = [[keys[0], keys[2]], [keys[0], keys[3]], [keys[1], keys[2]]]
+    pair = [fence[0], 0xffffffffffffffff, pairs]
+    rtt = [[key, tier, 0xffffffffffffffff, 0]
+           for key, tier in zip(keys, ["lt30", "lt100", "ge100", "unreachable"])]
+
+    def observation(name, udp=None, snapshot=None, gateways=None, error="none"):
+        emit(name, "node.heartbeat", 0, request + [udp, snapshot, gateways], error)
+
+    observation("udp-true", udp=True)
+    observation("udp-false", udp=False)
+    observation("pair-present", snapshot=pair)
+    observation("pair-empty", snapshot=[fence[0], 0, []])
+    observation("rtt-present", gateways=rtt)
+    observation("rtt-empty", gateways=[])
+    boundary_keys = sorted(ed25519.public_key(seed.to_bytes(32, "big")) for seed in range(256))
+    observation("pair-at-bound", snapshot=[fence[0], 1, [[key, keys[0]] for key in boundary_keys]])
+    observation("rtt-at-bound", gateways=[[key, "lt30", 0, 0xffffffffffffffff] for key in boundary_keys])
+    observation("udp-wrong-type", udp=1, error="cbor")
+    observation("observations-all", False, pair, rtt)
+    observation("observations-all-null", error="field")
+    observation("pair-runtime-mismatch", snapshot=[bytes([9]) * 16, 1, []], error="field")
+    for name, entries in [("unsorted", list(reversed(pairs))), ("duplicate", [pairs[0]] * 2)]:
+        observation("pair-" + name, snapshot=[fence[0], 1, entries], error="field")
+    for name, entries in [("unsorted", list(reversed(rtt))), ("duplicate", [rtt[0]] * 2)]:
+        observation("rtt-" + name, gateways=entries, error="field")
+    observation("rtt-unknown-tier", gateways=[[keys[0], "unknown", 1, 0]], error="field")
+    observation("pair-over-bound", snapshot=[fence[0], 1, [pairs[0]] * 257], error="cbor")
+    observation("rtt-over-bound", gateways=[rtt[0]] * 257, error="cbor")
+    for name, key in [("node-id", bytes(16)), ("legacy-id", "machine-1"),
+                      ("invalid-key", bytes([2]) * 32)]:
+        error = "field" if name == "invalid-key" else "cbor"
+        observation("pair-peer-" + name, snapshot=[fence[0], 1, [[key, keys[2]]]], error=error)
+        observation("pair-gateway-" + name, snapshot=[fence[0], 1, [[keys[0], key]]], error=error)
+        observation("rtt-gateway-" + name, gateways=[[key, "lt30", 1, 0]], error=error)
+    emit("endpoint-features", "node.heartbeat", 1,
+         [1, scope, fence, cbor.encode([1, request_id, ["gateway_rtt.v1", "pair_transport_fallback.v1"]])])
+    emit("withdraw-features", "node.heartbeat", 1,
+         [1, scope, fence, cbor.encode([1, request_id, []])])
     return out

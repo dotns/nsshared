@@ -1,6 +1,8 @@
 //! Pure observations and authenticated report operation dispatch.
 mod node;
+mod node_observations;
 pub use node::*;
+pub use node_observations::*;
 
 use crate::{
     account::AccountError, account::MAX_BYTES, account::codec::bounded, account::codec::data_text,
