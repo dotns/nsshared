@@ -72,8 +72,9 @@ These changes follow the delivered revision and were not part of the package
 that was sent:
 
 - [Q07](#q07-identity-lifecycle--node-owner-with-nsd-confirmation): registration-only
-  lifecycle placeholders and the `enrollment_consumer_vectors` extension; no schema
-  or codec change.
+  lifecycle placeholders and the `enrollment_consumer_vectors` extension; answered
+  by the code check of nsshared `v0.7.0`, ns `c96fe8fc` and NSD `58f20210`;
+  no schema or codec change.
 - Scope text: every family applies one rule to opaque authority scope text, 1 to
   256 UTF-8 bytes without whitespace or control characters (see the profile's
   [scope text rule](../spec/account/profile.md#scope-text)). Publication
@@ -101,7 +102,7 @@ explicitly frame only. NSD supplies producer vectors for every row.
 
 | ID / family | State at the candidate revision | Detailed contract work / review question |
 | --- | --- | --- |
-| 1 `enrollment` | Binding/lifecycle and complete control exchange specified in the control-exchange delta | Registration/source and lifecycle handling are adopted in source; current matched enrollment corpus bytes, live confirmation and the Q07/Q11 owner answers remain open. See [adoption evidence](account-handoff.md#adoption-core). |
+| 1 `enrollment` | Binding/lifecycle and complete control exchange specified in the control-exchange delta | Registration/source and lifecycle handling are adopted in source; Q07 is answered by the code check, and Q11 has bounded answers with remaining producer-owned vectors due from NSD before H03. Current matched enrollment corpus bytes and live confirmation remain open. See [adoption evidence](account-handoff.md#adoption-core). |
 | 2 `realms-peers` | Complete canonical realm contributions, NodeBinding/NodeRecord checks and independent replacement/refusal vectors delivered | Canonical realm/source publication production and ns recorded-byte consumption are adopted; complete owner confirmation, refusal coverage and live source retirement remain open. See [adoption evidence](account-handoff.md#adoption-publication). |
 | 3 `egress` | Pure grant publication and independent consumer vectors delivered | Protocol-qualified grant, payer and withdrawal projection is adopted in source; complete independent producer vectors, owner answers and live joins remain open. See [adoption evidence](account-handoff.md#adoption-grants). |
 | 4 `exit-subnet` | Provider grants and separate client route selection retain exact bytes; mapped route admission needs no ordinary provider host rule | NSD grant/client-route production and ns recorded-byte consumers are adopted; live installation/replacement/withdrawal and default/nested Exit qualification remain open. See [adoption evidence](account-handoff.md#adoption-subnet). |
@@ -261,33 +262,37 @@ input must never install an empty roster. This request does not implement it.
 
 ### Q07: Identity lifecycle — node owner, with NSD confirmation
 
-2026-10-27 status: Registration/source and lifecycle handling are adopted in source; current matched enrollment corpus bytes, live confirmation and the Q07/Q11 owner answers remain open. See [adoption evidence](account-handoff.md#adoption-core).
+2026-10-28 status: **Answered by a read-only code check** of nsshared
+`v0.7.0`, ns main `c96fe8fc` and NSD refactor/unified-engine `58f20210`.
+The current behavior is:
 
-Does the node contract agree that `MembershipIdentityVersion` advances within
-one NSD membership, `RecordGeneration` advances only within one full identity
-across all served realms, and `GrantIncarnation`/`ReporterIncarnation` are
-opaque equality-only tokens? Identity replacement increases membership version,
-replaces both I and K, rederives NodeId/N6/N4 and may restart generation;
-K-only rotation preserves membership version, I and derived identifiers while
-changing K and increasing generation. Existing same-generation record conflict
-rules remain. Please specify when each transition is chosen and provide
-independent vectors for both, stale generation and every fresh-incarnation regrant.
+1. Refresh keeps membership version, I, K and generation, and re-signs with a
+   newer `issued_at`: shared `RecordDecision::Refreshed` in
+   `crates/nsshared-identity/src/record.rs`. Same-K registration with a higher
+   generation is refused: `enrollment-same-key-record-refresh` in
+   `crates/nsshared-control/tests/vectors/account/node/enrollment.vec` has
+   decision and reason `lifecycle-required`. Within an identity, generation
+   advances only when K changes; there is no refresh transition tag.
+2. There is one counter: `NodeBinding.generation` (`RecordGeneration`) is exactly
+   the signed `NodeRecord` generation. There is no separate K generation.
+3. `MembershipIdentityVersion` is `u64` on the wire. Ordinary ns derivation is
+   limited to `u32` and refuses its own overflow. The shared decoder, NSD and
+   peer consumers accept any positive `u64` and must not impose a `u32` ceiling.
+4. The staged-restart refusal holds per resolved accepted binding. NSD treats
+   a freshly approved new I without a lifecycle link as a new Node. A differing
+   binding without a valid lifecycle from that resolved accepted binding is
+   refused; accepted registration remains the durable version boundary.
 
-Please resolve the gateway consumer's three candidate mismatches: there is no
-same-I/K record-refresh transition tag; NodeBinding has account record generation
-but no separate K generation beside the existing signed NodeRecord generation;
-and the candidate membership version is u64 while ordinary membership derivation
-accepts u32 and advances by checked addition. How is the account binding joined
-to the exact signed NodeRecord, and which counter advances for refresh versus
-K rotation? No new tag or signed field is assumed here.
-
-Confirm that a differing binding without a valid lifecycle from the accepted
-binding is refused, including a rejected staged-version restart after an
-unaccepted replacement; lower versions are refused too. Accepted registration
-is the durable version boundary. Ordinary derivation yields one K per membership
-version; stable-I rotation requires an explicit producer-profile authorization
-and supplied K. Quick's K-per-generation derivation is a different profile.
-Please provide independent vectors for these restart and authorization decisions.
+Identity replacement increases membership version, replaces I and K, rederives
+NodeId/N6/N4 and may restart generation. K-only rotation preserves membership
+version, I and derived identifiers while changing K and increasing generation.
+Existing same-generation record conflict rules remain. `GrantIncarnation` and
+`ReporterIncarnation` remain opaque equality-only tokens. Ordinary derivation
+yields one K per membership version; stable-I rotation requires explicit
+producer-profile authorization and supplied K. Quick's K-per-generation
+derivation is a different profile. The answer changes no contract or code.
+See [adoption evidence](account-handoff.md#adoption-core) for the separate
+producer-vector and live-confirmation obligations.
 
 The candidate registration profile now explicitly treats Lifecycle's final two
 mandatory 16-byte positions as wire placeholders. The requesting Node sends
@@ -330,7 +335,8 @@ The independent zero-placeholder `enrollment_consumer_vectors` preserve
 before/after mismatch and unauthorized-rotation refusals alongside valid identity
 replacement and authorized rotation. These are candidate fixtures, not producer
 confirmation. NSD N24/N26 and ns S17 live adoption confirmation and complete requested producer-owned vector coverage remain
-outstanding; no response or approval is recorded. No schema, crate-source or
+outstanding; the code-check answer above does not establish live interoperability
+or authorize a new rebind profile. No schema, crate-source or
 codec change, gateway source change or gateway repin is required by this delta.
 
 ### Q08: Complete replacement semantics — NSD and node owners
@@ -407,46 +413,60 @@ outstanding runtime capability, not a contract change or recorded agreement.
 
 ### Q11: Enrollment payload — NSD owner
 
-2026-10-27 status: Registration/source and lifecycle handling are adopted in source; current matched enrollment corpus bytes, live confirmation and the Q07/Q11 owner answers remain open. See [adoption evidence](account-handoff.md#adoption-core).
+2026-10-28 status: **Partially answered; remaining producer vectors open.**
+A read-only code check of NSD `3cd5f2bd`, ns `3349fe16` and nsshared `v0.7.0`
+answers the following [control exchange](../spec/account/control.md) and
+[enrollment](../spec/account/node.md#enrollment) items:
 
-Confirm the [independent snapshot poll candidate](../spec/account/control.md): PublicationSnapshotRequest, config.snapshot on the existing confidential control endpoint, exact sorted scopes, retained active subscription boot nonce/attempt and signed response nonce correlation. The only response is a signed B43 Response with canonical `[1, [bstr(SourcePublication), ...]]` payload, request-derived Snapshot delivery and independently accepted exact source for each requested scope, retaining existing per-key versions. Plain and mixed entries reject the whole poll; snapshot entries have no SSE/Base64 framing limit. No predecessor kind selector exists; only snapshot-owned kinds are requested, and explicit stream selectors are refused as unknown fields. Confirm exact scope authorization, active subscription binding and response correlation echo. Independent publication-snapshot-request.vec fixtures are not real producer output; NSD confirmation remains outstanding.
+- **Snapshot poll: answered, consistent.** `PublicationSnapshotRequest` uses the
+  exact sorted request, active subscription boot nonce/attempt pair, exact
+  admitted scopes and signed nonce echo. Only source-bound snapshot containers
+  are accepted, with committed inner versions preserved. ns rejects invalid,
+  plain or mixed polls as a whole. Admission is application-instance-local.
+- **Subscription: answered, consistent.** `PublicationSubscriptionRequest` is
+  an eight-item request carried in the `request` query parameter, using
+  `config.stream`, full authority scopes and family-7 indices. Each
+  `config-envelope.v1` event contains one Base64URL `SourcePublication`, with
+  inclusive 1,398,139-byte framing and 1,048,576-byte decoded ceilings. Ordinary
+  ns requests no public ingress.
+- **Registration/authentication: answered, consistent.** `RegistrationRequest`,
+  `RegistrationAcceptance`, `AuthenticationRequest` and `AuthenticationResponse`
+  retain the full binding checks. Fresh registration joins I, approval bytes,
+  Network, NSD and grant. The profile is `explicit-gateway-profile`, also used
+  by ordinary Nodes. Equal reuse of a consumed grant permits capability metadata
+  refresh with the full binding unchanged.
+- **Capability syntax: answered, consistent.** Enrollment declares 0..64 sorted,
+  unique identifiers, each 1..64 ASCII bytes from `[a-z0-9._-]`. NSD accepts any
+  valid identifier except retired `exit-wss-carrier`; ordinary ns at the checked
+  revision declares `node.control` and `node_local_names.v1`. `node.control` is
+  an opaque declaration with no semantics today.
 
-Confirm the exact [publication subscription candidate](../spec/account/control.md): PublicationSubscriptionRequest, config.stream, /api/v1/config/stream, full issuer/recipient/realm/scope entries, enrollment capability syntax, family 7 public ingress indices and required nonzero boot nonce/positive u32 attempt counter. Confirm `request` as the subscription query parameter, `config-envelope.v1` as the single SourcePublication Base64 event, the shared inclusive 1,398,139-byte framing ceiling and independent decoded 1,048,576-byte ceiling. Confirm producer bytes and external scope authorization, confidential signed carrier use and unchanged publication versions/channel ownership. NSD confirmation remains outstanding; independent fixture vectors do not constitute producer agreement.
+**Items 3 and 5: answered.** Shared `InformationRequest`/`InformationResponse`
+and the family-11 `BootstrapDiscovery` tuple are not adopted by NSD/ns at
+`3cd5f2bd`/`3349fe16`; NSD adds the shared forms (owner decision 2026-10-28), ns
+keeps JSON for now. At those revisions, shared `info.get` is an unknown API at
+NSD, which serves the legacy named map, and discovery is JSON `control_trust.v1`.
+This records the adoption decision, not implementation of the shared forms at
+those checked revisions.
 
-The [complete control exchange candidate](../spec/account/control.md) specifies
-RegistrationRequest/RegistrationAcceptance, AuthenticationRequest/Response and
-InformationRequest/Response and their exact tuple fields and constants. Confirm
-the provisioned membership/credential join, accepted profile/capabilities and
-I/K/version/generation comparison, including lifecycle refusal. Consumer vectors
-are independently generated in `control-exchange.vec`, not NSD producer output.
-Confirmation and complete requested producer-owned vector coverage remain outstanding; no agreement is recorded.
+The repeated [Q07](#q07-identity-lifecycle--node-owner-with-nsd-confirmation)
+points are **answered** by the read-only check of nsshared `v0.7.0`, ns main
+`c96fe8fc` and NSD refactor/unified-engine `58f20210`: refresh retains membership
+version, I, K and generation and re-signs with newer `issued_at`
+(`RecordDecision::Refreshed`); same-K registration at higher generation is
+`lifecycle-required` (`enrollment-same-key-record-refresh`), and generation
+advances only when K changes. No refresh tag or separate K generation exists:
+the binding generation equals the signed `NodeRecord` generation. Membership
+version is positive `u64` on the wire and in shared/NSD/peer consumption;
+ordinary ns derivation is limited to `u32` and refuses its own overflow without
+imposing that ceiling on consumers. Staged-restart refusal is per resolved
+accepted binding; freshly approved new I without a lifecycle link is a new Node
+at NSD.
 
-
-The [Enrollment section](../spec/account/node.md#enrollment) adds the
-binding/capability publication and acceptance decisions beyond the published
-candidate revision; the family table above retains that revision's state.
-
-What exact schema, field widths, capability/profile identifiers and endpoint
-forms will complete `enrollment`, including authenticated authority/recipient,
-ordinary per-membership I/K registration and own-node binding? Name independent
-NSD producer vectors for registration, replacement and invalid binding.
-
-The enrollment candidate now defines `[1, binding, capabilities]`, with 0..64
-opaque identifiers of 1..64 ASCII bytes matching `[a-z0-9._-]+`, strictly sorted
-and duplicate-free. Which exact capability identifier values and profile meanings
-should ordinary Nodes declare? Confirm these bounds and provide independent
-vectors for empty, supported, unknown, duplicate and out-of-bounds sets. Confirm
-Q07's restart refusal, separate account/signed K generation, missing refresh tag
-and u64/u32 derivation width before live producer use. The endpoint and
-authenticated envelope candidates below still need independent producer confirmation.
-
-The [bootstrap and envelope trust candidate](../spec/account/control.md)
-now details family 11 discovery as `[1, 1, https_origin, [1], endpoints,
-noise_key_or_null, quic_spki_pins, envelope_pins]`. Endpoints retain preference
-order and permit HTTPS/Noise/QUIC only. Confirm canonical origins, WebPKI source,
-raw Noise key, full-SPKI pins and RFC 7638 signer pins, including local intersection.
-Please provide independent NSD discovery producer vectors for accepted order,
-missing trust, empty intersections, noncanonical/duplicate pins and downgrades.
+**Still open:** complete producer-owned vectors for the remaining items stay
+with the NSD owner before H03, including information/discovery accepted and
+refused cases. Shared fixtures do not replace that coverage or establish live
+interoperability. See [adoption evidence](account-handoff.md#adoption-core).
 
 ### Q12: Realm and peer payload — NSD owner
 
@@ -832,7 +852,8 @@ delivery, with its actual date. Record `answered` with the answer's durable
 location. Use `outstanding` for an unresolved or unreceived answer after delivery;
 retain the delivery date and any partial answer reference. Outstanding answers
 do not block candidate preparation and do not imply approval. The owner reported
-delivery of every row on 2026-10-25; no answer has been received.
+delivery of every row on 2026-10-25. Q07 is answered by the code check; Q11
+has the bounded answers and remaining producer-vector obligation recorded above.
 These statuses track external producer review; Q18's owner design choice is
 settled. Shared definitions and bounded upstream adoption are delivered; owner
 answers and live confirmation remain open as detailed in the linked evidence.
@@ -845,11 +866,11 @@ answers and live confirmation remain open as detailed in the linked evidence.
 | Q04 | NSD and node | sent; answer open | 2026-10-25 | No received owner answer; [adoption evidence](account-handoff.md#adoption-roster) |
 | Q05 | NSD | sent; answer open | 2026-10-25 | No received owner answer; [adoption evidence](account-handoff.md#adoption-usage) |
 | Q06 | NSD | sent; answer open | 2026-10-25 | No received owner answer; [adoption evidence](account-handoff.md#adoption-roster) |
-| Q07 | Node, with NSD | sent; answer open | 2026-10-25 | No received owner answer; [adoption evidence](account-handoff.md#adoption-core) |
+| Q07 | Node, with NSD | answered by code check | 2026-10-25 | [Q07 answer, 2026-10-28](#q07-identity-lifecycle--node-owner-with-nsd-confirmation) |
 | Q08 | NSD and node | sent; answer open | 2026-10-25 | No received owner answer; [adoption evidence](account-handoff.md#adoption-publication) |
 | Q09 | NSD and node | sent; answer open | 2026-10-25 | No received owner answer; [adoption evidence](account-handoff.md#adoption-publication) |
 | Q10 | NSD | sent; answer open | 2026-10-25 | No received owner answer; [adoption evidence](account-handoff.md#adoption-usage) |
-| Q11 | NSD | sent; answer open | 2026-10-25 | No received owner answer; [adoption evidence](account-handoff.md#adoption-core) |
+| Q11 | NSD | partially answered; producer vectors open before H03 | 2026-10-25 | [Q11 code-check answers and adoption decision, 2026-10-28](#q11-enrollment-payload--nsd-owner) |
 | Q12 | NSD | sent; answer open | 2026-10-25 | No received owner answer; [adoption evidence](account-handoff.md#adoption-publication) |
 | Q13 | NSD | sent; answer open | 2026-10-25 | No received owner answer; [adoption evidence](account-handoff.md#adoption-grants) |
 | Q14 | NSD | sent; answer open | 2026-10-25 | No received owner answer; [adoption evidence](account-handoff.md#adoption-routes) |
@@ -932,7 +953,7 @@ producer cases in family 7 review, independently of its reference/token syntax.
 
 ## Control exchange family state delta
 
-2026-10-27 status: Registration/source and lifecycle handling are adopted in source; current matched enrollment corpus bytes, live confirmation and the Q07/Q11 owner answers remain open. See [adoption evidence](account-handoff.md#adoption-core).
+2026-10-28 status: Registration/source and lifecycle handling are adopted in source; Q07 is answered by the code check, and Q11 has bounded answers with remaining producer-owned vectors due from NSD before H03. Current matched enrollment corpus bytes and live confirmation remain open. See [adoption evidence](account-handoff.md#adoption-core).
 
 Implementation revision: `1c9602c5e626e186ea6c8c0d85b42536c43c508e`.
 Review the exact source, tuple specification and independent fixture bytes at
@@ -940,8 +961,8 @@ that revision; the earlier package revision does not include this delta.
 
 | Family | Current candidate state | Review status |
 | --- | --- | --- |
-| Enrollment | Registration, explicit acceptance and lifecycle comparison implemented | Registration/source and lifecycle handling are adopted in source; current matched enrollment corpus bytes, live confirmation and the Q07/Q11 owner answers remain open. See [adoption evidence](account-handoff.md#adoption-core). |
-| Bootstrap / v1 replacement | Information and authentication values reuse confidential signed envelopes and public signing input | Registration/source and lifecycle handling are adopted in source; current matched enrollment corpus bytes, live confirmation and the Q07/Q11 owner answers remain open. See [adoption evidence](account-handoff.md#adoption-core). |
+| Enrollment | Registration, explicit acceptance and lifecycle comparison implemented | Registration/source and lifecycle handling are adopted in source; Q07 is answered by the code check, and Q11 has bounded answers with remaining producer-owned vectors due from NSD before H03. Current matched enrollment corpus bytes and live confirmation remain open. See [adoption evidence](account-handoff.md#adoption-core). |
+| Bootstrap / v1 replacement | Information and authentication values reuse confidential signed envelopes and public signing input | Registration/source and lifecycle handling are adopted in source; Q07 is answered by the code check, and Q11 has bounded answers with remaining producer-owned vectors due from NSD before H03. Current matched enrollment corpus bytes and live confirmation remain open. See [adoption evidence](account-handoff.md#adoption-core). |
 | Machine claims / v1 replacement | RS256 public claims, JWK forms, pin qualification and distinct audience predicates implemented | Producer vectors and possible later gateway audience requirement open |
 
 This delta accompanies the changed source and independent fixtures; the earlier
@@ -1035,7 +1056,7 @@ is not contained in the earlier published package revision.
 
 ## Signed source authority response delta
 
-2026-10-27 status: Registration/source and lifecycle handling are adopted in source; current matched enrollment corpus bytes, live confirmation and the Q07/Q11 owner answers remain open. See [adoption evidence](account-handoff.md#adoption-core).
+2026-10-28 status: Registration/source and lifecycle handling are adopted in source; Q07 is answered by the code check, and Q11 has bounded answers with remaining producer-owned vectors due from NSD before H03. Current matched enrollment corpus bytes and live confirmation remain open. See [adoption evidence](account-handoff.md#adoption-core).
 
 Successful registration now requires `[1, scope, bstr(Enrollment), profile,
 decision, bstr(SignedSourceBinding)]`, including Equal. Successful authentication
@@ -1052,7 +1073,7 @@ the immutable revision containing this response extension when adopting it.
 
 ## Explicit authentication source selection
 
-2026-10-27 status: Registration/source and lifecycle handling are adopted in source; current matched enrollment corpus bytes, live confirmation and the Q07/Q11 owner answers remain open. See [adoption evidence](account-handoff.md#adoption-core).
+2026-10-28 status: Registration/source and lifecycle handling are adopted in source; Q07 is answered by the code check, and Q11 has bounded answers with remaining producer-owned vectors due from NSD before H03. Current matched enrollment corpus bytes and live confirmation remain open. See [adoption evidence](account-handoff.md#adoption-core).
 
 AuthenticationRequest is exactly `[1, membership_scope, NodeBinding, "control",
 [served_realm, publication_scope]]`. The selector is required, with no default or
