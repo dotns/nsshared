@@ -1,3 +1,9 @@
+## 2026-10-28 [feat]
+
+Carry declaration metadata and explicit-CIDR Exit profiles in versioned M6
+whole-floor reports. Preserve legacy report APIs and bytes, validate canonical
+references and bounds, and correlate acknowledgements with the complete digest.
+
 ## 2026-10-28 [build]
 
 Use union merging for the changelog and plan/task indexes so parallel appended

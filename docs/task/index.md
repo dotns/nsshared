@@ -1,5 +1,7 @@
 # ns-shared - Task List
 
+- [x] [**M6 floor content**](20261028-2010-m6-floor-content.md)
+
 - [x] [**Preserve appended documentation entries**](20261028-merge-documentation-entries.md)
 
 - [x] [**Fenced gateway reports**](20261028-1442-fenced-gateway-report.md)
