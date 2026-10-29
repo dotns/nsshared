@@ -38,7 +38,7 @@ producer, consumer, retention and release prerequisites stay open.
 
 Failing-test-first is not applicable: only non-executable documentation changed;
 no source, test or vector was modified. `just dev-check` and the specified
-`just self-check feat/r3-campaign-2` passed. Self-check selected full validation:
+`just self-check` passed. Self-check selected full validation:
 70 script tests, 421 default-feature tests and 579 account-feature tests passed,
 zero nextest skips; 48 fixture files, semver/API, doctests and documentation passed.
 Validation covers shared contracts only. Final release revision/cohort remain unset.

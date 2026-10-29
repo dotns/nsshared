@@ -37,7 +37,7 @@ without selecting a release revision.
 
 ## Validation
 
-`just dev-check` passed before tests. `just self-check feat/r3-campaign-2`
+`just dev-check` passed before tests. `just self-check`
 passed on documentation commit `252f9b9`: format/lint, dependencies, typos,
 48 fixture files, semver/API checks, 70 script tests, 421 default-feature and
 579 account-feature tests (zero skipped), doctests and Rust documentation.
