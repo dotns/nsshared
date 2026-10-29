@@ -1,5 +1,7 @@
 # ns-shared - Task List
 
+- [x] [**Exact registration recovery**](20261029-1238-registration-recovery.md)
+
 - [x] [**Candidate release and migration inventory**](20261029-1215-candidate-release-inventory.md)
 
 - [x] [**Separate roster attribution epochs**](20261028-2141-roster-attribution-epoch.md)

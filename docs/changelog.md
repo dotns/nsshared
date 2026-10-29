@@ -1,3 +1,9 @@
+## 2026-10-29 [feat]
+
+Add exact registration recovery context and original signed acceptance
+attachments. Validate retained request, lifecycle, issuer and custody floors
+independently of transport nonces while keeping current authority separate.
+
 ## 2026-10-29 [docs]
 
 Map candidate whole-floor reports and independent roster counters to current
