@@ -1044,6 +1044,12 @@ runtime or a change to other collections' ownership.
 
 ## M6 service control carrier
 
+Versioned whole-floor `report.replace` content is specified in
+[the M6 floor contract](../m6-floor.md). The operation and Node runtime fence
+are unchanged; floor-aware decoding and pending correlation retain metadata
+and explicit-CIDR Exit profiles in the acknowledged content digest.
+
+
 The carrier maps M6 service control onto the confidential control endpoint. It
 has no transport, persistence, session state or I/O. It replaces the JSON
 ControlEnvelope carrier of the M6 service lifecycle; the M6 schema, runtime and

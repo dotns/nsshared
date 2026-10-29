@@ -1,8 +1,7 @@
 use crate::{
     account::AccountError, account::MAX_BYTES, account::MAX_IDENTITIES, account::codec::identity,
-    account::codec::reader, account::relay::IdentityClass, account::relay::MIN_ROSTER_VALIDITY_MS,
-    account::relay::Roster, account::relay::RosterEntry, account::relay::RosterVersion,
-    account::relay::SignedRoster,
+    account::relay::IdentityClass, account::relay::MIN_ROSTER_VALIDITY_MS, account::relay::Roster,
+    account::relay::RosterEntry, account::relay::RosterVersion, account::relay::SignedRoster,
 };
 use nsshared_codec::cbor::CborReader;
 use nsshared_identity::keys::IdentityKey;
@@ -23,8 +22,10 @@ pub struct ParticipantRosterScope {
 pub struct ParticipantRosterGeneration {
     /// Signed issuer/recipient scope; no broader authorization is implied.
     pub scope: ParticipantRosterScope,
-    /// Monotonic roster version and attribution epoch for every entry.
+    /// Strictly increasing publication version for replay resistance.
     pub version: RosterVersion,
+    /// Authenticated billing epoch shared by every entry.
+    pub attribution_epoch: RosterVersion,
     /// Complete identity/class mapping. Empty withdraws all membership.
     pub identities: Vec<RosterEntry>,
     /// Signed issue time in Unix milliseconds.
@@ -46,9 +47,12 @@ pub enum ParticipantRosterError {
     /// The publication addresses another participant.
     #[error("wrong participant roster recipient")]
     Recipient,
-    /// The version is below or equal to the accepted epoch.
+    /// The publication version is below or equal to the accepted version.
     #[error("stale or replayed participant roster version")]
     Stale,
+    /// The attribution epoch is below the accepted epoch in this scope.
+    #[error("decreasing participant roster attribution epoch")]
+    EpochDecrease,
     /// The signed issue time is later than the supplied clock.
     #[error("participant roster issue is in the future")]
     FutureIssue,
@@ -99,7 +103,7 @@ fn validate_content(roster: &Roster) -> Result<(), ParticipantRosterError> {
 
 impl SignedRoster {
     /// Authenticates a complete publication and returns its atomic attribution epoch.
-    /// The caller supplies trust, persisted version and current time; no state is stored.
+    /// The caller supplies trust, both persisted floors and current time; no state is stored.
     ///
     /// # Errors
     /// Returns a typed authority, version, time, lifetime, signature or mapping refusal.
@@ -108,6 +112,7 @@ impl SignedRoster {
         issuer: IdentityKey,
         recipient: IdentityKey,
         last_version: u64,
+        last_attribution_epoch: u64,
         now_ms: u64,
     ) -> Result<ParticipantRosterGeneration, ParticipantRosterError> {
         validate_content(&self.content)?;
@@ -123,23 +128,33 @@ impl SignedRoster {
         if roster.version.0 <= last_version {
             return Err(ParticipantRosterError::Stale);
         }
+        if roster.attribution_epoch.0 < last_attribution_epoch {
+            return Err(ParticipantRosterError::EpochDecrease);
+        }
         if now_ms < roster.issued_at_unix_ms {
             return Err(ParticipantRosterError::FutureIssue);
         }
         if now_ms >= roster.valid_until_unix_ms {
             return Err(ParticipantRosterError::Expired);
         }
-        self.verify(issuer, recipient, last_version, now_ms)
-            .map_err(|error| match error {
-                AccountError::Signature => ParticipantRosterError::Signature,
-                other => ParticipantRosterError::Contract(other),
-            })?;
+        self.verify(
+            issuer,
+            recipient,
+            last_version,
+            last_attribution_epoch,
+            now_ms,
+        )
+        .map_err(|error| match error {
+            AccountError::Signature => ParticipantRosterError::Signature,
+            other => ParticipantRosterError::Contract(other),
+        })?;
         Ok(ParticipantRosterGeneration {
             scope: ParticipantRosterScope {
                 issuer: roster.issuer,
                 recipient: roster.recipient,
             },
             version: roster.version,
+            attribution_epoch: roster.attribution_epoch,
             identities: roster.identities.clone(),
             issued_at_unix_ms: roster.issued_at_unix_ms,
             valid_until_unix_ms: roster.valid_until_unix_ms,
@@ -158,19 +173,13 @@ pub fn verify_participant_roster(
     issuer: IdentityKey,
     recipient: IdentityKey,
     last_version: u64,
+    last_attribution_epoch: u64,
     now_ms: u64,
 ) -> Result<ParticipantRosterGeneration, ParticipantRosterError> {
     let mut carrier = CborReader::new(bytes, MAX_BYTES)?;
     carrier.array(2)?;
-    let mut input = reader(carrier.bytes_up_to(MAX_BYTES)?, 7)?;
-    let mut content = Roster {
-        issuer: identity(&mut input)?,
-        recipient: identity(&mut input)?,
-        version: RosterVersion(input.uint()?),
-        issued_at_unix_ms: input.uint()?,
-        valid_until_unix_ms: input.uint()?,
-        identities: vec![],
-    };
+    let mut input = CborReader::new(carrier.bytes_up_to(MAX_BYTES)?, MAX_BYTES)?;
+    let mut content = Roster::read_header(&mut input)?;
     let count = input.array_up_to(MAX_IDENTITIES)?;
     content.identities.reserve(count);
     for _ in 0..count {
@@ -190,7 +199,13 @@ pub fn verify_participant_roster(
     input.finish()?;
     let signature = carrier.fixed_bytes()?;
     carrier.finish()?;
-    SignedRoster { content, signature }.verify_generation(issuer, recipient, last_version, now_ms)
+    SignedRoster { content, signature }.verify_generation(
+        issuer,
+        recipient,
+        last_version,
+        last_attribution_epoch,
+        now_ms,
+    )
 }
 
 /// Supplied-clock lifecycle state of already authenticated complete authority.

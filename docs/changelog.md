@@ -1,5 +1,22 @@
 ## 2026-10-28 [feat]
 
+Separate signed roster publication versions from attribution epochs with a new
+canonical schema. Preserve legacy signed bytes, enforce both persisted floors,
+and retain original usage attribution across publication refreshes.
+
+## 2026-10-28 [feat]
+
+Carry declaration metadata and explicit-CIDR Exit profiles in versioned M6
+whole-floor reports. Preserve legacy report APIs and bytes, validate canonical
+references and bounds, and correlate acknowledgements with the complete digest.
+
+## 2026-10-28 [build]
+
+Use union merging for the changelog and plan/task indexes so parallel appended
+entries are retained. Preserve the existing fixture line-ending attribute.
+
+## 2026-10-28 [feat]
+
 Bind shared gateway reports and drain intent to accepted membership and runtime
 custody, with correlated receipts and trusted endpoint validation. Preserve
 existing observation encodings and add independent canonical and refusal vectors.
