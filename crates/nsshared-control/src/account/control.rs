@@ -6,6 +6,7 @@ pub(in crate::account) mod exchange;
 pub(in crate::account) mod machine_token;
 pub(in crate::account) mod methods;
 pub(in crate::account) mod node_l3_status;
+pub(in crate::account) mod registration_recovery;
 pub(in crate::account) mod reports;
 pub(in crate::account) mod route_command;
 pub(in crate::account) mod service_control;
@@ -65,3 +66,7 @@ pub use service_control::{
     validate_reverse_result, validate_stream_event, validate_unary_reply, validate_unary_request,
 };
 pub use signed_request::{SignedAccountRequest, SignedUrlScope};
+
+pub use registration_recovery::{
+    RegistrationRecoveryAttachment, RegistrationRecoveryExpectation, RegistrationRecoveryQuery,
+};
