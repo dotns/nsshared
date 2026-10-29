@@ -1,3 +1,9 @@
+## 2026-10-29 [docs]
+
+Map candidate whole-floor reports and independent roster counters to current
+APIs, fixtures and migration examples. Preserve legacy compatibility boundaries
+and keep external adoption, review, retention and release prerequisites open.
+
 ## 2026-10-28 [feat]
 
 Separate signed roster publication versions from attribution epochs with a new
