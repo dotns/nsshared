@@ -1,6 +1,6 @@
 # Candidate release and migration inventory
 
-- **status**: in_progress
+- **status**: completed
 - **priority**: P1
 - **createdAt**: 2026-10-29 12:15
 
@@ -27,3 +27,18 @@ current shared service fixtures live under nsshared-control.
 ## Notes
 
 Documentation-only work; executable behavior and fixture bytes remain unchanged.
+
+## Results
+
+All acceptance items are documented in the four review documents. Public names,
+legacy-byte boundaries and current fixture locations were checked against shared
+specifications and public declarations. Candidate roster source compatibility
+is explicitly distinguished from schema-1 wire compatibility. Remaining review,
+producer, consumer, retention and release prerequisites stay open.
+
+Failing-test-first is not applicable: only non-executable documentation changed;
+no source, test or vector was modified. `just dev-check` and the specified
+`just self-check feat/r3-campaign-2` passed. Self-check selected full validation:
+70 script tests, 421 default-feature tests and 579 account-feature tests passed,
+zero nextest skips; 48 fixture files, semver/API, doctests and documentation passed.
+Validation covers shared contracts only. Final release revision/cohort remain unset.

@@ -1,6 +1,6 @@
 # Candidate release and migration inventory
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-10-29 12:15
 - **approvedAt**: 2026-10-29 12:15
 - **relatedTask**: 20261029-1215-candidate-release-inventory
@@ -34,3 +34,12 @@ Explicitly retain their separate consumer obligations and unset release cohort.
 Deferring all documentation until release would leave candidate consumers without
 an accurate compatibility boundary. Candidate-only guidance supplies that boundary
 without selecting a release revision.
+
+## Validation
+
+`just dev-check` passed before tests. `just self-check feat/r3-campaign-2`
+passed on documentation commit `252f9b9`: format/lint, dependencies, typos,
+48 fixture files, semver/API checks, 70 script tests, 421 default-feature and
+579 account-feature tests (zero skipped), doctests and Rust documentation.
+Only these completion records changed afterward. Local documentation review
+found no remaining issue; no downstream or live qualification was performed.
