@@ -1,6 +1,6 @@
 # Exact registration recovery
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-10-29 12:38
 - **approvedAt**: 2026-10-29 12:38
 - **relatedTask**: 20261029-1238-registration-recovery
@@ -28,3 +28,7 @@ Reusing the original BootstrapEnvelope verifier incorrectly requires the histori
 ## Annotations
 
 Implementation is authorized. Existing named-field receipt transport, persistence, issuer pinning and current-authority observations remain consumer responsibilities.
+
+## Verification
+
+Implemented the proposal without changing legacy registration encodings, receipt transport, dependencies or mutable state. Shared lifecycle comparisons and exact caller-provided source expectations are used by recovery. Independent vectors preserve original source signatures across fresh query correlations. The existing self-check passed on `6a5ea834642f4f7a9574f8849418fb273beffa41`, including vectors, default-feature compatibility, 70 script tests and both nextest feature sets (421 and 581 passing tests). Only completion records changed afterward.
