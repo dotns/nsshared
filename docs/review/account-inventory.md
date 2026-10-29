@@ -677,3 +677,52 @@ records the incompatible predecessor.
 The sources docs/participant-authority-candidate.md, docs/profile-publications-candidate.md
 and the folded sections of docs/l8-account-payload-profile.md contain no predecessor
 or consumer inventory disposition table.
+
+## Current candidate additions and release inventory
+
+This inventory describes candidate source, not a selected released contract.
+Final release revision and cohort are **unset**. The earlier import migration and
+adoption records remain bounded to their named revisions; they do not establish
+consumer adoption of the following additions.
+
+| Delivered candidate surface | Exported API and compatibility | Existing independent fixtures | Exact adoption disposition |
+| --- | --- | --- | --- |
+| M6 whole floor | `nsshared_control::service::{FloorContent, FloorMetadata, FloorExitProfile, ExitSelection, FloorReportReplace, FloorReportMessage}`; also exported by `nsshared_service_control`. `Message::with_floor` uses the existing `report.replace` carrier. Empty metadata/profiles preserve legacy report bytes and digest. Nonempty `floor_version = 1` content requires floor-aware decoding and a complete-content digest; legacy decoders refuse it. | `crates/nsshared-control/tests/vectors/service/floor.json`; legacy `service/canonical.json` under the same vector root remains a separate compatibility fixture. | Shared contracts and fixture behavior delivered. Gateway complete-floor production/pending retries and NSD complete-floor decoding, persisted custody and replacement comparisons remain consumer obligations; the historical service-control corpus match does not prove these additions. |
+| Independent roster counters | `nsshared_control::account::relay::{Roster, RosterVersion, SignedRoster, ParticipantRosterGeneration, verify_participant_roster}`. `Roster.version` is publication anti-replay; `attribution_epoch` is historical billing attribution. Schema 1 preserves original bytes/signatures with epoch = version; schema 2 carries independent positive counters. | `crates/nsshared-control/tests/vectors/account/relay/participant-roster.vec` includes signed schema migration and independent-counter cases. `relay/session.vec` and `usage/reports.vec` retain existing usage carriers; `relay/admission-snapshot.vec` covers the separate local snapshot. | Shared contract delivered. NSD must derive epochs from committed classified history; relayd must persist both floors atomically and capture authenticated epochs at DATA acceptance. Existing roster/directory adoption does not establish these changes or live billing/history qualification. |
+
+### Remaining candidate-vector and service-label work
+
+The current vector root is `crates/nsshared-control/tests/vectors/`; the old
+`crates/nsshared-service-control/tests/` locator is absent in this tree.
+Existing M6 cases are `service/canonical.json` and `service/floor.json`.
+They exercise enclosed objects and complete reports;
+standalone `Resource::service_label` API agreement and independent label-boundary
+coverage remain open under M01/M02. Display names and declaration keys never
+supply service labels.
+
+Q22 still needs a complete eleven-family positive/empty/refusal/scope/limit
+matrix. Existing candidate starting points below are locations, not a coverage
+or producer-approval claim (paths relative to the vector root):
+
+| Family | Existing candidate fixture locations |
+| --- | --- |
+| 1 enrollment | `account/node/enrollment.vec`, `account/control/exchange.vec` |
+| 2 realms-peers | `account/realm/membership.vec`, `account/realm/peers.vec`, `account/realm/claims.vec` |
+| 3 egress, 5 payer, 6 withdrawal | `account/grants/grant-authority.vec`; complete independent producer vectors remain outstanding |
+| 4 exit-subnet | `account/subnet/selection.vec`, `views.vec`, `mapping.vec`, `mapping-actions.vec`, `report.vec` |
+| 7 public-edge | `account/edge/routing.vec`, `anonymous.vec`, `auth.vec`, `material-request.vec`, `floor-text.vec` |
+| 8 relay | `account/relay/participant-roster.vec`, `session.vec`, `admission-snapshot.vec` |
+| 9 usage | `account/usage/catalog.vec`, `reports.vec`, `retention.vec` |
+| 10 node-control | `account/usage/catalog.vec`; catalogue delivery does not give opaque `node.control` runtime semantics |
+| 11 v1-replacement | `account/control/node-l3-status.vec`, `node-l3-route-admission.vec` |
+
+Policy/auth completeness, producer-owned vectors and missing downstream corpus
+readers remain separate gaps. Q23 still requires owner confirmation of M6 types,
+variants and domains; Q24, Q22 and M01/M02 remain open. Bounded Q07/Q11 answers
+and the settled Q18 design do not close them. See the
+[exact consumer dispositions](account-handoff.md#unresolved-producer-consumer-and-review-obligations).
+Review approval, matched consumer readers, live qualification, retention-seal
+acceptance and F04 integration remain outstanding. `unstable-account` remains
+required. Production eligibility still requires H03/R01/R02/C01b and C18
+re-verification; deletion stays held under Q-RET. No tag, release cohort or final
+immutable release revision is selected here.

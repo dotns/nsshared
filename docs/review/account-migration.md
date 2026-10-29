@@ -2,7 +2,8 @@
 
 How a consumer moves from `nsshared_proto::account` (revision `1bc1d39e`) to
 `nsshared_control::account`. The `nsshared-proto` facade does not re-export
-`account`, so every account import changes once. Wire bytes do not change.
+`account`, so every account import changes once. The import move preserves wire bytes; the
+separate candidate extensions below have explicit compatibility boundaries.
 
 | File | Contents |
 | --- | --- |
@@ -154,3 +155,96 @@ scope text refusals may move a case from accepted to refused.
 In this repository, `just account-migration-check` confirms the
 map matches the code, and `python3 -m unittest discover -s scripts/tests`
 covers the rewrite script.
+
+## Current candidate delta
+
+This is preparation for candidate consumers, not released migration guidance.
+Final release revision and cohort remain **unset**. Keep all shared crates pinned
+to one immutable pushed revision and retain `unstable-account` for account APIs.
+The M6 floor API itself does not require the account feature.
+
+### Whole-floor M6
+
+Given an existing `Message` with `MessageBody::ReportReplace`, attach metadata
+and explicit profiles through the additive API (inside a fallible caller):
+
+```rust
+use nsshared_service_control::{ExitSelection, FloorExitProfile, FloorReportMessage};
+
+let complete: FloorReportMessage = report_message.with_floor(
+    Vec::new(),
+    vec![FloorExitProfile {
+        reference: "exit-a".into(),
+        selection: ExitSelection::Explicit(vec!["192.0.2.0/24".into()]),
+        enabled: true,
+        capabilities: Vec::new(),
+        policy_labels: Vec::new(),
+    }],
+)?;
+let retry_bytes = complete.encode()?;
+```
+
+`report_message` must already carry the current publisher/NSD/Network scope,
+positive revision and Node runtime fence. `FloorMetadata.reference` must name a
+plain declaration in that report. Exit references bind profiles within the
+same enclosing scope; reports never grant traffic authority. Decode complete
+requests with `FloorReportMessage::decode` (or authenticated `from_envelope`),
+and use `validate_accepted` for the full pending-request comparison. Under the
+account carrier, retain `PendingRequest::floor_report()` and validate through
+`validate_unary_reply`; its `message()` projection cannot reconstruct a complete
+retry. NSD still compares independently persisted current custody.
+
+Empty metadata and Exit profiles keep exact legacy bytes and digest. Nonempty
+content carries `floor_version = 1` and uses `ns.service.floor.v1`; legacy decoders
+refuse it. `ReportContent`, `ReportReplace` and `ReportAccepted` stay unchanged.
+Independent cases live in `crates/nsshared-control/tests/vectors/service/floor.json`;
+the legacy baseline is `service/canonical.json` under that same vector root.
+
+### Roster publication versus attribution
+
+Update account roster construction to supply `schema_version` and
+`attribution_epoch` explicitly. Preserve schema 1 when re-encoding old signed
+content: its epoch must equal `version`. Select schema 2 only for a producer and
+consumer that support independent counters. This intentionally changes candidate
+Rust struct literals and verification signatures behind `unstable-account`;
+legacy wire preservation does not imply source compatibility. Verification supplies both
+persisted floors (inside a fallible caller):
+
+```rust
+use nsshared_control::account::relay::verify_participant_roster;
+
+let accepted = verify_participant_roster(
+    &signed_bytes,
+    trusted_issuer,
+    expected_recipient,
+    last_publication_version,
+    last_attribution_epoch,
+    now_ms,
+)?;
+```
+
+Both counters use `RosterVersion`; `Roster.version` is strictly increasing per
+issuer/recipient while `Roster.attribution_epoch` is independently non-decreasing.
+No ordering relation between their magnitudes is valid. Persist both accepted
+floors atomically before exposing admission and restore both after restart.
+Initialize both to zero only for a scope without prior accepted publication.
+Capture the authenticated epoch at DATA acceptance and retain original usage
+attribution across renewal; do not substitute the latest publication version.
+Schema-1 bytes/signatures and existing usage bytes are preserved. Independent
+schema/counter cases are in
+`crates/nsshared-control/tests/vectors/account/relay/participant-roster.vec`.
+The separate local admission snapshot is schema 3 with required admission
+history, covered by `account/relay/admission-snapshot.vec`; signed roster schema
+compatibility does not authorize a history-free local snapshot fallback.
+
+### Remaining prerequisites
+
+The [candidate inventory](account-inventory.md#current-candidate-additions-and-release-inventory)
+records current fixture locations and remaining standalone label/vector gaps.
+These examples execute no consumer check and establish no producer agreement.
+Q22/Q23, M01/M02 and Q24 remain open; bounded Q07/Q11 answers do not approve
+remaining producer vectors or unmatched downstream corpora. Keep review approval,
+live qualification, retention-seal acceptance and F04 integration outstanding.
+Production eligibility requires H03/R01/R02/C01b and C18 re-verification at the
+actual release revision; deletion stays held under Q-RET. No tag, dependency
+change or feature restriction removal is selected by this guide.
