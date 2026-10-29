@@ -357,3 +357,38 @@ wire values are not limited by ordinary ns derivation's checked `u32` range.
 Restart refusal holds per resolved accepted binding; a freshly approved new I
 without a lifecycle link is a new Node. See the [full Q07 answer](account-review-request.md#q07-identity-lifecycle--node-owner-with-nsd-confirmation).
 The answer does not establish live interoperability.
+
+## Current candidate handoff delta
+
+The earlier adoption table is historical evidence at its named revisions.
+It supplies no implicit adoption of the additions in the
+[candidate inventory](account-inventory.md#current-candidate-additions-and-release-inventory).
+
+- Whole-floor M6: gateway production must retain complete `FloorReportMessage`
+  bytes for pending retries and compare `ReportAccepted` with the complete digest.
+  NSD must decode the complete floor and compare current persisted custody,
+  runtime fence, revision and digest. Empty extensions preserve legacy bytes;
+  legacy decoders refuse nonempty extensions. Existing matched legacy M6 corpora
+  do not demonstrate either consumer's extended-floor behavior.
+- Roster counters: NSD must independently derive publication versions and
+  classified-history attribution epochs. Relayd must atomically persist both
+  scoped floors, restore them after restart and capture the authenticated epoch
+  at DATA acceptance. Historical usage must join original custody without
+  relabeling. Schema-1 bytes/signatures remain valid with epoch equal to version;
+  schema-2 acceptance and billing qualification remain separate consumer work.
+- The old local schema-2 writer obligation in the historical table is not a
+  current-format adoption claim. The current shared local snapshot is schema 3,
+  with required `admission_since`; its controlled writer/replacement, rollback
+  persistence and live proof remain open. Signed roster schema 2 is a distinct
+  format, not the local file schema.
+
+Current fixture locators and standalone label/candidate-vector gaps are listed
+in the inventory. No downstream tests, corpus comparison or live checks were
+executed for this documentation. Complete producer-owned vectors, missing
+edge/profile/ledger/roster downstream corpus readers, Q22/Q23, M01/M02 and Q24
+remain open. Bounded Q07/Q11 answers and Q18's settled design remain bounded;
+`node.control` remains opaque. Review approval, retention-seal acceptance,
+F04 integration, live qualification and the actual immutable release revision
+and cohort remain outstanding. Keep `unstable-account`; production eligibility
+requires H03/R01/R02/C01b and C18 re-verification, and deletion remains held
+under Q-RET.

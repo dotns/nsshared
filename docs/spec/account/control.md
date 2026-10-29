@@ -1279,3 +1279,59 @@ The implementation is `reports/node_posture.rs`; tests in
 `account/control/node-posture.vec` fixtures for complete and empty snapshots,
 each encryption value, exact boundaries, typed refusals, authenticated context
 and each receipt correlation field.
+
+## Historical shared registration recovery
+
+The existing authenticated `machine.registration_receipt.v1` operation retains
+its legacy named-field carrier, grant/operation locator, signature, nonce, time,
+recovery deadline and separate current-authority observation. Its adapter may
+carry the following pure versioned shared contracts as canonical bytes; these
+are not a BootstrapEnvelope, a new endpoint or a new receipt authority.
+
+`RegistrationRecoveryQuery` is exactly `[1, operation_id, membership_scope,
+request_digest]`: operation is the existing nonzero 16-byte approved operation,
+membership scope is the existing `[nsd_id, network_id]` pair, and digest is
+SHA-256 of the complete canonical `RegistrationRequest` bytes, including the
+credential and lifecycle. `RegistrationRecoveryAttachment` is exactly
+`[1, canonical_query_bytes, original_canonical_acceptance_bytes]`. Versions,
+arity, lengths, canonical integers and trailing bytes are checked strictly.
+Existing request and acceptance encodings are unchanged.
+
+NSD's original registration transaction produces the attachment from the
+approved device operation and exact authorized request. It must atomically
+retain the original signed acceptance with enrollment, source allocation,
+old-source retirement and grant consumption, and return those persisted bytes
+on first response and exact recovery. A historical result without those bytes
+cannot be repaired by signing today's source. The existing named-field adapter
+compares the authenticated installation and query against the immutable result.
+Activation generation and credential incarnation remain facts of that existing
+receipt result and its current-authority comparison, not new shared fields.
+
+The ns pending replacement plan retains each approved operation, canonical
+request, unchanged committed binding, lifecycle authorization, pinned NSD
+issuer, exact source custody tuple and epoch/generation floors independently of
+the response. `RegistrationRecoveryExpectation` supplies those inputs.
+`validate` compares operation, NSD/Network, digest, enrollment including identity
+and WireGuard key, capabilities, profile and the lifecycle decision using the
+same comparisons as the original exchange. It verifies the original source
+signature against the retained issuer and compares recipient, realm, nodes
+scope, profile, source Node, contribution, epoch and generation exactly, while
+refusing values below either retained floor. A response cannot supply its own
+expected issuer or baseline. No floor is lowered to accept historical bytes.
+
+The receipt transport is authenticated separately against the independently
+pinned issuer and staged installation. A recovery query has a fresh transport
+nonce; it is never compared to the original registration nonce by these pure
+validators. The original source signature has no transport nonce. A fresh outer
+signed receipt does not refresh the original source binding. The attachment
+establishes historical acceptance only: NSD separately observes current custody,
+account activation and credential authority; ns requires that fresh observation
+for every Network and rechecks unchanged local baselines before publishing the
+one staged identity and all accepted records together. Lookup absence alone
+does not establish nonacceptance or authorize reenrollment.
+
+Independent Python recovery vectors are appended to the existing exchange
+fixture through `registration_recovery.py`; Rust consumes original signed bytes
+without re-signing. The account feature remains an unstable opt-in public
+surface; default-feature compatibility is checked through the existing semver
+entry point.
