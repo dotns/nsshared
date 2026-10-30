@@ -133,6 +133,15 @@ for exactly this pair are defined under
 Directory eligibility uses the separate signed
 [directory binding](#directory-bindings).
 
+For a relay in the public pool, the signed complete roster MUST contain the Nodes
+of every Network covered by its directory binding, including Networks created after pool selection,
+without requiring the pool to be resaved. This Network membership coverage does
+not change the signed `(issuer, recipient)` scope or introduce a scope field or
+wire format. Tenant realm-consented relays are unchanged; global public-pool
+authority remains separate from tenant realm consent and MUST NOT be inferred
+from it. This coverage rule changes neither service authorization nor the
+`relay_attribution` billing model.
+
 A new accepted complete version replaces the entire mapping: empty denies all
 membership, omission revokes an identity, and a class-only change advances the attribution
 epoch with a new complete publication. A refused publication is never withdrawal;
@@ -396,6 +405,12 @@ Missing or invalid bindings grant no new eligibility; retained valid bindings la
 only until signed expiry or newer replacement. Empty binding realms withdraw
 eligibility, while a newer complete-empty roster withdraws admission. Directory
 entries, codes, update rules and Quick behavior are not changed by bindings.
+
+For a public-pool relay, binding coverage determines the roster's Network membership
+coverage as defined under [participant rosters](#participant-rosters), including
+later-created Networks without resaving the pool. The binding and roster retain
+their separate signed scopes, signature checks, currentness checks and persisted
+floors.
 
 ## Code and vectors
 
