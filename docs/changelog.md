@@ -1,3 +1,9 @@
+## 2026-10-30 [docs]
+
+Index exact candidate fixture cases across eleven account families and M6
+composition. Distinguish shared coverage gaps from producer and consumer
+evidence, and retain release-dependent examples and external prerequisites.
+
 ## 2026-10-30 [test]
 
 Cover service-label length, non-ASCII, separator and whitespace boundaries
