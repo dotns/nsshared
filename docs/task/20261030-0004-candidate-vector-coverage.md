@@ -40,7 +40,7 @@ indexes and changelog are unchanged. No executable behavior changes.
   fixture references, 17 M6 JSON keys and local document link targets. Literal
   fixture outcomes distinguish refused empty catalogue lists from withdrawal.
 - `just dev-check` passed before the complete self-check. The final
-  `just self-check feat/r3-campaign-2` passed at documentation commit
+  `just self-check` passed at documentation commit
   `e843654`: 48 fixture files current, 70 script tests, 421 default tests and
   581 account tests passed, with zero skipped tests in both suites. Formatting,
   lint, dependencies, spelling, semver, doctests and documentation passed.
