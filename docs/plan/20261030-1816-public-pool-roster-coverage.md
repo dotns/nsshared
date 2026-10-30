@@ -37,5 +37,5 @@ issuer/recipient scope, tenant consent, billing and validation remain unchanged.
 
 A documentation assertion first failed with `public-pool Network coverage is not
 explicit`, then passed after the edit. `just fmt-check`, `just lint`, and
-`just self-check feat/r3-campaign-2` passed. These checks establish documentation
+`just self-check` passed. These checks establish documentation
 consistency and repository checks only; no runtime repair is verified.
