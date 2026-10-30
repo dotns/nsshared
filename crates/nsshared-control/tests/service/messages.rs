@@ -436,3 +436,50 @@ fn service_label_allows_digit_start_but_rejects_invalid_edges() {
         );
     }
 }
+
+#[test]
+fn independent_service_label_input_boundaries() {
+    let vectors: serde_json::Value = serde_json::from_str(include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/vectors/service/labels.json"
+    )))
+    .unwrap();
+    let baseline = snapshot();
+    let mut wire = decode_canonical(&baseline.canonical().unwrap().0).unwrap();
+    for case in vectors.as_array().unwrap() {
+        let name = case["name"].as_str().unwrap();
+        let label = case["label"].as_str().unwrap();
+        let accepted = case["accepted"].as_bool().unwrap();
+        let mut candidate = baseline.clone();
+        candidate.resources[0].service_label = label.into();
+        let encoded = candidate.canonical();
+        assert_eq!(encoded.is_ok(), accepted, "encoding: {name}");
+        if let Ok((bytes, _)) = encoded {
+            assert_eq!(Snapshot::decode(&bytes).unwrap(), candidate, "{name}");
+        }
+        let Value::Map(fields) = &mut wire else {
+            panic!("snapshot map");
+        };
+        let Value::Array(resources) = &mut fields
+            .iter_mut()
+            .find(|(key, _)| key == "resources")
+            .unwrap()
+            .1
+        else {
+            panic!("resources array");
+        };
+        let Value::Map(resource) = &mut resources[0] else {
+            panic!("resource map");
+        };
+        resource
+            .iter_mut()
+            .find(|(key, _)| key == "service_label")
+            .unwrap()
+            .1 = Value::Text(label.into());
+        let decoded = Snapshot::decode(&encode_canonical(&wire).unwrap());
+        assert_eq!(decoded.is_ok(), accepted, "decoding: {name}");
+        if accepted {
+            assert_eq!(decoded.unwrap(), candidate, "{name}");
+        }
+    }
+}
