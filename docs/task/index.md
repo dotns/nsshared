@@ -1,5 +1,7 @@
 # ns-shared - Task List
 
+- [x] [**Public pool roster Network coverage**](20261030-1816-public-pool-roster-coverage.md)
+
 - [x] [**Candidate vector coverage**](20261030-0004-candidate-vector-coverage.md)
 
 - [x] [**Independent service-label input boundaries**](20261030-0006-service-label-boundaries.md)
