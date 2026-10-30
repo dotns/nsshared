@@ -637,7 +637,7 @@ no new kind or implicit policy publication is defined here.
 | ClientCaBundle/ClientCaDependency, AuthDependency/CertificateDependency | Client-CA/auth/certificate references and exact generation joins plus correlated EdgeMaterialAck |
 | GatewayServiceDeclaration/ServicesReport/Request/Response/Ack | EdgeServiceRequest/Response; unchanged M6 objects, complete floor metadata and exact per-kind reference outcomes with explicit reasons |
 | GatewayExitProfileDeclaration | EdgeServiceRequest kind 1 exit_profiles reuse SubnetSelection/Prefix semantics as declarations, never Subnet route authority |
-| service_fqdn and standalone service-label inputs | Resolve Resource.service_label via M6 ServiceRef; standalone inputs excluded and open pending M01/M02, owned by the M6 contract owner through owner-mediated review |
+| service_fqdn and standalone service-label inputs | Resolve Resource.service_label via M6 ServiceRef. Independent label-input coverage through recipient-qualified Snapshot::canonical/decode uses `crates/nsshared-control/tests/vectors/service/labels.json`: 63-byte acceptance, 64-byte refusal, non-ASCII, dot, underscore and embedded-space refusals. Original snapshot bytes/digests and existing label cases are preserved. Resource.service_label remains a String field; standalone API agreement/operation and NSD producer evidence remain open under M01/M02 with the M6 contract owner. |
 
 ### Predecessor field disposition (from docs/confidential-auth-candidate.md)
 
