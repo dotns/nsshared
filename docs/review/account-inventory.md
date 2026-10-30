@@ -700,21 +700,81 @@ standalone `Resource::service_label` API agreement and independent label-boundar
 coverage remain open under M01/M02. Display names and declaration keys never
 supply service labels.
 
-Q22 still needs a complete eleven-family positive/empty/refusal/scope/limit
-matrix. Existing candidate starting points below are locations, not a coverage
-or producer-approval claim (paths relative to the vector root):
+### Exact candidate case index
 
-| Family | Existing candidate fixture locations |
-| --- | --- |
-| 1 enrollment | `account/node/enrollment.vec`, `account/control/exchange.vec` |
-| 2 realms-peers | `account/realm/membership.vec`, `account/realm/peers.vec`, `account/realm/claims.vec` |
-| 3 egress, 5 payer, 6 withdrawal | `account/grants/grant-authority.vec`; complete independent producer vectors remain outstanding |
-| 4 exit-subnet | `account/subnet/selection.vec`, `views.vec`, `mapping.vec`, `mapping-actions.vec`, `report.vec` |
-| 7 public-edge | `account/edge/routing.vec`, `anonymous.vec`, `auth.vec`, `material-request.vec`, `floor-text.vec` |
-| 8 relay | `account/relay/participant-roster.vec`, `session.vec`, `admission-snapshot.vec` |
-| 9 usage | `account/usage/catalog.vec`, `reports.vec`, `retention.vec` |
-| 10 node-control | `account/usage/catalog.vec`; catalogue delivery does not give opaque `node.control` runtime semantics |
-| 11 v1-replacement | `account/control/node-l3-status.vec`, `node-l3-route-admission.vec` |
+Q22 remains open. This is a bounded index of existing **fixture** evidence,
+not an assertion that any family has every requested case. Locators below are
+`file#name` relative to `crates/nsshared-control/tests/vectors/`; names select
+literal `name =` records. A missing cell names the shared coverage still needed.
+Typed empty content, removal, absent delivery and malformed emptiness are distinct.
+
+| Family | Positive | Empty / removal | Refusal | Scope | Limit |
+| --- | --- | --- | --- | --- | --- |
+| 1 enrollment | `account/node/enrollment.vec#enrollment-accepted`; `account/control/exchange.vec#information` | `account/node/enrollment.vec#enrollment-empty-capabilities` (capabilities only); no dedicated own-node publication withdrawal case indexed (shared fixture gap) | `account/node/enrollment.vec#enrollment-unauthorized-rebind`; `account/control/exchange.vec#authentication-missing-selector` | `account/control/exchange.vec#accept-scope`, `account/control/exchange.vec#authentication-whitespace-scope` | `account/node/enrollment.vec#enrollment-capability-boundary`, `account/node/enrollment.vec#enrollment-too-many-capabilities`; `account/control/exchange.vec#authentication-scope-bound`, `account/control/exchange.vec#authentication-long-scope` |
+| 2 realms-peers | `account/realm/peers.vec#two-realms` | `account/realm/peers.vec#empty`, `account/realm/peers.vec#served-empty-realm`, `account/realm/peers.vec#remove-omitted` | `account/realm/peers.vec#wrong-binding`, `account/realm/peers.vec#record-signature` | `account/realm/peers.vec#wrong-scope`, `account/realm/peers.vec#wrong-recipient` | `account/realm/peers.vec#long-realm-name`, `account/realm/peers.vec#oversized-realms`, `account/realm/peers.vec#oversized-members` (no paired at-limit collection case indexed) |
+| 3 egress | `account/grants/grant-authority.vec#egress`, `account/grants/grant-authority.vec#protocol-renewed` | `account/grants/grant-authority.vec#egress-empty` | `account/grants/grant-authority.vec#3-missing-payer`, `account/grants/grant-authority.vec#unknown-protocol` | `account/grants/grant-authority.vec#3-cross-realm-payer`, `account/grants/grant-authority.vec#wrong-provider` | No dedicated grant collection at/over-limit pair in this file; shared owner must add it |
+| 4 exit-subnet | `account/subnet/selection.vec#subnet-explicit`; `account/subnet/views.vec#provider-p`; `account/subnet/mapping.vec#populated` | `account/subnet/selection.vec#subnet-empty-withdrawal`; `account/subnet/views.vec#client-empty`; `account/subnet/mapping.vec#typed-empty` | `account/subnet/selection.vec#subnet-misaligned-prefix`; `account/subnet/mapping.vec#duplicate-id` | `account/subnet/views.vec#wrong-source`, `account/subnet/views.vec#wrong-membership-network`; `account/subnet/mapping.vec#wrong-network` | `account/subnet/selection.vec#subnet-prefix-count-boundary`, `account/subnet/selection.vec#subnet-prefix-count-limit`, `account/subnet/selection.vec#subnet-route-count-boundary`, `account/subnet/selection.vec#subnet-route-count-limit`; `account/subnet/mapping.vec#too-many` |
+| 5 payer | `account/grants/grant-authority.vec#payer`, `account/grants/grant-authority.vec#protocol-payers` | `account/grants/grant-authority.vec#payer-empty` | `account/grants/grant-authority.vec#payer-missing-payer`, `account/grants/grant-authority.vec#payer-ambiguous-payer` | `account/grants/grant-authority.vec#payer-cross-realm-payer` | Cardinality refusal is indexed; no dedicated binding collection at/over-limit pair; shared owner must add it |
+| 6 withdrawal | `account/grants/grant-authority.vec#initial-authority`, `account/grants/grant-authority.vec#selective-withdrawal`, `account/grants/grant-authority.vec#fresh-regrant` | `account/grants/grant-authority.vec#authority-empty` | `account/grants/grant-authority.vec#retired-regrant`, `account/grants/grant-authority.vec#withdrawal-truncated` | No dedicated ResourceAuthority wrong-scope fixture here (shared fixture gap); common signed-carrier scope checks are indexed below | No dedicated active/retired collection at/over-limit pair in this file; shared owner must add it |
+| 7 public-edge | `account/edge/routing.vec#complete`; `account/edge/auth.vec#configuration`; `account/edge/material-request.vec#certificate-request` | `account/edge/routing.vec#empty`, `account/edge/routing.vec#remove-omitted`; `account/edge/auth.vec#complete-empty` | `account/edge/routing.vec#bad-backend`; `account/edge/anonymous.vec#anonymous-not-admin`; `account/edge/material-request.vec#certificate-null-values` | `account/edge/routing.vec#two-networks`, `account/edge/routing.vec#wrong-signed-scope`; `account/edge/auth.vec#wrong-recipient` | `account/edge/routing.vec#too-many-realms`; `account/edge/auth.vec#maximum-secret`, `account/edge/auth.vec#oversized-secret`; `account/edge/floor-text.vec#byte-limit-request`, `account/edge/floor-text.vec#metadata-reference-too-long` |
+| 8 relay | `account/relay/participant-roster.vec#participant-roster-accepted`; `account/relay/session.vec#enrolled`, `account/relay/session.vec#binding-ab` | `account/relay/participant-roster.vec#participant-roster-complete-empty`; `account/relay/session.vec#binding-empty`; `account/relay/admission-snapshot.vec#complete-empty` | `account/relay/participant-roster.vec#participant-roster-bad-signature`, `account/relay/participant-roster.vec#participant-roster-epoch-decrease`; `account/relay/session.vec#revoked-authenticate` | `account/relay/participant-roster.vec#participant-roster-wrong-recipient`; `account/relay/session.vec#binding-wrong-issuer` | `account/relay/participant-roster.vec#participant-roster-minimum-lifetime`, `account/relay/participant-roster.vec#participant-roster-short-lifetime`; `account/relay/session.vec#frame-over-bound`; no roster entry-count at/over-limit pair indexed |
+| 9 usage | `account/usage/catalog.vec#usage-complete`; `account/usage/reports.vec#service-report`, `account/usage/reports.vec#relay-report` | `account/usage/catalog.vec#withdraw-usage` (empty publication withdraws); `account/usage/catalog.vec#usage-empty` refuses an empty inner profile list; `account/usage/retention.vec#empty` | `account/usage/reports.vec#report-bad-digest`, `account/usage/reports.vec#report-wrong-profile`; `account/usage/retention.vec#duplicate-key-other-digest` | `account/usage/catalog.vec#wrong-reporter-context`; `account/usage/reports.vec#same-user-other-realm` | `account/usage/catalog.vec#usage-complete` (two profiles), `account/usage/catalog.vec#usage-too-many`; `account/usage/retention.vec#collection-bound` |
+| 10 node-control | `account/usage/catalog.vec#control-complete`, `account/usage/catalog.vec#install-control` | `account/usage/catalog.vec#control-empty` refuses an empty inner capability list; no dedicated control-profile empty publication case here (shared fixture gap) | `account/usage/catalog.vec#control-vocabulary`, `account/usage/catalog.vec#malformed-control-replacement` | `account/usage/catalog.vec#different-membership-context` | `account/usage/catalog.vec#control-complete` (five capabilities), `account/usage/catalog.vec#control-too-many`, `account/usage/catalog.vec#control-overflow` |
+| 11 v1-replacement | `account/control/node-l3-status.vec#applied`; `account/control/node-l3-route-admission.vec#selected-6` | `account/control/node-l3-status.vec#empty-withdrawal` | `account/control/node-l3-status.vec#same-version-different-digest`, `account/control/node-l3-status.vec#failure-status-for-data` | `account/control/node-l3-status.vec#replaced-source`, `account/control/node-l3-status.vec#policy-recipient` | `account/control/node-l3-status.vec#long-reason` (no paired at-limit reason case indexed) |
+
+Common signed-publication coverage is indexed once, not counted as dedicated
+payload coverage for each family: `account/publication/envelope.vec` cases
+`publication-complete`, `publication-empty`, `publication-absent`,
+`publication-fetch-failed`, `publication-wrong-domain`, `publication-wrong-scope`,
+`publication-exact-limit`, `publication-over-limit` and
+`publication-snapshot-atomic-invalid`. Delivery framing has
+`account/publication/delivery.vec#lf-at-decoded-ceiling` and
+`account/publication/delivery.vec#lf-over-decoded-ceiling`. These do not establish
+payload collection boundaries or production source retirement for all families.
+
+### Export, specification and missing-evidence reconciliation
+
+Export namespaces below are under `nsshared_control::account`, except M6 under
+`nsshared_control::service`. Existing specifications describe the APIs; this index
+adds no interface or authority producer. Shared missing pairs above are candidate
+fixture work. External gaps below are separate even when shared cases exist.
+The [handoff evidence](account-handoff.md#unresolved-producer-consumer-and-review-obligations)
+retains exact external repository revisions, corpus paths and reader names.
+
+| Family | Existing export / specification | Missing producer / consumer evidence and owner |
+| --- | --- | --- |
+| 1 | `node` lifecycle and `control::{RegistrationRequest, RegistrationAcceptance, InformationResponse}`; [Node](../spec/account/node.md), [Control](../spec/account/control.md) | NSD owns remaining independent information/discovery accepted/refused producer vectors before H03; current matching enrollment bytes and live transition confirmation remain open. Bounded Q07/Q11 answers do not fill them. |
+| 2 | `realm` peers and membership; [Realm](../spec/account/realm.md), [Publication](../spec/account/publication.md) | NSD owns complete collection-authority/refusal/limit producer corpus and review; ns owns live replacement and source-retirement confirmation. Named matched publication copies cover only their recorded cases. |
+| 3 | `grants::{ServiceGrant, GrantPublication}`; [Grants](../spec/account/grants.md) | NSD owns complete independent canonical/refusal grant corpus, including protocol/deadline joins; ns/gateway own consumption of that actual corpus and live enforcement. Decoded storage assertions are not exported bytes. Q13 remains open. |
+| 4 | `subnet::{SubnetPublication, SubnetSelection}` and provider mapping/report APIs; [Subnet](../spec/account/subnet.md) | NSD owns separate signed `provider-mappings` production/source handoff and independent changed/empty/refused bytes; ns owns authenticated inventory installation. Existing grant/route corpus does not substitute. Default/nested Exit live confirmation stays open. |
+| 5 | `grants::{Payer, PayerBindings}`; [Grants](../spec/account/grants.md) | NSD owns complete independent payer assignment/cardinality/refusal bytes; consumers own exact corpus joins to grants and live payer custody. Q15 remains open. |
+| 6 | `grants::ResourceAuthority` and successor validation; [Grants](../spec/account/grants.md) | NSD owns complete independent selective withdrawal/retirement/fresh-regrant bytes; consumers own matching history preservation and live denial after retirement. Q16 remains open. |
+| 7 | `edge::{PublicEdge, AuthConfiguration}` and material acquisition; [Edge](../spec/account/edge.md), [Realm](../spec/account/realm.md) | NSD owns material/auth canonical/refusal corpus, authenticated admin scope projection and complete subject/JWT/signed-URL/header producer vectors. Existing `edge.json` still lacks a demonstrated matching downstream reader. Gateway owns actual policy/name/material enforcement; Q17 and machine audience remain unresolved. |
+| 8 | `relay::{Roster, SignedRoster, verify_participant_roster}` and signed directory/participant contracts; [Relay](../spec/account/relay.md) | NSD owns committed attribution-epoch production and complete unsettled-reference sealing; relayd owns atomic persisted counter floors, current schema-3 controlled local writer/replacement and rollback/carrier-switch proof. The matched directory corpus does not close roster production/consumer or billing qualification. |
+| 9 | `usage::{UsageProfilePublication, UsageReport}` and retention contracts; [Usage](../spec/account/usage.md) | NSD owns ledger producer/unit/history evidence and seal completeness; ns/gateway own demonstrated matching `profiles.json`/`ledger.json` readers, completed-I/O capture and custody. Shared supplied quantities cannot prove capture. Q19 remains open. |
+| 10 | `usage::NodeControlProfilePublication`; [Usage](../spec/account/usage.md), [Control](../spec/account/control.md) | ns/gateway own matching profile-corpus consumption; NSD/ns own standalone transport agreement and Q20 answer. The catalogue describes capabilities; opaque `node.control` has no runtime semantics or newly assigned producer here. |
+| 11 | `control::{NodeL3StatusRequest, node_l3_event_digest}`; [Control](../spec/account/control.md) | NSD/ns own live issuance-to-enforcement-to-Applied association and complete-empty removal. The named matching status corpus proves recorded bytes only. Policy observation is not installation or traffic authority. |
+
+### Q23 M6 composition index
+
+The [account profile](../spec/account/profile.md#placement-and-m6-reuse) names
+existing `ServiceRef`, declaration/report, listener, snapshot and message exports.
+The additional reuse groups remain those of the registry: enrollment uses
+declarations; realms-peers, payer, withdrawal and relay use snapshots;
+egress, public-edge and v1-replacement use declarations/listeners/snapshots;
+exit-subnet uses listeners/snapshots; usage and node-control add none. Common
+identity/message/vector reuse is unchanged. Registry placement cases are
+`account/publication/envelope.vec` records `publication-owner-egress-grants`,
+`publication-misplaced-egress-grants`, `publication-owner-node-control-profile`
+and `publication-misplaced-node-control-profile`; they validate placement,
+not every composition variant. Use the current control-crate fixtures directly:
+
+| Surface | Exact existing locator | Remaining confirmation |
+| --- | --- | --- |
+| Declaration/report and listener bytes/domains | `service/canonical.json` keys `report_cbor`, `report_sha256`, `listener_cbor`, `listener_sha256` | NSD/ns owners must confirm every applicable family composition; these fields do not cover every body variant. |
+| Populated and complete-empty snapshot | `service/canonical.json` keys `snapshot_nonempty_cbor`, `snapshot_nonempty_sha256`, `snapshot_empty_cbor`, `snapshot_empty_sha256` | M01 standalone `Resource::service_label` API agreement and M02 independent label boundaries remain open; enclosed labels do not close them. |
+| Account unary, lease, reverse and subscription | `account/control/service-control.vec#report.replace-4`, `account/control/service-control.vec#lease-empty-receipt-4`, `account/control/service-control.vec#reverse-port.cancel-4`, `account/control/service-control.vec#wrong-network-reply`, `account/control/service-control.vec#oversized-envelope`; `account/publication/subscription.vec#bound-network-4` | Existing two-Network cases do not establish all type/variant/domain compositions or live sessions, contributions, proposals and leases. Q23 remains external owner confirmation. |
+| Complete-floor extension | `service/floor.json` keys `floor_cbor`, `floor_sha256`, `message_cbor`, `invalid.default_exit`, `invalid.oversize_cidrs`, `signed.accepted`, `signed.legacy_digest`, `signed.stale_runtime`, `signed.wrong_nonce`; [whole-floor contract](../spec/m6-floor.md) | Gateway complete pending bytes and NSD complete digest/current-custody comparisons need actual adoption evidence. Legacy digest compatibility does not establish extension adoption. |
 
 Policy/auth completeness, producer-owned vectors and missing downstream corpus
 readers remain separate gaps. Q23 still requires owner confirmation of M6 types,

@@ -274,3 +274,10 @@ retention-seal acceptance and F04 integration. `node.control` remains opaque.
 The account surface remains behind `unstable-account`; final release revision
 and cohort remain unset. Released adoption and production eligibility require
 H03/R01/R02/C01b and C18 re-verification, with deletion held under Q-RET.
+
+The [exact candidate case index](account-inventory.md#exact-candidate-case-index)
+now separates eleven families and five case categories. Its
+[missing-evidence reconciliation](account-inventory.md#export-specification-and-missing-evidence-reconciliation)
+assigns shared fixture gaps separately from NSD production and downstream
+consumer obligations. It adds no corpus comparison, owner answer or live result;
+all adoption claims above retain their named revisions and evidence limits.
