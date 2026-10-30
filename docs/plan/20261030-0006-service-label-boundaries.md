@@ -29,4 +29,4 @@ A new public validator would change the contract and is excluded.
 
 Added six independent label inputs: 63 ASCII bytes accepted, 64 bytes refused, and non-ASCII, dot, underscore and embedded-space inputs refused. Both snapshot encoding and decoding exercise these outcomes with existing recipient-qualified context. Existing cases and canonical snapshot bytes/digests are unchanged.
 
-The service suite passed all 19 tests. Formatting and lint checks passed before test execution; `just self-check feat/r3-campaign-2` passed. Diff review found no required corrections. Standalone API agreement/operation and NSD producer evidence remain open; no release is selected.
+The service suite passed all 19 tests. Formatting and lint checks passed before test execution; `just self-check` passed. Diff review found no required corrections. Standalone API agreement/operation and NSD producer evidence remain open; no release is selected.
