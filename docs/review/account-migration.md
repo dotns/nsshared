@@ -248,3 +248,41 @@ live qualification, retention-seal acceptance and F04 integration outstanding.
 Production eligibility requires H03/R01/R02/C01b and C18 re-verification at the
 actual release revision; deletion stays held under Q-RET. No tag, dependency
 change or feature restriction removal is selected by this guide.
+
+### Release-time substitutions and examples still required
+
+Use the [exact case index](account-inventory.md#exact-candidate-case-index) to
+select fixtures for the actual consumer; do not treat the eleven rows as a
+complete release suite. The following checklist remains open:
+
+- [ ] Replace `<nsshared source>` and `<rev>` in the Cargo example with the
+  authorized immutable released source/revision shared by both crates. Record
+  the actual tag, public export surface and selected consumer versions; the
+  import map's historical baseline is not the release selection.
+- [ ] Choose the actual producer/consumer cohort and applicable family kinds,
+  M6 body variants and signature/digest domains. Supply a compiling migration
+  example in each affected consumer at that pin, plus exact input and expected
+  output locators. Q23 confirmation and Q22 missing cases remain required.
+- [ ] Instantiate the whole-floor example with real accepted custody, explicit
+  profiles, persisted runtime fence, complete pending bytes and complete digest
+  comparisons. Demonstrate the chosen legacy/extended producer-consumer mix;
+  empty-extension compatibility alone does not qualify nonempty reports.
+- [ ] Instantiate roster verification with the cohort's supported signed schema,
+  both restored counter floors and atomic persistence; demonstrate schema-3 local
+  admission history and DATA-time attribution in the actual reader/writer.
+  Fixture-fed local unions cannot substitute for that writer.
+- [ ] Supply the separate provider-mappings producer/consumer example and the
+  missing matching edge/profile/ledger/roster corpus readers. Supply NSD's
+  remaining information/discovery and grant/payer/withdrawal producer cases,
+  material/auth/policy cases and applicable scope/limit refusals. Preserve each
+  corpus's producer revision and matching consumer revision independently.
+- [ ] Obtain external review dispositions, including M01/M02 and Q24; reconcile
+  any approved API changes against examples rather than inferring approval from
+  shared fixture success. Keep opaque `node.control` without invented semantics.
+- [ ] Reconcile retention-seal acceptance, F04 integration, original settlement
+  and rollback assets with the actual cohort. Record applicable live observations
+  and re-verification at the released revision. Keep Q-REL, H03/R01/R02/C01b,
+  C18 and Q-RET obligations open until their own evidence is supplied.
+
+No release-time substitution or cohort-specific executable example is selected
+by this checklist. The current examples remain candidate guidance.
