@@ -1,5 +1,11 @@
 ## 2026-10-30 [docs]
 
+Clarify that public-pool relay rosters cover every Network in the directory
+binding, including later-created Networks without a pool resave. Preserve
+signed scopes, tenant consent, service authorization and billing boundaries.
+
+## 2026-10-30 [docs]
+
 Index exact candidate fixture cases across eleven account families and M6
 composition. Distinguish shared coverage gaps from producer and consumer
 evidence, and retain release-dependent examples and external prerequisites.
