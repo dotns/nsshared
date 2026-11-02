@@ -34,7 +34,7 @@ def vectors():
                     ("decision", decision), *extra])
 
     for kind, value in [("registration", request), ("acceptance", acceptance),
-                        ("authentication", [1, scope, binding, "control", ["030C1G60R30C1G60R30C1G60R3", "nodes"]]),
+                        ("authentication", [1, scope, binding, "control", ["030C1G60R30C1G60R30C1G60R3", "nodes"], None]),
                         ("token-response", [1, "a.b.c", signed_source()]), ("information-request", [1])]:
         emit(kind, kind, value)
         raw = cbor.encode(value)
@@ -48,19 +48,19 @@ def vectors():
                            ("long-scope", ["030C1G60R30C1G60R30C1G60R3", "x"*257]),
                            ("control-scope", ["030C1G60R30C1G60R30C1G60R3", "nodes\n"]),
                            ("whitespace-scope", ["030C1G60R30C1G60R30C1G60R3", "nodes a"])]:
-        emit("authentication-" + name, "authentication", [1, scope, binding, "control", selector], "field")
+        emit("authentication-" + name, "authentication", [1, scope, binding, "control", selector, None], "field")
     for name, source_scope in [("scope-bound", "x"*256), ("utf8-scope-bound", "é"*128)]:
         emit("authentication-" + name, "authentication",
-             [1, scope, binding, "control", ["030C1G60R30C1G60R30C1G60R3", source_scope]])
+             [1, scope, binding, "control", ["030C1G60R30C1G60R30C1G60R3", source_scope], None])
     emit("authentication-selector-extra", "authentication",
-         [1, scope, binding, "control", ["030C1G60R30C1G60R30C1G60R3", "nodes", 1]], "encoding")
+         [1, scope, binding, "control", ["030C1G60R30C1G60R30C1G60R3", "nodes", 1], None], "encoding")
     pin = bootstrap_envelope.pin(authority)
     discovery = [1, 1, "https://control.example/", [1],
                  [[0, "https://control.example/"]], None, [], [pin]]
     info = [1, cbor.encode(discovery), "realm-default", "provider", "1.0", ["auth_key"], ["node.control"]]
     emit("information", "information", info)
     emit("information-bad-method", "information", info[:5] + [["unknown"]] + info[6:], "field")
-    emit("authentication-purpose", "authentication", [1, scope, binding, "wss", ["030C1G60R30C1G60R30C1G60R3", "nodes"]], "field")
+    emit("authentication-purpose", "authentication", [1, scope, binding, "wss", ["030C1G60R30C1G60R30C1G60R3", "nodes"], None], "field")
     emit("registration-empty-credential", "registration", request[:4] + [b"", None], "field")
     emit("registration-missing-lifecycle", "registration", request[:-1], "encoding")
 
@@ -102,7 +102,23 @@ def vectors():
          extra=[("request", cbor.encode(local_request)), ("node", node), ("pin", pin),
                 ("signing_input", bootstrap_envelope.RESPONSE + content)])
 
-    auth_value = [1, scope, binding, "control", ["030C1G60R30C1G60R30C1G60R3", "nodes"]]
+    auth_value = [1, scope, binding, "control", ["030C1G60R30C1G60R30C1G60R3", "nodes"], None]
+    condition = [bytes([11])*16, bytes([12])*16, bytes([13])*16]
+    emit("authentication-registration", "authentication", auth_value[:-1] + [condition])
+    emit("authentication-old-arity", "authentication", None, "encoding",
+         raw=cbor.encode(auth_value[:-1]))
+    emit("authentication-extra-field", "authentication", auth_value + [None], "encoding")
+    for field in range(3):
+        for suffix, invalid in [("zero", bytes(16)), ("short", bytes(15)),
+                                ("long", bytes(17)), ("text", "01"*16), ("null", None)]:
+            changed = list(condition)
+            changed[field] = invalid
+            emit(f"authentication-registration-{field}-{suffix}", "authentication",
+                 auth_value[:-1] + [changed], "field")
+    for suffix, invalid in [("missing", condition[:-1]), ("extra", condition + [bytes([14])*16]),
+                            ("empty", []), ("bytes", cbor.encode(condition))]:
+        emit("authentication-registration-" + suffix, "authentication",
+             auth_value[:-1] + [invalid], "encoding")
     auth_content = cbor.encode([1, 0, node, authority, "machine.auth", 100, bytes([8]) * 16, cbor.encode(auth_value)])
     emit("signed-authentication", "signed-authentication", [auth_content, ed25519.sign(bytes([1]) * 32, bootstrap_envelope.REQUEST + auth_content)],
          extra=[("node", node), ("authority", authority), ("pin", bootstrap_envelope.pin(node)),
