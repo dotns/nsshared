@@ -261,6 +261,29 @@ pub fn compare_registration_acceptance(
         return Err(BootstrapError::Recipient.into());
     }
     let accepted = RegistrationAcceptance::decode(&envelope.payload)?;
+    let local = compare_registration_payload(&accepted, staged, committed, rebind)?;
+    if pending.scope != "nodes"
+        || pending.served_realm != RealmId::from_bytes(staged.scope.network_id)
+        || pending.recipient != staged.enrollment.binding.identity
+        || pending.source_node != staged.enrollment.binding.identity
+        || pending.profile.as_str() != staged.profile
+    {
+        return Err(SourceError::Authority.into());
+    }
+    accepted
+        .source_binding
+        .verify_response(envelope, expected, pending)?;
+    Ok(local)
+}
+
+/// Compares a decoded acceptance independently of its authenticated transport.
+pub(super) fn compare_registration_payload(
+    accepted: &RegistrationAcceptance,
+    staged: &RegistrationRequest,
+    committed: Option<&NodeBinding>,
+    rebind: RebindAuthorization,
+) -> Result<EnrollmentDecision, ExchangeError> {
+    staged.canonical()?;
     if accepted.scope != staged.scope {
         return Err(ExchangeError::Scope);
     }
@@ -282,17 +305,6 @@ pub fn compare_registration_acceptance(
     if local != accepted.decision {
         return Err(ExchangeError::Lifecycle);
     }
-    if pending.scope != "nodes"
-        || pending.served_realm != RealmId::from_bytes(staged.scope.network_id)
-        || pending.recipient != staged.enrollment.binding.identity
-        || pending.source_node != staged.enrollment.binding.identity
-        || pending.profile.as_str() != staged.profile
-    {
-        return Err(SourceError::Authority.into());
-    }
-    accepted
-        .source_binding
-        .verify_response(envelope, expected, pending)?;
     Ok(local)
 }
 

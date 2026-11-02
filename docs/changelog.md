@@ -1,3 +1,33 @@
+## 2026-10-30 [docs]
+
+Clarify that public-pool relay rosters cover every Network in the directory
+binding, including later-created Networks without a pool resave. Preserve
+signed scopes, tenant consent, service authorization and billing boundaries.
+
+## 2026-10-30 [docs]
+
+Index exact candidate fixture cases across eleven account families and M6
+composition. Distinguish shared coverage gaps from producer and consumer
+evidence, and retain release-dependent examples and external prerequisites.
+
+## 2026-10-30 [test]
+
+Cover service-label length, non-ASCII, separator and whitespace boundaries
+through existing snapshot encoding and decoding. Preserve canonical snapshot
+bytes and distinguish candidate coverage from pending external agreement.
+
+## 2026-10-29 [feat]
+
+Add exact registration recovery context and original signed acceptance
+attachments. Validate retained request, lifecycle, issuer and custody floors
+independently of transport nonces while keeping current authority separate.
+
+## 2026-10-29 [docs]
+
+Map candidate whole-floor reports and independent roster counters to current
+APIs, fixtures and migration examples. Preserve legacy compatibility boundaries
+and keep external adoption, review, retention and release prerequisites open.
+
 ## 2026-10-28 [feat]
 
 Separate signed roster publication versions from attribution epochs with a new

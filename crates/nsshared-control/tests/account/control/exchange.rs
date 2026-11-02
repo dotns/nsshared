@@ -30,6 +30,7 @@ fn control_exchange_vectors() {
         let bytes = v.hex("bytes");
         let accepted = v.get("decision") == "accepted";
         match v.get("kind") {
+            "recovery" => continue,
             "registration" => assert_eq!(
                 RegistrationRequest::decode(&bytes).is_ok(),
                 accepted,
@@ -590,3 +591,5 @@ fn authentication_retains_independent_registration_incarnations() {
         None
     );
 }
+#[path = "registration_recovery.rs"]
+mod registration_recovery;

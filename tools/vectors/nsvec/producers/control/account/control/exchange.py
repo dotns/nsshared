@@ -191,4 +191,6 @@ def vectors():
              json.dumps({"keys": keys}, separators=(",", ":")).encode(),
              [("pins_json", json.dumps(pins)), ("stored_json", json.dumps(stored)),
               ("kid_json", json.dumps(kid)), ("pin_a", thumb(jwk)), ("pin_b", thumb(other_key))])
+    from . import registration_recovery
+    out.extend(registration_recovery.vectors())
     return out

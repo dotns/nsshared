@@ -126,6 +126,7 @@ def dependency_changes(before: dict, after: dict, paths: list[str]) -> tuple[set
 
 
 def select_changes(root: Path, base: str) -> Selection:
+    root = Path(root).resolve()
     paths = changed_paths(root, base)
     try:
         metadata = dependency_snapshot(root)

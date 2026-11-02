@@ -254,3 +254,30 @@ Status sentences removed from spec/account/realm.md and spec/account/grants.md s
 - profile publications: Runtime persistence and preservation of captured usage/control state belong to the gateway regression, which must consume these same source-bound bytes.
 - profile publications: Existing usage report/ACK and Node-control fixtures retain their bytes; the family registry set is unchanged.
 - profile publications: The following canonical bytes and signatures are fixed before codec implementation.
+
+## Current candidate additions
+
+The [candidate inventory](account-inventory.md#current-candidate-additions-and-release-inventory)
+and [migration delta](account-migration.md#current-candidate-delta) describe the
+shared whole-floor M6 and independent roster-counter additions. Their shared
+source and independent fixture delivery establish no new downstream adoption.
+The historical matched M6 corpus covers legacy composition, not nonempty
+`FloorReportMessage` content. Historical roster/directory production does not
+establish schema-2 publication, separate persisted floors or DATA-time epoch capture.
+
+Gateway/NSD whole-floor adoption and NSD/relayd independent-counter adoption
+remain to be demonstrated. No consumer checks were executed for this inventory.
+Q07/Q11 retain only their recorded bounded answers; complete remaining
+producer-owned vectors stay with NSD before H03. Q22/Q23, M01/M02 and Q24 remain
+open, as do unmatched downstream corpora, owner review, live qualification,
+retention-seal acceptance and F04 integration. `node.control` remains opaque.
+The account surface remains behind `unstable-account`; final release revision
+and cohort remain unset. Released adoption and production eligibility require
+H03/R01/R02/C01b and C18 re-verification, with deletion held under Q-RET.
+
+The [exact candidate case index](account-inventory.md#exact-candidate-case-index)
+now separates eleven families and five case categories. Its
+[missing-evidence reconciliation](account-inventory.md#export-specification-and-missing-evidence-reconciliation)
+assigns shared fixture gaps separately from NSD production and downstream
+consumer obligations. It adds no corpus comparison, owner answer or live result;
+all adoption claims above retain their named revisions and evidence limits.

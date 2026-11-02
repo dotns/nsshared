@@ -1,5 +1,15 @@
 # ns-shared - Plan Index
 
+- [x] [**Public pool roster Network coverage**](20261030-1816-public-pool-roster-coverage.md)
+
+- [x] [**Candidate vector coverage**](20261030-0004-candidate-vector-coverage.md)
+
+- [x] [**Independent service-label input boundaries**](20261030-0006-service-label-boundaries.md)
+
+- [x] [**Exact registration recovery**](20261029-1238-registration-recovery.md)
+
+- [x] [**Candidate release and migration inventory**](20261029-1215-candidate-release-inventory.md)
+
 - [x] [**Separate roster attribution epochs**](20261028-2141-roster-attribution-epoch.md)
 
 - [x] [**M6 floor content**](20261028-2010-m6-floor-content.md)
