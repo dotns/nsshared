@@ -291,3 +291,144 @@ fn profile_cbor_refuses_trailing_and_nonminimal_forms() {
         assert!(decode(&nonminimal).is_err(), "{}", vector["name"]);
     }
 }
+
+pub(super) fn node_l3_protocol_fixture() -> NodeL3 {
+    fixtures()
+        .into_iter()
+        .filter(|vector| vector["kind"] == "l3" && vector.get("expect") != Some(&"reject"))
+        .map(|vector| NodeL3::decode(&bytes(vector["bytes"])).unwrap())
+        .find(|policy| !policy.rules.is_empty())
+        .unwrap()
+}
+
+pub(super) fn node_l3_protocol_bytes(
+    policy: &NodeL3,
+    protocol: u64,
+    first: u64,
+    last: u64,
+) -> Vec<u8> {
+    use nsshared_codec::cbor::CborWriter;
+
+    let mut out = CborWriter::default();
+    out.array(6)
+        .uint(1)
+        .bytes(policy.issuer.as_bytes())
+        .bytes(policy.recipient.as_bytes())
+        .uint(policy.revision)
+        .array(policy.scopes.len());
+    for scope in &policy.scopes {
+        out.array(2)
+            .bytes(&scope.namespace)
+            .array(scope.identities.len());
+        for identity in &scope.identities {
+            out.bytes(identity.as_bytes());
+        }
+    }
+    let rule = &policy.rules[0];
+    out.array(1)
+        .array(6)
+        .bytes(&rule.namespace)
+        .bytes(rule.source.as_bytes())
+        .bytes(rule.destination.as_bytes())
+        .uint(protocol)
+        .uint(first)
+        .uint(last);
+    out.into_bytes()
+}
+
+#[test]
+fn ordinary_node_echo_canonical_protocol_forms() {
+    let policy = node_l3_protocol_fixture();
+    for (protocol, first, last, suffix) in [
+        (6, 1, 65535, &[6, 1, 0x19, 0xff, 0xff][..]),
+        (17, 53, 53, &[17, 0x18, 53, 0x18, 53][..]),
+        (1, 0, 0, &[1, 0, 0][..]),
+        (58, 0, 0, &[0x18, 58, 0, 0][..]),
+    ] {
+        let wire = node_l3_protocol_bytes(&policy, protocol, first, last);
+        assert!(wire.ends_with(suffix));
+        let decoded = NodeL3::decode(&wire)
+            .unwrap_or_else(|error| panic!("protocol {protocol} must decode: {error:?}"));
+        assert_eq!(decoded.canonical().unwrap(), wire);
+        assert_eq!(decoded.rules[0].protocol as u64, protocol);
+        assert_eq!(u64::from(decoded.rules[0].first_port), first);
+        assert_eq!(u64::from(decoded.rules[0].last_port), last);
+    }
+}
+
+#[test]
+fn ordinary_node_echo_refuses_other_selectors_and_malformed_forms() {
+    use nsshared_codec::cbor::CborWriter;
+    use nsshared_control::account::node::L3Protocol;
+
+    let policy = node_l3_protocol_fixture();
+    for (protocol, selector) in [(1, L3Protocol::EchoV4), (58, L3Protocol::EchoV6)] {
+        let wire = node_l3_protocol_bytes(&policy, protocol, 0, 0);
+        let mut decoded = NodeL3::decode(&wire).unwrap();
+        assert_eq!(decoded.rules[0].protocol, selector);
+        for (first, last) in [(0, 1), (1, 0), (1, 1), (8, 0), (128, 129), (0, 65536)] {
+            assert!(
+                NodeL3::decode(&node_l3_protocol_bytes(&policy, protocol, first, last)).is_err()
+            );
+        }
+        decoded.rules[0].first_port = 1;
+        assert!(decoded.canonical().is_err());
+        decoded.rules[0].first_port = 0;
+        decoded.rules[0].last_port = 1;
+        assert!(decoded.canonical().is_err());
+
+        let mut prefix = CborWriter::default();
+        prefix.array(1).array(6).bytes(&policy.rules[0].namespace);
+        let prefix = prefix.into_bytes();
+        let offsets: Vec<_> = wire
+            .windows(prefix.len())
+            .enumerate()
+            .filter_map(|(index, bytes)| (bytes == prefix).then_some(index))
+            .collect();
+        assert_eq!(offsets.len(), 1);
+        for extra in [&[8][..], &[8, 0][..], &[128, 1][..]] {
+            let mut extended = wire.clone();
+            extended[offsets[0] + 1] += u8::try_from(extra.len()).unwrap();
+            extended.extend_from_slice(extra);
+            assert!(NodeL3::decode(&extended).is_err());
+        }
+        let mut trailing = wire.clone();
+        trailing.push(0);
+        assert!(NodeL3::decode(&trailing).is_err());
+        let mut nonminimal = vec![0x98, 6];
+        nonminimal.extend_from_slice(&wire[1..]);
+        assert!(NodeL3::decode(&nonminimal).is_err());
+    }
+    for protocol in [6, 17] {
+        for (first, last) in [(0, 0), (0, 1), (1, 0), (2, 1), (1, 65536)] {
+            assert!(
+                NodeL3::decode(&node_l3_protocol_bytes(&policy, protocol, first, last)).is_err()
+            );
+        }
+    }
+    for protocol in [0, 2, 8, 128, 129, 255, u64::MAX] {
+        for (first, last) in [(0, 0), (1, 65535)] {
+            assert!(
+                NodeL3::decode(&node_l3_protocol_bytes(&policy, protocol, first, last)).is_err()
+            );
+        }
+    }
+    let mut combined = NodeL3::decode(&node_l3_protocol_bytes(&policy, 1, 0, 0)).unwrap();
+    let first = combined.rules[0].clone();
+    for protocol in [L3Protocol::Tcp, L3Protocol::Udp, L3Protocol::EchoV6] {
+        let mut rule = first.clone();
+        rule.protocol = protocol;
+        if matches!(protocol, L3Protocol::Tcp | L3Protocol::Udp) {
+            rule.first_port = 1;
+            rule.last_port = u16::MAX;
+        }
+        combined.rules.push(rule);
+    }
+    let wire = combined.canonical().unwrap();
+    assert_eq!(NodeL3::decode(&wire).unwrap(), combined);
+    combined.rules.swap(0, 1);
+    assert!(combined.canonical().is_err());
+    combined.rules.sort();
+    combined.rules.insert(0, first);
+    assert!(combined.canonical().is_err());
+}
