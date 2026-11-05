@@ -58,3 +58,30 @@ Local diff review covered the codec, independent producer, fixture, tests and co
 documentation. No unresolved correctness or compatibility finding remains within this
 schema scope. Runtime grant issuance, enrollment, routes and NAT are separate consumers.
 No dependency pins or deployment state changed.
+
+## Documentation alignment
+
+The primary M6 specification still describes Default as universally refused, including
+disabled profiles. The account carrier summary still names explicit-only profiles and
+requires the legacy decoder for every nonempty payload. These statements conflict with
+the implemented complete-floor contract.
+
+Align the M6 validation and consumer sections with canonical `[0]` for either enabled value,
+retain explicit encodings and all custody comparisons, and link the compatible immutable
+consumer requirements. Update the existing account carrier section to name both selection
+variants and its complete-floor decoder. This is documentation only; the existing wire
+shape, authority boundaries and acceptance criteria stay unchanged.
+
+The primary M6 specification now permits canonical Default `[0]` for enabled and
+disabled profiles, retains `DefaultExitUnsupported` for explicit-only consumers, and
+links compatible immutable delivery requirements. The account carrier names both
+selections and the complete-floor decoder. Existing explicit bytes, complete-floor
+replacement, custody checks and grant boundaries remain unchanged.
+
+Format and both workspace Clippy configurations passed. The updated tree passed
+`just self-check`, including all 48 fixture files, API compatibility, 70 script tests,
+424 default-feature tests and 590 account-feature tests, with zero nextest skips.
+Doctests and documentation builds passed. This documentation-only change required no
+new failing test; the original failing-first evidence remains applicable to the codec.
+Local review found no remaining mismatch between these descriptions and the Default
+contract. Only these detail records changed after the passing check.

@@ -50,3 +50,16 @@ The independent fixture producer was updated because Default is now valid and ge
 fixtures must agree with the schema. Shared indexes and changelog remain for separate
 integration. Downstream consumers must adopt a verified pushed immutable revision and
 implement their Default handling before enabling a supported tuple.
+
+## Documentation alignment
+
+The primary M6 floor specification and account carrier description now match the
+implemented Default encoding, including disabled profiles and the exact complete-floor
+decoder. Old-consumer refusal, compatible immutable delivery and the separate grant
+boundary are explicit. The existing tests and independent vectors remain unchanged.
+
+Format, both workspace lint configurations and `just self-check` passed. The check
+reported all 48 fixtures current, 70 script tests passing, 424 default-feature tests
+passing and 590 account-feature tests passing, with zero nextest skips. Doctests and
+documentation builds passed. The change adds documentation placement only; it introduces
+no new wire design, authority, acceptance requirement or runtime scope.
