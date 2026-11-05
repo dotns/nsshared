@@ -16,11 +16,28 @@ pub enum TransportProtocol {
     Udp = 17,
 }
 
-impl TransportProtocol {
+/// Node-only protocol selector. Echo forms grant fixed code-zero requests and
+/// state-correlated replies; they grant no other ICMP types or codes.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[repr(u64)]
+pub enum L3Protocol {
+    /// IPv4 Echo: request type 8, reply type 0, both code 0.
+    EchoV4 = 1,
+    /// TCP (IP protocol 6).
+    Tcp = 6,
+    /// UDP (IP protocol 17).
+    Udp = 17,
+    /// IPv6 Echo: request type 128, reply type 129, both code 0.
+    EchoV6 = 58,
+}
+
+impl L3Protocol {
     fn read(value: u64) -> Result<Self, AccountError> {
         match value {
+            1 => Ok(Self::EchoV4),
             6 => Ok(Self::Tcp),
             17 => Ok(Self::Udp),
+            58 => Ok(Self::EchoV6),
             _ => Err(AccountError::Field),
         }
     }
@@ -40,15 +57,15 @@ pub struct L3Scope {
 pub struct L3Rule {
     /// Namespace whose identity scope contains both endpoints.
     pub namespace: [u8; 16],
-    /// Source full identity.
+    /// Full identity originating requests; replies require admitted reverse state.
     pub source: IdentityKey,
-    /// Destination full identity.
+    /// Full identity receiving requests; this grants no reverse-direction request.
     pub destination: IdentityKey,
-    /// TCP or UDP.
-    pub protocol: TransportProtocol,
-    /// Inclusive first destination port, nonzero.
+    /// TCP, UDP or a fixed IP-family Echo selector.
+    pub protocol: L3Protocol,
+    /// Inclusive first TCP/UDP destination port, nonzero; zero for Echo.
     pub first_port: u16,
-    /// Inclusive last destination port, at least first_port.
+    /// Inclusive last TCP/UDP destination port, at least first_port; zero for Echo.
     pub last_port: u16,
 }
 
@@ -78,7 +95,14 @@ impl NodeL3 {
         }
         require(ascending(&self.rules))?;
         for rule in &self.rules {
-            require(rule.first_port > 0 && rule.first_port <= rule.last_port)?;
+            require(match rule.protocol {
+                L3Protocol::EchoV4 | L3Protocol::EchoV6 => {
+                    rule.first_port == 0 && rule.last_port == 0
+                }
+                L3Protocol::Tcp | L3Protocol::Udp => {
+                    rule.first_port > 0 && rule.first_port <= rule.last_port
+                }
+            })?;
             let index = self
                 .scopes
                 .binary_search_by_key(&rule.namespace, |scope| scope.namespace)
@@ -158,7 +182,7 @@ impl NodeL3 {
                 namespace: input.fixed_bytes()?,
                 source: identity(&mut input)?,
                 destination: identity(&mut input)?,
-                protocol: TransportProtocol::read(input.uint()?)?,
+                protocol: L3Protocol::read(input.uint()?)?,
                 first_port: u16::try_from(input.uint()?).map_err(|_| AccountError::Field)?,
                 last_port: u16::try_from(input.uint()?).map_err(|_| AccountError::Field)?,
             });

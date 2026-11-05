@@ -558,6 +558,7 @@ fn authentication_retains_independent_registration_incarnations() {
         .unwrap();
     let bytes = vector.hex("bytes");
     let request = AuthenticationRequest::decode(&bytes).unwrap();
+    assert_eq!(request.canonical().unwrap(), bytes);
     assert_eq!(
         request.registration,
         Some(RegistrationCondition {
@@ -584,6 +585,14 @@ fn authentication_retains_independent_registration_incarnations() {
     }
     let mut gateway = request;
     gateway.registration = None;
+    assert_eq!(
+        gateway.canonical().unwrap(),
+        vectors
+            .iter()
+            .find(|v| v.name() == "authentication")
+            .unwrap()
+            .hex("bytes")
+    );
     assert_eq!(
         AuthenticationRequest::decode(&gateway.canonical().unwrap())
             .unwrap()

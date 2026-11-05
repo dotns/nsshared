@@ -25,10 +25,10 @@ pub struct FloorMetadata {
     pub policy_labels: Vec<(String, String)>,
 }
 
-/// Configured Exit selection; default routing is not reportable.
+/// Configured Exit selection, never traffic authority.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ExitSelection {
-    /// Default routing, refused by the explicit-only floor contract.
+    /// Default routing; requires compatible Default-aware floor consumers.
     Default,
     /// Canonical CIDR strings in strict UTF-8 byte order, without overlap.
     Explicit(Vec<String>),
@@ -39,7 +39,7 @@ pub enum ExitSelection {
 pub struct FloorExitProfile {
     /// Stable publisher-local profile reference.
     pub reference: String,
-    /// Configured explicit address scope.
+    /// Configured address scope.
     pub selection: ExitSelection,
     /// Local enabled intent, never traffic authority.
     pub enabled: bool,
@@ -224,32 +224,30 @@ fn profile_value(profile: &FloorExitProfile) -> Result<Value, ContractError> {
     else {
         return Err(ContractError::InvalidField);
     };
-    let ExitSelection::Explicit(prefixes) = &profile.selection else {
-        return Err(ContractError::DefaultExitUnsupported);
+    let selection = match &profile.selection {
+        ExitSelection::Default => Value::Array(vec![Value::UInt(0)]),
+        ExitSelection::Explicit(prefixes) => {
+            validate_prefixes(prefixes)?;
+            Value::Array(vec![
+                Value::UInt(1),
+                Value::Array(prefixes.iter().cloned().map(Value::Text).collect()),
+            ])
+        }
     };
-    validate_prefixes(prefixes)?;
-    parts.insert(
-        1,
-        Value::Array(vec![
-            Value::UInt(1),
-            Value::Array(prefixes.iter().cloned().map(Value::Text).collect()),
-        ]),
-    );
+    parts.insert(1, selection);
     parts.insert(2, Value::Bool(profile.enabled));
     Ok(Value::Array(parts))
 }
 fn profile_read(value: &Value) -> Result<FloorExitProfile, ContractError> {
     let parts = tuple(value, 5)?;
-    let selection = array(&parts[1])?;
-    if selection.first() == Some(&Value::UInt(0)) {
-        return Err(ContractError::DefaultExitUnsupported);
-    }
-    if selection.len() != 2 || selection[0] != Value::UInt(1) {
-        return Err(ContractError::InvalidFloorCidr);
-    }
+    let selection = match array(&parts[1])? {
+        [Value::UInt(0)] => ExitSelection::Default,
+        [Value::UInt(1), prefixes] => ExitSelection::Explicit(texts(prefixes)?),
+        _ => return Err(ContractError::InvalidFloorCidr),
+    };
     Ok(FloorExitProfile {
         reference: text(&parts[0])?.into(),
-        selection: ExitSelection::Explicit(texts(&selection[1])?),
+        selection,
         enabled: boolean(&parts[2])?,
         capabilities: texts(&parts[3])?,
         policy_labels: labels(&parts[4])?,

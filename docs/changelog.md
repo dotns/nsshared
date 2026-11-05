@@ -1,3 +1,31 @@
+## 2026-11-05 [fix]
+
+Synchronize compatible shared contract histories while retaining captured
+authentication conditions, Default Exit profiles and Node-only Echo coverage.
+Preserve both inputs' assertions and fix self-check selection for symlinked
+workspace paths.
+
+## 2026-11-05 [fix]
+
+Restore captured registration conditions in six-element authentication requests,
+preserving established canonical bytes and independent incarnation identifiers.
+Retain Default floor and Node-only L3 contracts and document incompatible
+five-element clients and captured-receipt authority boundaries.
+
+## 2026-11-05 [feat]
+
+Encode Default Exit profiles in complete M6 floor reports, preserving explicit
+CIDR bytes and complete digest correlation. Document immutable compatible
+consumer delivery and retain the existing custody and traffic authority
+boundaries.
+
+## 2026-11-05 [feat]
+
+Add Node-only IPv4 and IPv6 Echo authorization with fixed code-zero semantics
+and zero port slots. Preserve TCP/UDP bytes and non-Node protocol refusal;
+require authenticated runtime support and compatible released enforcement
+before consumer enablement.
+
 ## 2026-10-30 [docs]
 
 Clarify that public-pool relay rosters cover every Network in the directory

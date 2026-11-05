@@ -1,7 +1,7 @@
 # Versioned M6 whole-floor reports
 
 The gateway's validated local floor produces plain TCP/UDP declarations,
-declaration metadata and explicit-CIDR Exit profiles. Accepted Node custody
+declaration metadata and Default or explicit-CIDR Exit profiles. Accepted Node custody
 supplies publisher/NSD/Network scope. Its current Node runtime supplies the
 runtime generation and identifier. The existing authenticated M6
 `service.control.v1` carrier transports `report.replace`; this extension adds
@@ -37,8 +37,11 @@ An empty extension map is noncanonical: use the legacy encoding instead.
 Unknown fields or floor versions are refused. Legacy `Message::decode` and
 `ReportContent::decode` deliberately refuse nonempty extensions; they never
 silently discard metadata. Adoption requires a floor-aware producer and consumer.
-The Rust API extension is additive and source-compatible; no package version or
-manifest changes are required for this change.
+The Rust API extension is additive and source-compatible. Default requires a
+Default-aware producer and every consumer to pin a verified pushed immutable
+revision containing the compatible contract. Old explicit-only floor decoders
+are not Default-capable; unsupported tuples remain unavailable. See
+[Default compatibility and delivery](service/default-exit-floor.md#compatibility-and-immutable-delivery).
 
 `report_digest` is SHA-256 of the ASCII bytes `ns.service.floor.v1`, one zero
 byte, and the complete canonical extension bytes. Empty extensions retain the
@@ -55,8 +58,10 @@ retains the existing `EdgeExitProfile` field shape and local enabled,
 capabilities and policy-label semantics without depending on candidate account
 features.
 
-Selection is `[1, [canonical_CIDR_text, ...]]`. `[0]` denotes default selection
-and is refused with `DefaultExitUnsupported`, even for a disabled profile.
+Selection is exactly `[0]` for Default or `[1, [canonical_CIDR_text, ...]]` for
+Explicit. Both variants are valid for enabled and disabled profiles. Default
+has no CIDR payload; unknown tags, extra elements and malformed selections are
+refused. Enabled intent supplies no traffic authority.
 Explicit selections are nonempty; each CIDR uses canonical `std::net::IpAddr`
 text, a slash and a minimal decimal prefix length. Host bits must be zero.
 IPv4 and IPv6 are supported. Explicit `/0` prefixes are explicit CIDRs; they do
@@ -77,14 +82,14 @@ capabilities, labels and CIDRs, is bounded to 256 entries. Encoded extension
 content is bounded to 65,536 bytes, additionally subject to the existing M6 CBOR
 and enclosing carrier limits. Legacy report rules remain applicable to plain
 reports. Validation uses typed `ContractError` values: `FloorLimit`,
-`InvalidFloorOrder`, `InvalidFloorBinding`, `InvalidFloorCidr`,
-`DefaultExitUnsupported`, plus existing encoding, field, version and digest
-errors. Metadata and profile collection lengths are checked before constructing their typed collections; embedded declarations retain the existing bounded M6 decoder.
+`InvalidFloorOrder`, `InvalidFloorBinding`, `InvalidFloorCidr`, plus existing
+encoding, field, version and digest errors. `DefaultExitUnsupported` remains a
+valid wire error for explicit-only consumers. Metadata and profile collection lengths are checked before constructing their typed collections; embedded declarations retain the existing bounded M6 decoder.
 
 ## Consumer comparisons
 
 NSD authenticates the signer and compares publisher, NSD/Network scope, accepted
-explicit profile, contribution and Node runtime fence with independently
+Exit profile, contribution and Node runtime fence with independently
 persisted current custody. It decodes the complete floor through
 `FloorReportMessage::decode` (or the account-aware
 `FloorReportMessage::from_envelope`), validates its references and canonical bytes, then

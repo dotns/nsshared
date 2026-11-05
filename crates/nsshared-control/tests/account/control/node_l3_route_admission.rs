@@ -89,3 +89,44 @@ fn node_l3_route_admission_vectors() {
         assert_eq!(admitted, case.get("selected") == "yes", "{}", case.name());
     }
 }
+
+#[test]
+fn ordinary_node_echo_route_admission_codec_forms() {
+    use nsshared_control::account::node::{L3Protocol, L3Rule, L3Scope};
+    use nsshared_identity::keys::IdentityKey;
+
+    for case in nsshared_testkit::vectors!("account/control/node-l3-route-admission") {
+        let publication = SubnetPublication::decode(&case.hex("bytes")).unwrap();
+        let route = &publication.routes[0];
+        let mut policy = NodeL3::decode(&case.hex("policy")).unwrap();
+        let source = IdentityKey::from_bytes(&route.client).unwrap();
+        let destination = IdentityKey::from_bytes(&route.provider).unwrap();
+        let mut identities = vec![source, destination];
+        identities.sort();
+        identities.dedup();
+        policy.scopes = vec![L3Scope {
+            namespace: [3; 16],
+            identities,
+        }];
+        policy.rules = [L3Protocol::EchoV4, L3Protocol::EchoV6]
+            .into_iter()
+            .map(|protocol| L3Rule {
+                namespace: [3; 16],
+                source,
+                destination,
+                protocol,
+                first_port: 0,
+                last_port: 0,
+            })
+            .collect();
+        let bytes = policy.canonical().unwrap();
+        assert_eq!(NodeL3::decode(&bytes).unwrap(), policy);
+        assert_eq!(policy.rules[0].protocol as u64, 1);
+        assert_eq!(policy.rules[1].protocol as u64, 58);
+        policy.rules[0].first_port = 8;
+        assert!(policy.canonical().is_err());
+        policy.rules[0].first_port = 0;
+        policy.rules[1].last_port = 129;
+        assert!(policy.canonical().is_err());
+    }
+}

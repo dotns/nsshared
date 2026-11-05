@@ -425,3 +425,39 @@ fn public_edge_protocol_names() {
         assert!(changed.canonical().is_err());
     }
 }
+
+#[test]
+fn ordinary_node_echo_does_not_expand_public_edge_protocols() {
+    use nsshared_codec::cbor::CborWriter;
+
+    let vectors = nsshared_testkit::vectors!("account/edge/routing");
+    let fixture = vectors
+        .iter()
+        .find(|case| case.name() == "protocol-names-valid")
+        .unwrap();
+    let original = fixture.hex("bytes");
+    let edge = PublicEdge::decode(&original).unwrap();
+    assert_eq!(edge.canonical().unwrap(), original);
+    for route in &edge.realms[0].routes[1..] {
+        let segment = |protocol| {
+            let mut out = CborWriter::default();
+            out.uint(protocol)
+                .uint(u64::from(route.public_port))
+                .uint(u64::from(route.virtual_port))
+                .bytes(&route.policy.canonical().unwrap());
+            out.into_bytes()
+        };
+        let before = segment(route.protocol as u64);
+        let offsets: Vec<_> = original
+            .windows(before.len())
+            .enumerate()
+            .filter_map(|(index, bytes)| (bytes == before).then_some(index))
+            .collect();
+        assert_eq!(offsets.len(), 1);
+        for protocol in [1, 58] {
+            let mut wire = original.clone();
+            wire.splice(offsets[0]..offsets[0] + before.len(), segment(protocol));
+            assert!(PublicEdge::decode(&wire).is_err());
+        }
+    }
+}

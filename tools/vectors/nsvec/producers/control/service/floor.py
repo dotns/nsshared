@@ -50,7 +50,14 @@ def document():
     case("overlapping_cidrs", prefixes(["10.0.0.0/8", "10.1.0.0/16"]))
     case("unordered_cidrs", prefixes(["2001:db8::/32", "10.0.0.0/8"]))
     case("oversize_cidrs", prefixes([f"10.{i // 256}.{i % 256}.0/24" for i in range(257)]))
-    case("default_exit", lambda v: v["exit_profiles"][0].__setitem__(1, [0]))
+    for name, selection in [
+        ("empty_selection", []), ("unknown_selection", [2]),
+        ("unknown_selection_payload", [2, []]), ("default_payload", [0, []]),
+        ("default_cidrs", [0, ["0.0.0.0/0"]]), ("default_extra", [0, [], False]),
+        ("explicit_missing_cidrs", [1]), ("selection_boolean", [True]),
+        ("selection_text", ["0"]), ("selection_not_array", 0),
+    ]:
+        case(name, lambda v, selection=selection: v["exit_profiles"][0].__setitem__(1, selection))
     case("duplicate_profiles", lambda v: v["exit_profiles"].append(copy.deepcopy(v["exit_profiles"][0])))
     case("unordered_profiles", lambda v: v["exit_profiles"].append(["aaa", [1, ["192.0.2.0/24"]], True, [], []]))
     case("duplicate_metadata", lambda v: v["metadata"].append(copy.deepcopy(v["metadata"][0])))
@@ -60,9 +67,19 @@ def document():
     case("oversize_text", lambda v: v["metadata"][0].__setitem__(1, ["x" * 256]))
     case("unknown_version", lambda v: v.__setitem__("floor_version", 2))
     case("unknown_field", lambda v: v.__setitem__("extra", 1))
+    default = copy.deepcopy(floor)
+    default["exit_profiles"][0][1] = [0]
+    default_encoded = cbor.encode_value(default)
+    default_message = copy.deepcopy(message)
+    default_message["body"] = dict(report_revision=3, report_digest=digest(default_encoded),
+                                   report_content=default_encoded)
     return {"floor_cbor": encoded.hex(), "floor_sha256": digest(encoded).hex(),
             "message_cbor": cbor.encode_value(message).hex(), "invalid": invalid,
-            "signed": signed_vectors(floor, message)}
+            "signed": signed_vectors(floor, message),
+            "default_floor_cbor": default_encoded.hex(),
+            "default_floor_sha256": digest(default_encoded).hex(),
+            "default_message_cbor": cbor.encode_value(default_message).hex(),
+            "signed_default": signed_vectors(default, default_message)}
 
 
 def signed_vectors(floor, message):

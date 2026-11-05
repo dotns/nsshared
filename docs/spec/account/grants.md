@@ -83,7 +83,8 @@ alias_generation]`:
 
 - `floor` is the exact local declaration reference string, 1 to 256 UTF-8 bytes.
 - `name` is the exact projected listener name, 1 to 256 bytes.
-- `protocol` is 6 (TCP) or 17 (UDP).
+- `protocol` is 6 (TCP) or 17 (UDP). Node-only Echo values 1 and 58 are
+  refused; `TransportProtocol` supplies no ICMP authorization.
 - `virtual_port` is 1 to 65535.
 - `alias_generation` is null for a non-alias or `[positive_u64]`. Consumer
   admission compares it with local alias ownership without guessing.

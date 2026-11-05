@@ -311,6 +311,36 @@ NodeBinding, "control", [served_realm, publication_scope], registration_conditio
   (`AuthenticationSourceScope`) is required, with no default and no fallback to a
   selector-free shape. Realm text is canonical RealmId; scope uses the nonempty,
   control-free UTF-8 encoding bounded to 256 bytes.
+- `registration_condition` is either `[node_id, credential_incarnation,
+  activation_generation]`, each a nonzero 16-byte server identifier, or explicit
+  CBOR null. The immutable server Node record identifier is distinct from the
+  identity-derived Node ID. Account-owned clients, including the rootless Account
+  Gateway, must supply all three facts captured from their verified original
+  enrollment receipt; an independently established
+  gateway without an Account may send null. The server decides this from stored
+  ownership and kind, never from an untrusted client role or a missing field.
+- The server compares the condition atomically with current Account standing,
+  the exact shared binding (including I/K), and source selection before issuing
+  any token or source. An earlier receipt lookup or a second check after signing
+  is insufficient. A stale condition must not fall back to unconditional auth.
+- Account activation, credential incarnation, Node binding generation and source
+  generation are independent. Same-I/K Account A to B to A requires a fresh
+  receipt condition; a legitimate source refresh within the same registration
+  may return a newer source without changing this condition.
+- The six-element request preserves the established bytes at
+  `9969abd8507ea3de057b0b870492755908206e89`, introduced by
+  `3b5c4878e71b4b77d21cf86c442272a088e0ba65`. It is incompatible in both
+  directions with five-element clients at
+  `cc8d22b8be4d284ccfd7c9cd64216b743b8e58a8`: this decoder rejects their
+  requests, and their decoder rejects six-element requests. Null must be explicit;
+  no dual-arity decoder, implicit null, downgrade or alternate authority path is
+  provided. Producers, consumers and copied vectors adopt compatible immutable
+  revisions together.
+- Decoding null establishes no server-side authority. Historical Account-Gateway
+  omission exceptions are not broadened and do not provide old-registration
+  fencing. Never synthesize a condition from the current server row, substitute
+  a current receipt for the captured operation, or infer historical acceptance
+  from current observations.
 
 
 - `registration_condition` is either `[node_id, credential_incarnation,
@@ -1047,8 +1077,12 @@ runtime or a change to other collections' ownership.
 Versioned whole-floor `report.replace` content is specified in
 [the M6 floor contract](../m6-floor.md). The operation and Node runtime fence
 are unchanged; floor-aware decoding and pending correlation retain metadata
-and explicit-CIDR Exit profiles in the acknowledged content digest.
-
+and Default or explicit-CIDR Exit profiles in the acknowledged content digest,
+including disabled profiles. Default is exactly `[0]`; it requires compatible
+immutable producer/consumer revisions as specified in
+[Default compatibility and delivery](../service/default-exit-floor.md#compatibility-and-immutable-delivery).
+Old explicit-only decoders are not Default-capable; unsupported tuples remain
+unavailable. Profile publication alone grants no traffic authority.
 
 The carrier maps M6 service control onto the confidential control endpoint. It
 has no transport, persistence, session state or I/O. It replaces the JSON
@@ -1061,10 +1095,12 @@ admission state are unchanged and no publication family is added.
 endpoint. The Node signs Request `BootstrapEnvelope`s addressed to its
 authenticated NSD; NSD signs Responses addressed to the Node. The envelope
 signature domains, trust pins, recipient, clock, replay and size checks apply.
-Except for the receipt below, the payload is exactly
-`nsshared_control::service::Message::encode()` bytes, decoded only by
-`Message::decode`. The outer operation and the inner MessageBody kind are
-distinct.
+Except for the receipt below, ordinary payloads are exactly
+`nsshared_control::service::Message::encode()` bytes, decoded by
+`Message::decode`. Extended whole-floor `report.replace` payloads use
+`FloorReportMessage::encode` and `decode` (or authenticated `from_envelope`),
+as specified in [the M6 floor contract](../m6-floor.md). The outer operation and
+the inner MessageBody kind are distinct.
 
 | Node request body | Successful response |
 | --- | --- |
