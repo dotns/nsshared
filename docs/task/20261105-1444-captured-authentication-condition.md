@@ -72,3 +72,7 @@ both populated and explicit-null encodings with independent fixture bytes.
 
 No product change remains in this scope. Consumer adoption requires compatible
 immutable publication after integration verification.
+
+## Final validation
+
+- [ ] Run the complete integration check on the composed source.

@@ -1,3 +1,10 @@
+## 2026-11-05 [fix]
+
+Restore captured registration conditions in six-element authentication requests,
+preserving established canonical bytes and independent incarnation identifiers.
+Retain Default floor and Node-only L3 contracts and document incompatible
+five-element clients and captured-receipt authority boundaries.
+
 ## 2026-11-05 [feat]
 
 Encode Default Exit profiles in complete M6 floor reports, preserving explicit
