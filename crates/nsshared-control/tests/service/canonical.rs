@@ -152,6 +152,28 @@ fn declared_lengths_beyond_the_input_are_truncated() {
 
 #[test]
 fn rejects_noncanonical_and_unknown_fields() {
+    for case in vectors()["error_messages"].as_array().unwrap() {
+        let name = case["name"].as_str().unwrap();
+        let bytes = nsshared_testkit::hex::unhex(case["cbor"].as_str().unwrap());
+        let decoded = Message::decode(&bytes);
+        assert_eq!(
+            decoded.is_ok(),
+            case["accepted"].as_bool().unwrap(),
+            "{name}"
+        );
+        if let Ok(message) = decoded {
+            assert_eq!(message.body, MessageBody::Error(name.into()));
+            assert_eq!(message.nsd_id, [1; 16]);
+            assert_eq!(message.network_id, [2; 16]);
+            assert_eq!(message.subject_identity, [3; 32]);
+            assert_eq!(message.runtime_generation, Some(1));
+            assert_eq!(message.runtime_id, Some([8; 16]));
+            assert_eq!(message.authority_epoch, Some(1));
+            assert_eq!(message.request_id, [9; 16]);
+            assert_eq!(message.session_seq, None);
+            assert_eq!(message.encode().unwrap(), bytes, "{name}");
+        }
+    }
     assert!(decode_canonical(&[0x18, 0x01]).is_err());
     assert!(decode_canonical(&[0xa2, 0x61, b'a', 0x01, 0x61, b'a', 0x02]).is_err());
     assert!(decode_canonical(&[0xa2, 0x61, b'b', 0x01, 0x61, b'a', 0x02]).is_err());

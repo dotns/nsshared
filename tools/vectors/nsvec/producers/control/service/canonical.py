@@ -106,7 +106,32 @@ def document():
         "listeners": [{"intent": cbor.encode_value(live_intent), "proposal": live_proposal}],
         "withdrawals": [{"service_ref": [live_nsd, live_network, bytes([2]) * 16], "listener_revision": 1}],
     }
+    error_envelope = {
+        "schema": 1,
+        "kind": "error",
+        "nsd_id": live_nsd,
+        "network_id": live_network,
+        "subject_identity": live_publisher,
+        "runtime_generation": 1,
+        "runtime_id": bytes([8]) * 16,
+        "authority_epoch": 1,
+        "request_id": bytes([9]) * 16,
+        "session_seq": None,
+    }
+    error_bodies = [
+        ("authority-unavailable", {"code": "authority-unavailable"}, True),
+        ("scope-mismatch", {"code": "scope-mismatch"}, True),
+        ("unknown-code", {"code": "unknown-refusal"}, False),
+        ("wrong-code-type", {"code": 1}, False),
+        ("missing-code", {}, False),
+        ("extra-field", {"code": "scope-mismatch", "redirect": "other"}, False),
+        ("wrong-body-type", ["scope-mismatch"], False),
+    ]
     return {
+        "error_messages": [
+            {"name": name, "cbor": cbor.encode_value({**error_envelope, "body": body}).hex(), "accepted": accepted}
+            for name, body, accepted in error_bodies
+        ],
         "report_cbor": cbor.encode_value(report).hex(),
         "report_sha256": service_digest("ns.service.report.v1", report),
         "report_renamed_sha256": service_digest("ns.service.report.v1", {**report, "declarations": [changed_name]}),
