@@ -45,3 +45,7 @@ The initial focused decoder test failed on protocol 1 with `AccountError::Field`
 - Standalone `just fmt-check lint` passed before the failing test and after implementation. The focused selection passed all 32 selected tests. The final self-check selected full QA and passed 70 script tests, 422 default-feature nextest tests and 588 account-feature nextest tests. Both nextest runs had zero skips. Formatting, lint, supply-chain, unused-dependency, spelling, vectors, API compatibility, doctests and documentation checks passed; each doctest configuration retained its existing single ignored example.
 - Local review found no unresolved contract, scope or compatibility defects. Only the public L3Protocol re-export changes the Node module surface. Other families retain TransportProtocol and their existing TCP/UDP-only decoders.
 - The normative specification records fixed request/reply types and code zero, exact authenticated runtime capability custody, complete unsupported-runtime TCP/UDP projection and old-decoder refusal. Packet enforcement and reply-state delivery remain unqualified until a compatible immutable released code-zero-before-state path is verified. No runtime support is advertised by this contract change.
+
+## Final validation
+
+- [ ] Run the complete integration check on the composed source.
