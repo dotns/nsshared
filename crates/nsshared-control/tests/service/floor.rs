@@ -64,6 +64,53 @@ fn independent_whole_floor_round_trip_and_digest() {
 }
 
 #[test]
+fn independent_default_floor_round_trip_and_digest() {
+    let mut floor = sample();
+    floor.exit_profiles[0].selection = ExitSelection::Default;
+    let input = vector_bytes("default_floor_cbor");
+    let (bytes, digest) = floor.canonical().unwrap();
+    assert_eq!(bytes, input);
+    assert_eq!(FloorContent::decode(&input).unwrap(), floor);
+    assert_eq!(hex(&digest), vectors()["default_floor_sha256"]);
+    assert_ne!(digest, sample().canonical().unwrap().1);
+    let wire = vector_bytes("default_message_cbor");
+    let message = FloorReportMessage::decode(&wire).unwrap();
+    assert_eq!(message.report().report, floor);
+    assert_eq!(message.encode().unwrap(), wire);
+    assert_eq!(
+        message
+            .context()
+            .clone()
+            .with_floor(floor.metadata, floor.exit_profiles)
+            .unwrap(),
+        message
+    );
+    assert!(ReportContent::decode(&input).is_err());
+    assert!(Message::decode(&wire).is_err());
+    assert!(matches!(
+        message.context().body,
+        MessageBody::ReportReplace(_)
+    ));
+}
+
+#[test]
+fn default_and_explicit_profiles_share_complete_floor_validation() {
+    let mut floor = sample();
+    let mut default = floor.exit_profiles[0].clone();
+    default.reference = "internet".into();
+    default.selection = ExitSelection::Default;
+    default.enabled = false;
+    floor.exit_profiles.insert(0, default);
+    let bytes = floor.canonical().unwrap().0;
+    assert_eq!(FloorContent::decode(&bytes).unwrap(), floor);
+    floor.exit_profiles.swap(0, 1);
+    assert_eq!(floor.canonical(), Err(ContractError::InvalidFloorOrder));
+    floor.exit_profiles.swap(0, 1);
+    floor.exit_profiles[1].reference = "internet".into();
+    assert_eq!(floor.canonical(), Err(ContractError::InvalidFloorOrder));
+}
+
+#[test]
 fn independent_invalid_floor_vectors_are_refused() {
     for (name, value) in vectors()["invalid"].as_object().unwrap() {
         let result = FloorContent::decode(&unhex(value.as_str().unwrap()).unwrap());
@@ -72,8 +119,17 @@ fn independent_invalid_floor_vectors_are_refused() {
             | "invalid_prefix_length"
             | "noncanonical_ipv6"
             | "empty_cidrs"
-            | "overlapping_cidrs" => ContractError::InvalidFloorCidr,
-            "default_exit" => ContractError::DefaultExitUnsupported,
+            | "overlapping_cidrs"
+            | "empty_selection"
+            | "unknown_selection"
+            | "unknown_selection_payload"
+            | "default_payload"
+            | "default_cidrs"
+            | "default_extra"
+            | "explicit_missing_cidrs"
+            | "selection_boolean"
+            | "selection_text" => ContractError::InvalidFloorCidr,
+            "selection_not_array" => ContractError::InvalidField,
             "dangling_metadata" => ContractError::InvalidFloorBinding,
             "oversize_cidrs" | "oversize_text" => ContractError::FloorLimit,
             "unknown_version" => ContractError::UnsupportedVersion,
@@ -87,7 +143,13 @@ fn independent_invalid_floor_vectors_are_refused() {
 
 #[test]
 fn entire_floor_changes_the_digest_and_acknowledgement() {
-    let message = FloorReportMessage::decode(&vector_bytes("message_cbor")).unwrap();
+    for key in ["message_cbor", "default_message_cbor"] {
+        check_floor_acknowledgement(key);
+    }
+}
+
+fn check_floor_acknowledgement(key: &str) {
+    let message = FloorReportMessage::decode(&vector_bytes(key)).unwrap();
     let mut reply = message.context().clone();
     reply.body = MessageBody::ReportAccepted(ReportAccepted {
         accepted_revision: 3,
@@ -95,8 +157,8 @@ fn entire_floor_changes_the_digest_and_acknowledgement() {
         bindings: vec![],
     });
     message.validate_accepted(&reply).unwrap();
-    for change in 0..9 {
-        let mut changed = sample();
+    for change in 0..10 {
+        let mut changed = message.report().report.clone();
         match change {
             0 => changed.metadata[0].capabilities = vec!["tcp".into()],
             1 => changed.metadata[0].policy_labels[0].1 = "database".into(),
@@ -109,7 +171,13 @@ fn entire_floor_changes_the_digest_and_acknowledgement() {
             5 => changed.exit_profiles[0].capabilities = vec!["tcp".into()],
             6 => changed.exit_profiles[0].policy_labels[0].1 = "remote".into(),
             7 => changed.metadata.clear(),
-            _ => changed.exit_profiles.clear(),
+            8 => changed.exit_profiles.clear(),
+            _ => {
+                changed.exit_profiles[0].selection = match changed.exit_profiles[0].selection {
+                    ExitSelection::Default => sample().exit_profiles[0].selection.clone(),
+                    ExitSelection::Explicit(_) => ExitSelection::Default,
+                };
+            }
         }
         let request = message
             .context()
@@ -144,30 +212,44 @@ fn entire_floor_changes_the_digest_and_acknowledgement() {
 #[test]
 fn invalid_programmatic_floor_is_refused() {
     let mut floor = sample();
+    for selection in [
+        ExitSelection::Default,
+        ExitSelection::Explicit(vec!["0.0.0.0/0".into()]),
+    ] {
+        floor.exit_profiles = vec![FloorExitProfile {
+            reference: "".into(),
+            selection,
+            enabled: true,
+            capabilities: vec![],
+            policy_labels: vec![],
+        }];
+        assert_eq!(floor.canonical(), Err(ContractError::InvalidField));
+    }
+    floor = sample();
     floor.exit_profiles[0].selection = ExitSelection::Default;
-    assert_eq!(
-        floor.canonical(),
-        Err(ContractError::DefaultExitUnsupported)
-    );
-    floor.exit_profiles = vec![FloorExitProfile {
-        reference: "".into(),
-        selection: ExitSelection::Explicit(vec!["0.0.0.0/0".into()]),
-        enabled: true,
-        capabilities: vec![],
-        policy_labels: vec![],
-    }];
-    assert_eq!(floor.canonical(), Err(ContractError::InvalidField));
+    floor.exit_profiles[0].capabilities = vec!["udp".into(), "tcp".into()];
+    assert_eq!(floor.canonical(), Err(ContractError::InvalidFloorOrder));
+    floor.exit_profiles[0].capabilities.clear();
+    floor.metadata[0].reference = "absent".into();
+    assert_eq!(floor.canonical(), Err(ContractError::InvalidFloorBinding));
 }
 
 #[cfg(feature = "unstable-account")]
 #[test]
 fn authenticated_pending_floor_correlates_complete_digest() {
+    for key in ["signed", "signed_default"] {
+        check_authenticated_pending_floor(key);
+    }
+}
+
+#[cfg(feature = "unstable-account")]
+fn check_authenticated_pending_floor(key: &str) {
     use nsshared_control::account::control::{
         BootstrapEnvelope, EnvelopeDirection, EnvelopeExpectation, EnvelopePins, PendingRequest,
         SERVICE_CONTROL, UnaryReply, validate_unary_reply, validate_unary_request,
     };
     let vectors = vectors();
-    let data = &vectors["signed"];
+    let data = &vectors[key];
     let request =
         BootstrapEnvelope::decode(&unhex(data["request"].as_str().unwrap()).unwrap()).unwrap();
     let node_pins =
@@ -221,8 +303,14 @@ fn authenticated_pending_floor_correlates_complete_digest() {
 
 #[test]
 fn floor_report_rejects_tampered_digest_scope_and_runtime() {
+    for key in ["message_cbor", "default_message_cbor"] {
+        check_tampered_floor(key);
+    }
+}
+
+fn check_tampered_floor(key: &str) {
     use nsshared_codec::cbor::value::{Value, decode_canonical, encode_canonical};
-    let wire = vector_bytes("message_cbor");
+    let wire = vector_bytes(key);
     for (name, replacement) in [
         ("network_id", Value::Bytes(vec![9; 16])),
         ("subject_identity", Value::Bytes(vec![9; 32])),

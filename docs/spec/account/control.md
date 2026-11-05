@@ -1026,8 +1026,12 @@ runtime or a change to other collections' ownership.
 Versioned whole-floor `report.replace` content is specified in
 [the M6 floor contract](../m6-floor.md). The operation and Node runtime fence
 are unchanged; floor-aware decoding and pending correlation retain metadata
-and explicit-CIDR Exit profiles in the acknowledged content digest.
-
+and Default or explicit-CIDR Exit profiles in the acknowledged content digest,
+including disabled profiles. Default is exactly `[0]`; it requires compatible
+immutable producer/consumer revisions as specified in
+[Default compatibility and delivery](../service/default-exit-floor.md#compatibility-and-immutable-delivery).
+Old explicit-only decoders are not Default-capable; unsupported tuples remain
+unavailable. Profile publication alone grants no traffic authority.
 
 The carrier maps M6 service control onto the confidential control endpoint. It
 has no transport, persistence, session state or I/O. It replaces the JSON
@@ -1040,10 +1044,12 @@ admission state are unchanged and no publication family is added.
 endpoint. The Node signs Request `BootstrapEnvelope`s addressed to its
 authenticated NSD; NSD signs Responses addressed to the Node. The envelope
 signature domains, trust pins, recipient, clock, replay and size checks apply.
-Except for the receipt below, the payload is exactly
-`nsshared_control::service::Message::encode()` bytes, decoded only by
-`Message::decode`. The outer operation and the inner MessageBody kind are
-distinct.
+Except for the receipt below, ordinary payloads are exactly
+`nsshared_control::service::Message::encode()` bytes, decoded by
+`Message::decode`. Extended whole-floor `report.replace` payloads use
+`FloorReportMessage::encode` and `decode` (or authenticated `from_envelope`),
+as specified in [the M6 floor contract](../m6-floor.md). The outer operation and
+the inner MessageBody kind are distinct.
 
 | Node request body | Successful response |
 | --- | --- |
