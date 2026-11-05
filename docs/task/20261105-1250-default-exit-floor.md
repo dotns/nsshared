@@ -63,3 +63,7 @@ reported all 48 fixtures current, 70 script tests passing, 424 default-feature t
 passing and 590 account-feature tests passing, with zero nextest skips. Doctests and
 documentation builds passed. The change adds documentation placement only; it introduces
 no new wire design, authority, acceptance requirement or runtime scope.
+
+## Final validation
+
+- [ ] Run the complete integration check on the composed source.

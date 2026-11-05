@@ -1,5 +1,12 @@
 ## 2026-11-05 [feat]
 
+Encode Default Exit profiles in complete M6 floor reports, preserving explicit
+CIDR bytes and complete digest correlation. Document immutable compatible
+consumer delivery and retain the existing custody and traffic authority
+boundaries.
+
+## 2026-11-05 [feat]
+
 Add Node-only IPv4 and IPv6 Echo authorization with fixed code-zero semantics
 and zero port slots. Preserve TCP/UDP bytes and non-Node protocol refusal;
 require authenticated runtime support and compatible released enforcement

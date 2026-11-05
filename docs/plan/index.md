@@ -1,5 +1,7 @@
 # ns-shared - Plan Index
 
+- [x] [**Default Exit floor encoding**](20261105-1250-default-exit-floor.md)
+
 - [x] [**Ordinary Node L3 Echo authorization**](20261105-1239-ordinary-node-l3-echo.md)
 
 - [x] [**Public pool roster Network coverage**](20261030-1816-public-pool-roster-coverage.md)
