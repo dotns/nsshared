@@ -1076,11 +1076,20 @@ the immutable revision containing this response extension when adopting it.
 2026-10-28 status: Registration/source and lifecycle handling are adopted in source; Q07 is answered by the code check, and Q11 has bounded answers with remaining producer-owned vectors due from NSD before H03. Current matched enrollment corpus bytes and live confirmation remain open. See [adoption evidence](account-handoff.md#adoption-core).
 
 AuthenticationRequest is exactly `[1, membership_scope, NodeBinding, "control",
-[served_realm, publication_scope]]`. The selector is required, with no default or
+[served_realm, publication_scope], registration_condition]`. The selector is required, with no default or
 old-shape fallback. Realm text is canonical 26-character RealmId; scope uses the
 existing nonempty, control-free UTF-8 encoding bounded to 256 bytes. This is an
 incompatible candidate request delta. AuthenticationResponse and SignedSourceBinding
 encodings and signing domains are unchanged. NSD N04 live adoption confirmation remains outstanding.
+
+The 2026-10-28 approved C05 extension requires an explicit registration condition
+slot. Account-owned Connectors carry the exact receipt Node record, credential
+incarnation and Account activation as three nonzero 16-byte identifiers. A gateway
+without an Account may use explicit null; the authority determines that role.
+NSD must compare this condition and shared custody in one transaction before
+minting tokens or sources. Five-field requests are refused; a separate preflight
+is insufficient. Source generation may still change within one registration.
+The codec is verified; paired consumer/server behavior remains C05 work.
 
 Registration, including pending gateway enrollment and Equal, returns nodes authority
 in the accepted registration Network. Recipient and source_node equal the enrolled

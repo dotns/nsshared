@@ -342,6 +342,27 @@ NodeBinding, "control", [served_realm, publication_scope], registration_conditio
   a current receipt for the captured operation, or infer historical acceptance
   from current observations.
 
+
+- `registration_condition` is either `[node_id, credential_incarnation,
+  activation_generation]`, each a nonzero 16-byte server identifier, or explicit
+  CBOR null. The immutable server Node record identifier is distinct from the
+  identity-derived Node ID. Account-owned Connectors must supply all three facts
+  from their authenticated enrollment receipt; an independently established
+  gateway without an Account may send null. The server decides this from stored
+  ownership and kind, never from an untrusted client role or a missing field.
+- The server compares the condition atomically with current Account standing,
+  the exact shared binding (including I/K), and source selection before issuing
+  any token or source. An earlier receipt lookup or a second check after signing
+  is insufficient. A stale condition must not fall back to unconditional auth.
+- Account activation, credential incarnation, Node binding generation and source
+  generation are independent. Same-I/K Account A to B to A requires a fresh
+  receipt condition; a legitimate source refresh within the same registration
+  may return a newer source without changing this condition.
+- The six-field request is an incompatible unstable-account contract change.
+  Old five-field requests are rejected, including for gateways; null must be
+  explicitly encoded. Producers, consumers and copied vectors adopt together.
+  Decoding a null condition does not establish gateway authority.
+
 `AuthenticationResponse` is `[1, compact_token, source_binding_bytes]`. The token
 is opaque bounded ASCII; decoding is not signature verification, trust or
 acceptance. Authentication never grants registration acceptance. Authentication
