@@ -212,7 +212,8 @@ opaque gateway matcher string (`host:ports`, CIDRs or aliases). Matcher syntax,
 host resolution, protocol matching, default deny, group expansion and
 self-tests remain in the gateway evaluator.
 
-Protocol 6 is TCP, 17 is UDP and null is both.
+Protocol 6 is TCP, 17 is UDP and null is both TCP and UDP only. Node-only
+Echo values 1 and 58 are refused; null grants no ICMP authority.
 
 ### Groups
 

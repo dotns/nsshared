@@ -1,3 +1,10 @@
+## 2026-11-05 [feat]
+
+Add Node-only IPv4 and IPv6 Echo authorization with fixed code-zero semantics
+and zero port slots. Preserve TCP/UDP bytes and non-Node protocol refusal;
+require authenticated runtime support and compatible released enforcement
+before consumer enablement.
+
 ## 2026-10-30 [docs]
 
 Clarify that public-pool relay rosters cover every Network in the directory

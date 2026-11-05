@@ -3,9 +3,9 @@
 use nsshared_control::{
     account::grants::GrantDetails, account::grants::GrantDiscriminator,
     account::grants::GrantError, account::grants::GrantPublication, account::grants::PayerBindings,
-    account::grants::ResourceAuthority, account::node::L3AuthorityError,
-    account::node::NodeL3Authority, account::node::TransportProtocol,
-    account::subnet::SubnetPrefix, account::subnet::SubnetSelection,
+    account::grants::ResourceAuthority, account::node::L3AuthorityError, account::node::L3Protocol,
+    account::node::NodeL3Authority, account::subnet::SubnetPrefix,
+    account::subnet::SubnetSelection,
 };
 use nsshared_testkit::hex::encode as hex;
 use nsshared_testkit::hex::unhex;
@@ -65,7 +65,7 @@ fn allows(
     namespace: [u8; 16],
     source: nsshared_identity::keys::IdentityKey,
     destination: nsshared_identity::keys::IdentityKey,
-    protocol: TransportProtocol,
+    protocol: L3Protocol,
     port: u16,
 ) -> Result<bool, L3AuthorityError> {
     value.canonical()?;
@@ -335,9 +335,9 @@ fn node_l3_exact_authority_boundaries() {
         assert_eq!(
             rule.protocol,
             if i == 0 {
-                TransportProtocol::Tcp
+                L3Protocol::Tcp
             } else {
-                TransportProtocol::Udp
+                L3Protocol::Udp
             }
         );
         assert_eq!(rule.first_port, if i == 0 { 443 } else { 53 });
@@ -613,4 +613,218 @@ fn exit_deadline_and_payer_renewal_boundaries() {
         renewed.validate_successor(&before, &retired.retired),
         Err(GrantError::RetiredIncarnation)
     ));
+}
+
+#[test]
+fn ordinary_node_echo_exact_authority_boundaries() {
+    use crate::profile::node_l3_protocol_bytes;
+    use nsshared_control::account::node::NodeL3;
+    use nsshared_identity::keys::IdentitySecret;
+
+    let full = NodeL3Authority::decode(&sample("two-namespaces")).unwrap();
+    for protocol in [1, 58] {
+        let mut echo = full.clone();
+        echo.policy =
+            NodeL3::decode(&node_l3_protocol_bytes(&full.policy, protocol, 0, 0)).unwrap();
+        let bytes = echo.canonical().unwrap();
+        let echo = NodeL3Authority::decode(&bytes).unwrap();
+        assert_eq!(echo.canonical().unwrap(), bytes);
+        assert_eq!(echo.bindings, full.bindings);
+        assert_eq!(echo.policy.issuer, full.policy.issuer);
+        assert_eq!(echo.policy.recipient, full.policy.recipient);
+        assert_eq!(echo.policy.scopes, full.policy.scopes);
+        let rule = &echo.policy.rules[0];
+        assert!(
+            allows(
+                &echo,
+                rule.namespace,
+                rule.source,
+                rule.destination,
+                rule.protocol,
+                0
+            )
+            .unwrap()
+        );
+        assert!(
+            !allows(
+                &echo,
+                rule.namespace,
+                rule.destination,
+                rule.source,
+                rule.protocol,
+                0
+            )
+            .unwrap()
+        );
+        assert!(
+            !allows(
+                &echo,
+                [0; 16],
+                rule.source,
+                rule.destination,
+                rule.protocol,
+                0
+            )
+            .unwrap()
+        );
+        assert!(
+            !allows(
+                &echo,
+                rule.namespace,
+                rule.source,
+                rule.destination,
+                rule.protocol,
+                1
+            )
+            .unwrap()
+        );
+        let other_family = if protocol == 1 {
+            L3Protocol::EchoV6
+        } else {
+            L3Protocol::EchoV4
+        };
+        assert!(
+            !allows(
+                &echo,
+                rule.namespace,
+                rule.source,
+                rule.destination,
+                other_family,
+                0
+            )
+            .unwrap()
+        );
+        let stranger = IdentitySecret::from_seed([91; 32]).public();
+        assert_ne!(stranger, rule.source);
+        assert_ne!(stranger, rule.destination);
+        assert!(
+            !allows(
+                &echo,
+                rule.namespace,
+                stranger,
+                rule.destination,
+                rule.protocol,
+                0
+            )
+            .unwrap()
+        );
+        assert!(
+            !allows(
+                &echo,
+                rule.namespace,
+                rule.source,
+                stranger,
+                rule.protocol,
+                0
+            )
+            .unwrap()
+        );
+        let mut withdrawn = echo.clone();
+        withdrawn.policy.rules.clear();
+        assert!(
+            !allows(
+                &withdrawn,
+                rule.namespace,
+                rule.source,
+                rule.destination,
+                rule.protocol,
+                0
+            )
+            .unwrap()
+        );
+        let mut invalid = echo.clone();
+        invalid.policy.rules[0].source = stranger;
+        assert!(invalid.canonical().is_err());
+        let mut invalid = echo.clone();
+        invalid.policy.scopes.clear();
+        assert!(invalid.canonical().is_err());
+        let mut invalid = echo.clone();
+        invalid.bindings.remove(0);
+        assert!(matches!(
+            invalid.canonical(),
+            Err(L3AuthorityError::Binding)
+        ));
+        let mut invalid = echo.clone();
+        invalid.bindings[0].wg_key = [0; 32];
+        assert!(matches!(
+            invalid.canonical(),
+            Err(L3AuthorityError::Binding)
+        ));
+        let mut invalid = echo.clone();
+        invalid.bindings[1].wg_key = invalid.bindings[0].wg_key;
+        assert!(matches!(
+            invalid.canonical(),
+            Err(L3AuthorityError::Binding)
+        ));
+    }
+}
+
+#[test]
+fn ordinary_node_echo_does_not_expand_service_or_realm_protocols() {
+    use nsshared_codec::cbor::CborWriter;
+    use nsshared_control::{account::AccountError, account::realm::SubjectPolicy};
+
+    let publication = GrantPublication::decode(&sample("egress")).unwrap();
+    let GrantDetails::Egress {
+        floor,
+        name,
+        protocol,
+        virtual_port,
+        alias_generation,
+    } = &publication.grants[0].details
+    else {
+        panic!("Egress fixture required");
+    };
+    let details = |protocol| {
+        let mut out = CborWriter::default();
+        out.array(6)
+            .uint(0)
+            .text(floor)
+            .text(name)
+            .uint(protocol)
+            .uint(u64::from(*virtual_port));
+        if let Some(generation) = alias_generation {
+            out.array(1).uint(*generation);
+        } else {
+            out.null();
+        }
+        out.into_bytes()
+    };
+    let original = publication.canonical().unwrap();
+    let before = details(*protocol as u64);
+    let offsets: Vec<_> = original
+        .windows(before.len())
+        .enumerate()
+        .filter_map(|(index, bytes)| (bytes == before).then_some(index))
+        .collect();
+    assert_eq!(offsets.len(), 1);
+    for protocol in [1, 58] {
+        let mut wire = original.clone();
+        wire.splice(offsets[0]..offsets[0] + before.len(), details(protocol));
+        assert!(matches!(
+            GrantPublication::decode(&wire),
+            Err(GrantError::Field)
+        ));
+    }
+    for protocol in [6, 17, 1, 58] {
+        let mut out = CborWriter::default();
+        out.array(4)
+            .uint(1)
+            .bytes(&[1; 16])
+            .array(1)
+            .array(3)
+            .array(1)
+            .null()
+            .array(1)
+            .text("*:443")
+            .uint(protocol)
+            .array(0);
+        let wire = out.into_bytes();
+        let result = SubjectPolicy::decode(&wire);
+        if matches!(protocol, 6 | 17) {
+            assert_eq!(result.unwrap().canonical().unwrap(), wire);
+        } else {
+            assert!(matches!(result, Err(AccountError::Field)));
+        }
+    }
 }

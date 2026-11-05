@@ -250,17 +250,96 @@ identity bytes.
 
 A rule is `[namespace, source_identity, destination_identity, protocol,
 first_port, last_port]`. Both identities must belong to that namespace's scope.
-Protocol 6 is TCP and 17 is UDP; ports are inclusive, 1..65535 with
-first <= last. Rules are sorted lexicographically by all six fields and
-duplicates fail.
+The Node-only `L3Protocol` selects the following forms:
 
-An empty rule set permits no L4 traffic; a missing set fails. Rules are an
+| Protocol | Meaning | Port slots | Request | Reply |
+| --- | --- | --- | --- | --- |
+| 1 (`EchoV4`) | IPv4 Echo only | both zero | type 8, code 0 | type 0, code 0 |
+| 6 (`Tcp`) | TCP | inclusive 1..65535, first <= last | existing TCP semantics | existing flow state |
+| 17 (`Udp`) | UDP | inclusive 1..65535, first <= last | existing UDP semantics | existing flow state |
+| 58 (`EchoV6`) | IPv6 Echo only | both zero | type 128, code 0 | type 129, code 0 |
+
+TCP/UDP retain their exact existing canonical bytes. Echo's zero slots mean no
+ports; they are neither wildcards nor configurable type/code ranges. Either
+nonzero slot on Echo, a zero or reversed TCP/UDP range, an unknown protocol,
+additional selector positions or malformed/noncanonical CBOR fails the entire
+payload. Rules are sorted lexicographically by all six fields and duplicates
+fail. The shared `TransportProtocol` used by non-Node families remains TCP/UDP
+only; Service grants, public-edge routes and Realm rules gain no Echo authority.
+
+Source and destination specify the Echo request direction, within the exact
+Network namespace and authenticated full identity/key scope. Only the matching
+reply to an admitted request may use existing reverse-flow state. An unsolicited
+reply or a request in the opposite direction is not authorized. Consumers must
+compare actual IP family, type and code before granting or reusing state,
+including on the reply path. Existing state ownership, retirement and bounds
+remain. Other ICMP types, nonzero codes, arbitrary ICMP errors and all-ICMP
+permission are excluded; existing unrelated error/PMTU handling is unchanged.
+
+An empty rule set permits no traffic; a missing set fails. Rules are an
 explicit allow set; overlapping ranges mean union. There are no implicit
 wildcards, payer guesses or interface-dependent identities. Compilation and
 address and range ownership enforcement stay in consumers.
 
 Bounds: scopes, rules and identities per scope are each at most 8,192, and the
 encoding is at most 1 MiB.
+
+### Runtime support and mixed versions
+
+`node_l3_echo.v1` is an additional feature in the existing authenticated runtime
+capability mechanism, alongside `node_l3_acl.v1`. A runtime may declare it only
+when it can decode and enforce both exact Echo forms above. Its existing runtime
+authentication request carries the feature; NSD's existing fenced authentication
+transaction commits and compares the declaration for the exact current Node
+custody: accepted membership, full identity and WireGuard key, Network and
+current runtime fence. Registration/enrollment metadata, heartbeat observations and
+runtime-less authentication cannot assert runtime Echo support. This requirement
+adds no registration capability or control channel and does not change the
+shared authentication tuple arities.
+
+Before issuing Echo in a recipient publication, NSD must verify committed support
+for both participating source and destination runtimes and the recipient of the
+extended payload, retaining the existing `node_l3_acl.v1` requirement. Absent or unknown support omits Echo and preserves the complete
+existing TCP/UDP projection. A current runtime authentication lacking the feature
+removes it from that runtime's committed support and triggers the existing
+affected Node L3 reprojection. Registration-owned capabilities and enrollment
+approval remain independent.
+
+New decoders accept old TCP/UDP-only publications. Old decoders refuse protocols
+1 and 58; no claim is made that an old binary accepts extended payloads. Never
+send Echo to an unsupported recipient, silently discard an unknown rule while
+accepting its enclosing payload, reinterpret it as TCP/UDP or use a permissive
+fallback. Old producers supply no Echo authority. Unverified mixed versions stay
+Echo-unqualified. Authenticated withdrawal, complete replacement and actual
+authority deadlines still apply.
+
+NSD extends both existing same-owner implicit production and explicit Node policy
+compilation within their accepted membership, owner and policy scope. It carries
+the selector and zero slots in the canonical signed Node L3 authority, bound to
+the exact source and revision. No cross-owner or non-Node authority is introduced.
+Consumers compare issuer, recipient, independently authenticated installed peer
+identity and WireGuard key, current Network and request direction; packet
+addresses and roster membership alone grant no permission.
+
+### Consumer enablement prerequisite
+
+Contract decoding does not advertise runtime support or establish packet
+enforcement. Consumer enablement and `node_l3_echo.v1` advertisement require a
+compatible immutable released nsplane path enforcing code zero for the selected
+Echo request and reply **before granting or reusing flow state**, while retaining
+existing unrelated error/PMTU behavior. A type-only matcher is insufficient,
+including for replies admitted through existing state. Until that path is
+supplied and verified, consumers retain the complete TCP/UDP-only projection and
+refuse Echo enablement. No dependency change is implied by this shared contract.
+
+Producer and consumer handoffs must pin the verified immutable shared revision
+with `unstable-account`; manifests and lockfiles must identify the compatible
+producer, consumer and released enforcement revisions. A floating branch or a
+sibling path dependency supplies no immutable contract input. Contract tests
+qualify construction, canonical decoding and scope validation only. Packet
+request/reply delivery and type/code enforcement require verification on the
+compatible consumer tuple; retained diagnosis is input evidence, not proof of
+current runtime behavior or deployment equivalence.
 
 ### Withdrawal and replacement
 
@@ -328,7 +407,7 @@ Code (crate `nsshared-control`, public items at `nsshared_control::account::node
 | --- | --- | --- |
 | Enrollment | `crates/nsshared-control/src/account/node/enrollment.rs` | `Enrollment`, `EnrollmentDecision`, `EnrollmentError`, `RebindAuthorization`, `decide_enrollment`, `NODE_LOCAL_NAMES_V1`, `MAX_CAPABILITIES`, `MAX_CAPABILITY_BYTES` |
 | Lifecycle | `crates/nsshared-control/src/account/node/lifecycle.rs` | `NodeBinding`, `Lifecycle`, `Transition`, `MembershipIdentityVersion`, `RecordGeneration`, `GrantIncarnation`, `ReporterIncarnation` |
-| Node L3 form | `crates/nsshared-control/src/account/node/l3.rs` | `NodeL3`, `L3Scope`, `L3Rule`, `TransportProtocol` |
+| Node L3 form | `crates/nsshared-control/src/account/node/l3.rs` | `NodeL3`, `L3Scope`, `L3Rule`, `L3Protocol`, `TransportProtocol` |
 | Node L3 authority | `crates/nsshared-control/src/account/node/l3_authority.rs` | `NodeL3Authority`, `L3Binding`, `L3AuthorityError` |
 
 `node_dns_name` and `NODE_DNS_ZONE` are in `nsshared_identity::discovery`.
@@ -346,3 +425,10 @@ The `enrollment_consumer_vectors` cases in `account::node::enrollment` cover an
 ordinary Node with no grants or reporter, zero-placeholder identity replacement
 and authorized K rotation, mismatched before and after bindings, and
 unauthorized rotation.
+
+The focused `ordinary_node_echo_*` cases in the profile, grant-authority and
+route-admission tests exercise actual canonical codecs and scope validation,
+including fixed zero slots, unknown/malformed selectors, exact identity and
+Network boundaries, request direction, missing rules, key binding refusal,
+non-Node protocol refusal and unchanged TCP/UDP vectors. They do not implement
+or qualify packet enforcement or state-correlated reply delivery.
