@@ -1,5 +1,11 @@
 ## 2026-11-05 [fix]
 
+Accept authority-unavailable and scope-mismatch only in service Error bodies.
+Preserve the closed acknowledgement and lease-result vocabularies, canonical
+body validation and authenticated correlation; document older-decoder refusal.
+
+## 2026-11-05 [fix]
+
 Synchronize compatible shared contract histories while retaining captured
 authentication conditions, Default Exit profiles and Node-only Echo coverage.
 Preserve both inputs' assertions and fix self-check selection for symlinked

@@ -62,3 +62,7 @@ single ignored doctest example in each configuration. All forty-eight generated
 fixtures matched the independent producers. Dependency, spelling and API
 compatibility checks passed. Final local diff review found no correctness or
 scope defect. Only these acceptance records changed after that check.
+
+## Final validation
+
+- [ ] Run the complete integration check on the composed source.
