@@ -9,7 +9,7 @@ pub use enrollment::{
     Enrollment, EnrollmentDecision, EnrollmentError, MAX_CAPABILITIES, MAX_CAPABILITY_BYTES,
     NODE_LOCAL_NAMES_V1, RebindAuthorization, decide_enrollment,
 };
-pub use l3::{L3Rule, L3Scope, NodeL3, TransportProtocol};
+pub use l3::{L3Protocol, L3Rule, L3Scope, NodeL3, TransportProtocol};
 pub use l3_authority::{L3AuthorityError, L3Binding, NodeL3Authority};
 pub use lifecycle::{
     GrantIncarnation, Lifecycle, MembershipIdentityVersion, NodeBinding, RecordGeneration,

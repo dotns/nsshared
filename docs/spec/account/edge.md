@@ -62,7 +62,8 @@ protocol, public_port, virtual_port, policy_bytes, headers_bytes, dependencies, 
 
 - The tuple has exactly thirteen positions. Routes are ordered by id; the id is a
   token.
-- `protocol` is 0 HTTP, 6 TCP or 17 UDP.
+- `protocol` is 0 HTTP, 6 TCP or 17 UDP. Node-only Echo values 1 and 58
+  are refused and grant no public-edge authority.
 - `public_port` and `virtual_port` are 1..65535.
 - `service_ref_bytes` is the canonical M6 `ServiceRef` value in a byte string.
 - `policy_bytes` is `SubjectPolicy` exactly, with realm equal to the contribution
