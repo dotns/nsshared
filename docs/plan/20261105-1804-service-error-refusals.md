@@ -1,6 +1,6 @@
 # Service authority and scope refusals
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-11-05 18:04
 - **approvedAt**: 2026-11-05 18:04
 - **relatedTask**: 20261105-1804-service-error-refusals
@@ -51,3 +51,17 @@ Run the extended existing message and canonical controls before correcting the
 validator, retain the expected unsupported-field failures, then run them after
 the correction. Run formatting and linting before tests, followed by the prescribed
 self-check, including independent vector and compatibility checks.
+
+## Results
+
+The focused controls failed before correction and all twenty-two service tests
+passed afterward. The self-check on source commit
+`3708cb103675ce4089599cfc1b7e03bd9d27a829` passed: formatting, both lint
+configurations, dependency policy, unused-dependency analysis, spelling, all
+forty-eight canonical fixtures, API compatibility, seventy-one script tests,
+424 default-feature tests and 591 account-feature tests. Both nextest runs had
+zero skips. Doctests and documentation builds also passed in both configurations;
+each doctest configuration retained its existing single ignored example.
+
+Only these acceptance records changed after the successful self-check.
+The body validator adds no field, retry action or alternative decoding path.

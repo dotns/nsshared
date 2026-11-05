@@ -1,6 +1,6 @@
 # Service authority and scope refusals
 
-- **status**: in_progress
+- **status**: completed
 - **priority**: P1
 - **createdAt**: 2026-11-05 18:04
 
@@ -35,7 +35,7 @@ The extension does not authorize automatic retry or scope substitution.
 - [x] Both codes round-trip only in Error bodies with canonical vectors.
 - [x] Existing codes remain accepted; unknown, malformed, wrong-type and misplaced
   values remain rejected by the existing encode/decode validation paths.
-- [ ] Formatting, linting and the prescribed self-check pass.
+- [x] Formatting, linting and the prescribed self-check pass.
 
 ## Validation results
 
@@ -53,3 +53,12 @@ body controls. Its generated canonical fixture is the only changed test support
 file. The typed encoder constructs exactly a text-valued Error body; raw decoding
 additionally checks wrong types, missing fields and extra fields. Both paths share
 the unchanged exact-map and type validation before canonical acceptance.
+
+The self-check passed on source commit
+`3708cb103675ce4089599cfc1b7e03bd9d27a829`: 424 default-feature and 591
+account-feature tests passed without skips, and seventy-one script tests passed.
+Both doctest and documentation configurations passed, retaining the existing
+single ignored doctest example in each configuration. All forty-eight generated
+fixtures matched the independent producers. Dependency, spelling and API
+compatibility checks passed. Final local diff review found no correctness or
+scope defect. Only these acceptance records changed after that check.
