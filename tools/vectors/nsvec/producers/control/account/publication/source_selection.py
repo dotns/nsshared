@@ -115,7 +115,7 @@ def vectors():
          operation="machine.register", request=staged, committed=enrollment)
     for label, scope, source in [("nodes", "nodes", sa), ("egress", "egress", se)]:
         auth_request = cbor.encode([1, membership, [1, node, bytes([42])*32, 1],
-                                    "control", [realm, scope]])
+                                    "control", [realm, scope], None])
         nonce = bytes([6 if scope == "nodes" else 8])*16
         other_realm = copy.deepcopy(a if scope == "nodes" else egress)
         other_realm[3] = c[3]

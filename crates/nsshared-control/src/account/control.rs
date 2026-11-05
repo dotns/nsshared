@@ -25,7 +25,7 @@ pub use envelope::{
 pub use exchange::{
     AuthenticationRequest, AuthenticationResponse, AuthenticationSourceScope, ExchangeError,
     InformationRequest, InformationResponse, MembershipScope, RegistrationAcceptance,
-    RegistrationRequest, compare_registration_acceptance,
+    RegistrationCondition, RegistrationRequest, compare_registration_acceptance,
 };
 pub use machine_token::{
     JwkSet, KeySetOwner, MACHINE_AUDIENCE, MACHINE_EXPIRY_LEEWAY_SECONDS,

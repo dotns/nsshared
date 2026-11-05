@@ -549,5 +549,56 @@ fn r3_local_naming_capability() {
     }
 }
 
+#[test]
+fn authentication_retains_independent_registration_incarnations() {
+    let vectors = nsshared_testkit::vectors!("account/control/exchange");
+    let vector = vectors
+        .iter()
+        .find(|v| v.name() == "authentication-registration")
+        .unwrap();
+    let bytes = vector.hex("bytes");
+    let request = AuthenticationRequest::decode(&bytes).unwrap();
+    assert_eq!(request.canonical().unwrap(), bytes);
+    assert_eq!(
+        request.registration,
+        Some(RegistrationCondition {
+            node_id: [11; 16],
+            credential_incarnation: [12; 16],
+            activation_generation: [13; 16],
+        })
+    );
+    for field in 0..3 {
+        let mut changed = request.clone();
+        let condition = changed.registration.as_mut().unwrap();
+        match field {
+            0 => condition.node_id = [14; 16],
+            1 => condition.credential_incarnation = [14; 16],
+            _ => condition.activation_generation = [14; 16],
+        }
+        assert_ne!(changed.canonical().unwrap(), bytes);
+        assert_eq!(changed.binding, request.binding);
+        assert_eq!(changed.source_scope, request.source_scope);
+        assert_eq!(
+            AuthenticationRequest::decode(&changed.canonical().unwrap()).unwrap(),
+            changed
+        );
+    }
+    let mut gateway = request;
+    gateway.registration = None;
+    assert_eq!(
+        gateway.canonical().unwrap(),
+        vectors
+            .iter()
+            .find(|v| v.name() == "authentication")
+            .unwrap()
+            .hex("bytes")
+    );
+    assert_eq!(
+        AuthenticationRequest::decode(&gateway.canonical().unwrap())
+            .unwrap()
+            .registration,
+        None
+    );
+}
 #[path = "registration_recovery.rs"]
 mod registration_recovery;
