@@ -318,7 +318,10 @@ pub(super) fn validate(envelope: &Envelope) -> Result<(), ContractError> {
         }
         "error" => {
             let fields = exact_map(&envelope.body, &["code"])?;
-            if !ERROR_CODES.contains(&text(field(fields, "code")?)?) {
+            let code = text(field(fields, "code")?)?;
+            if !ERROR_CODES.contains(&code)
+                && !matches!(code, "authority-unavailable" | "scope-mismatch")
+            {
                 return Err(ContractError::UnsupportedField);
             }
             fields

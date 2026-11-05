@@ -4,13 +4,14 @@ use nsshared_codec::{
     cbor::value::Value, cbor::value::decode_canonical, cbor::value::encode_canonical,
 };
 use nsshared_control::{
-    service::BackendHost, service::Declaration, service::Grant, service::LeaseAcquire,
-    service::LeaseResult, service::ListenerIntent, service::Message, service::MessageBody,
-    service::PortMode, service::PortProposal, service::PortResult, service::Protocols,
-    service::ReadyProof, service::ReportAccepted, service::ReportBinding, service::ReportContent,
-    service::ReportReplace, service::Resource, service::Route, service::RuntimeBind,
-    service::RuntimeFloorResult, service::ServiceLeaseRef, service::ServiceRef, service::Snapshot,
-    service::SnapshotAck, service::SnapshotPush, service::Withdrawal,
+    service::BackendHost, service::ContractError, service::Declaration, service::Grant,
+    service::LeaseAcquire, service::LeaseResult, service::ListenerIntent, service::Message,
+    service::MessageBody, service::PortMode, service::PortProposal, service::PortResult,
+    service::Protocols, service::ReadyProof, service::ReportAccepted, service::ReportBinding,
+    service::ReportContent, service::ReportReplace, service::Resource, service::Route,
+    service::RuntimeBind, service::RuntimeFloorResult, service::ServiceLeaseRef,
+    service::ServiceRef, service::Snapshot, service::SnapshotAck, service::SnapshotPush,
+    service::Withdrawal,
 };
 
 fn reference(service: u8) -> ServiceRef {
@@ -185,7 +186,7 @@ fn cases() -> Vec<MessageBody> {
         result: "claimed".into(),
         terminal_floor: None,
     };
-    vec![
+    let mut bodies = vec![
         MessageBody::RuntimeFloor,
         MessageBody::RuntimeFloorResult(RuntimeFloorResult {
             current_generation: Some(1),
@@ -243,8 +244,45 @@ fn cases() -> Vec<MessageBody> {
         MessageBody::PortQuery(proposal),
         MessageBody::PortQueryResult(port_result),
         MessageBody::ServiceRetryPort(reference(1)),
-        MessageBody::Error("stale-runtime".into()),
-    ]
+    ];
+    bodies.extend(
+        [
+            "invalid-floor-cidr",
+            "invalid-floor-binding",
+            "invalid-floor-order",
+            "default-exit-unsupported",
+            "floor-limit",
+            "unsupported-version",
+            "unsupported-field",
+            "invalid-encoding",
+            "unauthorized",
+            "stale-runtime",
+            "stale-epoch",
+            "stale-session",
+            "stale-report",
+            "stale-snapshot",
+            "stale-listener",
+            "stale-proposal",
+            "stale-refresh",
+            "enforcement-not-applied",
+            "runtime-recovery-required",
+            "digest-conflict",
+            "state-inconsistent",
+            "port-unavailable",
+            "port-pool-exhausted",
+            "allocation-exhausted",
+            "recovery-required",
+            "apply-failed",
+            "lease-expired",
+            "storage-unavailable",
+            "counter-exhausted",
+            "authority-unavailable",
+            "scope-mismatch",
+        ]
+        .into_iter()
+        .map(|code| MessageBody::Error(code.into())),
+    );
+    bodies
 }
 
 #[test]
@@ -418,6 +456,53 @@ fn response_echoes_and_snapshot_permissions_fail_closed() {
         snapshot_digest: Some([1; 32]),
     }));
     assert!(consumer.encode().is_err());
+
+    for code in ["authority-unavailable", "scope-mismatch", "unknown-refusal"] {
+        for body in cases() {
+            let mut candidate = message(body);
+            let field_name = match &mut candidate.body {
+                MessageBody::SnapshotAck(ack) => {
+                    ack.accepted = false;
+                    ack.enforcement_applied = false;
+                    ack.error = Some("stale-snapshot".into());
+                    "error"
+                }
+                MessageBody::LeaseResult(lease) => {
+                    lease.grant_id = None;
+                    lease.remaining_ms = 0;
+                    lease.result = "lease-expired".into();
+                    "result"
+                }
+                _ => continue,
+            };
+            let mut wire = decode_canonical(&candidate.encode().unwrap()).unwrap();
+            match &mut candidate.body {
+                MessageBody::SnapshotAck(ack) => ack.error = Some(code.into()),
+                MessageBody::LeaseResult(lease) => lease.result = code.into(),
+                _ => unreachable!(),
+            }
+            assert_eq!(candidate.encode(), Err(ContractError::UnsupportedField));
+            let Value::Map(envelope) = &mut wire else {
+                unreachable!()
+            };
+            let (_, Value::Map(body)) = envelope.iter_mut().find(|(key, _)| key == "body").unwrap()
+            else {
+                unreachable!()
+            };
+            body.iter_mut()
+                .find(|(key, _)| key == field_name)
+                .unwrap()
+                .1 = Value::Text(code.into());
+            assert_eq!(
+                Message::decode(&encode_canonical(&wire).unwrap()),
+                Err(ContractError::UnsupportedField),
+            );
+        }
+    }
+    assert_eq!(
+        message(MessageBody::Error("unknown-refusal".into())).encode(),
+        Err(ContractError::UnsupportedField),
+    );
 }
 
 #[test]
