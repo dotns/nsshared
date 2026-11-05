@@ -72,6 +72,17 @@ class SelectionTests(unittest.TestCase):
             self.assertIn(name + ":", selection["reason"])
         self.assertIn("added contract-other", selection["reason"])
 
+    def test_symlink_workspace_selects_manifest_owner_and_consumers(self):
+        manifest = self.root / "crates/core/Cargo.toml"
+        manifest.write_text(manifest.read_text() + '\ndescription = "changed metadata"\n')
+        with tempfile.TemporaryDirectory() as directory:
+            alias = Path(directory) / "workspace"
+            alias.symlink_to(self.root.resolve(), target_is_directory=True)
+            selection = self_check.select_changes(alias, "main")
+        self.assertFalse(selection["full"])
+        self.assertEqual(selection["changed"], ["contract-core"])
+        self.assertEqual(selection["affected"], ["contract-api", "contract-client", "contract-core"])
+
     def test_shared_dependency_version_scopes_all_users(self):
         manifest = self.root / "crates/core/Cargo.toml"
         manifest.write_text(manifest.read_text().replace('version = "0.1.0"', 'version = "0.2.0"'))
