@@ -31,3 +31,7 @@ See [the synchronization plan](../plan/20261105-1519-shared-contract-upstream-sy
 - `just self-check` passed on the merged source: 71 script tests, 424 default-feature tests and 591 Account-feature tests passed; both nextest runs had zero skips. All 48 fixture files matched their independent producers. Formatting, lint, supply-chain, spelling, semver, doctests and documentation passed.
 - The pre-existing testkit example remains ignored once in each doctest mode; no ignored tests or exceptions were added.
 - No new failing-first test was introduced: the merge retains established product behavior and existing upstream regression controls without a new implementation.
+
+## Final validation
+
+- [ ] Run the complete integration check on the composed source.

@@ -1,5 +1,12 @@
 ## 2026-11-05 [fix]
 
+Synchronize compatible shared contract histories while retaining captured
+authentication conditions, Default Exit profiles and Node-only Echo coverage.
+Preserve both inputs' assertions and fix self-check selection for symlinked
+workspace paths.
+
+## 2026-11-05 [fix]
+
 Restore captured registration conditions in six-element authentication requests,
 preserving established canonical bytes and independent incarnation identifiers.
 Retain Default floor and Node-only L3 contracts and document incompatible

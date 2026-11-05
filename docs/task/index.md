@@ -1,5 +1,7 @@
 # ns-shared - Task List
 
+- [x] [**Shared contract upstream synchronization**](20261105-1519-shared-contract-upstream-sync.md)
+
 - [x] [**Captured authentication conditions**](20261105-1444-captured-authentication-condition.md)
 
 - [x] [**Default Exit floor encoding**](20261105-1250-default-exit-floor.md)
