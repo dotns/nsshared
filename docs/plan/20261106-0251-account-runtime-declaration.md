@@ -1,6 +1,6 @@
 # 20261106-0251-account-runtime-declaration Account runtime declaration contract
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-11-06 02:51
 - **approvedAt**: 2026-11-06 02:45
 - **relatedTask**: 20261106-0251-account-runtime-declaration
@@ -42,3 +42,21 @@ Commit focused test inputs before execution, implement the smallest codec and
 validators, then commit the complete implementation before qualifying checks.
 Retain first failures, exact source and immediate exits. Combined behavior requires
 both consumers to adopt the same actually delivered immutable shared revision.
+
+
+## Outcome
+
+The selected operation, strict eight-field request, three-field receipt and pure
+validators are implemented. Existing binding/source encodings remain unchanged;
+only the registration and runtime-fence codec helpers gained control-module
+visibility. The complete canonical request digest includes the source signature
+and full supported capability set. Independent membership and signer trust remain
+separate from current storage authority.
+
+All six focused tests and the prescribed self-check passed on committed input
+`1fabaccf6ff5f3b81919ab3eb45ec493f933be26`; full QA selected by that self-check
+passed 424 default and 597 Account tests, with all existing vector and static gates.
+The initial missing-API/test-import compilation failure and the subsequent two
+fixture-constant lint failures are retained in the execution evidence. No failure
+was waived or converted into a passing run. Publication and matched producer/client
+qualification remain separate delivery steps.
