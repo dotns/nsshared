@@ -15,7 +15,7 @@ Extend the Campaign gateway observation with a distinct optional public ingress 
 
 ## Risks
 
-The new shared contract and pinned dependencies require ordered PRs and coordinated production deployment. Reject malformed or private addresses before displaying a public URL.
+The new shared contract and pinned dependencies require ordered PRs and coordinated production deployment. Reject malformed address syntax before displaying a public URL; network reachability remains a deployment check.
 
 ## Scope
 
