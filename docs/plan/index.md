@@ -170,3 +170,5 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**Define provider mapping eligibility snapshots**](20261024-1655-provider-mapping-eligibility.md) `2026-10-24`
 - [x] [**Record review delivery and registration lifecycle placeholders**](20261025-0157-review-request-delivery.md) `2026-10-25`
 - [x] [**20261025-0802-nsshared-restructure Restructure the shared crates and apply the review revisions**](20261025-0802-nsshared-restructure.md) `2026-10-25`
+
+- [-] [**20261106-1356-gateway-public-address-contract Report public ingress host independently of WG transport**](20261106-1356-gateway-public-address-contract.md) `2026-11-06`
