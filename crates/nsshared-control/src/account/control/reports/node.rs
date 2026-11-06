@@ -28,7 +28,10 @@ pub struct NodeRuntimeFence {
     pub authority_epoch: u64,
 }
 impl NodeRuntimeFence {
-    pub(super) fn write(&self, out: &mut CborWriter) -> Result<(), AccountError> {
+    pub(in crate::account::control) fn write(
+        &self,
+        out: &mut CborWriter,
+    ) -> Result<(), AccountError> {
         require(
             self.runtime_id != [0; 16] && self.runtime_generation > 0 && self.authority_epoch > 0,
         )?;
@@ -38,7 +41,9 @@ impl NodeRuntimeFence {
             .uint(self.authority_epoch);
         Ok(())
     }
-    pub(super) fn read(input: &mut CborReader<'_>) -> Result<Self, AccountError> {
+    pub(in crate::account::control) fn read(
+        input: &mut CborReader<'_>,
+    ) -> Result<Self, AccountError> {
         input.array(3)?;
         Ok(Self {
             runtime_id: input.fixed_bytes()?,

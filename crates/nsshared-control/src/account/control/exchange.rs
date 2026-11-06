@@ -350,7 +350,10 @@ pub struct RegistrationCondition {
 }
 
 impl RegistrationCondition {
-    fn write(&self, out: &mut CborWriter) -> Result<(), AccountError> {
+    pub(in crate::account::control) fn write(
+        &self,
+        out: &mut CborWriter,
+    ) -> Result<(), AccountError> {
         require(self.node_id != [0; 16])?;
         require(self.credential_incarnation != [0; 16])?;
         require(self.activation_generation != [0; 16])?;
@@ -361,7 +364,9 @@ impl RegistrationCondition {
         Ok(())
     }
 
-    fn read(input: &mut CborReader<'_>) -> Result<Self, AccountError> {
+    pub(in crate::account::control) fn read(
+        input: &mut CborReader<'_>,
+    ) -> Result<Self, AccountError> {
         input.array(3)?;
         Ok(Self {
             node_id: input.fixed_bytes()?,

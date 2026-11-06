@@ -9,6 +9,7 @@ pub(in crate::account) mod node_l3_status;
 pub(in crate::account) mod registration_recovery;
 pub(in crate::account) mod reports;
 pub(in crate::account) mod route_command;
+pub(in crate::account) mod runtime_declaration;
 pub(in crate::account) mod service_control;
 pub(in crate::account) mod signed_request;
 
@@ -41,7 +42,7 @@ pub use methods::{
     MACHINE_AUTH, MACHINE_AUTH_PURPOSE, MACHINE_DISCONNECT, MACHINE_HEARTBEAT, MACHINE_REGISTER,
     MAX_PUBLICATION_BYTES, MAX_PUBLICATION_ENCODED_BYTES, MAX_PUBLICATION_FRAMED_BYTES,
     NODE_HEARTBEAT, NODE_L3_STATUS, NODE_POSTURE, NODE_ROUTE_CLEAR, NODE_ROUTE_SELECT,
-    NODE_SUBNET_REPORT, SERVICE_CONTROL,
+    NODE_RUNTIME_DECLARE, NODE_SUBNET_REPORT, SERVICE_CONTROL,
 };
 pub use node_l3_status::{
     NodeL3Status, NodeL3StatusContext, NodeL3StatusKey, NodeL3StatusRequest, NodeL3StatusResponse,
@@ -69,4 +70,9 @@ pub use signed_request::{SignedAccountRequest, SignedUrlScope};
 
 pub use registration_recovery::{
     RegistrationRecoveryAttachment, RegistrationRecoveryExpectation, RegistrationRecoveryQuery,
+};
+
+pub use runtime_declaration::{
+    MAX_RUNTIME_DECLARATION_BYTES, RuntimeDeclarationAccepted, RuntimeDeclarationRequest,
+    runtime_declaration_digest,
 };
