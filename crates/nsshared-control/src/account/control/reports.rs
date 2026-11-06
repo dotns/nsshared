@@ -172,6 +172,8 @@ pub struct GatewayReport {
     pub public_http_port: Option<u16>,
     /// Optional observed internal HTTP port.
     pub internal_http_port: Option<u16>,
+    /// Public ingress DNS name or IP literal, independent of WG transport.
+    pub public_host: Option<String>,
     /// Current local drain intent.
     pub draining: bool,
     /// Existing enrollment capability syntax, without grants.
@@ -190,8 +192,22 @@ impl GatewayReport {
         crate::account::node::enrollment::validate_capabilities(&self.capabilities)
             .map_err(|_| AccountError::Field)?;
         require(self.public_http_port != Some(0) && self.internal_http_port != Some(0))?;
+        if let Some(host) = self.public_host.as_deref() {
+            if let Some(address) = host
+                .strip_prefix('[')
+                .and_then(|value| value.strip_suffix(']'))
+            {
+                let parsed: std::net::Ipv6Addr =
+                    address.parse().map_err(|_| AccountError::Field)?;
+                require(parsed.to_string() == address)?;
+            } else {
+                crate::account::codec::hostname(host)?;
+            }
+        }
         let mut out = CborWriter::default();
-        out.array(12).uint(1).bytes(&self.request_id);
+        out.array(if self.public_host.is_some() { 13 } else { 12 })
+            .uint(1)
+            .bytes(&self.request_id);
         write_optional_text(&mut out, self.software_version.as_deref(), data_text)?;
         write_optional_text(&mut out, self.source_revision.as_deref(), data_text)?;
         write_optional_uint(&mut out, self.connections.map(u64::from));
@@ -209,13 +225,19 @@ impl GatewayReport {
         for value in &self.certificates {
             value.write(&mut out)?;
         }
+        if let Some(host) = self.public_host.as_deref() {
+            out.text(host);
+        }
         bounded(out.into_bytes())
     }
     /// Decodes canonical gateway observations with bounds before allocation.
     /// # Errors
     /// Refuses malformed fields, overflows or noncanonical input.
     pub fn decode(bytes: &[u8]) -> Result<Self, AccountError> {
-        let mut input = reader(bytes, 12)?;
+        let (mut input, has_public_host) = match reader(bytes, 12) {
+            Ok(input) => (input, false),
+            Err(_) => (reader(bytes, 13)?, true),
+        };
         let request_id = input.fixed_bytes()?;
         let software_version = read_optional_text(&mut input, MAX_TEXT_BYTES)?;
         let source_revision = read_optional_text(&mut input, MAX_TEXT_BYTES)?;
@@ -243,6 +265,11 @@ impl GatewayReport {
         let certificates = (0..count)
             .map(|_| GatewayCertificateObservation::read(&mut input))
             .collect::<Result<_, _>>()?;
+        let public_host = if has_public_host {
+            Some(input.text_up_to(MAX_TEXT_BYTES)?.to_owned())
+        } else {
+            None
+        };
         input.finish()?;
         let value = Self {
             request_id,
@@ -252,6 +279,7 @@ impl GatewayReport {
             terminate_enabled,
             public_http_port,
             internal_http_port,
+            public_host,
             draining,
             capabilities,
             public_ingress_scopes,

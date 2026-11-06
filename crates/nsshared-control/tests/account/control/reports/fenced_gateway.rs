@@ -2,6 +2,38 @@ use nsshared_control::account::{AccountError, control::*};
 use nsshared_identity::keys::IdentityKey;
 
 #[test]
+fn gateway_public_host_is_independent_of_transport_endpoints() {
+    let vectors = nsshared_testkit::vectors!("account/control/fenced-gateway");
+    let mut request = FencedGatewayReportRequest::decode(
+        &vectors
+            .iter()
+            .find(|v| v.name() == "full")
+            .unwrap()
+            .hex("bytes"),
+    )
+    .unwrap();
+    assert_eq!(request.report.public_host, None);
+    request.report.public_host = Some("gateway.example.com".into());
+    let encoded = request.canonical().unwrap();
+    assert_eq!(
+        FencedGatewayReportRequest::decode(&encoded).unwrap(),
+        request
+    );
+    request.report.public_host = Some("203.0.113.9".into());
+    assert_eq!(
+        FencedGatewayReportRequest::decode(&request.canonical().unwrap()).unwrap(),
+        request
+    );
+    request.report.public_host = Some("[2001:db8::9]".into());
+    assert_eq!(
+        FencedGatewayReportRequest::decode(&request.canonical().unwrap()).unwrap(),
+        request
+    );
+    request.report.public_host = Some("https://gateway.example.com".into());
+    assert!(request.canonical().is_err());
+}
+
+#[test]
 fn fenced_gateway_vectors_and_correlated_receipts() {
     let vectors = nsshared_testkit::vectors!("account/control/fenced-gateway");
     let request = FencedGatewayReportRequest::decode(
