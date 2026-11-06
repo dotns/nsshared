@@ -21,6 +21,8 @@ pub const INFO_GET: &str = "info.get";
 pub const MACHINE_HEARTBEAT: &str = "machine.heartbeat";
 /// Signed ordinary Node complete device posture operation.
 pub const NODE_POSTURE: &str = "node.posture";
+/// Signed ordinary Node complete runtime support declaration operation.
+pub const NODE_RUNTIME_DECLARE: &str = "node.runtime.declare.v1";
 /// Signed ordinary Node heartbeat operation.
 pub const NODE_HEARTBEAT: &str = "node.heartbeat";
 /// Signed ordinary Node disconnect operation.

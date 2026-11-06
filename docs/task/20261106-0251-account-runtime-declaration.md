@@ -33,3 +33,7 @@ contract owns this continuation; these detail records track only the bounded sha
 change. Shared indexes and historical records remain under their existing ownership.
 The isolated source starts at c523414f7d9e19e9e4bbdf4f785cd96d610d945e.
 Tests will be committed before execution; current checks are not run.
+
+The committed focused RED input failed compilation: the new contract exports were
+absent, and the test hex helper import required its public module path. Both
+observations are retained; the import is corrected with the implementation.
