@@ -743,7 +743,7 @@ retains exact external repository revisions, corpus paths and reader names.
 
 | Family | Existing export / specification | Missing producer / consumer evidence and owner |
 | --- | --- | --- |
-| 1 | `node` lifecycle and `control::{RegistrationRequest, RegistrationAcceptance, InformationResponse}`; [Node](../spec/account/node.md), [Control](../spec/account/control.md) | NSD owns remaining independent information/discovery accepted/refused producer vectors before H03; current matching enrollment bytes and live transition confirmation remain open. Bounded Q07/Q11 answers do not fill them. |
+| 1 | `node` lifecycle and `control::{RegistrationRequest, RegistrationAcceptance, InformationResponse}`; [Node](../spec/account/node.md), [Control](../spec/account/control.md) | NSD proposes the information/discovery accepted/refused producer corpus listed under [Release-ready contract inventory](#release-ready-contract-inventory); it awaits NSD merge and owner confirmation before H03. Current matching enrollment bytes and live transition confirmation remain open. Bounded Q07/Q11 answers do not fill them. |
 | 2 | `realm` peers and membership; [Realm](../spec/account/realm.md), [Publication](../spec/account/publication.md) | NSD owns complete collection-authority/refusal/limit producer corpus and review; ns owns live replacement and source-retirement confirmation. Named matched publication copies cover only their recorded cases. |
 | 3 | `grants::{ServiceGrant, GrantPublication}`; [Grants](../spec/account/grants.md) | NSD owns complete independent canonical/refusal grant corpus, including protocol/deadline joins; ns/gateway own consumption of that actual corpus and live enforcement. Decoded storage assertions are not exported bytes. Q13 remains open. |
 | 4 | `subnet::{SubnetPublication, SubnetSelection}` and provider mapping/report APIs; [Subnet](../spec/account/subnet.md) | NSD owns separate signed `provider-mappings` production/source handoff and independent changed/empty/refused bytes; ns owns authenticated inventory installation. Existing grant/route corpus does not substitute. Default/nested Exit live confirmation stays open. |
@@ -754,6 +754,46 @@ retains exact external repository revisions, corpus paths and reader names.
 | 9 | `usage::{UsageProfilePublication, UsageReport}` and retention contracts; [Usage](../spec/account/usage.md) | NSD owns ledger producer/unit/history evidence and seal completeness; ns/gateway own demonstrated matching `profiles.json`/`ledger.json` readers, completed-I/O capture and custody. Shared supplied quantities cannot prove capture. Q19 remains open. |
 | 10 | `usage::NodeControlProfilePublication`; [Usage](../spec/account/usage.md), [Control](../spec/account/control.md) | ns/gateway own matching profile-corpus consumption; NSD/ns own standalone transport agreement and Q20 answer. The catalogue describes capabilities; opaque `node.control` has no runtime semantics or newly assigned producer here. |
 | 11 | `control::{NodeL3StatusRequest, node_l3_event_digest}`; [Control](../spec/account/control.md) | NSD/ns own live issuance-to-enforcement-to-Applied association and complete-empty removal. The named matching status corpus proves recorded bytes only. Policy observation is not installation or traffic authority. |
+
+### Release-ready contract inventory
+
+Refreshed on 2026-11-06 by source inspection and file comparison at nsshared
+`24fb97f`, NSD `refactor/unified-engine` `3928f73e`, ns `main` `b5a8e18e` and
+nsgw `next` `ab89f809`. No ns or nsgw test was run for this table. NSD corpora
+are relative to `crates/nsd-api/tests/producer_core/fixtures/` and are read by
+the named slice of `producer_core_readers` in
+`crates/nsd-api/tests/producer_core/`. ns copies are relative to
+`crates/network/control/tests/fixtures/channel-trust/`; "identical" means the
+two files have the same bytes at those revisions. Shared vectors are relative to
+`crates/nsshared-control/tests/vectors/`.
+
+Every contract below is exported from `nsshared_control::account` behind the
+`unstable-account` feature and is not covered by semver. The latest tag is
+`v0.7.0`; no release revision or cohort is selected. Removing the gate, the tag
+and the merge stay external under Q-REL, after the review answers listed in the
+last column.
+
+| Contract | Producer and consumers | Shared candidate vectors | NSD producer corpus and slice | ns copy | Review state |
+| --- | --- | --- | --- | --- | --- |
+| Bootstrap discovery tuple and `info.get` information | NSD; gateway reads the CBOR forms; ns keeps JSON `control_trust.v1` and legacy `info.get` | `account/control/envelope.vec` `bootstrap-*` cases; `account/control/exchange.vec#information` | `bootstrap.json`, `bootstrap.rs::check`: CBOR discovery, anonymous and directed information, replay, malformed payload, unknown schema, wrong recipient, forged and stale requests, twelve configuration refusals. Proposed in NSD pull request 572 (`71c8f8ee`); absent at `3928f73e` | none; ns has not adopted the shared forms | Q11 partially answered; the corpus awaits NSD merge and owner confirmation |
+| Enrollment registration and authentication (family 1) | NSD; ns and gateway enrol | `account/node/enrollment.vec`; `account/control/exchange.vec` | `enrollment.json`, `enrollment.rs::check` | present, differs | Q07 answered; Q11 partially answered |
+| Realm peers, subnet views and Node L3 publications (families 2, 4, 11) | NSD; ns and gateway install | `account/realm/peers.vec`; `account/subnet/views.vec`; `account/publication/envelope.vec` | `publications.json`, `mod.rs::check` and `corpus.rs::compare` | identical | Q08, Q09, Q12 open |
+| Subnet selection commands and receipts (family 4) | ns requests; NSD answers | `account/subnet/selection.vec` | `routes.json`, `routes.rs::check` | identical | Q14 open |
+| Publication snapshot and subscription delivery | NSD; ns and gateway poll and subscribe | `account/publication/delivery.vec`, `subscription.vec`, `snapshot-request.vec`, `snapshot-pending-boundaries.vec` | `delivery.json`, `delivery.rs::check` | identical | Q21 open |
+| Egress, payer and withdrawal grants (families 3, 5, 6) | NSD; gateway and ns enforce | `account/grants/grant-authority.vec` | none: NSD has decoded-field and storage assertions only | none | Q13, Q15, Q16 open |
+| Public edge (family 7) | NSD; gateway enforces | `account/edge/routing.vec`, `anonymous.vec`, `auth.vec`, `material-request.vec`, `floor-text.vec` | `edge.json`, `edge.rs::check`; material and auth acquisition have no corpus | none | Q17 open |
+| Relay directory and participant rosters (family 8) | NSD; ns and relayd consume | `account/relay/participant-roster.vec`, `session.vec`, `admission-snapshot.vec` | `directory.json`, `directory.rs::check`; `rosters.json` and `rosters-schema2.json`, `rosters.rs::check` | directory identical; rosters none | Q01 to Q04, Q06, Q18 open |
+| Usage and Node-control profiles (families 9, 10) | NSD; ns and gateway capture | `account/usage/catalog.vec` | `profiles.json`, `mod.rs::check_profiles` | none | Q19, Q20 open |
+| Usage reports and answers (family 9) | gateway and relay report; NSD answers | `account/usage/reports.vec`, `retention.vec`; `account/relay/session.vec` | `ledger.json`, `ledger/resource.rs` and `ledger/relay.rs` | none | Q05, Q10, Q19 open |
+| Node L3 status (family 11) | ns reports; NSD answers | `account/control/node-l3-status.vec`, `node-l3-route-admission.vec` | `status.json`, `status.rs::check` | identical | Q09 open |
+| Shared control reports (heartbeat, gateway, material, service) | ns and gateway report; NSD answers | `account/control/reports.vec`, `node-liveness.vec`, `node-posture.vec` | none for the shared operations; `retained.json`, `retained.rs::check`, records only the retained legacy carriers and the R3 heartbeat refusal | `retained.json` identical | Q24 not sent |
+| M6 service control | gateway and ns contribute; NSD dispatches | `account/control/service-control.vec`; `service/canonical.json`, `service/floor.json` | `service_control.json`, `service_control/mod.rs::check` | identical | Q23, M01, M02 open |
+
+nsgw `deps/contract-vectors.toml` at `ab89f809` lists every NSD corpus above
+except `rosters-schema2.json` and `bootstrap.json` as a source; this refresh
+did not check which nsgw loaders read them. Q22 stays open: the table names
+the corpora that exist, not a complete eleven-family positive, empty, refusal,
+scope and limit inventory.
 
 ### Q23 M6 composition index
 

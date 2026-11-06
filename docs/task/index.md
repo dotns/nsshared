@@ -1,5 +1,7 @@
 # ns-shared - Task List
 
+- [x] [**Release-ready contract inventory**](20261106-2358-release-ready-contract-inventory.md)
+
 - [x] [**Service authority and scope refusals**](20261105-1804-service-error-refusals.md)
 
 - [x] [**Shared contract upstream synchronization**](20261105-1519-shared-contract-upstream-sync.md)
