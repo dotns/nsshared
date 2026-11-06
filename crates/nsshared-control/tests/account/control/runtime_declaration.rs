@@ -37,9 +37,8 @@ const SOURCE: &str = concat!(
     "813602f75f427ea416e0d88a58ae3464d4f8a114d755a3b773ae05b87315eaa44d328e4a2a7aa226c0999598bbc69cb4",
     "d1f96200f20dc3643203c907",
 );
-const ACCEPTED: &str =
-    concat!("83010f5820d0cc47b7534adc13a42f802a70eb9c993347e0c21dd6fcaed87af4c8e85914da",);
-const DIGEST: &str = concat!("d0cc47b7534adc13a42f802a70eb9c993347e0c21dd6fcaed87af4c8e85914da",);
+const ACCEPTED: &str = "83010f5820d0cc47b7534adc13a42f802a70eb9c993347e0c21dd6fcaed87af4c8e85914da";
+const DIGEST: &str = "d0cc47b7534adc13a42f802a70eb9c993347e0c21dd6fcaed87af4c8e85914da";
 
 fn identity(seed: u8) -> IdentityKey {
     IdentityKey::from_bytes(
