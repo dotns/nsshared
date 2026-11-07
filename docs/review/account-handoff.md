@@ -19,8 +19,9 @@ remain separate decisions.
 with `unstable-account` in their root manifests and locks. This supersedes the
 unimplemented status below, not the historical package comparison or unanswered
 review questions. The evidence table separates source adoption from missing live
-confirmation. The feature restriction remains until review approval, the retention
-seal contract and real-component evidence support the later shared release.
+confirmation. The owner decision on 2026-11-07 supersedes the former feature
+restriction and review prerequisite: `v0.8.0` exposes account unconditionally as
+part of the stable public API. The historical evidence and open questions remain.
 
 ## Delivered contracts
 
@@ -261,7 +262,7 @@ An adopted slice does not answer its owner's review question.
 | <a id="adoption-policy"></a>Policy/admin and remaining control reports | **Partially adopted:** family-7 producer and confidential acquisition slices above exist. NSD `producer_core_readers`, `retained.rs::check` and `fixtures/retained.json` exercise legacy heartbeat and service reports, explicitly including R3 heartbeat HTTP 403; they are not the shared five-operation report contract. **Open:** exact shared heartbeat/gateway/material/service report producer corpus including floor-text cases, authenticated admin scope projection, complete subject/JWT/signed-URL/header vectors and unplaced policy carriers. Gateway machine audience remains an owner decision; source merges supply no answer. |
 | <a id="adoption-vectors"></a>Independent family production and M6 composition | **Partially adopted:** the named actual NSD corpora and six byte-identical ns copies above replace the blanket claim that no producer vectors exist. Enrollment copies differ, and profiles/edge/ledger/roster lack a demonstrated matching downstream corpus reader here. **Open:** Q22's complete eleven-family positive/empty/refusal/scope/limit inventory and Q23's owner confirmation of all types/variants/domains, beyond the bounded tests above. |
 | <a id="adoption-labels"></a>M6 labels | **Open:** M01's explicit owner answer for the standalone API and M02's independent boundary vectors are not established by these producer/consumer merges. Existing labels inside M6 objects and unchanged digest checks do not close either request. |
-| <a id="adoption-release"></a>External release assets | **Open:** review answers, retention seal contract, live real-component evidence, released immutable shared revision and re-verification at that revision; placement/trust, durable security/registry store, settlement/rollback and release cohorts remain externally owned. `unstable-account` stays enabled. Pending NSD `aa2caaf381fd` (request #468), `docs/task/20261027-1734-fixture-python.md`, repairs provisioned Python selection for `pair_authority` tests; it supplies no live qualification or new contract approval. |
+| <a id="adoption-release"></a>External release assets | **Open:** review answers, retention seal contract, live real-component evidence, released immutable shared revision and re-verification at that revision; placement/trust, durable security/registry store, settlement/rollback and release cohorts remain externally owned. The owner-approved `v0.8.0` release removes `unstable-account` and does not wait for review answers. Pending NSD `aa2caaf381fd` (request #468), `docs/task/20261027-1734-fixture-python.md`, repairs provisioned Python selection for `pair_authority` tests; it supplies no live qualification or new contract approval. |
 
 The six byte-identical JSON pairs were compared directly at the named merge
 commits. Enrollment request/response carrier bytes differ in all nine records;
@@ -389,7 +390,8 @@ edge/profile/ledger/roster downstream corpus readers, Q22/Q23, M01/M02 and Q24
 remain open. Bounded Q07/Q11 answers and Q18's settled design remain bounded;
 `node.control` remains opaque. Review approval, retention-seal acceptance,
 F04 integration, live qualification and the actual immutable release revision
-and cohort remain outstanding. Keep `unstable-account`; production eligibility
+and cohort remain outstanding. The `v0.8.0` release removes the feature gate
+without waiting for review answers; production eligibility
 requires H03/R01/R02/C01b and C18 re-verification, and deletion remains held
 under Q-RET.
 

@@ -179,8 +179,7 @@ def build(base):
         api_surface.export(revision, directory)
         old_lines = listing(pathlib.Path(directory), "nsshared-proto",
                             ROOT / "target" / "api-surface" / revision[:12])
-    new_lines = listing(ROOT, "nsshared-control", ROOT / "target" / "api-surface" / "current",
-                        ["nsshared-control/unstable-account"])
+    new_lines = listing(ROOT, "nsshared-control", ROOT / "target" / "api-surface" / "current")
     old = parse(old_lines, OLD)
     new = parse(new_lines, NEW)
     by_name = {}
@@ -309,7 +308,7 @@ def document(base):
         "dependency": {
             "add": "nsshared-control",
             "note": "keep nsshared-proto for its other modules; pin nsshared-control to the same revision "
-                    "with features = [\"unstable-account\"], which gates the candidate account module",
+                    "with the account module available unconditionally from v0.8.0",
         },
         "statuses": ["moved", "renamed", "changed", "split", "removed"],
         "items": entries,

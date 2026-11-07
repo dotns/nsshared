@@ -1,3 +1,22 @@
+## 2026-11-07 [release]
+
+Prepare `v0.8.0`: the account contract is stable and part of the public API from
+this release. Remove the `unstable-account` feature entirely; account modules,
+dependencies and tests are unconditional and included in default-feature semver
+checks. Removing a Cargo feature is breaking, so the workspace, eight internal
+dependency requirements and twelve lockfile packages move to `0.8.0`.
+
+Include the service discovery and heartbeat extensions, whole-floor reports with
+explicit-CIDR Default Exit profiles, Node-only Echo authorization, service
+refusals, and account custody, admission, recovery, retention and independent
+public-ingress contracts added since `v0.7.0`, with vectors and adoption records.
+nsgw `main`, NSD and ns currently pin `165cce57` with the feature; when moving to
+the release tag, they must drop `features = ["unstable-account"]`. Later changes
+on `main` are documentation only. Owner approval on 2026-11-07 removes the review
+answer prerequisite for release; open evidence and operational obligations remain
+recorded separately. Update QA, migration tooling, current contract documentation
+and the release task and plan records for the unconditional API.
+
 ## 2026-11-05 [fix]
 
 Accept authority-unavailable and scope-mismatch only in service Error bodies.

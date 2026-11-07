@@ -76,21 +76,19 @@ re-export at the new crate, or rewrite those paths by hand.
 ## Cargo change
 
 Add `nsshared-control` from the same source and revision as `nsshared-proto`,
-with the `unstable-account` feature, and bump both to a revision that contains
-`nsshared-control`:
+and move both to `v0.8.0` or a compatible later revision:
 
 ```toml
 [workspace.dependencies]
 nsshared-proto = { git = "<nsshared source>", rev = "<rev>" }
-nsshared-control = { git = "<nsshared source>", rev = "<rev>", features = ["unstable-account"] }
+nsshared-control = { git = "<nsshared source>", rev = "<rev>" }
 ```
 
-`account` exists only with that feature. It is a candidate contract: not covered
-by semver, and it may change incompatibly before the gate is removed and a
-release is made, so pin a revision rather than a version range.
+`account` is available unconditionally and covered by semver from `v0.8.0`.
+Remove `features = ["unstable-account"]` when upgrading; that feature no longer
+exists. Keep all shared crates on the same immutable release or revision.
 
-Then `nsshared-control.workspace = true` in each member the report names (the
-feature comes from the workspace entry). Keep
+Then `nsshared-control.workspace = true` in each member the report names. Keep
 `nsshared-proto` for its other modules. Pin every nsshared crate, including the
 mocks and `nsshared-service-control`, to the same revision: a second revision
 duplicates `nsshared-codec` and `nsshared-identity`, and `AccountError::Cbor` or
@@ -156,12 +154,12 @@ In this repository, `just account-migration-check` confirms the
 map matches the code, and `python3 -m unittest discover -s scripts/tests`
 covers the rewrite script.
 
-## Current candidate delta
+## Release migration delta
 
-This is preparation for candidate consumers, not released migration guidance.
-Final release revision and cohort remain **unset**. Keep all shared crates pinned
-to one immutable pushed revision and retain `unstable-account` for account APIs.
-The M6 floor API itself does not require the account feature.
+The `v0.8.0` release makes account part of the stable public API. Keep all shared
+crates pinned to one immutable release or revision and remove `unstable-account`
+from consumer manifests. Planning selects the final merge commit and tag;
+review answers no longer block the release.
 
 ### Whole-floor M6
 
@@ -205,8 +203,8 @@ the legacy baseline is `service/canonical.json` under that same vector root.
 Update account roster construction to supply `schema_version` and
 `attribution_epoch` explicitly. Preserve schema 1 when re-encoding old signed
 content: its epoch must equal `version`. Select schema 2 only for a producer and
-consumer that support independent counters. This intentionally changes candidate
-Rust struct literals and verification signatures behind `unstable-account`;
+consumer that support independent counters. This changed pre-v0.8.0 candidate
+Rust struct literals and verification signatures;
 legacy wire preservation does not imply source compatibility. Verification supplies both
 persisted floors (inside a fallible caller):
 
@@ -246,8 +244,8 @@ Q22/Q23, M01/M02 and Q24 remain open; bounded Q07/Q11 answers do not approve
 remaining producer vectors or unmatched downstream corpora. Keep review approval,
 live qualification, retention-seal acceptance and F04 integration outstanding.
 Production eligibility requires H03/R01/R02/C01b and C18 re-verification at the
-actual release revision; deletion stays held under Q-RET. No tag, dependency
-change or feature restriction removal is selected by this guide.
+actual release revision; deletion stays held under Q-RET. The 2026-11-07 owner
+decision removes the feature gate for `v0.8.0`; planning owns the merge and tag.
 
 ### Release-time substitutions and examples still required
 

@@ -235,7 +235,7 @@ caller-owned; participant relays carry reports and answers in frames 5 and 6 (se
 
 ## Retention seals and acknowledgements
 
-These pure contracts are available only behind `unstable-account` and carried
+These pure contracts are part of the public account API from `v0.8.0` and carried
 only by the confidential authenticated participant session: REPORT (5) contains
 `RetentionSeal`, ANSWER (6) contains `RetentionSealAck`. They are distinct from
 usage reports and answers; they are not control-report payloads or publications.

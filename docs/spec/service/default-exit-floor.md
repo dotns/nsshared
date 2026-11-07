@@ -45,8 +45,8 @@ floor and its complete message. The existing `DefaultExitUnsupported` error code
 valid for explicit-only consumer refusals.
 
 Deliver the verified source through a pushed immutable commit, and pin that exact full
-revision in each consuming manifest and lockfile, with `unstable-account` for the account
-carrier. Record the actual gateway producer, NSD admission/selection consumer and client
+revision in each consuming manifest and lockfile. From `v0.8.0`, the account
+carrier is available without feature flags. Record the actual gateway producer, NSD admission/selection consumer and client
 consumer revisions together with that shared revision. A matching shared pin establishes
 schema compatibility only; each component must also implement its existing Default path.
 An unverified or unsupported producer/consumer tuple stays unavailable. Do not publish a

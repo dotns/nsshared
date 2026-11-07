@@ -3,9 +3,6 @@
 
 set dotenv-load := false
 
-# The candidate account contracts build only with this feature; qa covers both sets.
-account := "--features nsshared-control/unstable-account"
-
 # Show available recipes
 default:
     @just --list
@@ -33,7 +30,6 @@ qa-tests: self-check-tests test doc
 
 check:
     cargo check --workspace --all-targets --locked
-    cargo check --workspace --all-targets --locked {{account}}
 
 fmt:
     cargo fmt --all
@@ -44,17 +40,13 @@ fmt-check:
 # The deny-warnings policy lives in [workspace.lints]
 lint:
     cargo clippy --workspace --all-targets --locked
-    cargo clippy --workspace --all-targets --locked {{account}}
 
 test:
     cargo nextest run --workspace --locked
-    cargo nextest run --workspace --locked {{account}}
 
 doc:
     cargo test --workspace --doc --locked
-    cargo test --workspace --doc --locked {{account}}
     RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
-    RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked {{account}}
 
 deny:
     cargo deny --locked check
@@ -74,7 +66,6 @@ vectors-check:
     python3 tools/vectors/generate.py --check
 
 # Check that the account migration map matches the code at its base and at HEAD
-# (nsshared-control built with unstable-account)
 account-migration-check:
     python3 -B scripts/account_migration.py check
 
@@ -82,7 +73,7 @@ account-migration-check:
 # In 0.x a minor version bump may break the API; any other bump must not.
 # Facades re-export other workspace crates, which cargo-semver-checks does not
 # follow; scripts/api_surface.py checks them. Crates absent at the tag are skipped.
-# Default features only: the unstable-account candidate is outside semver.
+# Default features include the account contract as part of the public API.
 semver:
     #!/usr/bin/env bash
     set -euo pipefail

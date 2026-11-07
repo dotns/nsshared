@@ -217,3 +217,7 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20261027-1938-ci-sccache Use the runner shared compiler cache**](20261027-1938-ci-sccache.md) `P1`
 
 - [-] [**20261106-1356-gateway-public-address-contract Report public ingress host independently of WG transport**](20261106-1356-gateway-public-address-contract.md) `P1`
+
+- [x] [**20261107-0206-release-next Prepare the next release**](20261107-0206-release-next.md) `P1`
+
+- [x] [**20261107-0213-stable-account-release Release the unconditional account API**](20261107-0213-stable-account-release.md) `P1`

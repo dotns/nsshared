@@ -358,7 +358,7 @@ NodeBinding, "control", [served_realm, publication_scope], registration_conditio
   generation are independent. Same-I/K Account A to B to A requires a fresh
   receipt condition; a legitimate source refresh within the same registration
   may return a newer source without changing this condition.
-- The six-field request is an incompatible unstable-account contract change.
+- The six-field request was an incompatible change to the pre-v0.8.0 candidate contract.
   Old five-field requests are rejected, including for gateways; null must be
   explicitly encoded. Producers, consumers and copied vectors adopt together.
   Decoding a null condition does not establish gateway authority.
@@ -651,7 +651,7 @@ committing renewal or disconnect. Shared decoding checks fence shape only:
 success does not establish freshness, capability admission, current source
 custody or a committed effect. Those checks and transactions remain consumer
 responsibilities. No transport, registration acceptance field, or payload
-identity key is added. These contracts remain behind `unstable-account`.
+identity key is added. These contracts are part of the public account API from `v0.8.0`.
 
 ### Gateway observations
 
@@ -1282,8 +1282,8 @@ gateway-ID and carrier-credential fields.
 ## Ordinary Node device posture
 
 `NODE_POSTURE` (`node.posture`) is a distinct `ControlReportOperation::NodePosture`
-operation in the existing signed confidential control carrier, behind
-`unstable-account`. It is independent of `node.heartbeat`; existing heartbeat,
+operation in the existing signed confidential control carrier, available
+unconditionally from `v0.8.0`. It is independent of `node.heartbeat`; existing heartbeat,
 disconnect and observation tuples retain their bytes.
 
 `NodePostureRequest` is exactly `[1, membership_scope, runtime_fence, request_id,

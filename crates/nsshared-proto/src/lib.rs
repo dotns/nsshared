@@ -21,8 +21,8 @@
 //!
 //! The most used types are also re-exported at the crate root. Pure: no I/O, async
 //! runtime or TLS; callers pass time, randomness and keys. The account contracts are not
-//! re-exported here; they are the candidate `nsshared_control::account`, behind the
-//! `unstable-account` feature of `nsshared-control`.
+//! re-exported here; they are `nsshared_control::account`, available unconditionally
+//! and covered by semver from v0.8.0.
 
 pub mod constants;
 pub mod encoding;
