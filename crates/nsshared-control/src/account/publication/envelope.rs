@@ -419,6 +419,7 @@ pub fn decide_publication<'a>(
         || event.decode_grant_payload().is_err()
         || event.decode_subnet_payload().is_err()
         || event.decode_provider_mapping_payload().is_err()
+        || event.decode_exit_readiness_payload().is_err()
     {
         return PublicationDecision::Refused(PublicationError::Field);
     }

@@ -223,3 +223,5 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20261107-0213-stable-account-release Release the unconditional account API**](20261107-0213-stable-account-release.md) `P1`
 
 - [x] [**20261107-1726-exit-readiness-contract Define provider-confirmed Exit observations**](20261107-1726-exit-readiness-contract.md) `P1`
+
+- [x] [**20261107-1808-exit-publication-validation Validate Exit observations at publication acceptance**](20261107-1808-exit-publication-validation.md) `P1`

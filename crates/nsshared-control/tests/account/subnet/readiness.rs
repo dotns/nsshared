@@ -84,6 +84,30 @@ fn independent_readiness_vectors() {
                     );
                 }
             }
+            "observation-match" => {
+                let value = ExitInstallObservation::decode(&raw).unwrap();
+                assert_eq!(value.canonical().unwrap(), raw);
+                let context = ExitInstallContext::decode(&v.hex("context")).unwrap();
+                assert_eq!(value.context_digest, context.digest().unwrap());
+                assert_eq!(
+                    value.validate_for(&context, v.u64("now")).is_ok(),
+                    accepted,
+                    "{}",
+                    v.name()
+                );
+            }
+            "confirmation-match" => {
+                let value = ExitProviderConfirmation::decode(&raw).unwrap();
+                assert_eq!(value.canonical().unwrap(), raw);
+                let context = ExitInstallContext::decode(&v.hex("context")).unwrap();
+                assert!(v.u64("now") < context.valid_until_unix_ms);
+                assert_eq!(
+                    value.validate_for(&context, v.u64("now")).is_ok(),
+                    accepted,
+                    "{}",
+                    v.name()
+                );
+            }
             "confirmation" => check!(ExitProviderConfirmation),
             "publication" => check!(ExitReadinessPublication),
             "grant" => {

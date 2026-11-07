@@ -57,6 +57,7 @@ from nsvec.producers.control.service import canonical as control_service_canonic
 from nsvec.producers.control.service import floor as control_service_floor
 
 from nsvec.producers.control.account.subnet import readiness as exit_readiness
+from nsvec.producers.control.account.subnet import readiness_publication as exit_readiness_publication
 
 PRODUCERS = [
     control_service_floor,
@@ -103,6 +104,7 @@ PRODUCERS = [
     control_account_subnet_selection,
     control_account_subnet_views,
     exit_readiness,
+    exit_readiness_publication,
     control_account_usage_catalog,
     control_account_usage_reports,
     control_account_usage_retention,

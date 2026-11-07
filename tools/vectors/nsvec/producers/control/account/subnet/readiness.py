@@ -24,7 +24,7 @@ def return_host(identity, mapped):
     raise ValueError("return alias exhausted")
 
 
-def example(default=False):
+def example(default=False, selection_byte=11, resource_byte=7, challenge_byte=13):
     nsd_seed = bytes([2])*32
     nsd, consumer, provider = [ed25519.public_key(bytes([i])*32) for i in (2, 1, 3)]
     network = bytes([4])*16
@@ -32,20 +32,20 @@ def example(default=False):
     source = [1, nsd, consumer, realm, "nodes", "explicit-gateway-profile", consumer, bytes([5])*16, 1, 1]
     source_bytes = cbor.encode(source)
     signed = cbor.encode([source_bytes, ed25519.sign(nsd_seed, b"ns.account.source-binding.v1\0" + source_bytes)])
-    resource = cbor.encode([bytes([6])*16, network, bytes([7])*16])
+    resource = cbor.encode([bytes([6])*16, network, bytes([resource_byte])*16])
     real = prefix("0.0.0.0/0" if default else "10.0.0.0/8")
     mapped = prefix("fd00:1122:3344:1::/96" if default else "fd00:1122:3344:1::a00:0/104")
     selection = [0, []] if default else [1, [real]]
     route = [resource, real, mapped, provider, consumer, [], [], selection]
     subnet = [1, 4, bytes([6])*16, network, consumer, 1, [route]]
     grant = [resource, consumer, provider, [[network, bytes([8])*16]], bytes([9])*16, 10000, [1, cbor.encode(subnet)]]
-    command = [1, signed, bytes([10])*16, bytes([11])*16, [0, provider, resource, selection]]
+    command = [1, signed, bytes([10])*16, bytes([selection_byte])*16, [0, provider, resource, selection]]
     receipt = [1, cbor.encode(command), 17, 0]
     psource = copy.deepcopy(source)
     psource[2] = psource[6] = provider
     psource[7] = bytes([12])*16
     host = return_host(consumer, mapped[1])
-    context = [1, bytes([13])*16, bytes([14])*16, cbor.encode(receipt), [1, consumer, bytes([15])*32, 1], bytes([16])*16,
+    context = [1, bytes([challenge_byte])*16, bytes([14])*16, cbor.encode(receipt), [1, consumer, bytes([15])*32, 1], bytes([16])*16,
                cbor.encode(psource), [1, provider, bytes([17])*32, 1], bytes([18])*16, cbor.encode(grant), 1,
                hashlib.sha256(cbor.encode([1, 4, nsd, provider, 1, [grant]])).digest(), [host], 10000]
     peer = [1, bytes([19])*16, bytes([17])*32, bytes([15])*32, [host]]
@@ -106,6 +106,35 @@ def vectors():
     for field in (2, 3, 4):
         bad = copy.deepcopy(values["publication"]); bad[field] = bytes([99])*len(bad[field])
         emit(f"publication-scope-{field}", "publication", bad, False)
+    # A high h22 bit distinguishes the fixed /11 pool from an incorrect /10.
+    identity = ed25519.public_key(bytes([2])*32)
+    mapping = prefix("fd00:1122:3344:1::a00:0/104")
+    host = return_host(identity, mapping[1])
+    assert identity.hex() == "8139770ea87d175f56a35466c34c7ecccb8d8a91b4ee37a25df60f5b8fc9b394"
+    assert ipaddress.IPv6Address(host) == ipaddress.IPv6Address("fd00:1122:3344:2::644f:a080")
+    emit("return-high-bit", "return", host, identity=identity, mapped=cbor.encode(mapping))
+    # Keep the expected context digest fixed while changing nonzero observation fields.
+    for field, name in [(1, "challenge"), (3, "provider")]:
+        foreign = copy.deepcopy(values["observation"])
+        foreign[field] = bytes([99])*16
+        emit("foreign-observation-" + name, "observation-match", foreign, False,
+             context=cbor.encode(values["context"]), now=1)
+    shorter = copy.deepcopy(values["confirmation"]); shorter[3] = 5000
+    for name, now, accepted in [("before", 4999, True), ("at", 5000, False)]:
+        emit("short-confirmation-" + name, "confirmation-match", shorter, accepted,
+             context=cbor.encode(values["context"]), now=now)
+    second = example(selection_byte=12, resource_byte=8, challenge_byte=30)
+    pair = copy.deepcopy(values["publication"])
+    pair[-1].append(cbor.encode(second["confirmation"]))
+    emit("two-selections", "publication", pair)
+    reversed_pair = copy.deepcopy(pair); reversed_pair[-1].reverse()
+    emit("reversed-selections", "publication", reversed_pair, False)
+    mixed = copy.deepcopy(second)
+    mixed["context"][5] = bytes([77])*16
+    mixed["observation"][2] = hashlib.sha256(CONTEXT_DOMAIN + cbor.encode(mixed["context"])).digest()
+    mixed["confirmation"][1:3] = [cbor.encode(mixed["context"]), cbor.encode(mixed["observation"])]
+    mixed_pair = copy.deepcopy(pair); mixed_pair[-1][1] = cbor.encode(mixed["confirmation"])
+    emit("mixed-consumer-lifetimes", "publication", mixed_pair, False)
     # Authenticated publications remain observational and source-fenced.
     context = values["context"]
     source = cbor.decode(cbor.decode(cbor.decode(context[3])[1])[1])[0]

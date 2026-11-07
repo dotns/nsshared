@@ -1,3 +1,14 @@
+## 2026-11-07 18:08 [fix]
+
+Validate Exit readiness payloads in generic publication acceptance before any
+Replace, Withdraw or FetchFailed action is exposed, including every Snapshot
+delegate. Apply the existing nodes-only source rule to this kind even for empty
+withdrawals. Add signed public decision and whole-Snapshot refusal regressions,
+independent high-bit /11 alias, foreign observation, shorter expiry and ordered
+collection vectors. Clarify role-specific local expectations and NSD-attested
+remote facts. Existing wire layouts, domains, field order and vector records are
+unchanged; the prepared version remains 0.9.0.
+
 ## 2026-11-07 17:26 [progress]
 
 Prepare 0.9.0 with selection-scoped Exit installation observations on the existing
