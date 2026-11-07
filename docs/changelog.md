@@ -1,3 +1,17 @@
+## 2026-11-07 [release]
+
+Prepare `v0.7.1`: compatible service discovery and heartbeat extensions,
+versioned whole-floor reports with explicit-CIDR Default Exit profiles, Node-only
+Echo authorization and service authority/scope refusals. Include the candidate
+account custody, admission, registration recovery, retention and independent
+public-ingress contracts, plus their vectors and adoption inventory.
+The default-off `unstable-account` gate stays on; the account contract remains
+outside semver until the gate is removed in a later release. nsgw `main` and NSD
+pin `165cce57`; ns aligns to that revision after ns #1047. Later commits on
+`main` are documentation only. Default-feature semver checks against `v0.7.0`
+found no breaking public API changes, so the workspace and internal dependency
+versions move to `0.7.1`. Add the release preparation task and plan records.
+
 ## 2026-11-05 [fix]
 
 Accept authority-unavailable and scope-mismatch only in service Error bodies.
