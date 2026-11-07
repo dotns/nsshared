@@ -244,8 +244,8 @@ Q22/Q23, M01/M02 and Q24 remain open; bounded Q07/Q11 answers do not approve
 remaining producer vectors or unmatched downstream corpora. Keep review approval,
 live qualification, retention-seal acceptance and F04 integration outstanding.
 Production eligibility requires H03/R01/R02/C01b and C18 re-verification at the
-actual release revision; deletion stays held under Q-RET. No tag, dependency
-change or feature restriction removal is selected by this guide.
+actual release revision; deletion stays held under Q-RET. The 2026-11-07 owner
+decision removes the feature gate for `v0.8.0`; planning owns the merge and tag.
 
 ### Release-time substitutions and examples still required
 

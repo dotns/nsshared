@@ -220,4 +220,4 @@ Each task is a single line linking to its detail file. All detailed information 
 
 - [x] [**20261107-0206-release-next Prepare the next release**](20261107-0206-release-next.md) `P1`
 
-- [-] [**20261107-0213-stable-account-release Release the unconditional account API**](20261107-0213-stable-account-release.md) `P1`
+- [x] [**20261107-0213-stable-account-release Release the unconditional account API**](20261107-0213-stable-account-release.md) `P1`

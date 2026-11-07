@@ -1,6 +1,6 @@
 # 20261107-0213-stable-account-release Release the unconditional account API
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-11-07 02:13
 - **approvedAt**: 2026-11-07 02:13
 - **relatedTask**: 20261107-0213-stable-account-release
@@ -28,3 +28,5 @@ A no-op compatibility feature is explicitly disallowed. The approved release ver
 ## Annotations
 
 Owner approval on 2026-11-07 supersedes the earlier 0.7.1 release scope and account gate prerequisite.
+
+Implemented the unconditional account API and the 0.8.0 release. Complete QA and migration-map verification passed; PR #27 now describes v0.8.0. Merge and tag remain with planning.
