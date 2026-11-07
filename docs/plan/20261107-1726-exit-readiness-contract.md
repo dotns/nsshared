@@ -1,6 +1,6 @@
 # 20261107-1726-exit-readiness-contract Define provider-confirmed Exit observations
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-11-07 17:26
 - **approvedAt**: 2026-11-07 17:26
 - **relatedTask**: 20261107-1726-exit-readiness-contract
@@ -28,3 +28,5 @@ The approved reduced exchange reuses GatewayReport instead of a new control meth
 ## Annotations
 
 Implementation was explicitly authorized in the owner order. No additional approval gate is needed for this approved scope.
+
+Verification: complete just qa and account-migration-check passed; PR https://git.pvv.cc/nsiod/nsshared/pulls/28 is open. Consumer adoption and release are separate work.

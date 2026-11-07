@@ -179,4 +179,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 
 - [x] [**20261107-0213-stable-account-release Release the unconditional account API**](20261107-0213-stable-account-release.md) `2026-11-07`
 
-- [-] [**20261107-1726-exit-readiness-contract Define provider-confirmed Exit observations**](20261107-1726-exit-readiness-contract.md) `2026-11-07`
+- [x] [**20261107-1726-exit-readiness-contract Define provider-confirmed Exit observations**](20261107-1726-exit-readiness-contract.md) `2026-11-07`
