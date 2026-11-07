@@ -19,13 +19,13 @@ def vectors():
     request_id = bytes([7]) * 16
     heartbeat = [1, request_id, 123, ["192.0.2.1", "2001:db8::1"], 9]
     certificate = ["cert", ["web.example"], "issuer", 200, "sha256:abc", 2, None]
-    gateway = [1, request_id, "1.0", "0123456789abcdef", 0, False, 443, 8080,
-               True, ["node.control"], ["edge.http"], [certificate]]
+    gateway = [2, request_id, "1.0", "0123456789abcdef", 0, False, 443, 8080,
+               True, ["node.control"], ["edge.http"], [certificate], None, None]
     edge = {dict(v)["name"]: dict(v)["bytes"] for v in public_edge.vectors()}
     units = {dict(v)["name"]: dict(v)["bytes"] for v in usage.vectors()}
     material = cbor.decode(edge["installed"])
     forms = [("machine.heartbeat", heartbeat, [1, request_id, ["unknown.feature"]]),
-             ("gateway.report", gateway, [1, request_id]),
+             ("gateway.report", gateway, [2, request_id, None, None]),
              ("gateway.services_report", cbor.decode(edge["request-1"]), cbor.decode(edge["response-1"])),
              ("gateway.usage_report", cbor.decode(units["service-report"]), cbor.decode(units["ack"])),
              ("gateway.material_status", material, [1, edge["installed"]])]
@@ -50,7 +50,7 @@ def vectors():
         emit(operation + "-request", "payload", request, operation=operation, direction=0)
         emit(operation + "-response", "payload", response, operation=operation, direction=1)
     emit("heartbeat-empty", "payload", [1, request_id, 0, [], None], operation="machine.heartbeat", direction=0)
-    minimal = [1, request_id, None, None, None, None, None, None, False, [], [], []]
+    minimal = [2, request_id, None, None, None, None, None, None, False, [], [], [], None, None]
     emit("gateway-empty", "payload", minimal, operation="gateway.report", direction=0)
     for name, operation, value in [("addresses", "machine.heartbeat", heartbeat), ("certificates", "gateway.report", gateway)]:
         value = copy.deepcopy(value)

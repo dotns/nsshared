@@ -66,6 +66,10 @@ machine tokens, route commands, Node L3 status, the M6 carrier, operation
 names) and `publication` (signed events and snapshots, the family registry,
 source bindings and publications, subscriptions and snapshot requests). The
 family areas are `realm`, `grants`, `subnet`, `edge`, `relay` and `usage`.
+`account::subnet` also owns the observational Exit installation context, receipts
+and complete consumer readiness set. GatewayReport carries its challenge/answer;
+family 4 `exit-readiness` is a separate Snapshot, outside routing authority.
+Installation generations and guarded currentness remain consumer responsibilities.
 `account::domains` holds every signature and digest domain. Private `codec`,
 `limits` and `signing` modules hold the reader, writer, validation and
 signature rules every family shares; every signed contract builds its signing

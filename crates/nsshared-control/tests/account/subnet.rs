@@ -6,3 +6,5 @@ mod mapping_inventory;
 mod report;
 mod selection;
 mod views;
+
+mod readiness;

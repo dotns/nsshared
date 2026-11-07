@@ -64,7 +64,7 @@ impl FencedGatewayReportResponse {
         out.array(4).uint(1);
         self.scope.write(&mut out);
         self.fence.write(&mut out)?;
-        out.bytes(&self.response.canonical());
+        out.bytes(&self.response.canonical()?);
         bounded(out.into_bytes())
     }
     /// Decodes one exact canonical scoped receipt.

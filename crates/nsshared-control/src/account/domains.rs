@@ -1,7 +1,8 @@
 //! Domain separation strings of the account contracts. Each signature covers the domain
 //! followed by the canonical signed bytes; every signature domain ends with a zero
 //! separator. The digest domain is text for `service::domain_digest`, which appends the
-//! separator itself.
+//! separator itself. Exit observation digests use the explicit byte domains below,
+//! including their zero separators, followed directly by canonical CBOR.
 
 /// Confidential carrier request signature domain.
 pub const ACCOUNT_REQUEST_DOMAIN: &[u8] = b"ns.account.call.request.v1\0";
@@ -28,3 +29,10 @@ pub const PARTICIPANT_EXPORTER_LABEL: &[u8] = b"EXPORTER-nsgw-participant-candid
 
 /// Retention seal content domain for `service::domain_digest`.
 pub const RETENTION_SEAL_DIGEST_DOMAIN: &str = "ns.account.retention.seal.v1";
+
+/// Canonical per-grant SHA-256 domain, including the zero separator.
+pub const EXIT_GRANT_DIGEST_DOMAIN: &[u8] = b"ns-exit-grant-v1\0";
+/// Exact installation challenge SHA-256 domain, including the zero separator.
+pub const EXIT_CONTEXT_DIGEST_DOMAIN: &[u8] = b"ns-exit-context-v1\0";
+/// Installation observation SHA-256 domain, including the zero separator.
+pub const EXIT_OBSERVATION_DIGEST_DOMAIN: &[u8] = b"ns-exit-observation-v1\0";

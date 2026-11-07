@@ -655,10 +655,12 @@ identity key is added. These contracts are part of the public account API from `
 
 ### Gateway observations
 
-`GatewayReport` is `[1, request_id_16, software_version_or_null,
+The 0.9.0 clean-break [Exit readiness contract](exit-readiness.md) extends the
+existing authenticated report exchange. `GatewayReport` is
+`[2, request_id_16, software_version_or_null,
 source_revision_or_null, connections_or_null, terminate_enabled_or_null,
 public_http_port_or_null, internal_http_port_or_null, draining, capabilities,
-public_ingress_scopes, certificates]`.
+public_ingress_scopes, certificates, public_host_or_null, exit_installation_or_null]`.
 
 - Ports are 1..65535 and authorize no public route.
 - Connections are u32; absent means unknown, distinct from zero.
@@ -677,9 +679,14 @@ observations do not replace exact material-installation correlation and are neve
 installation authority. Fingerprints and issuer are opaque observations, not trust
 pins.
 
-`GatewayReportResponse` is `[1, request_id_16]`. The gateway mints a unique
-request id per observation; responses are compared against the exact pending
-request after envelope verification (`validate_for`). Receipt means receipt only.
+`GatewayReportResponse` is `[2, request_id_16, accepted_exit_installation_or_null,
+exit_challenge_or_null]`. The accepted digest names only the exact pending Exit
+observation; an ordinary health receipt is not an installation ACK. The next
+challenge supplies no forwarding authority. The gateway mints a unique request id
+per observation; authenticated responses are correlated with the exact pending
+request (`validate_for`). Old report/response forms refuse. Exact fields,
+canonical rules and installation-owner/currentness obligations are normative in
+[Exit readiness](exit-readiness.md).
 
 ### Fenced shared gateway reports
 
@@ -690,7 +697,7 @@ The shared `gateway.report` operation carries `FencedGatewayReportRequest`:
 The runtime id is nonzero and both counters are positive. Missing fields, null
 context, noncanonical encodings (including nested bytes) and invalid observations
 are refused with typed `AccountError` values. The embedded `GatewayReport`
-encoding remains unchanged; its `request_id` is the request correlation. Drain
+uses the extended clean-break form above; its `request_id` is the request correlation. Drain
 uses this same operation with `report.draining = true`, without another payload
 or identity model.
 
@@ -701,7 +708,8 @@ the response envelope's authority signer, recipient, direction and operation,
 the gateway calls `validate_for` against its retained pending request; either
 membership id, runtime id, generation, authority epoch or request id differing
 is a typed `AccountError::Field` refusal. Receipt has the existing observation
-receipt semantics and grants no registration or readiness authority.
+receipt semantics and grants no registration or forwarding authority. Exit
+acceptance is a separately correlated observation, not a health-success inference.
 
 The gateway process produces observations and drain intent from its actual
 state, membership from accepted registration/source custody and runtime fields

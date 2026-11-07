@@ -118,7 +118,10 @@ fn control_report_contract_vectors() {
                             GatewayReport::decode(&raw).unwrap().canonical().unwrap()
                         }
                         (ControlReportOperation::Gateway, EnvelopeDirection::Response) => {
-                            GatewayReportResponse::decode(&raw).unwrap().canonical()
+                            GatewayReportResponse::decode(&raw)
+                                .unwrap()
+                                .canonical()
+                                .unwrap()
                         }
                         (ControlReportOperation::Services, EnvelopeDirection::Request) => {
                             EdgeServiceRequest::decode(&raw)

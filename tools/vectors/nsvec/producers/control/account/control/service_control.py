@@ -52,7 +52,7 @@ def vectors():
 
     for network in (4, 5):
         binding = [ident(3), ident(network), 1, ident(6), 2, 3, ident(7)]
-        subscription = cbor.encode([1, node, [], [], [], ident(10), 1, binding])
+        subscription = cbor.encode([1, node, [], [], [], ident(10), 1, binding, None])
         emit(f"subscription-{network}", "subscription", subscription)
         ref = [ident(3), ident(network), ident(11)]
         proposal = dict(service_ref=ref, listener_revision=1, intent_digest=digest,
