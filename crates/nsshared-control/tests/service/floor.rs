@@ -234,7 +234,6 @@ fn invalid_programmatic_floor_is_refused() {
     assert_eq!(floor.canonical(), Err(ContractError::InvalidFloorBinding));
 }
 
-#[cfg(feature = "unstable-account")]
 #[test]
 fn authenticated_pending_floor_correlates_complete_digest() {
     for key in ["signed", "signed_default"] {
@@ -242,7 +241,6 @@ fn authenticated_pending_floor_correlates_complete_digest() {
     }
 }
 
-#[cfg(feature = "unstable-account")]
 fn check_authenticated_pending_floor(key: &str) {
     use nsshared_control::account::control::{
         BootstrapEnvelope, EnvelopeDirection, EnvelopeExpectation, EnvelopePins, PendingRequest,

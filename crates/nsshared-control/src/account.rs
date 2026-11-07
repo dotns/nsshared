@@ -1,7 +1,6 @@
-//! Candidate account payload contracts; see `docs/spec/account/profile.md`.
+//! Account payload contracts; see `docs/spec/account/profile.md`.
 //!
-//! Available with the `unstable-account` feature only. Not covered by semver: the
-//! module may change incompatibly before the gate is removed and a release is made.
+//! Available unconditionally and covered by semver from v0.8.0.
 //!
 //! | Module | Contents |
 //! | --- | --- |

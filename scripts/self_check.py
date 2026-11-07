@@ -24,8 +24,6 @@ class Selection(TypedDict):
 
 
 STATIC_CHECKS = ["fmt-check", "lint", "deny", "shear", "typos", "vectors-check", "semver"]
-# Packages with a gated feature set that QA also builds and tests (see the justfile).
-FEATURE_SETS = {"nsshared-control": ["--features", "nsshared-control/unstable-account"]}
 CONFIG_NAMES = {
     "Cargo.toml", "Cargo.lock", "justfile", "rust-toolchain", "rust-toolchain.toml",
     "deny.toml", "typos.toml", ".typos.toml", "clippy.toml", ".clippy.toml",
@@ -423,13 +421,11 @@ def commands(selection: Selection) -> list[list[str]]:
         ["just", *STATIC_CHECKS],
         ["just", "self-check-tests"],
     ]
-    feature_sets = [[]] + [flags for package, flags in FEATURE_SETS.items() if package in selection["affected"]]
-    for flags in feature_sets:
-        selected += [
-            ["cargo", "nextest", "run", "--workspace", "--locked", *flags, "-E", filterset],
-            ["cargo", "test", "--doc", "--locked", *flags, *package_args],
-            ["env", "RUSTDOCFLAGS=-D warnings", "cargo", "doc", "--no-deps", "--locked", *flags, *package_args],
-        ]
+    selected += [
+        ["cargo", "nextest", "run", "--workspace", "--locked", "-E", filterset],
+        ["cargo", "test", "--doc", "--locked", *package_args],
+        ["env", "RUSTDOCFLAGS=-D warnings", "cargo", "doc", "--no-deps", "--locked", *package_args],
+    ]
     return selected
 
 

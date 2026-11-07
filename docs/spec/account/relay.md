@@ -439,10 +439,10 @@ Legacy vectors remain unchanged. Schema 2 vectors cover repeated epochs across
 increasing publications, independent counter magnitudes, epoch decrease (including
 legacy downgrade), zero epoch, noncanonical epoch encoding and signature tampering.
 
-The Rust API changes are breaking within the opt-in `unstable-account` surface:
+The Rust API changes were breaking within the pre-v0.8.0 candidate surface:
 roster constructors supply `schema_version` and `attribution_epoch`; verification
 calls supply both persisted floors; returned generations expose both counters.
-Released default-feature APIs remain unchanged (`just semver` classification).
+From `v0.8.0`, these APIs are unconditional and covered by default-feature semver checks.
 
 The `participant_auth_transport` sequence of `session.vec` supplies fixed fixture
 keys and exporter material: authorized enrollment and unprovisioned-key refusal;

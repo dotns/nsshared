@@ -176,3 +176,5 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [-] [**20261106-1356-gateway-public-address-contract Report public ingress host independently of WG transport**](20261106-1356-gateway-public-address-contract.md) `2026-11-06`
 
 - [x] [**20261107-0206-release-next Prepare the next release**](20261107-0206-release-next.md) `2026-11-07`
+
+- [-] [**20261107-0213-stable-account-release Release the unconditional account API**](20261107-0213-stable-account-release.md) `2026-11-07`

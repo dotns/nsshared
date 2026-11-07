@@ -271,8 +271,9 @@ Q07/Q11 retain only their recorded bounded answers; complete remaining
 producer-owned vectors stay with NSD before H03. Q22/Q23, M01/M02 and Q24 remain
 open, as do unmatched downstream corpora, owner review, live qualification,
 retention-seal acceptance and F04 integration. `node.control` remains opaque.
-The account surface remains behind `unstable-account`; final release revision
-and cohort remain unset. Released adoption and production eligibility require
+The owner-approved `v0.8.0` release exposes account unconditionally as a stable
+public API and no longer waits for review answers. Planning owns the final
+merge commit and tag; the release cohort remains unset. Released adoption and production eligibility require
 H03/R01/R02/C01b and C18 re-verification, with deletion held under Q-RET.
 
 The [exact candidate case index](account-inventory.md#exact-candidate-case-index)

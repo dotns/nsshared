@@ -17,7 +17,7 @@ previous workspace is archived at tag `archive/v1-20261002`.
 | `nsshared-identity` | Typed identity and WireGuard keys, node ID / `node6` / `node4`, canonical realm ids, relay ids, `NodeRecord` and its ordering and conflict state, DNS discovery of records, identity and record constants | ns, the relay, nsd |
 | `nsshared-relay` | Relay packets v2, REGISTER, session key, MACs, DATA admission and budget defaults, relay constants | ns and the relay |
 | `nsshared-rendezvous` | The `/rendezvous/v1` JSON transport, capabilities, actor `hello`, relay directory v2, mailbox phase rules, node registry, registry constants | ns and the rendezvous service |
-| `nsshared-control` | `service`: M6 private service control; `node_control`: Node-control v2 messages and endpoint selection; `account`: the candidate account payload contracts, behind the `unstable-account` feature | ns, nsd and the gateway |
+| `nsshared-control` | `service`: M6 private service control; `node_control`: Node-control v2 messages and endpoint selection; `account`: the public account payload contracts | ns, nsd and the gateway |
 | `nsshared-telemetry` | `tracing` subscriber setup (text or JSON, env filter with a default; installs the global subscriber, no exporter), `Redacted` and the sensitive field names | Every Rust component |
 | `nsshared-proto` | Deprecated facade: the 0.6 paths of the identity, relay, rendezvous, Node-control and encoding modules | existing consumers |
 | `nsshared-service-control` | Deprecated facade: the M6 contract at its existing paths | existing consumers |
@@ -53,10 +53,11 @@ other crates at additional paths.
 
 ### Account contracts
 
-`account` is a candidate contract behind the `unstable-account` feature of `nsshared-control` (default off): it is not covered by semver and may change incompatibly before the gate is removed and a release is made. Without the feature, `service`, `node_control` and the facades build unchanged;
-`node_control` does not depend on `account`, and the dependencies only `account` needs
-are optional. `just qa` builds, lints, tests and documents the workspace with and
-without the feature; the API checks use default features.
+`account` is available unconditionally and is part of the semver-covered public
+API from `v0.8.0`. The `unstable-account` feature has been removed; consumers
+must stop requesting it when upgrading. `node_control` does not depend on
+`account`. Account dependencies are unconditional. `just qa` builds, lints, tests
+and documents the complete workspace; default-feature API checks include account.
 
 `nsshared_control::account` is organized by layer and family. The layer areas
 are `node` (enrollment, lifecycle, Node L3 form and authority), `control`

@@ -17,9 +17,9 @@ consumer reviewer. Every question and requested change was sent on that date (se
 [Disposition](#disposition)). Content added after the delivered revision is listed
 in [Changes after delivery](#changes-after-delivery). No answer has been received. Silence approves nothing. NSD independently owns
 producer vectors and implementation. Unreceived answers remain outstanding and
-do not block the candidate. The candidate is merged into `main` behind the
-`unstable-account` feature; review is still required before the gate is removed or a
-release is made.
+do not block the release. The owner decision on 2026-11-07 makes account
+unconditional and stable from `v0.8.0`, removes `unstable-account`, and allows
+release without waiting for review answers. The unanswered questions remain open.
 
 2026-10-27 adoption update: ns `6ea11348` (request #543) and NSD `ff278641`
 (request #467) consume shared `95f1688` with `unstable-account`. The
@@ -27,8 +27,9 @@ release is made.
 names adopted source, actual producer corpora, exact byte comparisons and each
 remaining confirmation. Neither merge is an answer to the questions below.
 Pending ns `3b9adf5156ad` (#545) and NSD `aa2caaf381fd` (#468) repair test
-environments only. Review approval, retention sealing and live real-component
-evidence still precede the later release and feature restriction removal.
+environments only. Review answers, retention sealing and live real-component
+evidence remain separate open obligations; the 2026-11-07 owner decision removes
+review approval as a release prerequisite.
 
 ## Candidate package
 

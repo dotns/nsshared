@@ -333,7 +333,7 @@ supplied and verified, consumers retain the complete TCP/UDP-only projection and
 refuse Echo enablement. No dependency change is implied by this shared contract.
 
 Producer and consumer handoffs must pin the verified immutable shared revision
-with `unstable-account`; manifests and lockfiles must identify the compatible
+without feature flags from `v0.8.0`; manifests and lockfiles must identify the compatible
 producer, consumer and released enforcement revisions. A floating branch or a
 sibling path dependency supplies no immutable contract input. Contract tests
 qualify construction, canonical decoding and scope validation only. Packet

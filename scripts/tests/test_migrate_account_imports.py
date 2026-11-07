@@ -264,7 +264,7 @@ class CommandLine(unittest.TestCase):
             output = subprocess.run([sys.executable, "-B", str(SCRIPT), str(root), "--map", str(mapping)],
                                     capture_output=True, text=True, check=True).stdout
             self.assertIn("+use nsshared_control::account::relay::Roster;", output)
-            self.assertIn("nsshared-control = { git = \"x\", rev = \"r\", features = [\"unstable-account\"] }", output)
+            self.assertIn("nsshared-control = { git = \"x\", rev = \"r\" }", output)
             self.assertEqual(source.read_text(), "use nsshared_proto::account::Roster;\n")
             subprocess.run([sys.executable, "-B", str(SCRIPT), str(root), "--map", str(mapping), "--apply"],
                            capture_output=True, text=True, check=True)

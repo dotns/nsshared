@@ -767,11 +767,10 @@ the named slice of `producer_core_readers` in
 two files have the same bytes at those revisions. Shared vectors are relative to
 `crates/nsshared-control/tests/vectors/`.
 
-Every contract below is exported from `nsshared_control::account` behind the
-`unstable-account` feature and is not covered by semver. The latest tag is
-`v0.7.0`; no release revision or cohort is selected. Removing the gate, the tag
-and the merge stay external under Q-REL, after the review answers listed in the
-last column.
+Every contract below is exported unconditionally from `nsshared_control::account`
+and covered by semver from `v0.8.0`. The owner approved removing the feature gate
+and releasing without waiting for review answers on 2026-11-07. Planning owns
+the merge and tag; the unanswered questions in the last column remain open.
 
 | Contract | Producer and consumers | Shared candidate vectors | NSD producer corpus and slice | ns copy | Review state |
 | --- | --- | --- | --- | --- | --- |
@@ -822,7 +821,7 @@ variants and domains; Q24, Q22 and M01/M02 remain open. Bounded Q07/Q11 answers
 and the settled Q18 design do not close them. See the
 [exact consumer dispositions](account-handoff.md#unresolved-producer-consumer-and-review-obligations).
 Review approval, matched consumer readers, live qualification, retention-seal
-acceptance and F04 integration remain outstanding. `unstable-account` remains
-required. Production eligibility still requires H03/R01/R02/C01b and C18
+acceptance and F04 integration remain outstanding. The owner-approved `v0.8.0`
+release removes `unstable-account` and no longer waits for review answers. Production eligibility still requires H03/R01/R02/C01b and C18
 re-verification; deletion stays held under Q-RET. No tag, release cohort or final
 immutable release revision is selected here.

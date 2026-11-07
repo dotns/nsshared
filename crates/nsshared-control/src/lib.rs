@@ -7,16 +7,15 @@
 //! | --- | --- |
 //! | [`service`] | M6 private service control: wire types, digests and snapshots |
 //! | [`node_control`] | Node-control v2 messages, ACK hashes and endpoint selection |
-//! | `account` | Candidate account payload contracts by layer and family; feature `unstable-account` |
+//! | [`account`] | Account payload contracts by layer and family |
 //!
-//! `account` is a candidate contract behind the `unstable-account` feature (default
-//! off). It is not covered by semver and may change incompatibly before the gate is
-//! removed and a release is made. `service` and `node_control` do not depend on it.
+//! `account` is part of the public API and covered by semver from v0.8.0.
+//! All modules are available unconditionally; `service` and `node_control` do not
+//! depend on `account`.
 //!
 //! Every public item has one path, inside its module. Pure: no I/O, runtime state or
 //! clock; callers pass time, randomness, keys and authenticated context.
 
-#[cfg(feature = "unstable-account")]
 pub mod account;
 pub mod node_control;
 pub mod service;

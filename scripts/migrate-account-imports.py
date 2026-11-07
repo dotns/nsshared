@@ -6,7 +6,7 @@
 Without --apply it prints a unified diff of every change (dry run). With --apply it
 writes the Rust sources. It reads only `*.rs` files outside `target/`, never changes
 Cargo manifests, and prints the dependency change each affected manifest needs
-(`nsshared-control` with its `unstable-account` feature, which gates `account`).
+(`nsshared-control`, whose account module is part of the public API).
 
 Mapping comes from docs/review/account-migration.json. Moved and renamed items get
 their new path; a renamed item imported by `use` is aliased to its old name so the code
@@ -34,7 +34,6 @@ import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-FEATURE = "unstable-account"
 OLD = "nsshared_proto::account"
 NEW = "nsshared_control::account"
 ATTRS = r"(?:(?:#\[(?:[^\[\]]|\[[^\[\]]*\])*\][ \t]*\n?|///[^\n]*\n)[ \t]*)*"
@@ -461,13 +460,8 @@ def dependency_advice(repository, manifests):
     for crate in wanted:
         if pin and not declared(root_text, crate):
             source = re.sub(r"(path\s*=\s*\"[^\"]*/)nsshared-proto\"", rf'\g<1>{crate}"', pin)
-            if crate == "nsshared-control":
-                source = source[:-1].rstrip() + f', features = ["{FEATURE}"] }}'
             lines.append(f"- {root.relative_to(repository)} [workspace.dependencies]: {crate} = {source} "
                          "(the same source; pin a revision that contains it)")
-        elif crate == "nsshared-control" and declared(root_text, crate) and FEATURE not in root_text:
-            lines.append(f"- {root.relative_to(repository)} [workspace.dependencies]: enable "
-                         f'features = ["{FEATURE}"] on nsshared-control')
     for manifest, needs in sorted(manifests.items()):
         text = manifest.read_text() if manifest.exists() else ""
         missing = sorted(c for c in needs if not declared(text, c))
