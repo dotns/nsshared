@@ -228,7 +228,7 @@ fn fenced_gateway_preserves_observations_and_validates_in_memory_context() {
         request.report
     );
     assert_eq!(
-        GatewayReportResponse::decode(&receipt.response.canonical()).unwrap(),
+        GatewayReportResponse::decode(&receipt.response.canonical().unwrap()).unwrap(),
         receipt.response
     );
     for index in 0..3 {

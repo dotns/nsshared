@@ -32,21 +32,21 @@ todo        = "warn"
 [workspace.package]
 edition = "2024"
 rust-version = "1.96"
-version = "0.8.0"
+version = "0.9.0"
 license = "MIT"
 authors = ["NSIO Project Contributors"]
 publish = false
 
 [workspace.dependencies]
 # Internal crates.
-nsshared-codec = { path = "crates/nsshared-codec", version = "0.8.0" }
-nsshared-control = { path = "crates/nsshared-control", version = "0.8.0" }
-nsshared-identity = { path = "crates/nsshared-identity", version = "0.8.0" }
-nsshared-mock-relay = { path = "examples/mock-relay", version = "0.8.0" }
-nsshared-mock-rendezvous = { path = "examples/mock-rendezvous", version = "0.8.0" }
-nsshared-relay = { path = "crates/nsshared-relay", version = "0.8.0" }
-nsshared-rendezvous = { path = "crates/nsshared-rendezvous", version = "0.8.0" }
-nsshared-testkit = { path = "crates/nsshared-testkit", version = "0.8.0" }
+nsshared-codec = { path = "crates/nsshared-codec", version = "0.9.0" }
+nsshared-control = { path = "crates/nsshared-control", version = "0.9.0" }
+nsshared-identity = { path = "crates/nsshared-identity", version = "0.9.0" }
+nsshared-mock-relay = { path = "examples/mock-relay", version = "0.9.0" }
+nsshared-mock-rendezvous = { path = "examples/mock-rendezvous", version = "0.9.0" }
+nsshared-relay = { path = "crates/nsshared-relay", version = "0.9.0" }
+nsshared-rendezvous = { path = "crates/nsshared-rendezvous", version = "0.9.0" }
+nsshared-testkit = { path = "crates/nsshared-testkit", version = "0.9.0" }
 
 # External crates: latest stable versions as of 2026-10-02.
 base64           = "0.23.1"

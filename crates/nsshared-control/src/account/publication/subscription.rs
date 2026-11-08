@@ -59,6 +59,8 @@ pub struct PublicationSubscriptionRequest {
     pub attempt_counter: u32,
     /// Optional exact admitted M6 session; no admission is inferred by decoding.
     pub service_control: Option<ServiceControlBinding>,
+    /// Actual installation-owner lifetime; None is only for nonparticipants.
+    pub exit_installation: Option<crate::account::subnet::ExitInstallationIncarnation>,
 }
 
 impl PublicationSubscriptionRequest {
@@ -79,6 +81,9 @@ impl PublicationSubscriptionRequest {
         if let Some(binding) = &self.service_control {
             binding.validate()?;
         }
+        if let Some(incarnation) = self.exit_installation {
+            incarnation.canonical()?;
+        }
         Ok(())
     }
 
@@ -88,7 +93,7 @@ impl PublicationSubscriptionRequest {
     pub fn canonical(&self) -> Result<Vec<u8>, ExchangeError> {
         self.validate()?;
         let mut out = CborWriter::default();
-        out.array(8)
+        out.array(9)
             .uint(SCHEMA)
             .bytes(self.subscriber.as_bytes())
             .array(self.scopes.len());
@@ -114,6 +119,11 @@ impl PublicationSubscriptionRequest {
         } else {
             out.null();
         }
+        if let Some(incarnation) = self.exit_installation {
+            out.bytes(&incarnation.0);
+        } else {
+            out.null();
+        }
         let bytes = out.into_bytes();
         if bytes.len() > MAX_SUBSCRIPTION_BYTES {
             return Err(AccountError::Bounds.into());
@@ -132,7 +142,7 @@ impl PublicationSubscriptionRequest {
 
     fn read(bytes: &[u8]) -> Result<Self, AccountError> {
         let mut input = CborReader::new(bytes, MAX_SUBSCRIPTION_BYTES)?;
-        input.array(8)?;
+        input.array(9)?;
         require(input.uint()? == SCHEMA)?;
         let subscriber = identity(&mut input)?;
         let count = input.array_up_to(MAX_SUBSCRIPTION_SCOPES)?;
@@ -163,6 +173,13 @@ impl PublicationSubscriptionRequest {
         } else {
             Some(ServiceControlBinding::read(&mut input)?)
         };
+        let exit_installation = if input.take_null() {
+            None
+        } else {
+            Some(crate::account::subnet::ExitInstallationIncarnation(
+                input.fixed_bytes()?,
+            ))
+        };
         input.finish()?;
         Ok(Self {
             subscriber,
@@ -172,6 +189,7 @@ impl PublicationSubscriptionRequest {
             boot_nonce,
             attempt_counter,
             service_control,
+            exit_installation,
         })
     }
 

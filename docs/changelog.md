@@ -1,3 +1,25 @@
+## 2026-11-07 18:08 [fix]
+
+Validate Exit readiness payloads in generic publication acceptance before any
+Replace, Withdraw or FetchFailed action is exposed, including every Snapshot
+delegate. Apply the existing nodes-only source rule to this kind even for empty
+withdrawals. Add signed public decision and whole-Snapshot refusal regressions,
+independent high-bit /11 alias, foreign observation, shorter expiry and ordered
+collection vectors. Clarify role-specific local expectations and NSD-attested
+remote facts. Existing wire layouts, domains, field order and vector records are
+unchanged; the prepared version remains 0.9.0.
+
+## 2026-11-07 17:26 [progress]
+
+Prepare 0.9.0 with selection-scoped Exit installation observations on the existing
+fenced GatewayReport exchange, mandatory subscription installation-incarnation
+slot, and separate family-4 exit-readiness Snapshot. Reuse source/Node/receipt/grant
+contracts, add canonical digest and existing return-identity helpers with
+independent vectors, and keep local readiness and forwarding admission unchanged.
+Strict prior wire forms refuse; consumers must adopt the same shared revision.
+Evidence custody remains application-lifetime only; no persistence or new control
+method is introduced. Tags and release publication remain separate work.
+
 ## 2026-11-07 [release]
 
 Prepare `v0.8.0`: the account contract is stable and part of the public API from

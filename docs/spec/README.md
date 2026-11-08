@@ -16,6 +16,7 @@ vector header and by the [spec coverage tables](../spec-coverage/quick-v2.md)).
 | [Realm](account/realm.md) | Family 2: served realms and peers, policy subjects, subject rules, admin and JWT claims | `nsshared_control::account::realm` |
 | [Grants](account/grants.md) | Families 3, 5 and 6: service grants, payers and payer bindings, resource authority | `nsshared_control::account::grants` |
 | [Subnet](account/subnet.md) | Family 4: Subnet selection, Exit grants and client route views, provider reports and mappings | `nsshared_control::account::subnet` |
+| [Exit readiness](account/exit-readiness.md) | Selection-scoped GatewayReport challenge/observation and separate consumer Snapshot | `nsshared_control::account::subnet` |
 | [Edge](account/edge.md) | Family 7: public-edge routes, authentication policy, material, confidential configuration, service declarations | `nsshared_control::account::edge` |
 | [Relay](account/relay.md) | Family 8: admission and participant rosters, participant sessions, directory bindings | `nsshared_control::account::relay` |
 | [Usage](account/usage.md) | Families 9 and 10: service and relay usage, reports and answers, profile publications | `nsshared_control::account::usage` |

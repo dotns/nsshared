@@ -204,6 +204,53 @@ pub struct ServiceGrant {
 }
 
 impl ServiceGrant {
+    /// Encodes one validated existing grant record, including expiry.
+    /// # Errors
+    /// Refuses invalid grant fields or excessive size.
+    pub fn canonical(&self) -> Result<Vec<u8>, GrantError> {
+        self.validate(match self.details {
+            GrantDetails::Exit(_) => 4,
+            _ => 3,
+        })?;
+        let mut out = CborWriter::default();
+        self.write(&mut out)?;
+        checked_bytes(out)
+    }
+    /// Decodes one exact grant record without publication or authority inference.
+    /// # Errors
+    /// Refuses malformed, noncanonical, trailing or invalid fields.
+    pub fn decode(bytes: &[u8]) -> Result<Self, GrantError> {
+        let mut probe = CborReader::new(bytes, MAX_BYTES)?;
+        probe.array(7)?;
+        let _ = read_reference(&mut probe)?;
+        let _ = identity(&mut probe)?;
+        let _ = identity(&mut probe)?;
+        let _ = read_payers(&mut probe)?;
+        let _: [u8; 16] = probe.fixed_bytes()?;
+        let _ = probe.uint()?;
+        let arity = probe.array_up_to(6)?;
+        let tag = probe.uint()?;
+        let family = match (arity, tag) {
+            (2, 1) => 4,
+            (6, 0) => 3,
+            _ => return Err(GrantError::Field),
+        };
+        let mut input = CborReader::new(bytes, MAX_BYTES)?;
+        let value = Self::read(&mut input, family)?;
+        input.finish()?;
+        value.canonical()?;
+        Ok(value)
+    }
+    /// Domain-separated SHA-256 of canonical grant bytes including expiry.
+    /// # Errors
+    /// Refuses invalid grant fields.
+    pub fn digest(&self) -> Result<[u8; 32], GrantError> {
+        use sha2::{Digest as _, Sha256};
+        let mut hash = Sha256::new();
+        hash.update(crate::account::domains::EXIT_GRANT_DIGEST_DOMAIN);
+        hash.update(self.canonical()?);
+        Ok(hash.finalize().into())
+    }
     /// Returns the sole explicit payer, without inference or deduplication.
     ///
     /// # Errors

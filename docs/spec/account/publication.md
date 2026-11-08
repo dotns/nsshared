@@ -455,9 +455,9 @@ The operation is `config.stream` (`control::CONFIG_STREAM`) at the endpoint
 
 ### Request tuple
 
-`[1, subscriber_I, scopes, capabilities, public_ingress, boot_nonce, attempt_counter, service_control]`
+`[1, subscriber_I, scopes, capabilities, public_ingress, boot_nonce, attempt_counter, service_control, exit_installation]`
 
-The request has exactly eight elements; requests of any other arity are refused.
+The request has exactly nine elements; the old eight-element form is retired and requests of any other arity are refused.
 
 | Field | Rule |
 | --- | --- |
@@ -468,6 +468,11 @@ The request has exactly eight elements; requests of any other arity are refused.
 | boot_nonce | Nonzero 16-byte restart identity |
 | attempt_counter | Positive u32 logical stream attempt |
 | service_control | Null, or the typed seven-element admitted-session tuple (`control::ServiceControlBinding`) defined in [control](control.md) |
+
+`exit_installation` is null for nonparticipants, or the nonzero actual installation-owner
+incarnation defined by [Exit readiness](exit-readiness.md). Readiness participation
+requires Some plus independently admitted current source/Node/owner custody; the
+slot itself grants no authority. It does not replace boot/attempt or M6 fences.
 
 ### Scopes
 
@@ -725,3 +730,13 @@ source I, K and derived addresses across sources A and B:
 Variants refuse a wrong request, wrong boot nonce or attempt, wrong poll context,
 wrong profile, missing binding, gateway-ID fields and carrier-credential
 fields.
+
+## Exit readiness observation Snapshot
+
+Family 4 `exit-readiness` is Snapshot-owned and replaces only `confirmations`.
+It remains separate from route/grant authority and capture inputs. The normative
+payload, complete-empty replacement, source validation, cold-capture and
+FetchFailed rules are in [Exit readiness](exit-readiness.md). Authenticated
+FetchFailed uses a nonempty complete-empty readiness payload, never positive
+confirmations. The existing generic signature, source/delivery, version and
+membership acceptance checks remain mandatory.

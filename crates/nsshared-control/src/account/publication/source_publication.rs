@@ -123,7 +123,7 @@ impl<'a> SourcePublication<'a> {
             return Err(SourceError::Authority);
         }
         match (key.family, key.kind) {
-            (4, "exit-grants" | "subnet-routes" | "provider-mappings")
+            (4, "exit-grants" | "subnet-routes" | "provider-mappings" | "exit-readiness")
                 if key.scope != "nodes" || current.source_node != current.recipient =>
             {
                 return Err(SourceError::Authority);

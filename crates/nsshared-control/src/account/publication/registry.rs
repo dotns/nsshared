@@ -189,6 +189,12 @@ impl FamilyRegistry {
     /// The canonical family registry retains each family's primary publication.
     #[must_use]
     pub fn replacement(self, family: u64, kind: &str) -> Option<ReplacementRule> {
+        if (family, kind) == (4, "exit-readiness") {
+            return Some(ReplacementRule {
+                publication: "exit-readiness",
+                clears: "confirmations",
+            });
+        }
         if (family, kind) == (4, "provider-mappings") {
             return Some(ReplacementRule {
                 publication: "provider-mappings",
@@ -267,6 +273,7 @@ pub fn publication_channel(family: u64, kind: &str) -> Option<PublicationChannel
         (2, "realm-peers")
         | (3, "egress-grants")
         | (4, "exit-grants")
+        | (4, "exit-readiness")
         | (4, "subnet-routes")
         | (4, "provider-mappings")
         | (5, "payer-bindings")

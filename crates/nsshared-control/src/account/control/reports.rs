@@ -182,6 +182,8 @@ pub struct GatewayReport {
     pub public_ingress_scopes: Vec<String>,
     /// Nonsecret activation observations in supplied order.
     pub certificates: Vec<GatewayCertificateObservation>,
+    /// Optional exact Exit observation; absence cannot withdraw a confirmation.
+    pub exit_installation: Option<crate::account::subnet::ExitInstallObservation>,
 }
 impl GatewayReport {
     /// Encodes observations, preserving missing values distinctly.
@@ -205,9 +207,7 @@ impl GatewayReport {
             }
         }
         let mut out = CborWriter::default();
-        out.array(if self.public_host.is_some() { 13 } else { 12 })
-            .uint(1)
-            .bytes(&self.request_id);
+        out.array(14).uint(2).bytes(&self.request_id);
         write_optional_text(&mut out, self.software_version.as_deref(), data_text)?;
         write_optional_text(&mut out, self.source_revision.as_deref(), data_text)?;
         write_optional_uint(&mut out, self.connections.map(u64::from));
@@ -225,8 +225,11 @@ impl GatewayReport {
         for value in &self.certificates {
             value.write(&mut out)?;
         }
-        if let Some(host) = self.public_host.as_deref() {
-            out.text(host);
+        write_optional_text(&mut out, self.public_host.as_deref(), data_text)?;
+        if let Some(observation) = &self.exit_installation {
+            out.bytes(&observation.canonical()?);
+        } else {
+            out.null();
         }
         bounded(out.into_bytes())
     }
@@ -234,10 +237,9 @@ impl GatewayReport {
     /// # Errors
     /// Refuses malformed fields, overflows or noncanonical input.
     pub fn decode(bytes: &[u8]) -> Result<Self, AccountError> {
-        let (mut input, has_public_host) = match reader(bytes, 12) {
-            Ok(input) => (input, false),
-            Err(_) => (reader(bytes, 13)?, true),
-        };
+        let mut input = CborReader::new(bytes, MAX_BYTES)?;
+        input.array(14)?;
+        require(input.uint()? == 2)?;
         let request_id = input.fixed_bytes()?;
         let software_version = read_optional_text(&mut input, MAX_TEXT_BYTES)?;
         let source_revision = read_optional_text(&mut input, MAX_TEXT_BYTES)?;
@@ -265,10 +267,13 @@ impl GatewayReport {
         let certificates = (0..count)
             .map(|_| GatewayCertificateObservation::read(&mut input))
             .collect::<Result<_, _>>()?;
-        let public_host = if has_public_host {
-            Some(input.text_up_to(MAX_TEXT_BYTES)?.to_owned())
-        } else {
+        let public_host = read_optional_text(&mut input, MAX_TEXT_BYTES)?;
+        let exit_installation = if input.take_null() {
             None
+        } else {
+            Some(crate::account::subnet::ExitInstallObservation::decode(
+                input.bytes_up_to(MAX_BYTES)?,
+            )?)
         };
         input.finish()?;
         let value = Self {
@@ -280,6 +285,7 @@ impl GatewayReport {
             public_http_port,
             internal_http_port,
             public_host,
+            exit_installation,
             draining,
             capabilities,
             public_ingress_scopes,
@@ -289,37 +295,78 @@ impl GatewayReport {
         Ok(value)
     }
 }
-/// Receipt of one exact gateway observation id, without registration or readiness.
+/// Operational receipt with separate exact Exit acceptance and next observation challenge.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct GatewayReportResponse {
     /// Exact pending request id.
     pub request_id: [u8; 16],
+    /// Exact accepted observation digest; health success alone is no Exit ACK.
+    pub accepted_exit_installation: Option<[u8; 32]>,
+    /// Next retained context; receiving it does not confirm installation.
+    pub exit_challenge: Option<crate::account::subnet::ExitInstallContext>,
 }
 impl GatewayReportResponse {
-    /// Encodes the exact receipt tuple.
-    #[must_use]
-    pub fn canonical(&self) -> Vec<u8> {
-        let mut out = CborWriter::default();
-        out.array(2).uint(1).bytes(&self.request_id);
-        out.into_bytes()
-    }
-    /// Decodes one receipt tuple.
+    /// Encodes health receipt, independent Exit acceptance and optional challenge.
     /// # Errors
-    /// Refuses malformed, noncanonical or trailing input.
+    /// Refuses an invalid nested challenge or excessive size.
+    pub fn canonical(&self) -> Result<Vec<u8>, AccountError> {
+        let mut out = CborWriter::default();
+        out.array(4).uint(2).bytes(&self.request_id);
+        if let Some(digest) = self.accepted_exit_installation {
+            out.bytes(&digest);
+        } else {
+            out.null();
+        }
+        if let Some(context) = &self.exit_challenge {
+            out.bytes(&context.canonical()?);
+        } else {
+            out.null();
+        }
+        bounded(out.into_bytes())
+    }
+    /// Decodes only the clean-break exact response form.
+    /// # Errors
+    /// Refuses malformed, retired, extended or invalid fields.
     pub fn decode(bytes: &[u8]) -> Result<Self, AccountError> {
-        let mut input = reader(bytes, 2)?;
-        let value = Self {
-            request_id: input.fixed_bytes()?,
+        let mut input = CborReader::new(bytes, MAX_BYTES)?;
+        input.array(4)?;
+        require(input.uint()? == 2)?;
+        let request_id = input.fixed_bytes()?;
+        let accepted_exit_installation = if input.take_null() {
+            None
+        } else {
+            Some(input.fixed_bytes()?)
+        };
+        let exit_challenge = if input.take_null() {
+            None
+        } else {
+            Some(crate::account::subnet::ExitInstallContext::decode(
+                input.bytes_up_to(MAX_BYTES)?,
+            )?)
         };
         input.finish()?;
+        let value = Self {
+            request_id,
+            accepted_exit_installation,
+            exit_challenge,
+        };
+        value.canonical()?;
         Ok(value)
     }
-    /// Compares the receipt to the retained observation.
+    /// Correlates the exact health request and independently accepted Exit content.
     /// # Errors
-    /// Refuses invalid observation or a different request id.
+    /// Refuses request mismatch, missing observation or wrong accepted digest.
     pub fn validate_for(&self, pending: &GatewayReport) -> Result<(), AccountError> {
+        self.canonical()?;
         pending.canonical()?;
-        require(self.request_id == pending.request_id)
+        require(self.request_id == pending.request_id)?;
+        if let Some(digest) = self.accepted_exit_installation {
+            let Some(observation) = &pending.exit_installation else {
+                return Err(AccountError::Field);
+            };
+            require(digest == observation.digest()?)?;
+        }
+        Ok(())
     }
 }
 /// Authority receipt of an exact material installation or rejection report.

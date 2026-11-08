@@ -18,7 +18,7 @@ def vectors():
     out = []
 
     def emit(name, value, accepted=True, raw=None):
-        out.append([("name", name), ("bytes", cbor.encode(value) if raw is None else raw),
+        out.append([("name", name), ("bytes", cbor.encode(value + [None] if len(value) == 8 else value) if raw is None else raw),
                     ("decision", "accepted" if accepted else "refused")])
 
     emit("populated", base)
@@ -72,7 +72,7 @@ def vectors():
             emit(f"zero-binding-{network}-{index}", base[:-1] + [invalid], False)
         emit(f"short-binding-{network}", base[:-1] + [binding[:-1]], False)
     emit("unknown-field", base + [0], False)
-    raw = cbor.encode(base)
+    raw = cbor.encode(base + [None])
     emit("nonminimal", None, False, raw[:1] + b"\x18\x01" + raw[2:])
     emit("trailing", None, False, raw + b"\0")
     emit("oversized-bytes", None, False, bytes(8193))
@@ -90,14 +90,14 @@ def vectors():
         ("wrong-operation", base, issuer, "info.get", 0),
         ("wrong-direction", base, issuer, "config.stream", 1),
     ]:
-        content = cbor.encode([1, direction, subscriber, recipient, operation, 100, bytes([4]) * 16, cbor.encode(payload)])
+        content = cbor.encode([1, direction, subscriber, recipient, operation, 100, bytes([4]) * 16, cbor.encode(payload + [None] if len(payload) == 8 else payload)])
         domain = bootstrap_envelope.REQUEST if direction == 0 else bootstrap_envelope.RESPONSE
         out.append([("name", "signed-" + name),
                     ("bytes", cbor.encode([content, ed25519.sign(bytes([1]) * 32, domain + content)])),
                     ("decision", "signed-refused"), ("subscriber", subscriber), ("issuer", issuer),
                     ("pin", bootstrap_envelope.pin(subscriber)), ("signing_input", domain + content)])
     for name, payload, accepted in signed_bindings:
-        content = cbor.encode([1, 0, subscriber, issuer, "config.stream", 100, bytes([4])*16, cbor.encode(payload)])
+        content = cbor.encode([1, 0, subscriber, issuer, "config.stream", 100, bytes([4])*16, cbor.encode(payload + [None] if len(payload) == 8 else payload)])
         out.append([("name", "signed-" + name),
                     ("bytes", cbor.encode([content, ed25519.sign(bytes([1])*32, bootstrap_envelope.REQUEST + content)])),
                     ("decision", "signed" if accepted else "signed-refused"), ("subscriber", subscriber),
