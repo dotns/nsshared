@@ -11,11 +11,24 @@
 
 use crate::config::Limits;
 use nsshared_rendezvous::{
-    error::ErrorCode, limits::DIGITS_LEN, limits::MAILBOX_ID_BYTES, message::Digits,
-    message::Found, message::MailboxId, message::MailboxView, message::OpenRequest,
-    message::Opened, message::Sent, phase::Actor, phase::IndexChange, phase::Mailbox,
-    phase::Outcome, phase::check_actor_mailboxes_within, phase::check_queued_bytes_within,
+    error::ErrorCode,
+    limits::DIGITS_LEN,
+    limits::MAILBOX_ID_BYTES,
+    message::Digits,
+    message::Found,
+    message::MailboxId,
+    message::MailboxView,
+    message::OpenRequest,
+    message::Opened,
+    message::Sent,
+    phase::Actor,
+    phase::IndexChange,
+    phase::Mailbox,
+    phase::Outcome,
+    phase::check_actor_mailboxes_within,
+    phase::check_queued_bytes_within,
     phase::check_stored_mailboxes_within,
+    transport::{Response, encode_response},
 };
 use rand_core::TryCryptoRng;
 use std::collections::{HashMap, HashSet};
@@ -166,8 +179,13 @@ impl MailboxBroker {
                 self.limits.mailboxes_per_actor,
             )?;
         }
+        let limit = self.limits.message_bytes;
         self.apply(id, now, |mailbox| {
-            mailbox.join(actor, intro, now).map(|outcome| ((), outcome))
+            let mut next = mailbox.clone();
+            let outcome = next.join(actor, intro, now)?;
+            check_changed_views(&next, &outcome, now, limit, ErrorCode::Capacity)?;
+            *mailbox = next;
+            Ok(((), outcome))
         })
     }
 
@@ -222,7 +240,14 @@ impl MailboxBroker {
             return Err(ErrorCode::UnknownMailbox);
         }
         check_queued_bytes_within(self.queued_bytes, data.len(), self.limits.queued_bytes)?;
-        self.apply(id, now, |mailbox| mailbox.send(by, data, now))
+        let limit = self.limits.message_bytes;
+        self.apply(id, now, |mailbox| {
+            let mut next = mailbox.clone();
+            let (sent, outcome) = next.send(by, data, now)?;
+            check_changed_views(&next, &outcome, now, limit, ErrorCode::QueueFull)?;
+            *mailbox = next;
+            Ok((sent, outcome))
+        })
     }
 
     /// `recv {id, after}` by `by`, without waiting: acknowledges per `after` and returns
@@ -372,6 +397,23 @@ impl MailboxBroker {
         }
         entry.signal();
     }
+}
+
+fn check_changed_views(
+    mailbox: &Mailbox,
+    outcome: &Outcome,
+    now: u64,
+    limit: usize,
+    capacity: ErrorCode,
+) -> Result<(), ErrorCode> {
+    for actor in &outcome.wake {
+        let response = Response::Mailbox(mailbox.clone().recv(actor, 0, now)?);
+        let encoded = encode_response(&response).map_err(|_| capacity)?;
+        if encoded.len() > limit {
+            return Err(capacity);
+        }
+    }
+    Ok(())
 }
 
 /// The actors holding a live place in the mailbox: owner, waiting candidates and peer.
@@ -846,5 +888,87 @@ mod tests {
         );
         assert_eq!(broker.len(), 1);
         assert_eq!(broker.actor_mailboxes(&OWNER), 1);
+    }
+
+    #[test]
+    fn reply_capacity_refusal_keeps_indexes_counters_and_watch_generation() {
+        let mut broker = MailboxBroker::new(Limits::default());
+        let mut rng = TestRng::new(&[]);
+        let (id, digits) = open(&mut broker, &mut rng, Admission::Owner);
+        broker.join(ALICE, &id, vec![2; 4096], NOW).unwrap();
+        broker.join(BOB, &id, vec![3; 4096], NOW).unwrap();
+        let watch = broker.subscribe(&id).unwrap();
+        let third = [4; 32];
+        assert_eq!(
+            broker.join(third, &id, vec![4; 4096], NOW),
+            Err(ErrorCode::Capacity)
+        );
+        assert!(!watch.has_changed().unwrap());
+        assert_eq!(broker.actor_mailboxes(&third), 0);
+        assert_eq!(broker.lookup(&digits, NOW).unwrap().id, id);
+        assert_eq!(broker.recv(&OWNER, &id, 0, NOW).unwrap().waiting.len(), 2);
+
+        broker.admit(&OWNER, &id, &ALICE, NOW).unwrap();
+        assert_eq!(broker.send(&OWNER, &id, vec![7; 8192], NOW).unwrap().seq, 1);
+        let watch = broker.subscribe(&id).unwrap();
+        assert_eq!(
+            broker.send(&OWNER, &id, vec![8; 8192], NOW),
+            Err(ErrorCode::QueueFull)
+        );
+        assert!(!watch.has_changed().unwrap());
+        assert_eq!(broker.queued_bytes(), 8192);
+        assert_eq!(
+            broker.recv(&ALICE, &id, 0, NOW).unwrap().messages[0].data,
+            vec![7; 8192]
+        );
+        assert!(
+            broker
+                .recv(&ALICE, &id, 1, NOW)
+                .unwrap()
+                .messages
+                .is_empty()
+        );
+        assert_eq!(broker.send(&OWNER, &id, vec![8; 8192], NOW).unwrap().seq, 2);
+    }
+
+    #[test]
+    fn reply_capacity_checks_the_configured_exact_join_boundary() {
+        use nsshared_rendezvous::{
+            message::{MailboxView, Waiting},
+            transport::{Response, encode_response},
+        };
+        let view = MailboxView {
+            stage: Stage::Open,
+            waiting: vec![
+                Waiting {
+                    actor: ALICE,
+                    intro: vec![7; 32],
+                },
+                Waiting {
+                    actor: BOB,
+                    intro: vec![7; 32],
+                },
+            ],
+            peer: None,
+            messages: vec![],
+        };
+        let size = encode_response(&Response::Mailbox(view)).unwrap().len();
+        for cap in [size - 1, size] {
+            let mut broker = MailboxBroker::new(Limits {
+                message_bytes: cap,
+                ..Limits::default()
+            });
+            let mut rng = TestRng::new(&[]);
+            let (id, _) = open(&mut broker, &mut rng, Admission::Owner);
+            broker.join(ALICE, &id, vec![7; 32], NOW).unwrap();
+            assert_eq!(
+                broker.join(BOB, &id, vec![7; 32], NOW),
+                if cap == size {
+                    Ok(())
+                } else {
+                    Err(ErrorCode::Capacity)
+                }
+            );
+        }
     }
 }
