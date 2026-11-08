@@ -1,3 +1,8 @@
+## 2026-11-08 [ci]
+
+Run the QA workflow's sccache in `/sccache/nsshared` instead of the shared
+`/sccache` mount root. sccache evicts any file under its directory, so the root
+setting removed other repositories' build files on the shared runner host.
 ## 2026-11-07 18:08 [fix]
 
 Validate Exit readiness payloads in generic publication acceptance before any
