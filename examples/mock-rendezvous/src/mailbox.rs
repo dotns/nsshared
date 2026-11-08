@@ -115,7 +115,7 @@ impl MailboxBroker {
     ///
     /// # Errors
     ///
-    /// [`ErrorCode::Capacity`] at the stored-mailbox or per-actor limit,
+    /// [`ErrorCode::Capacity`] at the stored-mailbox, per-actor or lookup-reply limit,
     /// [`ErrorCode::Randomness`] when the RNG fails or keeps colliding, and the
     /// validation errors of [`Mailbox::open`].
     pub fn open<R: TryCryptoRng + ?Sized>(
@@ -137,6 +137,11 @@ impl MailboxBroker {
             digits: digits.clone(),
             expires: mailbox.expires(),
         };
+        let found = mailbox.lookup_view(now).ok_or(ErrorCode::InvalidMessage)?;
+        let encoded = encode_response(&Response::Found(found)).map_err(|_| ErrorCode::Capacity)?;
+        if encoded.len() > self.limits.message_bytes {
+            return Err(ErrorCode::Capacity);
+        }
         self.reserved.insert(digits.clone());
         self.index.insert(digits, id);
         *self.actors.entry(owner).or_default() += 1;
@@ -970,5 +975,46 @@ mod tests {
                 }
             );
         }
+    }
+
+    #[test]
+    fn refused_open_lookup_view_keeps_indexes_and_allocation_available() {
+        use nsshared_rendezvous::{
+            message::Found,
+            transport::{Response, encode_response},
+        };
+        let mut spec = request(Admission::Owner, 4, 90);
+        spec.intro = vec![7; 128];
+        let size = encode_response(&Response::Found(Found {
+            id: MailboxId([1; 16]),
+            kind: spec.kind.clone(),
+            expires: NOW + spec.ttl,
+            intro: spec.intro.clone(),
+        }))
+        .unwrap()
+        .len();
+        let mut broker = MailboxBroker::new(Limits {
+            message_bytes: size - 1,
+            ..Limits::default()
+        });
+        let mut rng = TestRng::new(&[12345678, 12345678]);
+        assert_eq!(
+            broker.open(OWNER, &spec, NOW, &mut rng),
+            Err(ErrorCode::Capacity)
+        );
+        assert!(broker.mailboxes.is_empty());
+        assert!(broker.index.is_empty());
+        assert!(broker.reserved.is_empty());
+        assert!(broker.actors.is_empty());
+        assert_eq!(broker.queued_bytes(), 0);
+        spec.intro.clear();
+        let opened = broker.open(OWNER, &spec, NOW, &mut rng).unwrap();
+        assert_eq!(opened.digits, Digits::parse("12345678").unwrap());
+        assert_eq!(broker.actor_mailboxes(&OWNER), 1);
+        assert_eq!(broker.len(), 1);
+        assert_eq!(
+            broker.lookup(&opened.digits, NOW).unwrap().intro,
+            spec.intro
+        );
     }
 }
