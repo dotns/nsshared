@@ -25,7 +25,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RUSTC_WRAPPER: sccache
-      SCCACHE_DIR: /sccache
+      # The runner's /sccache mount is shared with other repositories' caches; sccache evicts
+      # any file under its directory, so keep this repository in its own subtree.
+      SCCACHE_DIR: /sccache/nsshared
       SCCACHE_CACHE_SIZE: 60G
       SCCACHE_IDLE_TIMEOUT: "0"
       CARGO_INCREMENTAL: "0"
