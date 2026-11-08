@@ -750,7 +750,14 @@
       "old": "nsshared_proto::account::PublicationEvent",
       "kind": "type",
       "new": "nsshared_control::account::publication::PublicationEvent",
-      "status": "moved"
+      "status": "changed",
+      "changes": {
+        "removed": [],
+        "added": [
+          "fn @::decode_exit_readiness_payload(&Self) -> Result<Option<ExitReadinessPublication>, PublicationError>",
+          "fn @::validate_exit_readiness_context(&Self, &SourceBinding, &MembershipScope) -> Result<(), PublicationError>"
+        ]
+      }
     },
     {
       "old": "nsshared_proto::account::PublicationExpectation",
@@ -921,7 +928,15 @@
       "old": "nsshared_proto::account::ServiceGrant",
       "kind": "type",
       "new": "nsshared_control::account::grants::ServiceGrant",
-      "status": "moved"
+      "status": "changed",
+      "changes": {
+        "removed": [],
+        "added": [
+          "fn @::canonical(&Self) -> Result<Vec<u8>, GrantError>",
+          "fn @::decode(&[u8]) -> Result<Self, GrantError>",
+          "fn @::digest(&Self) -> Result<[u8; 32], GrantError>"
+        ]
+      }
     },
     {
       "old": "nsshared_proto::account::ServiceOperation",
@@ -1543,6 +1558,7 @@
       "changes": {
         "removed": [],
         "added": [
+          "field @.exit_installation: Option<ExitInstallObservation>",
           "field @.public_host: Option<String>"
         ]
       }
@@ -1551,7 +1567,17 @@
       "old": "nsshared_proto::account::control_reports::GatewayReportResponse",
       "kind": "type",
       "new": "nsshared_control::account::control::GatewayReportResponse",
-      "status": "moved"
+      "status": "changed",
+      "changes": {
+        "removed": [
+          "fn @::canonical(&Self) -> Vec<u8>"
+        ],
+        "added": [
+          "field @.accepted_exit_installation: Option<[u8; 32]>",
+          "field @.exit_challenge: Option<ExitInstallContext>",
+          "fn @::canonical(&Self) -> Result<Vec<u8>, AccountError>"
+        ]
+      }
     },
     {
       "old": "nsshared_proto::account::control_reports::HeartbeatRequest",
@@ -2149,7 +2175,13 @@
       "old": "nsshared_proto::account::publication_subscription::PublicationSubscriptionRequest",
       "kind": "type",
       "new": "nsshared_control::account::publication::PublicationSubscriptionRequest",
-      "status": "moved"
+      "status": "changed",
+      "changes": {
+        "removed": [],
+        "added": [
+          "field @.exit_installation: Option<ExitInstallationIncarnation>"
+        ]
+      }
     },
     {
       "old": "nsshared_proto::account::publication_subscription::SubscriptionScope",

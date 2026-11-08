@@ -127,3 +127,9 @@ The source cache is saved only on main pushes or manual main runs. Its separate
 cache namespace avoids restoring legacy target archives. To measure a warm
 compiler cache, dispatch `qa.yml` twice on the same branch head and compare the
 QA timings and final cache statistics; neither run changes the checks.
+
+The prepared 0.9.0 cohort adds [provider-confirmed Exit observations](docs/spec/account/exit-readiness.md).
+Its GatewayReport and publication-subscription forms are a clean break; adopt
+one reviewed shared revision across the control service, gateway and node.
+Installation observations remain independent of local applied readiness and
+never authorize packet forwarding. No release tag is created by this change.

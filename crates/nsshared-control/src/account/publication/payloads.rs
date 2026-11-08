@@ -151,3 +151,75 @@ impl PublicationEvent<'_> {
         Ok(())
     }
 }
+
+impl PublicationEvent<'_> {
+    /// Decodes only the separate observational Exit readiness kind.
+    /// # Errors
+    /// Refuses wrong channel, scope, issuer/recipient, revision or positive fetch failure.
+    pub fn decode_exit_readiness_payload(
+        &self,
+    ) -> Result<Option<crate::account::subnet::ExitReadinessPublication>, PublicationError> {
+        use crate::account::publication::{PublicationChannel, PublicationOutcome};
+        let content = self.content();
+        if (content.key.family, content.key.kind) != (4, "exit-readiness") {
+            return Ok(None);
+        }
+        if content.channel != PublicationChannel::Snapshot || content.key.scope != "nodes" {
+            return Err(PublicationError::Scope);
+        }
+        if content.payload.is_empty() {
+            return Ok(None);
+        }
+        let value = crate::account::subnet::ExitReadinessPublication::decode(content.payload)
+            .map_err(|_| PublicationError::Field)?;
+        if value.recipient != content.key.recipient
+            || value.revision != content.version
+            || value.network_id != *content.key.served_realm.as_bytes()
+            || (content.outcome == PublicationOutcome::FetchFailed
+                && !value.confirmations.is_empty())
+            || value
+                .confirmations
+                .iter()
+                .any(|c| c.context.receipt.command.binding.binding.nsd != content.key.issuer)
+        {
+            return Err(PublicationError::Scope);
+        }
+        Ok(Some(value))
+    }
+    /// Checks readiness against independently accepted source and membership custody.
+    /// Signature, current-source and delivery acceptance remain separate mandatory steps.
+    /// # Errors
+    /// Refuses foreign source/recipient/Network, channel, scope or proof collections.
+    pub fn validate_exit_readiness_context(
+        &self,
+        source: &crate::account::publication::SourceBinding,
+        membership: &crate::account::control::exchange::MembershipScope,
+    ) -> Result<(), PublicationError> {
+        use crate::account::publication::PublicationChannel;
+        let content = self.content();
+        source.canonical().map_err(|_| PublicationError::Field)?;
+        if (content.key.family, content.key.kind) != (4, "exit-readiness")
+            || content.channel != PublicationChannel::Snapshot
+            || source.scope != "nodes"
+            || content.key.scope != source.scope
+            || content.key.issuer != source.nsd
+            || content.key.recipient != source.recipient
+            || content.key.served_realm != source.served_realm
+            || source.source_node != source.recipient
+            || membership.network_id != *source.served_realm.as_bytes()
+        {
+            return Err(PublicationError::Scope);
+        }
+        if let Some(value) = self.decode_exit_readiness_payload()?
+            && (value.nsd_id != membership.nsd_id
+                || value.network_id != membership.network_id
+                || value
+                    .confirmations
+                    .iter()
+                    .any(|c| c.context.receipt.command.binding.binding != *source))
+        {
+            return Err(PublicationError::Scope);
+        }
+        Ok(())
+    }
+}

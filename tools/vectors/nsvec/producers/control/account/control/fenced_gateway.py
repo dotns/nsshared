@@ -14,10 +14,10 @@ def vectors():
     scope = [bytes([3]) * 16, bytes([4]) * 16]
     fence = [bytes([5]) * 16, 6, 7]
     request_id = bytes([8]) * 16
-    report = [1, request_id, "1.0", "abcdef", 0, False, 443, 8080,
-              False, ["node.control"], ["edge.http"], []]
+    report = [2, request_id, "1.0", "abcdef", 0, False, 443, 8080,
+              False, ["node.control"], ["edge.http"], [], None, None]
     request = [1, scope, fence, cbor.encode(report)]
-    receipt = [1, scope, fence, cbor.encode([1, request_id])]
+    receipt = [1, scope, fence, cbor.encode([2, request_id, None, None])]
     out = []
 
     def emit(name, value, direction=0, error="none"):
@@ -53,7 +53,7 @@ def vectors():
         ("network", [1, 1], bytes([9]) * 16),
         ("runtime", [2, 0], bytes([9]) * 16),
         ("generation", [2, 1], 8), ("epoch", [2, 2], 8),
-        ("request-id", [3], cbor.encode([1, bytes([9]) * 16])),
+        ("request-id", [3], cbor.encode([2, bytes([9]) * 16, None, None])),
     ]:
         changed = copy.deepcopy(receipt)
         target = changed
