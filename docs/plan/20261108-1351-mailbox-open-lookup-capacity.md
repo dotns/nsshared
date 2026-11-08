@@ -1,6 +1,6 @@
 # 20261108-1351-mailbox-open-lookup-capacity Investigate configured Open and lookup reply capacity
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-11-08 13:51 UTC
 - **approvedAt**: 2026-11-08 13:51 UTC (explicit delegated test authorization)
 - **relatedTask**: 20261108-1351-mailbox-open-lookup-capacity
@@ -60,7 +60,7 @@ failed before executing tests because offline workspace metadata required absent
 proptest1.11.0; it is retained as setup failure and not product RED or a green gate.
 The completed cargo test suite used no retries. Root owns final hosted acceptance.
 
-## Delivery checkpoint
+## Initial delivery checkpoint (before hosted QA)
 
 Linked defect: [nsshared31](https://git.pvv.cc/nsiod/nsshared/issues/31), publicly
 registered/coordinated by Root with the exact received-Found observation.
@@ -76,4 +76,19 @@ admission precede all indexes, counters and watch/mailbox publication. Phase,
 Join/Send and dependency pins are unchanged. Strengthened real-TLS controls
 verify exact id, kind, intro bytes and expiry, preventing a truncation workaround;
 all3 focused cases pass after that test-only addition. The original agent suite
-passes60/60 mock tests, Clippy/doc/fmt/typos. Full hosted QA remains mandatory.
+passes60/60 mock tests, Clippy/doc/fmt/typos. Full hosted source QA is now successful, as recorded below.
+
+## Source qualification completed
+
+Root independently reviewed the Open guard and strengthened the real-TLS exact
+boundary control to verify id, kind, intro bytes and expiry; all3 focused cases
+passed. Local affected-crate qualification remains60/60 tests, with focused3/3
+and Clippy/doc/fmt/typos exit0. Hosted full Workspace QA on source commit
+2e4decba060f85049aa1b97e5826a45c54d4e011 succeeded: run7153/job19719,
+620 passed and0 skipped. The completed source job is recorded in private
+source-ci-jobs.private.json and source-ci-summary.private.json.
+
+Implementation and source qualification are complete. Root still must commit and
+push this completion record, satisfy the final documentation-head protected
+checks and perform normal protected merge of PR32. No final-head merge,
+deployment or production E2E pass is claimed by this completion record.

@@ -230,4 +230,4 @@ Each task is a single line linking to its detail file. All detailed information 
 
 - [x] [**20261108-1300-mailbox-reply-capacity Refuse mailbox writes that make complete replies unreadable**](20261108-1300-mailbox-reply-capacity.md) `P1`
 
-- [-] [**20261108-1351-mailbox-open-lookup-capacity Investigate configured Open and lookup reply capacity**](20261108-1351-mailbox-open-lookup-capacity.md) `P1`
+- [x] [**20261108-1351-mailbox-open-lookup-capacity Investigate configured Open and lookup reply capacity**](20261108-1351-mailbox-open-lookup-capacity.md) `P1`
