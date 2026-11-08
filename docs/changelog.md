@@ -1,3 +1,10 @@
+## 2026-11-08 13:51 [fix]
+
+Validate the complete future Found response before committing Open at the live mock
+broker. Refuse configured reply-cap exhaustion with Capacity without reserving
+mailbox digits or consuming actor capacity. Keep exact-boundary Open/lookup valid
+and leave shared phase, Join/Send and historical replay unchanged.
+
 ## 2026-11-08 13:00 [fix]
 
 Refuse live mailbox joins and sends before their complete changed receive view
