@@ -1,6 +1,6 @@
 # 20261108-1300-mailbox-reply-capacity Refuse mailbox writes that make complete replies unreadable
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-11-08 13:00 UTC
 - **approvedAt**: 2026-11-08 13:00 UTC (standing explicit user authorization)
 - **relatedTask**: 20261108-1300-mailbox-reply-capacity
@@ -61,3 +61,14 @@ separately and are not product RED. Focused regressions pass NSGW7/7 and
 real-TLS2/2, including ACK/retry, exact configured limits, close and durable
 refusal/replay controls. Full affected suites, quality gates and hosted QA are
 still pending. No formal-environment or historical-data recovery pass is claimed.
+
+## Final source qualification
+
+Hosted QA on source2a95228 passes all616 tests with0 skipped, formatting,
+workspace all-target Clippy, supply-chain/spelling/vector and repository gates.
+This includes the new counter/watch and configured-boundary unit cases, plus
+the2 authenticated real-TLS regressions. Independent source review passes.
+Local focused TLS tests also pass; a standalone local self-check is not claimed
+as completed. This component is ready for protected final-head checks and merge;
+NSGW companion PR121 has its own independent acceptance. No formal production
+acceptance or retroactive recovery of existing oversized data is claimed.

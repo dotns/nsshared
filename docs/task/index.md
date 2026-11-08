@@ -228,4 +228,4 @@ Each task is a single line linking to its detail file. All detailed information 
 
 - [x] [**20261107-1808-exit-publication-validation Validate Exit observations at publication acceptance**](20261107-1808-exit-publication-validation.md) `P1`
 
-- [-] [**20261108-1300-mailbox-reply-capacity Refuse mailbox writes that make complete replies unreadable**](20261108-1300-mailbox-reply-capacity.md) `P1`
+- [x] [**20261108-1300-mailbox-reply-capacity Refuse mailbox writes that make complete replies unreadable**](20261108-1300-mailbox-reply-capacity.md) `P1`
