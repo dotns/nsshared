@@ -1,3 +1,10 @@
+## 2026-11-08 13:00 [fix]
+
+Refuse live mailbox joins and sends before their complete changed receive view
+exceeds the hard or configured frame limit. Keep rejection atomic, preserving
+sequence numbers, counters, wakeups and durable history. Retain shared phase and
+legacy replay behavior; do not drop accepted data or change framing limits.
+
 ## 2026-11-08 [ci]
 
 Run the QA workflow's sccache in `/sccache/nsshared` instead of the shared
