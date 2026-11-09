@@ -13,7 +13,8 @@ use thiserror::Error;
 
 mod network;
 pub use network::{
-    NetworkNodeRecord, NetworkNodeRecordError, NetworkRecordKey, derive_network_identity,
+    MAX_NETWORK_NODE_RECORD_BYTES, NetworkNodeRecord, NetworkNodeRecordError, NetworkRecordKey,
+    derive_network_identity,
 };
 
 /// Maximum relays in a NodeRecord (quick-v2 §3.1).

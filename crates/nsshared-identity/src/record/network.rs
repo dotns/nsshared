@@ -13,7 +13,8 @@ use zeroize::Zeroizing;
 
 const VERSION: u64 = 1;
 const CONTEXT: &[u8] = b"ns/account-network-node-record/v1";
-const MAX_BYTES: usize = 768;
+/// Maximum canonical Account Network record envelope size in bytes.
+pub const MAX_NETWORK_NODE_RECORD_BYTES: usize = 768;
 const IDENTITY_CONTEXT: &[u8] = b"ns/account-network-identity/v1";
 
 /// Derives a distinct signing identity and relay slot for one Account Network.
@@ -54,7 +55,7 @@ pub struct NetworkNodeRecord {
 #[non_exhaustive]
 pub enum NetworkNodeRecordError {
     /// The encoded envelope exceeds its fixed wire bound.
-    #[error("network node record of {0} bytes exceeds {MAX_BYTES} bytes")]
+    #[error("network node record of {0} bytes exceeds {MAX_NETWORK_NODE_RECORD_BYTES} bytes")]
     TooLarge(usize),
     /// The envelope is not canonical CBOR.
     #[error("invalid network node record encoding: {0}")]
@@ -97,7 +98,7 @@ impl NetworkNodeRecord {
         record.verify()?;
         let signature = signer.sign(&message(network, &record)).to_bytes();
         let encoded = encode(network, &record, &signature);
-        if encoded.len() > MAX_BYTES {
+        if encoded.len() > MAX_NETWORK_NODE_RECORD_BYTES {
             return Err(NetworkNodeRecordError::TooLarge(encoded.len()));
         }
         Ok(Self {
@@ -114,17 +115,17 @@ impl NetworkNodeRecord {
     ///
     /// Returns an error for oversized, malformed, unsupported, or unsigned data.
     pub fn decode(bytes: &[u8]) -> Result<Self, NetworkNodeRecordError> {
-        if bytes.len() > MAX_BYTES {
+        if bytes.len() > MAX_NETWORK_NODE_RECORD_BYTES {
             return Err(NetworkNodeRecordError::TooLarge(bytes.len()));
         }
-        let mut reader = CborReader::new(bytes, MAX_BYTES)?;
+        let mut reader = CborReader::new(bytes, MAX_NETWORK_NODE_RECORD_BYTES)?;
         reader.array(4)?;
         let version = reader.uint()?;
         if version != VERSION {
             return Err(NetworkNodeRecordError::Version(version));
         }
         let network = RealmId::from_bytes(reader.fixed_bytes::<16>()?);
-        let record = NodeRecord::decode(reader.bytes_up_to(MAX_BYTES)?)?;
+        let record = NodeRecord::decode(reader.bytes_up_to(MAX_NETWORK_NODE_RECORD_BYTES)?)?;
         let signature = reader.fixed_bytes::<64>()?;
         reader.finish()?;
         let result = Self {
@@ -221,7 +222,7 @@ fn message(network: RealmId, record: &NodeRecord) -> Vec<u8> {
 }
 
 fn encode(network: RealmId, record: &NodeRecord, signature: &[u8; 64]) -> Vec<u8> {
-    let mut writer = CborWriter::with_capacity(MAX_BYTES);
+    let mut writer = CborWriter::with_capacity(MAX_NETWORK_NODE_RECORD_BYTES);
     writer
         .array(4)
         .uint(VERSION)
