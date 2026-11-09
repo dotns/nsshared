@@ -25,3 +25,4 @@ Shared signed-record format and validation only. Account storage, transport, reg
 
 - 2026-11-09 08:18 UTC: RED compile failed on the missing NetworkNodeRecord API. GREEN: two adversarial tests plus 104 existing identity tests passed. Strict Clippy passed for nsshared-identity and nsshared-proto. A subsequent audit found DATA addresses only Node ID, so Network-specific signing identities are also required.
 - 2026-11-09 08:20 UTC: Added a keyed, domain-separated per-Network identity derivation with a RED/GREEN test. Gateway and NSD authorization of that derived identity remain integration gates.
+- 2026-11-09 08:27 UTC: Rebasing this branch from the stale local v0.7.0 checkout onto the actual shared main at v0.9.0 succeeded without conflict. The 104 existing identity tests, three new tests, strict identity/proto Clippy, and diff whitespace check pass on the current base.
