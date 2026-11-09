@@ -1,14 +1,35 @@
 //! Account record envelope bound to one Network.
 
 use super::{NodeRecord, NodeRecordError, RecordExpired};
-use crate::{identity::NodeId, realm::RealmId};
+use crate::{identity::NodeId, keys::IdentitySecret, realm::RealmId};
+use blake2::{
+    Blake2sMac,
+    digest::{KeyInit, Mac, consts::U32},
+};
 use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 use nsshared_codec::cbor::{CborError, CborReader, CborWriter};
 use thiserror::Error;
+use zeroize::Zeroizing;
 
 const VERSION: u64 = 1;
 const CONTEXT: &[u8] = b"ns/account-network-node-record/v1";
 const MAX_BYTES: usize = 768;
+const IDENTITY_CONTEXT: &[u8] = b"ns/account-network-identity/v1";
+
+/// Derives a distinct signing identity and relay slot for one Account Network.
+///
+/// The root seed keys BLAKE2s-256 over a fixed domain and the exact Network ID.
+/// NSD must authorize the derived public identity for this Network before use.
+#[must_use]
+pub fn derive_network_identity(root: &IdentitySecret, network: RealmId) -> IdentitySecret {
+    let mut mac = Blake2sMac::<U32>::new(root.expose_seed().into());
+    mac.update(IDENTITY_CONTEXT);
+    mac.update(network.as_bytes());
+    let digest = mac.finalize().into_bytes();
+    let mut seed = Zeroizing::new([0; 32]);
+    seed.copy_from_slice(&digest);
+    IdentitySecret::from_seed(*seed)
+}
 
 /// Account registry key: Network scope plus the Node ID within that Network.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]

@@ -1,7 +1,8 @@
 use ed25519_dalek::SigningKey;
 use nsshared_identity::{
+    keys::IdentitySecret,
     realm::RealmId,
-    record::{NetworkNodeRecord, NodeRecord, NodeRecordFields},
+    record::{NetworkNodeRecord, NodeRecord, NodeRecordFields, derive_network_identity},
     relay_id::RelayId,
 };
 
@@ -21,6 +22,27 @@ fn record(signer: &SigningKey, relay: &str) -> NodeRecord {
         },
     )
     .unwrap()
+}
+
+#[test]
+fn network_identities_have_distinct_relay_slots() {
+    let root = IdentitySecret::from_seed([20; 32]);
+    let a = RealmId::from_bytes([1; 16]);
+    let b = RealmId::from_bytes([2; 16]);
+    let a_key = derive_network_identity(&root, a);
+    let repeated = derive_network_identity(&root, a);
+    let b_key = derive_network_identity(&root, b);
+    assert_eq!(a_key.public(), repeated.public());
+    assert_ne!(a_key.public(), b_key.public());
+    assert_ne!(a_key.public(), root.public());
+    assert_eq!(
+        a_key.expose_seed(),
+        &[
+            0xc8, 0x71, 0xb9, 0x23, 0xd0, 0x55, 0x6e, 0x92, 0x3c, 0x79, 0x9a, 0x05, 0xe6, 0xf3,
+            0x77, 0x1f, 0x41, 0xe8, 0xc0, 0x21, 0x9a, 0xec, 0x52, 0x95, 0x3c, 0xd4, 0x0e, 0xda,
+            0xbb, 0xd8, 0x48, 0xf6,
+        ]
+    );
 }
 
 #[test]

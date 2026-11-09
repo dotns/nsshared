@@ -11,7 +11,7 @@ Define an independently signed, Network-bound Account NodeRecord without changin
 
 ## ActiveForm
 
-The Account-only signed envelope and adversarial tests are implemented. All 104 existing identity tests and two new Network-record tests pass; strict Clippy passes for nsshared-identity and nsshared-proto. NS, NSD, and NSGW integration remains separate work.
+The Account-only signed envelope and deterministic per-Network identity derivation are implemented. All 104 existing identity tests and three new Network-record tests pass. NS, NSD, and NSGW integration remains separate work, including derived-identity authorization and same-relay Node ID collision rejection.
 
 ## Dependencies
 
