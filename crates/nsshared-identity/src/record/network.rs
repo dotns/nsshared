@@ -9,7 +9,7 @@ use blake2::{
 use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 use nsshared_codec::cbor::{CborError, CborReader, CborWriter};
 use thiserror::Error;
-use zeroize::Zeroizing;
+use zeroize::{Zeroize, Zeroizing};
 
 const VERSION: u64 = 1;
 const CONTEXT: &[u8] = b"ns/account-network-node-record/v1";
@@ -26,9 +26,10 @@ pub fn derive_network_identity(root: &IdentitySecret, network: RealmId) -> Ident
     let mut mac = Blake2sMac::<U32>::new(root.expose_seed().into());
     mac.update(IDENTITY_CONTEXT);
     mac.update(network.as_bytes());
-    let digest = mac.finalize().into_bytes();
+    let mut digest = mac.finalize().into_bytes();
     let mut seed = Zeroizing::new([0; 32]);
     seed.copy_from_slice(&digest);
+    digest.as_mut_slice().zeroize();
     IdentitySecret::from_seed(*seed)
 }
 
