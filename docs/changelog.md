@@ -91,6 +91,10 @@ Add Node-only IPv4 and IPv6 Echo authorization with fixed code-zero semantics
 and zero port slots. Preserve TCP/UDP bytes and non-Node protocol refusal;
 require authenticated runtime support and compatible released enforcement
 before consumer enablement.
+## 2026-11-09 [feat]
+
+Begin the Network-bound Account NodeRecord contract. Keep the Quick v2 record
+format stable while signing the Network scope around canonical record bytes.
 
 ## 2026-10-30 [docs]
 
