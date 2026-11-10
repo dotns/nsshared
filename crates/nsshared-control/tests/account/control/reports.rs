@@ -321,6 +321,7 @@ fn ordinary_node_report_operations_are_registered() {
 }
 
 mod node_liveness;
+mod node_liveness_refusal;
 
 #[test]
 fn ordinary_node_posture_operation_is_registered() {

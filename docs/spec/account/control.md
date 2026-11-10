@@ -653,6 +653,101 @@ custody or a committed effect. Those checks and transactions remain consumer
 responsibilities. No transport, registration acceptance field, or payload
 identity key is added. These contracts are part of the public account API from `v0.8.0`.
 
+### Signed Node liveness refusals
+
+`NodeLivenessRefusal` is a separate version-1 negative receipt. Its exact
+canonical CBOR form is:
+
+```text
+[1, operation, membership_scope, requested_runtime_fence,
+ logical_request_id_16, refusal_code, reason]
+```
+
+The array has exactly seven items. `operation` is the text `node.heartbeat`
+or `node.posture` (`NodeLivenessOperation::{Heartbeat, Posture}`) and must equal
+the signed envelope kind. Arity and the text in position 1 distinguish refusals
+from successful heartbeat/posture receipts. Existing success-only
+`ControlReportOperation::validate_payload` stays success-only for these response
+operations; consumers select the separate refusal decoder for the statuses below.
+
+`membership_scope` retains `[nsd_id_16, network_id_16]`.
+`requested_runtime_fence` retains the rejected request's exact
+`[runtime_id_16, runtime_generation, authority_epoch]`: nonzero runtime ID and
+positive u64 counters. It asserts no fresh custody and reveals no replacement
+runtime. `logical_request_id_16` is nonzero: heartbeat's nested
+`HeartbeatRequest.request_id` or posture's `NodePostureRequest.request_id`.
+The outer nonce is the separate transmission nonce. Integers use shortest
+unsigned CBOR encodings; arrays/strings are definite length, with no trailing
+bytes. `MAX_NODE_LIVENESS_REFUSAL_BYTES = 256` bounds the payload. Unknown
+versions, operations, codes, reasons, wrong arities, malformed IDs, zero fence
+fields and noncanonical encodings refuse. No free-form diagnostic text is carried.
+
+Code and reason are exact CBOR text strings. Only these pairs are legal;
+every other combination, including a known reason under the wrong code, refuses.
+
+| Code (`NodeLivenessRefusalCode`) | Reason (`NodeLivenessRefusalReason`) | Required HTTP status | Meaning |
+| --- | --- | --- | --- |
+| `runtime_rebind_required` (`RuntimeRebindRequired`) | `lease_elapsed` (`LeaseElapsed`) | 409 | Presence elapsed; current credential/enrollment and scoped business authority remain valid. |
+| `runtime_rebind_required` (`RuntimeRebindRequired`) | `authority_epoch_changed` (`AuthorityEpochChanged`) | 409 | NSD authority epoch changed; current credential/enrollment and scoped business authority remain valid. |
+| `runtime_conflict` (`RuntimeConflict`) | `runtime_stopped` (`RuntimeStopped`) | 409 | Explicit runtime stop was committed; no automatic takeover permission. |
+| `runtime_conflict` (`RuntimeConflict`) | `runtime_superseded` (`RuntimeSuperseded`) | 409 | Another process superseded this runtime; no automatic takeover permission. |
+| `authority_revoked` (`AuthorityRevoked`) | `authority_changed` (`AuthorityChanged`) | 403 | Current credential/enrollment or scoped business authority was genuinely refused. |
+
+The typed code determines behavior; the reason only refines diagnostics. An
+unavailable authority remains HTTP 503 with no `NodeLivenessRefusal` and no
+invented revocation claim. Invalid or untrusted requests retain existing HTTP
+security behavior; no unauthenticated receipt is synthesized. A missing,
+malformed, unknown or status-mismatched reply is a protocol failure, never a
+guessed recoverable or permanent Account verdict. Elapsed client time and reason
+substrings supply no authority.
+
+NSD authenticates the request against persisted Node membership custody and
+classifies refusal under its locked current business/enrollment and runtime
+authority. Genuine authority refusal must not become rebind permission merely
+because a runtime also lapsed. NSD signs the canonical refusal in the existing
+`BootstrapEnvelope`, response direction, explicit Node recipient, same operation
+and exact request transmission nonce. Current authority, durable effects and
+classification precedence remain NSD responsibilities.
+
+The Node retains the complete pending request and nonce, and uses persisted
+`NodeReportContext` and pinned NSD trust. First call
+`NodeReportContext::validate_liveness_refusal(envelope, expected, pending_nonce,
+http_status)`. This verifies existing signature/pins, response direction,
+explicit enrolled Node recipient, exact persisted NSD signer, kind, timestamp,
+replay facts, nonce, membership and code/status pair. Then call
+`validate_for_heartbeat(pending)` or `validate_for_posture(pending)` to validate
+the complete retained request and compare operation, both membership IDs, all
+three fence fields and logical request ID. **Both checks must succeed before
+acting.** The consumer supplies replay facts for the exact signer/direction/nonce,
+atomically records acceptance after complete correlation, and fences obsolete
+local ownership before any recovery or lifecycle change. Decoding alone
+authenticates nothing, renews no lease and grants no bind.
+
+`authority_revoked` alone does not specify permanent Account sign-out scope:
+current credential, enrollment or scoped business authority and the consumer
+lifecycle determine that scope. This is not a context-GET/metadata receipt and
+changes no metadata renewal or sign-out wire contract. It carries no credential,
+bearer, user identity, lease-owner token or replacement runtime ID. M6 error
+codes, `service_control.v1`, envelope v1, gateway forms and existing successful
+report bytes and fixtures remain unchanged.
+
+Deploy NSD's correct signed 409/403 behavior before relying on new Node recovery.
+Older raw carriers treat 409 as transient and cannot decode the new payload;
+new clients talking to old NSD retain conservative handling of untyped 403.
+No capability negotiation is introduced. Consumers pin the same immutable
+release/commit and lockfile once released. This change prepares 0.11.0 without
+creating a tag; the API is additive under the 0.x policy, and the minor version
+follows the coordinated delivery requirement.
+
+Code is `reports/node_liveness_refusal.rs`, re-exported through
+`nsshared_control::account::control`. Independent Python-produced
+`account/control/node-liveness-refusal.vec` fixtures cover every legal pair for
+both operations, exact bytes/signatures, invalid combinations, zero/malformed
+IDs, bounds and canonicality. Rust tests cover complete pending correlation,
+success/refusal separation, bad signatures/pins/recipients/kinds/nonces,
+stale/replayed carriers and HTTP status mismatches. Runtime classification,
+recovery and sign-out behavior require separate consumer tests.
+
 ### Gateway observations
 
 The 0.9.0 clean-break [Exit readiness contract](exit-readiness.md) extends the
@@ -1264,6 +1359,7 @@ without using Rust output as producer input.
 | `account::control::bootstrap_origins` | (inline) | Invalid IDNA origin refusal |
 | `account::control::exchange` | `crates/nsshared-control/tests/vectors/account/control/exchange.vec` | Exchange tuples, registration acceptance comparison, signed source binding in responses, machine claims, audience, refresh, key selection and pin ownership |
 | `account::control::reports` | `crates/nsshared-control/tests/vectors/account/control/reports.vec`, `crates/nsshared-control/tests/vectors/account/edge/routing.vec` | Report tuples, receipts, kind 1 floor outcomes, usage and material correlation |
+| `account::control::reports::node_liveness_refusal` | `crates/nsshared-control/tests/vectors/account/control/node-liveness-refusal.vec` | Signed refusal bytes, closed code/reason combinations, status/nonce/trust checks and complete request correlation |
 | `account::control::reports::node_liveness` | `crates/nsshared-control/tests/vectors/account/control/node-liveness.vec` | Independent Node request/response bytes, gateway separation, typed shape and trusted-context refusals, exact receipts |
 | `account::edge::auth` | `crates/nsshared-control/tests/vectors/account/edge/auth.vec` | Pending/current auth configuration dependency correlation and private configuration refusals used by material status |
 | `account::realm::claims` | `crates/nsshared-control/tests/vectors/account/realm/claims.vec` | `SignedAccountRequest` and `SignedUrlScope` inputs and refusals |

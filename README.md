@@ -134,8 +134,14 @@ one reviewed shared revision across the control service, gateway and node.
 Installation observations remain independent of local applied readiness and
 never authorize packet forwarding. No release tag is created by this change.
 
-The prepared 0.10.0 minor transition adds [participant epoch recovery](docs/spec/account/relay.md#epoch-recovery)
+The 0.10.0 minor transition adds [participant epoch recovery](docs/spec/account/relay.md#epoch-recovery)
 with version-1 kinds 11/12 and dedicated request/result/pending types. Existing frame,
 DATA, roster and usage/seal bytes stay unchanged. Upgrade the authority before
 enabling requesting relays; an EpochResult never substitutes for a verified signed
 roster. See the [consumer migration inventory](docs/review/account-migration.md#epoch-recovery-in-0100).
+
+The prepared 0.11.0 adds [signed Node liveness refusals](docs/spec/account/control.md#signed-node-liveness-refusals)
+for heartbeat and posture: correlated runtime rebind/conflict (409) or actual
+authority refusal (403). Authority unavailable stays 503. Existing success,
+envelope, M6 and gateway bytes remain unchanged. Deploy NSD support before relying
+on new Node recovery; decoding alone grants no authority or Account sign-out.
