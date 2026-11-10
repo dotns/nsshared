@@ -49,9 +49,13 @@ and there are at most 8,192 identities.
 ### Attribution
 
 NSD produces attribution epochs from committed classified membership history. An
-unchanged identity/class set reuses its epoch across refreshes; a membership or
-class change advances the epoch. Each refresh independently advances publication
-version and freshness. The recipient-bound signed roster carries both values.
+unchanged identity/class set reuses its epoch across ordinary refreshes; a membership
+or class change advances the epoch. A validated, audited and bounded recovery command
+may also advance the epoch without changing membership, classes, provenance or
+participant custody. NSD uses its existing global epoch and republishes every
+recipient projection; this does not introduce recipient-only allocation. Each refresh
+independently advances publication version and freshness. The recipient-bound signed
+roster carries both values.
 
 Relayd compares publication version with its persisted anti-replay floor and epoch
 with its independently persisted attribution floor in the same issuer/participant
@@ -243,6 +247,8 @@ the `FrameKind` enum; each discriminant is the wire kind byte (`FrameKind::byte`
 | 8 | `Enrolled` | enrolled | issuer32, recipient32, correlation16, answer version (1 byte), optional deadline, owner_generation8: 90 or 98 |
 | 9 | `Renew` | renew | issuer32, recipient32, correlation16: 80 |
 | 10 | `Renewed` | renewed | issuer32, recipient32, correlation16, optional deadline: 81 or 89 |
+| 11 | `EpochRequest` | interrupted-capture recovery | issuer32, recipient32, correlation16, format_version1 (=1), owner_generation8, fenced_epoch8: 97 |
+| 12 | `EpochResult` | correlated recovery result | issuer32, recipient32, correlation16, format_version1 (=1), owner_generation8, fenced_epoch8, outcome1, result_epoch8, publication_version8, retry_not_before_unix_ms8: 122 |
 
 All concatenations are in table order; identity keys undergo strict existing key
 validation. Correlations are nonzero 16-byte values. An optional deadline is tag 0
@@ -304,7 +310,7 @@ exclusive optional deadline before authentication, renewal and report acceptance
 Enrollment additionally requires exact comparison against the separately provisioned
 credential and pair.
 
-`SessionError` distinguishes `Version` (incompatible answer format), `Contract` (invalid keys or contract fields), `Frame`
+`SessionError` distinguishes `Version` (incompatible answer or epoch format), `Contract` (invalid keys or contract fields), `Frame`
 (unknown kind, invalid length, malformed field or trailing bytes), `Unauthorized`
 (pair not provisioned, enabled or currently valid), `Proof` (proof does not match
 this connection's exporter) and `Correlation` (response differs from the exact
@@ -328,6 +334,97 @@ rejects out-of-order frames; pure shape decoding grants no session.
 Only a newly accepted complete roster with authenticated credential metadata renews
 retained authority. Omitted bounds retain earlier finite bounds. Refusal,
 cancellation and transport failure neither replace generations nor extend time.
+
+### Epoch recovery
+
+Kinds 11/12 use format version 1 at body offset 80. All u64 fields are big-endian.
+Generation and fenced epoch are positive; keys and correlation follow the strict
+frame rules above. Exact header lengths are 98 and 123 including the kind byte;
+complete frames are 102 and 127 bytes. Unsupported versions, wrong lengths, zero
+mandatory fields, unknown outcomes and invalid combinations are refused on both
+construction and decode. The existing maximum body bound is unchanged.
+
+The request's sole meaning is `interrupted_capture`. It has no requested counter,
+reason string, custody override or alternate recipient. Result fields are:
+
+| Byte | `EpochOutcome` | Required result fields |
+| --- | --- | --- |
+| 0 | `Allocated` | result_epoch > fenced_epoch, publication_version > 0, retry = 0 |
+| 1 | `AlreadyFresh` | result_epoch > fenced_epoch, publication_version > 0, retry = 0 |
+| 2 | `RateLimited` | result_epoch = publication_version = 0, retry > 0 |
+| 3 | `StaleCustody` | result_epoch = publication_version = retry = 0 |
+| 4 | `InvalidEpoch` | result_epoch = publication_version = retry = 0 |
+| 5 | `Unavailable` | result_epoch = publication_version = retry = 0 |
+
+`retry` is `retry_not_before_unix_ms`: the caller rechecks this not-before bound
+against its supplied clock before another allocation attempt. No result imposes
+an ordering between epoch and publication. An idempotent success may describe an
+older committed decision, without claiming that its publication is live or latest.
+
+`EpochRequest` and `EpochResult` provide strict constructors, `canonical`, `decode`,
+`frame` and `from_frame`. `EpochRequest::validate_for` checks independently
+supplied authenticated scope and accepted session generation. A request creates a
+`PendingEpochResponse`, distinct from renewal's `PendingResponse`.
+`EpochResult::validate_for` compares the exact pending pair, correlation, generation
+and fenced epoch; `from_frame` refuses the wrong operation. Even `StaleCustody`
+echoes the pending pair/generation, not newly authenticated metadata. These pure
+checks consume no credential deadline, authorize no generation update and establish
+no session, allocation, quota or audit decision.
+
+Send EpochRequest only after successful Enroll/Authenticate on verified TLS for
+that exact pair. The existing exporter proof authenticates the connection; no
+extra per-command proof or signature domain is added. NSD binds the session's
+accepted generation, compares the body against it, and rechecks current enrolled,
+valid and enabled custody in the allocation transaction. Only the participant's
+own recipient is allowed. Operator platform authorization is a separate NSD HTTP
+contract, never a shared bearer credential. Unauthorized pairs and pre-authentication
+operations retain generic Refused/close behavior without a typed data-leaking result.
+
+The authority's semantic idempotency key is `(issuer, participant custody id,
+recipient, owner_generation, fenced_epoch)`. NSD resolves custody id from the
+authenticated participant; it is not exposed on the wire. Correlation identifies
+one pending transport exchange and may change after retry/reconnect, never enabling
+a second allocation. A naturally newer or concurrently allocated epoch satisfies
+the same intent. Replay rechecks authentication and cannot give a revoked session
+access to an old success.
+
+Send success only after epoch/history/signing/audit and the command receipt commit.
+RateLimited and Unavailable grant no authority and are retryable with the same
+semantic intent, not successful allocation receipts. StaleCustody and InvalidEpoch
+require reauthentication or diagnosis rather than local counter changes. A result
+cannot prove a crash; authority policy bounds dishonest recovery requests.
+
+The sole session driver may interleave Roster, report/seal Answer, Renewed and
+EpochResult with bounded queues and at most one outstanding epoch request. Track
+pending state, reject unsolicited, duplicate or wrong-scope results and consume
+the matching exchange once. Do not create another stream reader. Roster may arrive
+before or after EpochResult. A lost response permits an idempotent retry; stopping
+cancels the exchange without undoing an authority commit.
+
+No recovery result grants DATA authority, extends credential/roster validity,
+acknowledges usage, seals an epoch, resets a floor or changes custody. Adopt a fresh
+epoch only from a separately verified signed roster under authenticated custody,
+after durable observation. Historical reports preserve their original epoch,
+classes, bytes, generation and digest. Interrupted coverage remains incomplete by
+permanent absence of a seal; ordinary clean shutdown persists the final cut and
+leaves the current epoch reusable. See [retention](usage.md#retention-seals-and-acknowledgements).
+
+### Epoch recovery compatibility
+
+The 0.10.0 minor transition adds exhaustive public `FrameKind` variants. Account is
+unconditional and semver-covered. Old decoders reject kinds 11/12; kinds 1..10,
+authentication-answer version 2, signature domains, DATA, signed roster schemas and
+usage/seal bytes remain unchanged. See the [migration inventory](../../review/account-migration.md#epoch-recovery-in-0100).
+
+Upgrade the authority before enabling requesting consumers. NSD accepts kind 11
+only when requested and never sends unsolicited kind 12, preserving old relay
+traffic. A new relay encountering an old authority stays fenced and reports explicit
+incompatibility. There is no negotiation, downgrade frame, overloaded Renew/Report
+or fallback custody mutation. Rollback preserves advanced floors and custody and
+must retain authority support while any requester is deployed. Consumers pin the
+same immutable release/full resolved commit from `git.pvv.cc/nsiod/nsshared`,
+including standalone acceptance graphs; sibling paths and local patches are not
+release dependencies.
 
 ### Revocation
 
@@ -419,6 +516,7 @@ floors.
 | Admission rosters and local snapshot | `crates/nsshared-control/src/account/families/relay/roster.rs` | `nsshared_control::account::relay::{Roster, SignedRoster, RosterEntry, RosterVersion, IdentityClass, AdmissionSnapshot, AdmissionSnapshotEntry, MIN_ROSTER_VALIDITY_MS, validate_admission_snapshot}` |
 | Participant rosters | `crates/nsshared-control/src/account/families/relay/participant_roster.rs` | `nsshared_control::account::relay::{ParticipantRosterScope, ParticipantRosterGeneration, ParticipantRosterError, ParticipantRosterStatus, verify_participant_roster, participant_roster_status}` |
 | Participant sessions | `crates/nsshared-control/src/account/families/relay/session.rs` | `nsshared_control::account::relay::{Frame, FrameKind, MAX_FRAME_BODY, Authorization, EnrollmentProvision, PendingResponse, SessionError, exporter_context, proof_input, validate_header, credential_deadline, retained_credential_deadline}` |
+| Epoch recovery | `crates/nsshared-control/src/account/families/relay/epoch.rs` | `nsshared_control::account::relay::{EpochRequest, EpochResult, EpochOutcome, PendingEpochResponse}` |
 | Directory bindings | `crates/nsshared-control/src/account/families/relay/directory.rs` | `nsshared_control::account::relay::{DirectoryBinding, SignedDirectoryBinding, BindingDecision, BindingError}` |
 | Signature domains | `crates/nsshared-control/src/account/domains.rs` | `nsshared_control::account::domains::{ROSTER_DOMAIN, DIRECTORY_BINDING_DOMAIN, PARTICIPANT_PROOF_DOMAIN, PARTICIPANT_EXPORTER_LABEL}` |
 
@@ -426,6 +524,7 @@ floors.
 | --- | --- | --- |
 | `crates/nsshared-control/tests/vectors/account/profile.vec` (kinds `signed-roster`, `snapshot`) | `tools/vectors/nsvec/producers/control/account/profile.py` | `account::profile` |
 | `crates/nsshared-control/tests/vectors/account/relay/admission-snapshot.vec` | `tools/vectors/nsvec/producers/control/account/relay/admission_snapshot.py` | `account::relay::admission_snapshot` |
+| `crates/nsshared-control/tests/vectors/account/relay/epoch.vec` | `tools/vectors/nsvec/producers/control/account/relay/epoch.py` | `account::relay::epoch` |
 | none (named snapshot fields) | none | `account::relay::roster_fields` |
 | `crates/nsshared-control/tests/vectors/account/relay/participant-roster.vec` | `tools/vectors/nsvec/producers/control/account/relay/participant_roster.py` | `account::relay::participant_roster` |
 | `crates/nsshared-control/tests/vectors/account/relay/session.vec` | `tools/vectors/nsvec/producers/control/account/relay/session.py` | `account::relay::session` |

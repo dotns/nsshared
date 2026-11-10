@@ -235,6 +235,12 @@ caller-owned; participant relays carry reports and answers in frames 5 and 6 (se
 
 ## Retention seals and acknowledgements
 
+Recovery restores only future capture through a separately verified fresh signed
+roster; EpochResult never changes historical report/seal bytes or acknowledges
+usage. An interrupted epoch stays incomplete by absence of a seal, not an empty or
+synthetic complete manifest. Normal clean shutdown durably persists its final cut
+and leaves the current epoch open and reusable. See [epoch recovery](relay.md#epoch-recovery).
+
 These pure contracts are part of the public account API from `v0.8.0` and carried
 only by the confidential authenticated participant session: REPORT (5) contains
 `RetentionSeal`, ANSWER (6) contains `RetentionSealAck`. They are distinct from
