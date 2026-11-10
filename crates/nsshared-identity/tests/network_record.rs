@@ -2,7 +2,10 @@ use ed25519_dalek::SigningKey;
 use nsshared_identity::{
     keys::IdentitySecret,
     realm::RealmId,
-    record::{NetworkNodeRecord, NodeRecord, NodeRecordFields, derive_network_identity},
+    record::{
+        NetworkIdentityProof, NetworkNodeRecord, NodeRecord, NodeRecordFields,
+        derive_network_identity,
+    },
     relay_id::RelayId,
 };
 
@@ -43,6 +46,47 @@ fn network_identities_have_distinct_relay_slots() {
             0xbb, 0xd8, 0x48, 0xf6,
         ]
     );
+}
+
+#[test]
+fn root_authorizes_only_one_derived_identity_and_network() {
+    let root = IdentitySecret::from_seed([20; 32]);
+    let network = RealmId::from_bytes([1; 16]);
+    let other = RealmId::from_bytes([2; 16]);
+    let derived = derive_network_identity(&root, network).public();
+    let proof = NetworkIdentityProof::sign(root.signing_key(), network, derived).unwrap();
+    assert!(NetworkIdentityProof::sign(root.signing_key(), network, root.public()).is_err());
+    assert_eq!(
+        NetworkIdentityProof::decode(proof.as_bytes()).unwrap(),
+        proof
+    );
+    assert!(proof.verify_for(root.public(), network, derived).is_ok());
+    assert!(proof.verify_for(root.public(), other, derived).is_err());
+    assert!(
+        proof
+            .verify_for(
+                root.public(),
+                network,
+                derive_network_identity(&root, other).public()
+            )
+            .is_err()
+    );
+    assert!(
+        proof
+            .verify_for(
+                IdentitySecret::from_seed([21; 32]).public(),
+                network,
+                derived
+            )
+            .is_err()
+    );
+    let mut tampered = proof.as_bytes().to_vec();
+    let position = tampered
+        .windows(16)
+        .position(|bytes| bytes == network.as_bytes())
+        .unwrap();
+    tampered[position] ^= 1;
+    assert!(NetworkIdentityProof::decode(&tampered).is_err());
 }
 
 #[test]

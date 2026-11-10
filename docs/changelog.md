@@ -1,3 +1,9 @@
+## 2026-11-10 [progress]
+
+Add a bounded canonical root-signed proof for one derived Account identity and
+Network. Verify the exact authenticated root, Network and derived identity before
+NSD can consider admission; the proof alone grants no membership or relay access.
+
 ## 2026-11-08 13:51 [fix]
 
 Validate the complete future Found response before committing Open at the live mock

@@ -23,6 +23,8 @@ Shared signed-record format and validation only. Account storage, transport, reg
 
 ## Annotations
 
+- 2026-11-10: Full integration requires NSD to authenticate a root identity while accepting a distinct per-Network relay identity. Added a canonical root-signed `NetworkIdentityProof` for the exact `(root, Network, derived identity)` tuple. The proof is an authorization input only: NSD must additionally verify the active root membership and persist the binding; NSGW must consume the resulting Network-scoped admission. A RED missing-API test followed by four passing Network-record/proof tests established the shared primitive.
+
 - 2026-11-09 08:18 UTC: RED compile failed on the missing NetworkNodeRecord API. GREEN: two adversarial tests plus 104 existing identity tests passed. Strict Clippy passed for nsshared-identity and nsshared-proto. A subsequent audit found DATA addresses only Node ID, so Network-specific signing identities are also required.
 - 2026-11-09 08:20 UTC: Added a keyed, domain-separated per-Network identity derivation with a RED/GREEN test. Gateway and NSD authorization of that derived identity remain integration gates.
 - 2026-11-09 08:27 UTC: Rebasing this branch from the stale local v0.7.0 checkout onto the actual shared main at v0.9.0 succeeded without conflict. The 104 existing identity tests, three new tests, strict identity/proto Clippy, and diff whitespace check pass on the current base.

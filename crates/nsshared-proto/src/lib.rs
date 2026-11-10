@@ -34,5 +34,7 @@ pub use nsshared_control::node_control;
 pub use nsshared_identity::realm::{RealmId, RealmIdError};
 pub use nsshared_identity::{discovery, identity, keys, record};
 pub use nsshared_rendezvous as rendezvous;
-pub use record::{NetworkNodeRecord, NetworkRecordKey, NodeRecord, derive_network_identity};
+pub use record::{
+    NetworkIdentityProof, NetworkNodeRecord, NetworkRecordKey, NodeRecord, derive_network_identity,
+};
 pub use relay::RelayId;

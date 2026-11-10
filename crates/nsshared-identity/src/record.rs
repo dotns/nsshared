@@ -13,7 +13,8 @@ use thiserror::Error;
 
 mod network;
 pub use network::{
-    MAX_NETWORK_NODE_RECORD_BYTES, NetworkNodeRecord, NetworkNodeRecordError, NetworkRecordKey,
+    MAX_NETWORK_IDENTITY_PROOF_BYTES, MAX_NETWORK_NODE_RECORD_BYTES, NetworkIdentityProof,
+    NetworkIdentityProofError, NetworkNodeRecord, NetworkNodeRecordError, NetworkRecordKey,
     derive_network_identity,
 };
 
