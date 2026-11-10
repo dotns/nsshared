@@ -1,8 +1,8 @@
 # 20261110-0803-node-liveness-refusal-contract Define typed Node liveness refusal receipts
 
-- **status**: implementing
+- **status**: completed
 - **createdAt**: 2026-11-10 08:03 UTC
-- **updatedAt**: 2026-11-10 08:15 UTC
+- **updatedAt**: 2026-11-10 08:33 UTC
 - **approvedAt**: 2026-11-10 08:30 UTC
 - **relatedTask**: 20261110-0821-node-liveness-refusal
 
@@ -77,7 +77,7 @@ NSD-local JSON/text plus client substring matching duplicates a security contrac
 
 ## Annotations
 
-Owner approval of the shared encoding and rollout is recorded in the summary and preserved. Confirm the exact CBOR discriminator and unused package release tag during authorized implementation. The metadata SignedOut writer is now identified; its exact 401-stage/cause remains open. Track current-production/install-source provenance in #1158; repository tracking is recorded below for implementation.
+Owner approval of the shared encoding and rollout is recorded in the summary and preserved. The exact seven-item CBOR form and unused 0.11.0 release version were confirmed during implementation. The metadata SignedOut writer is now identified; its exact 401-stage/cause remains open. Track current-production/install-source provenance in #1158; repository tracking is recorded below for implementation.
 
 ## Repository adoption
 
@@ -88,3 +88,7 @@ The exact new version-1 form is the proposed seven-item array, distinguished by 
 Repository plan status is initially approved on adoption, then implementing during the authorized work. The original approved proposal above is retained as the scope record.
 
 - Remote validation: v0.10.0 resolves to main f76374fd; v0.11.0 is unused. The fixed seven-item arity plus text operation discriminator requires no change to the approved encoding. The refusal payload has its own version 1 and a 256-byte bound.
+
+## Verification result
+
+RED -> GREEN -> IMPROVE completed. The final complete `just qa` passed against v0.10.0 using the existing offline registry cache, including 630 nextest and 71 script tests, doctests/rustdoc and every static/vector/API gate. The focused control integration target passed 52 tests. Independent vectors contain both operations and every legal result/reason; all 53 existing fixtures remain byte-identical. Additional patch-level semver validation against v0.10.0 passed 229 checks, confirming the additive API. Full diff/security review found no issues. Delivery is a branch and PR only; consumer runtime acceptance, merge and release publication remain separate.

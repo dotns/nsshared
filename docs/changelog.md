@@ -16,6 +16,10 @@ additive; 0.11.0 follows the coordinated minor delivery request. Deploy NSD befo
 relying on new Node recovery. Classification, storage, recovery and sign-out
 lifecycle remain consumer responsibilities; no merge, tag or publication.
 
+Verification: full `just qa` green against v0.10.0, 52 focused control tests
+passed and patch-level API compatibility passed 229 checks. All 53 pre-existing
+fixture files remain byte-identical to the base.
+
 ## 2026-11-10 06:30 [release]
 
 Prepare 0.10.0 with version-1 participant EpochRequest (kind 11, 97-byte body)
