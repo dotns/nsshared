@@ -17,12 +17,24 @@
 //! [`RegistryStore::publish`] runs both steps without a limiter.
 
 use crate::config::Limits;
-use nsshared_identity::identity::NodeId;
+use nsshared_identity::{
+    identity::{Identity, NodeId},
+    realm::RealmId,
+    record::{NetworkNodeRecord, NetworkRecordKey},
+};
 use nsshared_rendezvous::{
-    capability, capability::Capabilities, capability::Capability, directory, directory::Directory,
-    directory::RelayEntry, error::ErrorCode, message::LookupNodeRequest, message::PublishRequest,
-    message::Published, message::RecordResult, registry, registry::RegistryEntry,
-    registry::VerifiedPublish,
+    capability,
+    capability::Capabilities,
+    capability::Capability,
+    directory,
+    directory::Directory,
+    directory::RelayEntry,
+    error::ErrorCode,
+    message::{
+        LookupNetworkNodeRequest, LookupNodeRequest, NetworkRecordResult, PublishNetworkRequest,
+        PublishRequest, Published, RecordResult,
+    },
+    registry::{self, RegistryEntry, VerifiedNetworkPublish, VerifiedPublish},
 };
 use std::{collections::HashMap, net::IpAddr};
 
@@ -60,6 +72,13 @@ pub struct RegistryStore {
     self_entry: RelayEntry,
     directory: Directory,
     entries: HashMap<NodeId, RegistryEntry>,
+    network_entries: HashMap<NetworkRecordKey, NetworkEntry>,
+}
+
+#[derive(Debug)]
+struct NetworkEntry {
+    marks: RegistryEntry,
+    envelope: Option<NetworkNodeRecord>,
 }
 
 impl RegistryStore {
@@ -91,6 +110,7 @@ impl RegistryStore {
             self_entry,
             directory,
             entries: HashMap::new(),
+            network_entries: HashMap::new(),
         })
     }
 
@@ -123,13 +143,13 @@ impl RegistryStore {
     /// sweep included.
     #[must_use]
     pub fn len(&self) -> usize {
-        self.entries.len()
+        self.entries.len() + self.network_entries.len()
     }
 
     /// Whether no registry entry is stored.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.entries.is_empty()
+        self.entries.is_empty() && self.network_entries.is_empty()
     }
 
     /// Verifies `publish` against the connection's challenge nonce and the self
@@ -215,10 +235,94 @@ impl RegistryStore {
         registry::lookup(self.entries.get(&node_id), now)
     }
 
+    /// Verify a challenge-bound Account publication against the single mock shard.
+    pub fn verify_network(
+        &self,
+        request: &PublishNetworkRequest,
+        nonce: &[u8; 32],
+        now: u64,
+    ) -> Result<VerifiedNetworkPublish, ErrorCode> {
+        let verified =
+            registry::verify_publish_network(request, nonce, &self.self_entry.relay_id(), now)?;
+        registry::check_responsible(
+            &verified.record().key().node,
+            self.self_entry.id(),
+            &registry::single_relay_domain(&self.self_entry),
+        )?;
+        Ok(verified)
+    }
+
+    /// Preserve Account replay marks and the signed Network envelope independently.
+    pub fn accept_network(
+        &mut self,
+        verified: &VerifiedNetworkPublish,
+        now: u64,
+    ) -> Result<Published, ErrorCode> {
+        let key = verified.record().key();
+        if self
+            .network_entries
+            .keys()
+            .any(|other| other.node == key.node && other.network != key.network)
+        {
+            return Err(ErrorCode::Conflict);
+        }
+        if !self.network_entries.contains_key(&key) && self.len() >= self.limits.registry_records {
+            return Err(ErrorCode::Capacity);
+        }
+        let identity = *verified.record().record().identity();
+        let entry = self
+            .network_entries
+            .entry(key)
+            .or_insert_with(|| NetworkEntry {
+                marks: RegistryEntry::new(identity),
+                envelope: None,
+            });
+        let result = entry.marks.apply_network_publish(verified, now);
+        if entry.marks.record() == Some(verified.record().record()) {
+            entry.envelope = Some(verified.record().clone());
+        } else if entry.marks.record().is_none() {
+            entry.envelope = None;
+        }
+        result
+    }
+
+    /// Lookup requires the authenticated actor to own a live Network publication.
+    pub fn lookup_network(
+        &self,
+        actor: Identity,
+        request: &LookupNetworkNodeRequest,
+        now: u64,
+    ) -> Result<NetworkRecordResult, ErrorCode> {
+        let network = RealmId::from_bytes(request.network);
+        if !self.network_entries.iter().any(|(key, entry)| {
+            key.network == network
+                && entry.marks.marks().identity() == &actor
+                && !entry.marks.deletion_due(now)
+        }) {
+            return Err(ErrorCode::InvalidActor);
+        }
+        let key = NetworkRecordKey {
+            network,
+            node: NodeId::from_bytes(request.node_id),
+        };
+        let record = self.network_entries.get(&key).and_then(|entry| {
+            entry.envelope.as_ref().filter(|envelope| {
+                entry.marks.record() == Some(envelope.record())
+                    && !entry.marks.marks().is_conflicted()
+                    && envelope.record().check_not_expired(now).is_ok()
+            })
+        });
+        Ok(NetworkRecordResult {
+            record: record.map(|value| value.as_bytes().to_vec()),
+        })
+    }
+
     /// Drops every entry whose deletion is due at `now` (quick-v2 §7.2): records and
     /// conflict latches go 10 s after `expires`.
     pub fn sweep(&mut self, now: u64) {
         self.entries.retain(|_, entry| !entry.deletion_due(now));
+        self.network_entries
+            .retain(|_, entry| !entry.marks.deletion_due(now));
     }
 }
 

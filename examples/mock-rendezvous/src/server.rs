@@ -121,8 +121,12 @@ impl Rates {
         let (per_ip, global) = match operation {
             Operation::Lookup => (&mut self.lookup_ip, &mut self.lookup),
             Operation::Open => (&mut self.open_ip, &mut self.open),
-            Operation::Publish => (&mut self.publish_ip, &mut self.publish),
-            Operation::LookupNode => (&mut self.lookup_node_ip, &mut self.lookup_node),
+            Operation::Publish | Operation::PublishNetwork => {
+                (&mut self.publish_ip, &mut self.publish)
+            }
+            Operation::LookupNode | Operation::LookupNetworkNode => {
+                (&mut self.lookup_node_ip, &mut self.lookup_node)
+            }
             _ => return Ok(()),
         };
         per_ip.check(ip, now_ms)?;
@@ -465,11 +469,39 @@ impl RendezvousServer {
                     .check(*verified.record().identity(), now_ms)?;
                 Ok(Response::Published(state.registry.accept(&verified, now)?))
             }
+            Request::PublishNetwork(publish) => {
+                self.check_registry()?;
+                let mut guard = self.lock()?;
+                let state = &mut *guard;
+                state.rates.check(operation, connection.peer, now_ms)?;
+                let verified = state
+                    .registry
+                    .verify_network(&publish, &connection.nonce, now)?;
+                if connection.actor != Some(*verified.record().record().identity()) {
+                    return Err(ErrorCode::InvalidActor);
+                }
+                state
+                    .rates
+                    .publish_identity
+                    .check(*verified.record().record().identity(), now_ms)?;
+                Ok(Response::Published(
+                    state.registry.accept_network(&verified, now)?,
+                ))
+            }
             Request::LookupNode(lookup) => {
                 self.check_registry()?;
                 let mut state = self.lock()?;
                 state.rates.check(operation, connection.peer, now_ms)?;
                 Ok(Response::Record(state.registry.lookup_node(&lookup, now)?))
+            }
+            Request::LookupNetworkNode(lookup) => {
+                self.check_registry()?;
+                let actor = connection.actor.ok_or(ErrorCode::InvalidActor)?;
+                let mut state = self.lock()?;
+                state.rates.check(operation, connection.peer, now_ms)?;
+                Ok(Response::NetworkRecord(
+                    state.registry.lookup_network(actor, &lookup, now)?,
+                ))
             }
             Request::Recv(recv) => {
                 let actor = connection.actor.ok_or(ErrorCode::InvalidActor)?;
