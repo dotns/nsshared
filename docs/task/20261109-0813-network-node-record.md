@@ -11,7 +11,7 @@ Define an independently signed, Network-bound Account NodeRecord without changin
 
 ## ActiveForm
 
-The Account-only signed envelope, deterministic per-Network identity derivation, and root-signed proof binding one derived identity to one Network are implemented. Four Network-record/proof tests pass. NS, NSD, and NSGW integration remains open, including active root membership authorization, durable binding, and same-relay Node ID collision rejection.
+The Account-only signed envelope, deterministic per-Network identity derivation, root-signed identity proof, and separate publication/lookup wire operations are implemented. Account lookup requires an authenticated actor. NS, NSD, and NSGW integration remains open, including active root membership authorization, durable binding, scoped lookup, and same-relay Node ID collision rejection.
 
 ## Dependencies
 

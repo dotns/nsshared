@@ -19,9 +19,11 @@ The envelope alone does not change the registry key or authorize a session. DATA
 
 ## Scope
 
-Shared signed-record format and validation only. Account storage, transport, registry API, and multi-membership admission belong to follow-on integrations.
+Shared signed-record format and validation, plus separate Account publication and lookup wire operations. Account storage, NSD authorization, NSGW admission, and multi-membership runtime ownership belong to the coordinated integrations.
 
 ## Annotations
+
+- 2026-11-10: Added Account-only `publish_network` and `lookup_network_node` messages, a signed-envelope response, and challenge-bound publication proof. Account lookup requires an authenticated `hello` actor. The wire operation and proof tests pass; gateway handling and scoped admission remain required before use.
 
 - 2026-11-10: Full integration requires NSD to authenticate a root identity while accepting a distinct per-Network relay identity. Added a canonical root-signed `NetworkIdentityProof` for the exact `(root, Network, derived identity)` tuple. The proof is an authorization input only: NSD must additionally verify the active root membership and persist the binding; NSGW must consume the resulting Network-scoped admission. A RED missing-API test followed by four passing Network-record/proof tests established the shared primitive.
 

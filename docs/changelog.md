@@ -3,6 +3,8 @@
 Add a bounded canonical root-signed proof for one derived Account identity and
 Network. Verify the exact authenticated root, Network and derived identity before
 NSD can consider admission; the proof alone grants no membership or relay access.
+Add separate Account publication and lookup operations with a signed Network
+envelope and challenge-bound proof; Account lookup requires an authenticated actor.
 
 ## 2026-11-10 08:30 [release]
 
