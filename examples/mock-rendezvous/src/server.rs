@@ -511,7 +511,9 @@ impl RendezvousServer {
                     Request::Directory
                     | Request::Hello(_)
                     | Request::Publish(_)
+                    | Request::PublishNetwork(_)
                     | Request::LookupNode(_)
+                    | Request::LookupNetworkNode(_)
                     | Request::Recv(_) => Err(ErrorCode::InvalidMessage),
                 }
             }
