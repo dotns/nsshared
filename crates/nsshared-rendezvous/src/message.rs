@@ -12,6 +12,7 @@ use crate::{
     transport::{self, Object},
 };
 use nsshared_identity::constants::{MAX_NODE_RECORD_BYTES, NODE_ID_BYTES};
+use nsshared_identity::record::MAX_NETWORK_NODE_RECORD_BYTES;
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error as _};
 use std::fmt;
 use thiserror::Error;
@@ -512,6 +513,60 @@ pub struct RecordResult {
         deserialize_with = "optional_record"
     )]
     pub record: Option<Vec<u8>>,
+}
+
+/// Account-only publication; the envelope carries its signed Network ID.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PublishNetworkRequest {
+    /// Canonical signed NetworkNodeRecord envelope.
+    #[serde(
+        serialize_with = "transport::byte_vec::serialize",
+        deserialize_with = "network_record"
+    )]
+    pub record: Vec<u8>,
+    /// Challenge-bound proof signed by the derived Network identity.
+    #[serde(with = "transport::bytes")]
+    pub proof: [u8; 64],
+}
+
+/// Account-only lookup, scoped by the authenticated Network ID.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct LookupNetworkNodeRequest {
+    /// Raw Network ID.
+    #[serde(with = "transport::bytes")]
+    pub network: [u8; 16],
+    /// Derived Network Node ID.
+    #[serde(with = "transport::bytes")]
+    pub node_id: [u8; NODE_ID_BYTES],
+}
+
+/// Account-only lookup result containing the signed Network envelope.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct NetworkRecordResult {
+    /// Canonical NetworkNodeRecord or `null`.
+    #[serde(
+        serialize_with = "optional_bytes",
+        deserialize_with = "optional_network_record"
+    )]
+    pub record: Option<Vec<u8>>,
+}
+
+fn network_record<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<u8>, D::Error> {
+    transport::deserialize_bytes_up_to(deserializer, MAX_NETWORK_NODE_RECORD_BYTES)
+}
+
+fn optional_network_record<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<Vec<u8>>, D::Error> {
+    let text = Option::<String>::deserialize(deserializer)?;
+    text.map(|text| {
+        nsshared_codec::base64::decode_base64url(&text, MAX_NETWORK_NODE_RECORD_BYTES)
+            .map_err(D::Error::custom)
+    })
+    .transpose()
 }
 
 fn ttl<'de, D: Deserializer<'de>>(deserializer: D) -> Result<u64, D::Error> {

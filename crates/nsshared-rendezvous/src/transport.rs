@@ -12,8 +12,9 @@ use crate::{
     error::ErrorCode,
     limits,
     message::{
-        AdmitRequest, CloseRequest, Digits, Found, JoinRequest, LookupNodeRequest, MailboxView,
-        OpenRequest, Opened, PublishRequest, Published, RecordResult, RecvRequest, RejectRequest,
+        AdmitRequest, CloseRequest, Digits, Found, JoinRequest, LookupNetworkNodeRequest,
+        LookupNodeRequest, MailboxView, NetworkRecordResult, OpenRequest, Opened,
+        PublishNetworkRequest, PublishRequest, Published, RecordResult, RecvRequest, RejectRequest,
         SendRequest, Sent,
     },
 };
@@ -43,6 +44,10 @@ pub enum Operation {
     Publish,
     /// `lookup_node`: look up a NodeRecord by node ID (quick-v2 §7.2).
     LookupNode,
+    /// `publish_network`: publish a signed Account Network record.
+    PublishNetwork,
+    /// `lookup_network_node`: look up within an Account Network.
+    LookupNetworkNode,
     /// `hello`: bind the connection to an actor (rendezvous §4).
     Hello,
     /// `open`: create a mailbox.
@@ -71,6 +76,8 @@ impl Operation {
             Self::Directory => "directory",
             Self::Publish => "publish",
             Self::LookupNode => "lookup_node",
+            Self::PublishNetwork => "publish_network",
+            Self::LookupNetworkNode => "lookup_network_node",
             Self::Hello => "hello",
             Self::Open => "open",
             Self::Lookup => "lookup",
@@ -83,11 +90,14 @@ impl Operation {
         }
     }
 
-    /// Whether the connection must have sent `hello` first: false only for `directory`,
-    /// `publish` and `lookup_node`; the mailbox `lookup` requires it (rendezvous §4, §5.2).
+    /// Whether the connection must have sent `hello` first. Account lookup requires
+    /// an actor so the gateway can check its current Network admission.
     #[must_use]
     pub const fn requires_hello(self) -> bool {
-        !matches!(self, Self::Directory | Self::Publish | Self::LookupNode)
+        !matches!(
+            self,
+            Self::Directory | Self::Publish | Self::LookupNode | Self::PublishNetwork
+        )
     }
 }
 
@@ -100,6 +110,10 @@ pub enum Request {
     Publish(PublishRequest),
     /// `lookup_node {node_id}`.
     LookupNode(LookupNodeRequest),
+    /// `publish_network {record, proof}`.
+    PublishNetwork(PublishNetworkRequest),
+    /// `lookup_network_node {network, node_id}`.
+    LookupNetworkNode(LookupNetworkNodeRequest),
     /// `hello {actor, signature}`.
     Hello(Hello),
     /// `open {kind, ttl, admission, candidates, intro}`.
@@ -128,6 +142,8 @@ impl Request {
             Self::Directory => Operation::Directory,
             Self::Publish(_) => Operation::Publish,
             Self::LookupNode(_) => Operation::LookupNode,
+            Self::PublishNetwork(_) => Operation::PublishNetwork,
+            Self::LookupNetworkNode(_) => Operation::LookupNetworkNode,
             Self::Hello(_) => Operation::Hello,
             Self::Open(_) => Operation::Open,
             Self::Lookup(_) => Operation::Lookup,
@@ -153,6 +169,8 @@ pub enum Response {
     Published(Published),
     /// `record {record}`.
     Record(RecordResult),
+    /// `network_record {record}`.
+    NetworkRecord(NetworkRecordResult),
     /// `ok`, value `null`.
     Ok,
     /// `opened {id, digits, expires}`.
@@ -174,6 +192,7 @@ enum ResultName {
     Directory,
     Published,
     Record,
+    NetworkRecord,
     Ok,
     Opened,
     Found,
@@ -190,6 +209,8 @@ impl TryFrom<String> for Operation {
             "directory" => Self::Directory,
             "publish" => Self::Publish,
             "lookup_node" => Self::LookupNode,
+            "publish_network" => Self::PublishNetwork,
+            "lookup_network_node" => Self::LookupNetworkNode,
             "hello" => Self::Hello,
             "open" => Self::Open,
             "lookup" => Self::Lookup,
@@ -213,6 +234,7 @@ impl TryFrom<String> for ResultName {
             "directory" => Self::Directory,
             "published" => Self::Published,
             "record" => Self::Record,
+            "network_record" => Self::NetworkRecord,
             "ok" => Self::Ok,
             "opened" => Self::Opened,
             "found" => Self::Found,
@@ -329,6 +351,8 @@ pub fn encode_request(request: &Request) -> Result<String, ErrorCode> {
         Request::Directory => envelope(KEY, name, &()),
         Request::Publish(value) => envelope(KEY, name, value),
         Request::LookupNode(value) => envelope(KEY, name, value),
+        Request::PublishNetwork(value) => envelope(KEY, name, value),
+        Request::LookupNetworkNode(value) => envelope(KEY, name, value),
         Request::Hello(value) => envelope(KEY, name, value),
         Request::Open(value) => envelope(KEY, name, value),
         Request::Lookup(value) => envelope(KEY, name, value),
@@ -358,6 +382,8 @@ pub fn decode_request(text: &str) -> Result<Request, ErrorCode> {
         }
         Operation::Publish => Request::Publish(object_payload(value)?),
         Operation::LookupNode => Request::LookupNode(object_payload(value)?),
+        Operation::PublishNetwork => Request::PublishNetwork(object_payload(value)?),
+        Operation::LookupNetworkNode => Request::LookupNetworkNode(object_payload(value)?),
         Operation::Hello => Request::Hello(object_payload(value)?),
         Operation::Open => Request::Open(object_payload(value)?),
         Operation::Lookup => Request::Lookup(payload(value)?),
@@ -382,6 +408,7 @@ pub fn encode_response(response: &Response) -> Result<String, ErrorCode> {
         Response::Directory(value) => envelope(KEY, "directory", value),
         Response::Published(value) => envelope(KEY, "published", value),
         Response::Record(value) => envelope(KEY, "record", value),
+        Response::NetworkRecord(value) => envelope(KEY, "network_record", value),
         Response::Ok => envelope(KEY, "ok", &()),
         Response::Opened(value) => envelope(KEY, "opened", value),
         Response::Found(value) => envelope(KEY, "found", value),
@@ -406,6 +433,7 @@ pub fn decode_response(text: &str) -> Result<Response, ErrorCode> {
         ResultName::Directory => Response::Directory(object_payload(value)?),
         ResultName::Published => Response::Published(object_payload(value)?),
         ResultName::Record => Response::Record(object_payload(value)?),
+        ResultName::NetworkRecord => Response::NetworkRecord(object_payload(value)?),
         ResultName::Ok => {
             payload::<()>(value)?;
             Response::Ok

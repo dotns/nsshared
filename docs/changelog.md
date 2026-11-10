@@ -1,3 +1,17 @@
+## 2026-11-10 [progress]
+
+Add a bounded canonical root-signed proof for one derived Account identity and
+Network. Verify the exact authenticated root, Network and derived identity before
+NSD can consider admission; the proof alone grants no membership or relay access.
+Add separate Account publication and lookup operations with a signed Network
+envelope and challenge-bound proof; Account lookup requires an authenticated actor.
+Accept strict Network-scoped admission snapshot schema 4 while preserving existing
+schema 3 decoding for current roster consumers.
+Bind derived identities to exact requested `nodes` Network scopes in signed
+publication subscription schema 2; preserve existing schema-1 fixture bytes.
+Reuse the existing registry record marks for Account publication replay and
+generation conflict checks without adding a Quick DNS publication tier.
+
 ## 2026-11-10 08:30 [release]
 
 Prepare 0.11.0 with a separate signed, correlated version-1 Node heartbeat/posture
@@ -130,6 +144,10 @@ Add Node-only IPv4 and IPv6 Echo authorization with fixed code-zero semantics
 and zero port slots. Preserve TCP/UDP bytes and non-Node protocol refusal;
 require authenticated runtime support and compatible released enforcement
 before consumer enablement.
+## 2026-11-09 [feat]
+
+Begin the Network-bound Account NodeRecord contract. Keep the Quick v2 record
+format stable while signing the Network scope around canonical record bytes.
 
 ## 2026-10-30 [docs]
 

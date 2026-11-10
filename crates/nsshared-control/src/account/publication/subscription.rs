@@ -13,6 +13,7 @@ use crate::{
 use nsshared_codec::{cbor::CborReader, cbor::CborWriter};
 use nsshared_identity::keys::IdentityKey;
 use nsshared_identity::realm::RealmId;
+use nsshared_identity::record::{MAX_NETWORK_IDENTITY_PROOF_BYTES, NetworkIdentityProof};
 
 /// Maximum exact requested scopes and public ingress indices.
 pub const MAX_SUBSCRIPTION_SCOPES: usize = 32;
@@ -61,6 +62,8 @@ pub struct PublicationSubscriptionRequest {
     pub service_control: Option<ServiceControlBinding>,
     /// Actual installation-owner lifetime; None is only for nonparticipants.
     pub exit_installation: Option<crate::account::subnet::ExitInstallationIncarnation>,
+    /// Root-signed derived identities requested for exact `nodes` Network scopes.
+    pub network_identities: Vec<NetworkIdentityProof>,
 }
 
 impl PublicationSubscriptionRequest {
@@ -84,6 +87,19 @@ impl PublicationSubscriptionRequest {
         if let Some(incarnation) = self.exit_installation {
             incarnation.canonical()?;
         }
+        require(self.network_identities.len() <= self.scopes.len())?;
+        let mut previous = None;
+        for proof in &self.network_identities {
+            proof.verify().map_err(|_| AccountError::Field)?;
+            require(proof.root() == self.subscriber)?;
+            require(previous.is_none_or(|network| network < proof.network()))?;
+            require(
+                self.scopes
+                    .iter()
+                    .any(|scope| scope.served_realm == proof.network() && scope.scope == "nodes"),
+            )?;
+            previous = Some(proof.network());
+        }
         Ok(())
     }
 
@@ -93,10 +109,18 @@ impl PublicationSubscriptionRequest {
     pub fn canonical(&self) -> Result<Vec<u8>, ExchangeError> {
         self.validate()?;
         let mut out = CborWriter::default();
-        out.array(9)
-            .uint(SCHEMA)
-            .bytes(self.subscriber.as_bytes())
-            .array(self.scopes.len());
+        out.array(if self.network_identities.is_empty() {
+            9
+        } else {
+            10
+        })
+        .uint(if self.network_identities.is_empty() {
+            SCHEMA
+        } else {
+            2
+        })
+        .bytes(self.subscriber.as_bytes())
+        .array(self.scopes.len());
         for scope in &self.scopes {
             out.array(4)
                 .bytes(scope.issuer.as_bytes())
@@ -124,6 +148,12 @@ impl PublicationSubscriptionRequest {
         } else {
             out.null();
         }
+        if !self.network_identities.is_empty() {
+            out.array(self.network_identities.len());
+            for proof in &self.network_identities {
+                out.bytes(proof.as_bytes());
+            }
+        }
         let bytes = out.into_bytes();
         if bytes.len() > MAX_SUBSCRIPTION_BYTES {
             return Err(AccountError::Bounds.into());
@@ -142,8 +172,9 @@ impl PublicationSubscriptionRequest {
 
     fn read(bytes: &[u8]) -> Result<Self, AccountError> {
         let mut input = CborReader::new(bytes, MAX_SUBSCRIPTION_BYTES)?;
-        input.array(9)?;
-        require(input.uint()? == SCHEMA)?;
+        let arity = input.array_up_to(10)?;
+        let version = input.uint()?;
+        require(matches!((version, arity), (1, 9) | (2, 10)))?;
         let subscriber = identity(&mut input)?;
         let count = input.array_up_to(MAX_SUBSCRIPTION_SCOPES)?;
         let mut scopes = Vec::new();
@@ -180,6 +211,19 @@ impl PublicationSubscriptionRequest {
                 input.fixed_bytes()?,
             ))
         };
+        let mut network_identities = Vec::new();
+        if version == 2 {
+            let count = input.array_up_to(MAX_SUBSCRIPTION_SCOPES)?;
+            require(count > 0)?;
+            for _ in 0..count {
+                network_identities.push(
+                    NetworkIdentityProof::decode(
+                        input.bytes_up_to(MAX_NETWORK_IDENTITY_PROOF_BYTES)?,
+                    )
+                    .map_err(|_| AccountError::Field)?,
+                );
+            }
+        }
         input.finish()?;
         Ok(Self {
             subscriber,
@@ -190,6 +234,7 @@ impl PublicationSubscriptionRequest {
             attempt_counter,
             service_control,
             exit_installation,
+            network_identities,
         })
     }
 

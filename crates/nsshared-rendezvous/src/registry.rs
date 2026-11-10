@@ -9,15 +9,15 @@ use crate::{
     capability, crypto,
     directory::{Directory, RelayEntry},
     error::ErrorCode,
-    message::{DnsPublication, PublishRequest, Published, RecordResult},
+    message::{DnsPublication, PublishNetworkRequest, PublishRequest, Published, RecordResult},
 };
 use ed25519_dalek::{Signer, SigningKey};
 use nsshared_codec::cbor::{CborError, CborReader, CborWriter};
 use nsshared_identity::{
     identity::{Identity, NodeId},
     record::{
-        IdentityMismatch, MAX_RECORD_STATE_BYTES, MarksDecodeError, NodeRecord, NodeRecordError,
-        RecordDecision, RecordExpired, RecordMarks,
+        IdentityMismatch, MAX_RECORD_STATE_BYTES, MarksDecodeError, NetworkNodeRecord, NodeRecord,
+        NodeRecordError, RecordDecision, RecordExpired, RecordMarks,
     },
     relay_id::RelayId,
 };
@@ -26,6 +26,8 @@ use thiserror::Error;
 
 /// Signature context of the publish proof (quick-v2 §7.2, §12.2).
 pub const PUBLISH_CONTEXT: &[u8] = b"ns/registry-publish/v2";
+/// Account Network publication proof domain; separate from Quick publication.
+pub const NETWORK_PUBLISH_CONTEXT: &[u8] = b"ns/account-registry-publish/v1";
 /// BLAKE2s key of the HRW shard weight (quick-v2 §7.1).
 pub const SHARD_LABEL: &[u8] = b"ns-registry-shard-v2";
 
@@ -150,6 +152,80 @@ pub fn verify_publish(
         record,
         dns: request.dns,
     })
+}
+
+/// Challenge-bound proof for the complete signed Account Network envelope.
+#[must_use]
+pub fn network_publish_proof_message(
+    nonce: &[u8; 32],
+    authority: &RelayId,
+    record: &[u8],
+) -> Vec<u8> {
+    let authority = authority.as_str().as_bytes();
+    let mut message = Vec::with_capacity(NETWORK_PUBLISH_CONTEXT.len() + 32 + authority.len() + 32);
+    message.extend_from_slice(NETWORK_PUBLISH_CONTEXT);
+    message.extend_from_slice(nonce);
+    message.extend_from_slice(authority);
+    message.extend_from_slice(&crypto::sha256(&[record]));
+    message
+}
+
+/// Signs an Account Network publication for one relay challenge.
+#[must_use]
+pub fn publish_network_request(
+    identity_key: &SigningKey,
+    nonce: &[u8; 32],
+    authority: &RelayId,
+    record: &NetworkNodeRecord,
+) -> PublishNetworkRequest {
+    PublishNetworkRequest {
+        record: record.as_bytes().to_vec(),
+        proof: identity_key
+            .sign(&network_publish_proof_message(
+                nonce,
+                authority,
+                record.as_bytes(),
+            ))
+            .to_bytes(),
+    }
+}
+
+/// A signed Network record and challenge proof; Network admission is a separate check.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VerifiedNetworkPublish(NetworkNodeRecord);
+
+impl VerifiedNetworkPublish {
+    /// Exact signed Network envelope.
+    #[must_use]
+    pub const fn record(&self) -> &NetworkNodeRecord {
+        &self.0
+    }
+}
+
+/// Verifies Account record signatures, expiry and challenge possession.
+///
+/// # Errors
+/// Rejects malformed, expired or unauthenticated publications.
+pub fn verify_publish_network(
+    request: &PublishNetworkRequest,
+    nonce: &[u8; 32],
+    authority: &RelayId,
+    now: u64,
+) -> Result<VerifiedNetworkPublish, ErrorCode> {
+    let record =
+        NetworkNodeRecord::decode(&request.record).map_err(|_| ErrorCode::InvalidMessage)?;
+    record
+        .record()
+        .check_not_expired(now)
+        .map_err(|_| ErrorCode::InvalidMessage)?;
+    if !crypto::verify_strict(
+        record.record().identity(),
+        &network_publish_proof_message(nonce, authority, &request.record),
+        &request.proof,
+    ) {
+        return Err(ErrorCode::InvalidMessage);
+    }
+    Ok(VerifiedNetworkPublish(record))
 }
 
 /// The HRW weight `BLAKE2s(out = 8, key = "ns-registry-shard-v2")(node_id ‖ id_be16)`
@@ -358,11 +434,31 @@ impl RegistryEntry {
         verified: &VerifiedPublish,
         now: u64,
     ) -> Result<Published, ErrorCode> {
-        verified
-            .record
+        self.apply_record(&verified.record, verified.dns, now)
+    }
+
+    /// Applies a verified Account Network envelope to this identity's replay
+    /// marks without adding a public DNS tier.
+    /// # Errors
+    /// Refuses stale, conflicting, expired or foreign records.
+    pub fn apply_network_publish(
+        &mut self,
+        verified: &VerifiedNetworkPublish,
+        now: u64,
+    ) -> Result<Published, ErrorCode> {
+        self.apply_record(verified.record().record(), DnsPublication::None, now)
+    }
+
+    fn apply_record(
+        &mut self,
+        record: &NodeRecord,
+        dns: DnsPublication,
+        now: u64,
+    ) -> Result<Published, ErrorCode> {
+        record
             .check_not_expired(now)
             .map_err(|_| ErrorCode::InvalidMessage)?;
-        if verified.record.identity() != self.marks.identity() {
+        if record.identity() != self.marks.identity() {
             return Err(ErrorCode::InvalidMessage);
         }
         if self.deletion_due(now) {
@@ -370,13 +466,13 @@ impl RegistryEntry {
         }
         let decision = self
             .marks
-            .evaluate(&verified.record)
+            .evaluate(record)
             .map_err(|_| ErrorCode::InvalidMessage)?;
         match decision {
             RecordDecision::Stale => return Err(ErrorCode::Conflict),
             RecordDecision::Conflict => {
                 self.marks
-                    .apply(&verified.record)
+                    .apply(record)
                     .map_err(|_| ErrorCode::InvalidMessage)?;
                 return Err(ErrorCode::Conflict);
             }
@@ -386,14 +482,14 @@ impl RegistryEntry {
             RecordDecision::Advanced | RecordDecision::Refreshed | RecordDecision::Unchanged => {}
         }
         self.marks
-            .apply(&verified.record)
+            .apply(record)
             .map_err(|_| ErrorCode::InvalidMessage)?;
-        let revision = (verified.record.generation(), verified.record.issued_at());
-        self.add_tiers(revision, tier_bit(verified.dns));
+        let revision = (record.generation(), record.issued_at());
+        self.add_tiers(revision, tier_bit(dns));
         let expires = self
             .marks
             .current()
-            .map_or(verified.record.expires(), NodeRecord::expires);
+            .map_or(record.expires(), NodeRecord::expires);
         Ok(Published { expires })
     }
 

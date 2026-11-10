@@ -8,6 +8,48 @@ use nsshared_control::{
 use nsshared_identity::keys::IdentityKey;
 
 #[test]
+fn subscription_binds_derived_identity_to_exact_authorized_network_scope() {
+    use nsshared_control::account::publication::SubscriptionScope;
+    use nsshared_identity::{
+        keys::IdentitySecret,
+        realm::RealmId,
+        record::{NetworkIdentityProof, derive_network_identity},
+    };
+    let root = IdentitySecret::from_seed([19; 32]);
+    let network = RealmId::from_bytes([7; 16]);
+    let issuer = IdentitySecret::from_seed([20; 32]).public();
+    let derived = derive_network_identity(&root, network).public();
+    let proof = NetworkIdentityProof::sign(root.signing_key(), network, derived).unwrap();
+    let request = PublicationSubscriptionRequest {
+        subscriber: root.public(),
+        scopes: vec![SubscriptionScope {
+            issuer,
+            recipient: root.public(),
+            served_realm: network,
+            scope: "nodes".into(),
+        }],
+        capabilities: vec![],
+        public_ingress: vec![],
+        boot_nonce: [1; 16],
+        attempt_counter: 1,
+        service_control: None,
+        exit_installation: None,
+        network_identities: vec![proof.clone()],
+    };
+    let encoded = request.canonical().unwrap();
+    assert_eq!(
+        PublicationSubscriptionRequest::decode(&encoded).unwrap(),
+        request
+    );
+    let mut wrong = request.clone();
+    wrong.scopes[0].served_realm = RealmId::from_bytes([8; 16]);
+    assert!(wrong.canonical().is_err());
+    let mut duplicated = request;
+    duplicated.network_identities.push(proof);
+    assert!(duplicated.canonical().is_err());
+}
+
+#[test]
 fn publication_subscription_vectors() {
     let vectors = nsshared_testkit::vectors!("account/publication/subscription");
     for v in vectors

@@ -1,0 +1,35 @@
+# 20261109-0813-network-node-record Network-scoped signed NodeRecord
+
+- **status**: implementing
+- **createdAt**: 2026-11-09 08:13
+- **approvedAt**: 2026-11-09 08:12
+- **relatedTask**: 20261109-0813-network-node-record
+
+## Context
+
+Quick's v2 NodeRecord has one Node ID and at most four relay IDs. Its existing registry key is the Node ID. Account currently reuses this record and one runtime across all Networks in an NSD membership. Different Network relay sets therefore overwrite one another in that registry and cannot be safely merged.
+
+## Proposal
+
+Add a canonical Account-only envelope containing a Network ID, an existing verified NodeRecord, and a separate Ed25519 signature under the same Node identity over a domain-separated message that includes the exact Network ID and inner bytes. Keep the Quick record unchanged. Derive distinct Account signing identities and Node IDs from the root seed and Network ID. Require Network ID as part of the eventual Account registry lookup key and authorization scope. Reject cross-Network replay, signature mismatch, invalid inner records, and oversized encodings. Test different Network records and identity derivation.
+
+## Risks
+
+The envelope alone does not change the registry key or authorize a session. DATA packets address only a Node ID, so the same signing identity cannot be admitted into two Account Networks on one relay. NS derives distinct signing identities per Network; NSD must authorize each derived identity for its Network, and NSGW must reject a Node ID already bound to another Network. NS, NSD, and NSGW must migrate together before deployment. Never publish an Account envelope through the unscoped Quick registry.
+
+## Scope
+
+Shared signed-record format and validation, plus separate Account publication and lookup wire operations. Account storage, NSD authorization, NSGW admission, and multi-membership runtime ownership belong to the coordinated integrations.
+
+## Annotations
+
+- 2026-11-10: Added Account-only `publish_network` and `lookup_network_node` messages, a signed-envelope response, and challenge-bound publication proof. Account lookup requires an authenticated `hello` actor. The wire operation and proof tests pass; gateway handling and scoped admission remain required before use.
+- 2026-11-10: Added strict local admission snapshot schema 4 with a required Network on each identity. Schema 3 remains decodable for existing roster consumers; Account Network routing must require schema 4 and reject unscoped entries.
+- 2026-11-10: Extended signed publication subscription schema 2 with sorted root-signed per-Network identity proofs. Each proof must match the authenticated subscriber and one requested `nodes` Network scope. Existing schema-1 subscriptions keep their canonical bytes; NSD still decides whether the requested scope is authorized.
+- 2026-11-10: Extended each signed Node-L3 peer binding with an optional derived relay identity. The legacy two-field binding retains its exact canonical bytes when no Account relay identity is admitted; a three-field binding carries the NSD-authorized peer mapping for the Network. Validation rejects duplicate derived identities and aliases to any root identity in the same authority. All nsshared-control tests and doctests pass.
+
+- 2026-11-10: Full integration requires NSD to authenticate a root identity while accepting a distinct per-Network relay identity. Added a canonical root-signed `NetworkIdentityProof` for the exact `(root, Network, derived identity)` tuple. The proof is an authorization input only: NSD must additionally verify the active root membership and persist the binding; NSGW must consume the resulting Network-scoped admission. A RED missing-API test followed by four passing Network-record/proof tests established the shared primitive.
+
+- 2026-11-09 08:18 UTC: RED compile failed on the missing NetworkNodeRecord API. GREEN: two adversarial tests plus 104 existing identity tests passed. Strict Clippy passed for nsshared-identity and nsshared-proto. A subsequent audit found DATA addresses only Node ID, so Network-specific signing identities are also required.
+- 2026-11-09 08:20 UTC: Added a keyed, domain-separated per-Network identity derivation with a RED/GREEN test. Gateway and NSD authorization of that derived identity remain integration gates.
+- 2026-11-09 08:27 UTC: Rebasing this branch from the stale local v0.7.0 checkout onto the actual shared main at v0.9.0 succeeded without conflict. The 104 existing identity tests, three new tests, strict identity/proto Clippy, and diff whitespace check pass on the current base.

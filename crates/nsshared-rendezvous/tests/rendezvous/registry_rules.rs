@@ -5,8 +5,9 @@
 use ed25519_dalek::{Signer, SigningKey};
 use nsshared_codec::cbor::CborWriter;
 use nsshared_identity::{
-    constants::NODE_RECORD_CONTEXT, identity::NodeId, record::NodeRecord, record::NodeRecordError,
-    record::NodeRecordFields, record::RecordExpired, relay_id::RelayId,
+    constants::NODE_RECORD_CONTEXT, identity::NodeId, realm::RealmId, record::NetworkNodeRecord,
+    record::NodeRecord, record::NodeRecordError, record::NodeRecordFields, record::RecordExpired,
+    relay_id::RelayId,
 };
 use nsshared_rendezvous::{
     capability, capability::Capabilities, directory::CODE_LETTERS, directory::Directory,
@@ -49,6 +50,48 @@ fn record(generation: u64, wg: u8) -> NodeRecord {
 fn verified(record: &NodeRecord, dns: DnsPublication) -> VerifiedPublish {
     let request = registry::publish_request(&key(1), &NONCE, &authority(), record, dns);
     registry::verify_publish(&request, &NONCE, &authority(), NOW).unwrap()
+}
+
+#[test]
+fn account_network_publication_is_separate_and_challenge_bound() {
+    let signer = key(1);
+    let network = RealmId::from_bytes([3; 16]);
+    let envelope = NetworkNodeRecord::sign(&signer, network, record(1, 1)).unwrap();
+    let request = registry::publish_network_request(&signer, &NONCE, &authority(), &envelope);
+    let wire = nsshared_rendezvous::transport::encode_request(
+        &nsshared_rendezvous::transport::Request::PublishNetwork(request.clone()),
+    )
+    .unwrap();
+    assert_eq!(
+        nsshared_rendezvous::transport::decode_request(&wire).unwrap(),
+        nsshared_rendezvous::transport::Request::PublishNetwork(request.clone())
+    );
+    let verified = registry::verify_publish_network(&request, &NONCE, &authority(), NOW).unwrap();
+    assert_eq!(verified.record().network(), network);
+    let mut entry = registry::RegistryEntry::new(*verified.record().record().identity());
+    assert!(entry.apply_network_publish(&verified, NOW).is_ok());
+    assert_eq!(entry.record(), Some(verified.record().record()));
+    assert_eq!(entry.dns(), DnsPublication::None);
+    let advanced =
+        NetworkNodeRecord::sign(&signer, network, record_with(&signer, 2, 1, NOW - 9)).unwrap();
+    let advanced = registry::publish_network_request(&signer, &NONCE, &authority(), &advanced);
+    let advanced = registry::verify_publish_network(&advanced, &NONCE, &authority(), NOW).unwrap();
+    assert!(entry.apply_network_publish(&advanced, NOW).is_ok());
+    let older =
+        NetworkNodeRecord::sign(&signer, network, record_with(&signer, 1, 1, NOW - 20)).unwrap();
+    let stale = registry::publish_network_request(&signer, &NONCE, &authority(), &older);
+    let stale = registry::verify_publish_network(&stale, &NONCE, &authority(), NOW).unwrap();
+    assert_eq!(
+        entry.apply_network_publish(&stale, NOW),
+        Err(ErrorCode::Conflict)
+    );
+    assert!(registry::verify_publish_network(&request, &[9; 32], &authority(), NOW).is_err());
+    assert!(registry::verify_publish_network(&request, &NONCE, &authority(), NOW + 3600).is_err());
+    let mut tampered = request;
+    tampered.record[25] ^= 1;
+    assert!(registry::verify_publish_network(&tampered, &NONCE, &authority(), NOW).is_err());
+    assert!(nsshared_rendezvous::transport::Operation::LookupNetworkNode.requires_hello());
+    assert!(!nsshared_rendezvous::transport::Operation::LookupNode.requires_hello());
 }
 
 fn entry(id: u16, capabilities: Vec<capability::Capability>) -> RelayEntry {

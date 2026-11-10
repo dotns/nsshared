@@ -11,6 +11,13 @@ use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 use nsshared_codec::cbor::{CborError, CborReader, CborWriter};
 use thiserror::Error;
 
+mod network;
+pub use network::{
+    MAX_NETWORK_IDENTITY_PROOF_BYTES, MAX_NETWORK_NODE_RECORD_BYTES, NetworkIdentityProof,
+    NetworkIdentityProofError, NetworkNodeRecord, NetworkNodeRecordError, NetworkRecordKey,
+    derive_network_identity,
+};
+
 /// Maximum relays in a NodeRecord (quick-v2 §3.1).
 pub const MAX_NODE_RECORD_RELAYS: usize = 4;
 

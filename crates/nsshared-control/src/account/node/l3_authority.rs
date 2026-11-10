@@ -39,6 +39,8 @@ pub struct L3Binding {
     pub identity: IdentityKey,
     /// Authorized WireGuard key K.
     pub wg_key: [u8; 32],
+    /// NSD-authorized relay identity for this binding's sole Network, if any.
+    pub relay_identity: Option<IdentityKey>,
 }
 
 /// Complete normalized authority; existing policy fragment bytes are unchanged.
@@ -60,10 +62,25 @@ impl NodeL3Authority {
             return Err(L3AuthorityError::Ordering);
         }
         let mut keys = BTreeSet::new();
+        let mut relay_identities = BTreeSet::new();
         for binding in &self.bindings {
             if binding.wg_key == [0; 32] || !keys.insert(binding.wg_key) {
                 return Err(L3AuthorityError::Binding);
             }
+            if binding.relay_identity.is_some_and(|identity| {
+                identity == binding.identity || !relay_identities.insert(identity)
+            }) {
+                return Err(L3AuthorityError::Binding);
+            }
+        }
+        if self.bindings.iter().any(|binding| {
+            binding.relay_identity.is_some_and(|identity| {
+                self.bindings
+                    .binary_search_by_key(&identity, |member| member.identity)
+                    .is_ok()
+            })
+        }) {
+            return Err(L3AuthorityError::Binding);
         }
         for scope in &self.policy.scopes {
             for member in &scope.identities {
@@ -88,9 +105,16 @@ impl NodeL3Authority {
         let mut out = CborWriter::default();
         out.array(3).uint(SCHEMA).array(self.bindings.len());
         for binding in &self.bindings {
-            out.array(2)
-                .bytes(binding.identity.as_bytes())
-                .bytes(&binding.wg_key);
+            out.array(if binding.relay_identity.is_some() {
+                3
+            } else {
+                2
+            })
+            .bytes(binding.identity.as_bytes())
+            .bytes(&binding.wg_key);
+            if let Some(identity) = binding.relay_identity {
+                out.bytes(identity.as_bytes());
+            }
         }
         out.bytes(&self.policy.canonical()?);
         let bytes = out.into_bytes();
@@ -113,10 +137,17 @@ impl NodeL3Authority {
         let count = input.array_up_to(MAX_IDENTITIES)?;
         let mut bindings = Vec::with_capacity(count);
         for _ in 0..count {
-            input.array(2)?;
+            let arity = input.array_up_to(3)?;
+            if arity < 2 {
+                return Err(L3AuthorityError::Field);
+            }
+            let binding_identity = identity(&mut input)?;
+            let wg_key = input.fixed_bytes()?;
+            let relay_identity = (arity == 3).then(|| identity(&mut input)).transpose()?;
             bindings.push(L3Binding {
-                identity: identity(&mut input)?,
-                wg_key: input.fixed_bytes()?,
+                identity: binding_identity,
+                wg_key,
+                relay_identity,
             });
         }
         let policy = NodeL3::decode(input.bytes_up_to(MAX_BYTES)?)?;

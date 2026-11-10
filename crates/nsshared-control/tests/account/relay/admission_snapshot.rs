@@ -7,6 +7,30 @@ use nsshared_control::account::{
 use nsshared_testkit::hex::unhex;
 
 #[test]
+fn network_scoped_snapshot_requires_exact_network_per_identity() {
+    let identity = nsshared_identity::keys::IdentitySecret::from_seed([3; 32]).public();
+    let network = nsshared_identity::realm::RealmId::from_bytes([4; 16]);
+    let bytes = serde_json::to_vec(&serde_json::json!({
+        "schema_version": 4,
+        "issued_at_unix_ms": 1000,
+        "roster_version": 2,
+        "identities": [{
+            "identity": identity.to_string(),
+            "class": "ordinary_node",
+            "admission_since": 1,
+            "network": network.to_string()
+        }]
+    }))
+    .unwrap();
+    let snapshot = validate_admission_snapshot(&bytes, 1000, 0).unwrap();
+    assert_eq!(snapshot.identities[0].network, Some(network));
+    let omitted = String::from_utf8(bytes)
+        .unwrap()
+        .replace(&format!(",\"network\":\"{network}\""), "");
+    assert!(validate_admission_snapshot(omitted.as_bytes(), 1000, 0).is_err());
+}
+
+#[test]
 fn admission_history_vectors() {
     let vectors = nsshared_testkit::vector_fields!("account/relay/admission-snapshot");
     for name in [
@@ -58,6 +82,7 @@ fn admission_history_vectors() {
                                 other => panic!("unknown class: {other}"),
                             },
                             admission_since: RosterVersion(parts[2].parse().unwrap()),
+                            network: None,
                         }
                     })
                     .collect()
