@@ -68,6 +68,23 @@ fn account_network_publication_is_separate_and_challenge_bound() {
     );
     let verified = registry::verify_publish_network(&request, &NONCE, &authority(), NOW).unwrap();
     assert_eq!(verified.record().network(), network);
+    let mut entry = registry::RegistryEntry::new(*verified.record().record().identity());
+    assert!(entry.apply_network_publish(&verified, NOW).is_ok());
+    assert_eq!(entry.record(), Some(verified.record().record()));
+    assert_eq!(entry.dns(), DnsPublication::None);
+    let advanced =
+        NetworkNodeRecord::sign(&signer, network, record_with(&signer, 2, 1, NOW - 9)).unwrap();
+    let advanced = registry::publish_network_request(&signer, &NONCE, &authority(), &advanced);
+    let advanced = registry::verify_publish_network(&advanced, &NONCE, &authority(), NOW).unwrap();
+    assert!(entry.apply_network_publish(&advanced, NOW).is_ok());
+    let older =
+        NetworkNodeRecord::sign(&signer, network, record_with(&signer, 1, 1, NOW - 20)).unwrap();
+    let stale = registry::publish_network_request(&signer, &NONCE, &authority(), &older);
+    let stale = registry::verify_publish_network(&stale, &NONCE, &authority(), NOW).unwrap();
+    assert_eq!(
+        entry.apply_network_publish(&stale, NOW),
+        Err(ErrorCode::Conflict)
+    );
     assert!(registry::verify_publish_network(&request, &[9; 32], &authority(), NOW).is_err());
     assert!(registry::verify_publish_network(&request, &NONCE, &authority(), NOW + 3600).is_err());
     let mut tampered = request;

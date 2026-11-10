@@ -9,6 +9,8 @@ Accept strict Network-scoped admission snapshot schema 4 while preserving existi
 schema 3 decoding for current roster consumers.
 Bind derived identities to exact requested `nodes` Network scopes in signed
 publication subscription schema 2; preserve existing schema-1 fixture bytes.
+Reuse the existing registry record marks for Account publication replay and
+generation conflict checks without adding a Quick DNS publication tier.
 
 ## 2026-11-10 08:30 [release]
 

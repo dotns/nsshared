@@ -434,11 +434,31 @@ impl RegistryEntry {
         verified: &VerifiedPublish,
         now: u64,
     ) -> Result<Published, ErrorCode> {
-        verified
-            .record
+        self.apply_record(&verified.record, verified.dns, now)
+    }
+
+    /// Applies a verified Account Network envelope to this identity's replay
+    /// marks without adding a public DNS tier.
+    /// # Errors
+    /// Refuses stale, conflicting, expired or foreign records.
+    pub fn apply_network_publish(
+        &mut self,
+        verified: &VerifiedNetworkPublish,
+        now: u64,
+    ) -> Result<Published, ErrorCode> {
+        self.apply_record(verified.record().record(), DnsPublication::None, now)
+    }
+
+    fn apply_record(
+        &mut self,
+        record: &NodeRecord,
+        dns: DnsPublication,
+        now: u64,
+    ) -> Result<Published, ErrorCode> {
+        record
             .check_not_expired(now)
             .map_err(|_| ErrorCode::InvalidMessage)?;
-        if verified.record.identity() != self.marks.identity() {
+        if record.identity() != self.marks.identity() {
             return Err(ErrorCode::InvalidMessage);
         }
         if self.deletion_due(now) {
@@ -446,13 +466,13 @@ impl RegistryEntry {
         }
         let decision = self
             .marks
-            .evaluate(&verified.record)
+            .evaluate(record)
             .map_err(|_| ErrorCode::InvalidMessage)?;
         match decision {
             RecordDecision::Stale => return Err(ErrorCode::Conflict),
             RecordDecision::Conflict => {
                 self.marks
-                    .apply(&verified.record)
+                    .apply(record)
                     .map_err(|_| ErrorCode::InvalidMessage)?;
                 return Err(ErrorCode::Conflict);
             }
@@ -462,14 +482,14 @@ impl RegistryEntry {
             RecordDecision::Advanced | RecordDecision::Refreshed | RecordDecision::Unchanged => {}
         }
         self.marks
-            .apply(&verified.record)
+            .apply(record)
             .map_err(|_| ErrorCode::InvalidMessage)?;
-        let revision = (verified.record.generation(), verified.record.issued_at());
-        self.add_tiers(revision, tier_bit(verified.dns));
+        let revision = (record.generation(), record.issued_at());
+        self.add_tiers(revision, tier_bit(dns));
         let expires = self
             .marks
             .current()
-            .map_or(verified.record.expires(), NodeRecord::expires);
+            .map_or(record.expires(), NodeRecord::expires);
         Ok(Published { expires })
     }
 
