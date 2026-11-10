@@ -324,6 +324,20 @@ fn constructed_authority_refusals() {
 }
 
 #[test]
+fn node_l3_network_relay_identity_is_signed_into_the_exact_binding() {
+    let mut authority = NodeL3Authority::decode(&sample("node-authority")).unwrap();
+    let derived = nsshared_identity::keys::IdentitySecret::from_seed([99; 32]).public();
+    authority.bindings[0].relay_identity = Some(derived);
+    let encoded = authority.canonical().unwrap();
+    assert_eq!(NodeL3Authority::decode(&encoded).unwrap(), authority);
+    authority.bindings[1].relay_identity = Some(derived);
+    assert!(matches!(
+        authority.canonical(),
+        Err(L3AuthorityError::Binding)
+    ));
+}
+
+#[test]
 fn node_l3_exact_authority_boundaries() {
     let full = NodeL3Authority::decode(&sample("two-namespaces")).unwrap();
     let after = NodeL3Authority::decode(&sample("selective-namespace-withdrawal")).unwrap();
