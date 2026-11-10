@@ -41,6 +41,7 @@ from nsvec.producers.control.account.realm import claims as control_account_real
 from nsvec.producers.control.account.realm import membership as control_account_realm_membership
 from nsvec.producers.control.account.realm import peers as control_account_realm_peers
 from nsvec.producers.control.account.relay import admission_snapshot as control_account_relay_admission_snapshot
+from nsvec.producers.control.account.relay import epoch as control_account_relay_epoch
 from nsvec.producers.control.account.relay import participant_roster as control_account_relay_participant_roster
 from nsvec.producers.control.account.relay import session as control_account_relay_session
 from nsvec.producers.control.account.subnet import mapping as control_account_subnet_mapping
@@ -96,6 +97,7 @@ PRODUCERS = [
     control_account_realm_membership,
     control_account_realm_peers,
     control_account_relay_admission_snapshot,
+    control_account_relay_epoch,
     control_account_relay_participant_roster,
     control_account_relay_session,
     control_account_subnet_mapping,

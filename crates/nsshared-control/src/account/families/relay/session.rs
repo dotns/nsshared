@@ -39,6 +39,10 @@ pub enum FrameKind {
     Renew = 9,
     /// Correlated renewal acceptance.
     Renewed = 10,
+    /// Same-custody interrupted-capture recovery request.
+    EpochRequest = 11,
+    /// Correlated recovery command result, never roster authority.
+    EpochResult = 12,
 }
 
 impl FrameKind {
@@ -56,6 +60,8 @@ impl FrameKind {
             8 => Self::Enrolled,
             9 => Self::Renew,
             10 => Self::Renewed,
+            11 => Self::EpochRequest,
+            12 => Self::EpochResult,
             _ => return None,
         })
     }
@@ -75,7 +81,12 @@ impl FrameKind {
     const fn has_correlation(self) -> bool {
         matches!(
             self,
-            Self::Enroll | Self::Enrolled | Self::Renew | Self::Renewed
+            Self::Enroll
+                | Self::Enrolled
+                | Self::Renew
+                | Self::Renewed
+                | Self::EpochRequest
+                | Self::EpochResult
         )
     }
 }
@@ -90,7 +101,7 @@ pub enum SessionError {
     /// Unknown kind, invalid length, malformed field or trailing bytes.
     #[error("invalid participant frame")]
     Frame,
-    /// Incompatible participant answer version, including legacy unversioned answers.
+    /// Incompatible participant answer or epoch version, including legacy answers.
     #[error("incompatible participant answer version")]
     Version,
     /// Pair is not provisioned, enabled or currently valid.
@@ -222,6 +233,8 @@ pub fn validate_header(length: u32, kind: u8) -> Result<usize, SessionError> {
         Some(FrameKind::Enrolled) => matches!(body_len, 90 | 98),
         Some(FrameKind::Renewed) => matches!(body_len, 81 | 89),
         Some(FrameKind::Renew) => body_len == 80,
+        Some(FrameKind::EpochRequest) => body_len == 97,
+        Some(FrameKind::EpochResult) => body_len == 122,
         None => false,
     };
     if !valid {
@@ -295,6 +308,9 @@ impl Frame {
             }
             FrameKind::Renewed => {
                 frame.answer_deadline()?;
+            }
+            FrameKind::EpochRequest | FrameKind::EpochResult => {
+                super::epoch::validate_body(kind, &frame.body)?;
             }
             _ => {}
         }

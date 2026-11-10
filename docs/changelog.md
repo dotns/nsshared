@@ -1,3 +1,20 @@
+## 2026-11-10 06:30 [release]
+
+Prepare 0.10.0 with version-1 participant EpochRequest (kind 11, 97-byte body)
+and EpochResult (kind 12, 122-byte body), six strict outcomes and dedicated
+request/result/pending APIs. Permit validated, audited, bounded same-custody
+recovery rollover with unchanged membership, retaining signed-roster-only adoption,
+independent floors and permanently incomplete interrupted epochs. Preserve every
+existing frame, DATA, roster, usage/seal encoding and signature domain.
+
+The exhaustive FrameKind additions require the approved 0.x minor transition;
+account remains unconditional and semver-covered. Update workspace/internal
+requirements, twelve lockfile packages, independent vectors and consumer migration
+inventory. Upgrade authority before enabling requesting relays; keep pending
+recovery distinct from renewal and usage acknowledgements. Runtime allocation,
+authorization rechecks, quotas, audit, retries and lab acceptance remain consumer
+responsibilities. No merge, tag or release publication is included.
+
 ## 2026-11-08 13:51 [fix]
 
 Validate the complete future Found response before committing Open at the live mock

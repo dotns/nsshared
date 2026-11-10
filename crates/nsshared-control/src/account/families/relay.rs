@@ -1,11 +1,13 @@
 //! Family 8: admission rosters, participant rosters, participant sessions and directory bindings.
 
 pub(in crate::account) mod directory;
+pub(in crate::account) mod epoch;
 pub(in crate::account) mod participant_roster;
 pub(in crate::account) mod roster;
 pub(in crate::account) mod session;
 
 pub use directory::{BindingDecision, BindingError, DirectoryBinding, SignedDirectoryBinding};
+pub use epoch::{EpochOutcome, EpochRequest, EpochResult, PendingEpochResponse};
 pub use participant_roster::{
     ParticipantRosterError, ParticipantRosterGeneration, ParticipantRosterScope,
     ParticipantRosterStatus, participant_roster_status, verify_participant_roster,
