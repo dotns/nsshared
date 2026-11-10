@@ -187,3 +187,7 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**20261108-1300-mailbox-reply-capacity Refuse mailbox writes that make complete replies unreadable**](20261108-1300-mailbox-reply-capacity.md) `2026-11-08`
 
 - [x] [**20261108-1351-mailbox-open-lookup-capacity Investigate configured Open and lookup reply capacity**](20261108-1351-mailbox-open-lookup-capacity.md) `2026-11-08`
+
+- [x] [**20261110-0525-relay-epoch-request-contract Relay attribution epoch request contract**](20261110-0525-relay-epoch-request-contract.md) `2026-11-10`
+
+- [x] [**20261110-0803-node-liveness-refusal-contract Define typed Node liveness refusal receipts**](20261110-0803-node-liveness-refusal-contract.md) `2026-11-10`

@@ -70,6 +70,11 @@ family areas are `realm`, `grants`, `subnet`, `edge`, `relay` and `usage`.
 and complete consumer readiness set. GatewayReport carries its challenge/answer;
 family 4 `exit-readiness` is a separate Snapshot, outside routing authority.
 Installation generations and guarded currentness remain consumer responsibilities.
+Participant epoch recovery uses dedicated pure version-1 kinds 11/12 and
+request/result/pending types. Same-custody recovery may advance attribution without
+membership changes, but only a separately verified signed roster permits adoption.
+Authentication, allocation, semantic idempotency, audit, quotas and session driving
+remain consumer responsibilities; DATA, roster, usage and seal encodings are unchanged.
 `account::domains` holds every signature and digest domain. Private `codec`,
 `limits` and `signing` modules hold the reader, writer, validation and
 signature rules every family shares; every signed contract builds its signing

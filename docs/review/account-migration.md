@@ -284,3 +284,71 @@ complete release suite. The following checklist remains open:
 
 No release-time substitution or cohort-specific executable example is selected
 by this checklist. The current examples remain candidate guidance.
+
+## Epoch recovery in 0.10.0
+
+The unconditional, semver-covered `account::relay::FrameKind` adds exhaustive
+`EpochRequest = 11` and `EpochResult = 12` variants. Consumers must update closed
+matches when adopting this minor version. Kinds 1..10, authentication-answer
+version 2, signed roster schemas, DATA, usage and retention formats/domains are
+unchanged. Old peers reject the new kinds. New decoders preserve all existing
+fixtures byte for byte.
+
+| Public API | Meaning |
+| --- | --- |
+| `EpochRequest::{new, canonical, decode, frame, from_frame, validate_for, scope, correlation, owner_generation, fenced_epoch}` | Strict 97-byte version-1 body; validate supplied authenticated pair/generation |
+| `PendingEpochResponse::{new, request}` | Retain the exact recovery request separately from renewal `PendingResponse` |
+| `EpochResult::{new, canonical, decode, frame, from_frame, validate_for, request, outcome, result_epoch, publication_version, retry_not_before_unix_ms}` | Strict 122-byte version-1 body; compare all pending fields, never grant roster/custody authority |
+| `EpochOutcome::{Allocated, AlreadyFresh, RateLimited, StaleCustody, InvalidEpoch, Unavailable, from_byte, byte}` | Closed bytes 0..5 and strict outcome-specific field combinations |
+| `FrameKind::{EpochRequest, EpochResult}`; `Frame::{new, decode, scope, correlation}`; `validate_header` | Shared kind/header validation and pair/correlation access for both new frames |
+
+Consumer call sites inspected at NSD `e89764c3` and nsgw `cc9a2848`:
+
+| Consumer path and item | Required adoption |
+| --- | --- |
+| NSD `crates/nsd/src/participant_session.rs`: `read_frame`, `connection`, `session_response` | Add kind 11 to the header operation allowlist and authenticated dispatch; bind accepted session generation and current custody in the transaction; return only correlated kind 12 after committed success. Existing wildcard/out-of-order checks stay closed until adoption. |
+| nsgw `crates/nsgw-relay-control/src/participant/wire.rs`: `read`, `write` | Shared `FrameKind::from_byte`, `validate_header` and `Frame::new` gain decoder support from this revision. The transport continues to bound before allocating. |
+| nsgw `crates/nsgw-relay-control/src/participant/lifecycle/session.rs`: sole session driver | Add an explicit EpochResult branch and a distinct pending epoch exchange alongside Roster, Renewed and Answer; preserve one reader and single consumption. Existing wildcard rejects unsolicited kinds. |
+| nsgw `crates/nsgw-relay-control/src/participant/{operations,report,mod}.rs`: enrollment, renewal, report and authentication exchanges | Keep their operation-specific responses closed; an EpochResult cannot satisfy renewal, usage/seal ACK or authentication. |
+
+The focused `epoch_consumer_dispatch_compile_probes` test compiles representative
+NSD operation allowlisting and an exhaustive relay dispatch with the new enum.
+It is a library compile probe, not a build or integration claim for either consumer.
+The typed pending doctest proves renewal pending state cannot validate an epoch
+result. Independent `account/relay/epoch.vec` covers exact bytes and malformed
+combinations; the existing roster vectors cover unchanged-membership refresh and
+fresh epochs with independent publication/attribution floors.
+
+Upgrade NSD before enabling requesting relays; never send unsolicited EpochResult
+to old clients. Requesting relays encountering an unsupported authority stay fenced
+and diagnose incompatibility. No downgrade, fallback custody mutation, or implicit
+negotiation is added. Pin the same immutable release/full resolved commit from
+`git.pvv.cc/nsiod/nsshared` in consumer manifests, locks and standalone acceptance
+workspaces. No sibling path dependency or local patch is a delivery dependency.
+Full runtime, transaction, ordering, retry/cancellation and real-lab acceptance
+remain the corresponding consumer deliveries' obligations before deployment.
+
+## Node liveness refusals in 0.11.0
+
+The public unconditional `account::control` API adds `NodeLivenessRefusal`,
+`NodeLivenessOperation`, `NodeLivenessRefusalCode`, `NodeLivenessRefusalReason`
+and `MAX_NODE_LIVENESS_REFUSAL_BYTES`. Existing exhaustive enums are unchanged.
+The new seven-item version-1 response does not alter successful reports,
+envelope v1, gateway contracts or M6. See the [exact contract](../spec/account/control.md#signed-node-liveness-refusals).
+
+NSD classifies under locked current authority, returns signed correlated
+409 runtime rebind/conflict or 403 genuine refusal, and retains 503 for unavailable
+authority. The Node preserves refusal bodies through transport, verifies them
+using persisted `NodeReportContext::validate_liveness_refusal` and then calls
+`validate_for_heartbeat` or `validate_for_posture` on the complete pending request
+before acting. Existing `ControlReportOperation::validate_payload` remains
+success-only for these response operations. Reasons do not grant recovery;
+runtime conflicts do not permit automatic takeover and scoped refusal does not
+itself specify permanent Account sign-out. Metadata receipts remain separate.
+
+Deploy NSD first, then enable new Node recovery on one matching immutable released
+shared pin and updated lockfiles. Old raw carriers cannot decode the new payload
+and treat 409 as transient; new Nodes retain conservative handling of old untyped
+403. No negotiation, release publication or consumer runtime implementation is
+included here. Consumer acceptance must cover locked classification, refusal
+authentication/correlation, obsolete local ownership and the complete lifecycle.

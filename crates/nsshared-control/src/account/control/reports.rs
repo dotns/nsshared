@@ -1,10 +1,12 @@
 //! Pure observations and authenticated report operation dispatch.
 mod fenced_gateway;
 mod node;
+mod node_liveness_refusal;
 mod node_observations;
 mod node_posture;
 pub use fenced_gateway::*;
 pub use node::*;
+pub use node_liveness_refusal::*;
 pub use node_observations::*;
 pub use node_posture::*;
 

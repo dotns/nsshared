@@ -772,7 +772,7 @@ dependencies = [
 
 [[package]]
 name = "nsshared-codec"
-version = "0.9.0"
+version = "0.11.0"
 dependencies = [
  "base64",
  "proptest",
@@ -781,7 +781,7 @@ dependencies = [
 
 [[package]]
 name = "nsshared-control"
-version = "0.9.0"
+version = "0.11.0"
 dependencies = [
  "base64",
  "blake2",
@@ -801,7 +801,7 @@ dependencies = [
 
 [[package]]
 name = "nsshared-identity"
-version = "0.9.0"
+version = "0.11.0"
 dependencies = [
  "base64",
  "blake2",
@@ -819,7 +819,7 @@ dependencies = [
 
 [[package]]
 name = "nsshared-mock-relay"
-version = "0.9.0"
+version = "0.11.0"
 dependencies = [
  "clap",
  "ed25519-dalek",
@@ -841,7 +841,7 @@ dependencies = [
 
 [[package]]
 name = "nsshared-mock-rendezvous"
-version = "0.9.0"
+version = "0.11.0"
 dependencies = [
  "ed25519-dalek",
  "futures-util",
@@ -860,7 +860,7 @@ dependencies = [
 
 [[package]]
 name = "nsshared-mock-server"
-version = "0.9.0"
+version = "0.11.0"
 dependencies = [
  "futures-util",
  "nsshared-identity",
@@ -878,7 +878,7 @@ dependencies = [
 
 [[package]]
 name = "nsshared-proto"
-version = "0.9.0"
+version = "0.11.0"
 dependencies = [
  "nsshared-codec",
  "nsshared-control",
@@ -889,7 +889,7 @@ dependencies = [
 
 [[package]]
 name = "nsshared-relay"
-version = "0.9.0"
+version = "0.11.0"
 dependencies = [
  "ed25519-dalek",
  "hkdf",
@@ -905,7 +905,7 @@ dependencies = [
 
 [[package]]
 name = "nsshared-rendezvous"
-version = "0.9.0"
+version = "0.11.0"
 dependencies = [
  "blake2",
  "ed25519-dalek",
@@ -922,7 +922,7 @@ dependencies = [
 
 [[package]]
 name = "nsshared-service-control"
-version = "0.9.0"
+version = "0.11.0"
 dependencies = [
  "nsshared-codec",
  "nsshared-control",
@@ -930,7 +930,7 @@ dependencies = [
 
 [[package]]
 name = "nsshared-telemetry"
-version = "0.9.0"
+version = "0.11.0"
 dependencies = [
  "serde_json",
  "thiserror",
@@ -940,7 +940,7 @@ dependencies = [
 
 [[package]]
 name = "nsshared-testkit"
-version = "0.9.0"
+version = "0.11.0"
 dependencies = [
  "ed25519-dalek",
  "nsshared-identity",
