@@ -5,6 +5,7 @@ use crate::{
 };
 use nsshared_codec::{cbor::CborReader, cbor::CborWriter};
 use nsshared_identity::keys::IdentityKey;
+use nsshared_identity::realm::RealmId;
 use serde::{
     Deserialize, Deserializer,
     de::{MapAccess, Visitor, value::MapAccessDeserializer},
@@ -46,12 +47,14 @@ pub struct AdmissionSnapshotEntry {
     pub class: IdentityClass,
     /// Attribution epoch when admission with this class began; removal or reclassification resets it.
     pub admission_since: RosterVersion,
+    /// Authorized Network scope in schema 4; absent only in legacy schema 3.
+    pub network: Option<RealmId>,
 }
 
-/// Validated local JSON schema 3 content. No file ownership or I/O is implied.
+/// Validated local JSON schema 3 or 4 content. No file ownership or I/O is implied.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AdmissionSnapshot {
-    /// Local JSON schema, always 3 after validation.
+    /// Local JSON schema, 3 or 4 after validation.
     pub schema_version: u8,
     /// Issue time supplied by the controlled-file producer.
     pub issued_at_unix_ms: u64,
@@ -100,6 +103,7 @@ struct JsonEntry {
     identity: String,
     class: String,
     admission_since: u64,
+    network: Option<String>,
 }
 
 /// Validates local snapshot bytes, including strict shape, identity and freshness.
@@ -117,7 +121,7 @@ pub fn validate_admission_snapshot(
         return Err(AccountError::Bounds);
     }
     let JsonObject(snapshot): JsonObject<JsonSnapshot> = serde_json::from_slice(bytes)?;
-    require(snapshot.schema_version == 3 && snapshot.roster_version > 0)?;
+    require(matches!(snapshot.schema_version, 3 | 4) && snapshot.roster_version > 0)?;
     if snapshot.identities.len() > MAX_IDENTITIES {
         return Err(AccountError::Bounds);
     }
@@ -132,6 +136,11 @@ pub fn validate_admission_snapshot(
     for JsonObject(entry) in snapshot.identities {
         let identity = IdentityKey::from_str(&entry.identity).map_err(|_| AccountError::Field)?;
         require(seen.insert(identity))?;
+        let network = match (snapshot.schema_version, entry.network) {
+            (3, None) => None,
+            (4, Some(text)) => Some(RealmId::from_str(&text).map_err(|_| AccountError::Field)?),
+            _ => return Err(AccountError::Field),
+        };
         let class = match entry.class.as_str() {
             "ordinary_node" => IdentityClass::OrdinaryNode,
             "gateway_node" => IdentityClass::GatewayNode,
@@ -142,6 +151,7 @@ pub fn validate_admission_snapshot(
             identity,
             class,
             admission_since: RosterVersion(entry.admission_since),
+            network,
         });
     }
     Ok(AdmissionSnapshot {

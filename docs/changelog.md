@@ -5,6 +5,8 @@ Network. Verify the exact authenticated root, Network and derived identity befor
 NSD can consider admission; the proof alone grants no membership or relay access.
 Add separate Account publication and lookup operations with a signed Network
 envelope and challenge-bound proof; Account lookup requires an authenticated actor.
+Accept strict Network-scoped admission snapshot schema 4 while preserving existing
+schema 3 decoding for current roster consumers.
 
 ## 2026-11-10 08:30 [release]
 

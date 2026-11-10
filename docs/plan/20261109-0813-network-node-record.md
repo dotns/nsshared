@@ -24,6 +24,7 @@ Shared signed-record format and validation, plus separate Account publication an
 ## Annotations
 
 - 2026-11-10: Added Account-only `publish_network` and `lookup_network_node` messages, a signed-envelope response, and challenge-bound publication proof. Account lookup requires an authenticated `hello` actor. The wire operation and proof tests pass; gateway handling and scoped admission remain required before use.
+- 2026-11-10: Added strict local admission snapshot schema 4 with a required Network on each identity. Schema 3 remains decodable for existing roster consumers; Account Network routing must require schema 4 and reject unscoped entries.
 
 - 2026-11-10: Full integration requires NSD to authenticate a root identity while accepting a distinct per-Network relay identity. Added a canonical root-signed `NetworkIdentityProof` for the exact `(root, Network, derived identity)` tuple. The proof is an authorization input only: NSD must additionally verify the active root membership and persist the binding; NSGW must consume the resulting Network-scoped admission. A RED missing-API test followed by four passing Network-record/proof tests established the shared primitive.
 
