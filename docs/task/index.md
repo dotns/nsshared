@@ -233,3 +233,5 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20261108-1351-mailbox-open-lookup-capacity Investigate configured Open and lookup reply capacity**](20261108-1351-mailbox-open-lookup-capacity.md) `P1`
 
 - [x] [**20261110-0628-relay-epoch-contract Relay attribution epoch request contract**](20261110-0628-relay-epoch-contract.md) `P1`
+
+- [x] [**20261110-0821-node-liveness-refusal Define typed Node liveness refusal receipts**](20261110-0821-node-liveness-refusal.md) `P1`

@@ -281,13 +281,13 @@ pub enum NodeReportError {
     /// Canonical contract decoding failed.
     #[error(transparent)]
     Contract(#[from] AccountError),
-    /// Operation or direction is not a Node report request.
+    /// Operation or direction differs from the selected Node report contract.
     #[error("invalid Node report operation or direction")]
     Operation,
-    /// Signer differs from the enrolled Node.
+    /// Node signer or response recipient differs from the enrolled Node.
     #[error("Node report subject mismatch")]
     Subject,
-    /// Recipient differs from the persisted NSD authority or is absent.
+    /// NSD signer or request recipient differs from the persisted authority.
     #[error("Node report authority mismatch")]
     Authority,
     /// Either provisioned membership identifier differs.

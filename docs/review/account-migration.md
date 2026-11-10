@@ -327,3 +327,28 @@ negotiation is added. Pin the same immutable release/full resolved commit from
 workspaces. No sibling path dependency or local patch is a delivery dependency.
 Full runtime, transaction, ordering, retry/cancellation and real-lab acceptance
 remain the corresponding consumer deliveries' obligations before deployment.
+
+## Node liveness refusals in 0.11.0
+
+The public unconditional `account::control` API adds `NodeLivenessRefusal`,
+`NodeLivenessOperation`, `NodeLivenessRefusalCode`, `NodeLivenessRefusalReason`
+and `MAX_NODE_LIVENESS_REFUSAL_BYTES`. Existing exhaustive enums are unchanged.
+The new seven-item version-1 response does not alter successful reports,
+envelope v1, gateway contracts or M6. See the [exact contract](../spec/account/control.md#signed-node-liveness-refusals).
+
+NSD classifies under locked current authority, returns signed correlated
+409 runtime rebind/conflict or 403 genuine refusal, and retains 503 for unavailable
+authority. The Node preserves refusal bodies through transport, verifies them
+using persisted `NodeReportContext::validate_liveness_refusal` and then calls
+`validate_for_heartbeat` or `validate_for_posture` on the complete pending request
+before acting. Existing `ControlReportOperation::validate_payload` remains
+success-only for these response operations. Reasons do not grant recovery;
+runtime conflicts do not permit automatic takeover and scoped refusal does not
+itself specify permanent Account sign-out. Metadata receipts remain separate.
+
+Deploy NSD first, then enable new Node recovery on one matching immutable released
+shared pin and updated lockfiles. Old raw carriers cannot decode the new payload
+and treat 409 as transient; new Nodes retain conservative handling of old untyped
+403. No negotiation, release publication or consumer runtime implementation is
+included here. Consumer acceptance must cover locked classification, refusal
+authentication/correlation, obsolete local ownership and the complete lifecycle.
