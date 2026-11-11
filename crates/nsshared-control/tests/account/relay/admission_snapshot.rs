@@ -31,6 +31,57 @@ fn network_scoped_snapshot_requires_exact_network_per_identity() {
 }
 
 #[test]
+fn one_identity_may_have_distinct_network_grants_with_one_class_and_admission_start() {
+    let identity = nsshared_identity::keys::IdentitySecret::from_seed([3; 32]).public();
+    let a = nsshared_identity::realm::RealmId::from_bytes([4; 16]);
+    let b = nsshared_identity::realm::RealmId::from_bytes([5; 16]);
+    let entry = |network: &str, class: &str, since: u64| {
+        serde_json::json!({
+            "identity": identity.to_string(), "network": network,
+            "class": class, "admission_since": since,
+        })
+    };
+    let snapshot = |entries: Vec<serde_json::Value>| {
+        serde_json::to_vec(&serde_json::json!({
+            "schema_version": 4, "issued_at_unix_ms": 1000,
+            "roster_version": 2, "identities": entries,
+        }))
+        .unwrap()
+    };
+    let first = entry(&a.to_string(), "gateway_node", 1);
+    let second = entry(&b.to_string(), "gateway_node", 1);
+    let accepted =
+        validate_admission_snapshot(&snapshot(vec![first.clone(), second.clone()]), 1000, 0)
+            .unwrap();
+    assert_eq!(accepted.identities.len(), 2);
+    assert_eq!(accepted.identities[0].network, Some(a));
+    assert_eq!(accepted.identities[1].network, Some(b));
+    assert!(
+        validate_admission_snapshot(&snapshot(vec![first.clone(), first.clone()]), 1000, 0)
+            .is_err()
+    );
+    assert!(
+        validate_admission_snapshot(
+            &snapshot(vec![
+                first.clone(),
+                entry(&b.to_string(), "ordinary_node", 1)
+            ]),
+            1000,
+            0
+        )
+        .is_err()
+    );
+    assert!(
+        validate_admission_snapshot(
+            &snapshot(vec![first, entry(&b.to_string(), "gateway_node", 2)]),
+            1000,
+            0
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn admission_history_vectors() {
     let vectors = nsshared_testkit::vector_fields!("account/relay/admission-snapshot");
     for name in [

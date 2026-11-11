@@ -15,3 +15,5 @@ Add schema 3 entries `(identity, class, Network)` to the signed canonical roster
 ## Risks and acceptance
 
 An old participant rejects schema 3, so rollout order is mandatory. Legacy rosters remain usable for existing forwarding but grant no Network registry authority. Accept only when signed scope round trips, tampering fails, and production participant integration passes same-Network and cross-Network tests.
+
+Local snapshot schema 4 must also preserve distinct `(identity, Network)` grants for a gateway shared by multiple Networks. Repeated pairs or inconsistent class and admission history for one identity remain invalid; the NSGW local reader must authorize from the full set.

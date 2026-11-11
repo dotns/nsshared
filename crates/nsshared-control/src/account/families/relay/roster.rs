@@ -10,7 +10,12 @@ use serde::{
     Deserialize, Deserializer,
     de::{MapAccess, Visitor, value::MapAccessDeserializer},
 };
-use std::{collections::BTreeSet, fmt, marker::PhantomData, str::FromStr};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt,
+    marker::PhantomData,
+    str::FromStr,
+};
 
 /// Minimum signed roster lifetime: 24 hours, in milliseconds.
 pub const MIN_ROSTER_VALIDITY_MS: u64 = 86_400_000;
@@ -112,7 +117,7 @@ struct JsonEntry {
 /// The caller supplies time and max age and owns the controlled-file trust boundary.
 ///
 /// # Errors
-/// Rejects missing/unknown/duplicate fields, invalid keys/classes, duplicate identities,
+/// Rejects missing/unknown/duplicate fields, invalid keys/classes, duplicate identity/Network pairs,
 /// unsupported schemas, zero versions, invalid admission starts, bounds and stale/future times.
 pub fn validate_admission_snapshot(
     bytes: &[u8],
@@ -134,10 +139,10 @@ pub fn validate_admission_snapshot(
         return Err(AccountError::Authority);
     }
     let mut seen = BTreeSet::new();
+    let mut classes = BTreeMap::new();
     let mut identities = Vec::with_capacity(snapshot.identities.len());
     for JsonObject(entry) in snapshot.identities {
         let identity = IdentityKey::from_str(&entry.identity).map_err(|_| AccountError::Field)?;
-        require(seen.insert(identity))?;
         let network = match (snapshot.schema_version, entry.network) {
             (3, None) => None,
             (4, Some(text)) => Some(RealmId::from_str(&text).map_err(|_| AccountError::Field)?),
@@ -149,6 +154,12 @@ pub fn validate_admission_snapshot(
             _ => return Err(AccountError::Field),
         };
         require(entry.admission_since > 0 && entry.admission_since <= snapshot.roster_version)?;
+        require(seen.insert((identity, network)))?;
+        require(
+            classes
+                .insert(identity, (class, entry.admission_since))
+                .is_none_or(|previous| previous == (class, entry.admission_since)),
+        )?;
         identities.push(AdmissionSnapshotEntry {
             identity,
             class,
