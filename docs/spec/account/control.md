@@ -1496,3 +1496,47 @@ fixture through `registration_recovery.py`; Rust consumes original signed bytes
 without re-signing. The account feature remains an unstable opt-in public
 surface; default-feature compatibility is checked through the existing semver
 entry point.
+
+
+## Private ordinary NodeRecord submission
+
+`node.record.report.v1` carries an existing ordinary Node's signed root record
+through its confidential authenticated control channel. It does not publish to
+the Quick registry, replace a Network-derived relay record, grant membership,
+or authorize any packet or route.
+
+The canonical request is the seven-item array
+`[1, membership_scope, node_binding, registration_condition, signed_source_bytes,
+node_runtime_fence, root_record_bytes]`. Nested scope, binding, registration,
+source and runtime forms are the existing canonical contracts. The complete
+request is at most65,536 bytes; the source and root record also retain their
+independent existing bounds. The root record is an unchanged signed NodeRecord
+and must have exactly the accepted root identity, WireGuard key and record
+generation. Its relay list is empty. Source scope is `nodes`, with the exact
+Network, recipient and source-node identity. Decoding verifies the root record's
+signature and canonical encoding. Context validation verifies the source
+signature against independently retained NSD trust.
+
+Request envelopes require the exact operation, full enrolled Node signer,
+mandatory expected NSD recipient and a nonzero nonce, in addition to ordinary
+pinned carrier, time and replay checks. Decoding or source self-consistency does
+not establish current authority. The NSD consumer must independently verify the
+current exact enrollment, registration incarnation, activation, source and bound
+runtime at its serialized admission cut, check record freshness and reuse the
+existing retained-record replay/conflict ordering. Failed, stale or uncertain
+admission must not clear retained evidence or manufacture an access grant.
+
+The receipt is `[1, request_digest]`, where the digest is SHA-256 over the ASCII
+domain `ns.node.record.report.v1`, one zero byte, and every canonical request
+byte. The server commits the submitted evidence before signing a receipt.
+Consumers verify the pinned NSD signer, exact operation, mandatory Node
+recipient, pending nonzero nonce and complete pending-request digest, then
+recheck their current local attachment. A receipt acknowledges persisted
+submission only; it does not imply current peer eligibility, resolved conflict,
+policy enforcement, listener readiness or usable payload.
+
+The producer reuses its durable root record owner and renews/report records
+without waiting for the peer collection that this evidence enables. The
+Network-specific derived signer, registry record, relay authorization and DATA
+path remain independent. Product producer/consumer integration and real E2E
+qualification are required beyond this pure shared contract.

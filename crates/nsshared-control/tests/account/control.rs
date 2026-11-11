@@ -8,3 +8,5 @@ mod node_l3_status;
 mod reports;
 mod runtime_declaration;
 mod service_control;
+
+mod node_record_report;

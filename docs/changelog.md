@@ -1625,3 +1625,5 @@ may remove a relay while previously observed ID/code assignments remain reserved
 Quick's append-only update rule is unchanged. NSGW and NS receivers must adopt
 this rule before deploying the NSD Network projection producer.
 
+
+- 2026-11-11: Define the additive private ordinary root NodeRecord report and exact digest-correlated receipt, preserving root/Network relay separation and all existing wire forms. Independent signed positive/negative contract tests pass; product producer/consumer integration and deployment are not yet qualified.

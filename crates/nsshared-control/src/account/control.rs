@@ -6,6 +6,7 @@ pub(in crate::account) mod exchange;
 pub(in crate::account) mod machine_token;
 pub(in crate::account) mod methods;
 pub(in crate::account) mod node_l3_status;
+pub(in crate::account) mod node_record_report;
 pub(in crate::account) mod registration_recovery;
 pub(in crate::account) mod reports;
 pub(in crate::account) mod route_command;
@@ -41,8 +42,8 @@ pub use methods::{
     GATEWAY_REPORT, GATEWAY_SERVICES_REPORT, GATEWAY_USAGE_REPORT, INFO_GET, JWKS_PATH,
     MACHINE_AUTH, MACHINE_AUTH_PURPOSE, MACHINE_DISCONNECT, MACHINE_HEARTBEAT, MACHINE_REGISTER,
     MAX_PUBLICATION_BYTES, MAX_PUBLICATION_ENCODED_BYTES, MAX_PUBLICATION_FRAMED_BYTES,
-    NODE_HEARTBEAT, NODE_L3_STATUS, NODE_POSTURE, NODE_ROUTE_CLEAR, NODE_ROUTE_SELECT,
-    NODE_RUNTIME_DECLARE, NODE_SUBNET_REPORT, SERVICE_CONTROL,
+    NODE_HEARTBEAT, NODE_L3_STATUS, NODE_POSTURE, NODE_RECORD_REPORT, NODE_ROUTE_CLEAR,
+    NODE_ROUTE_SELECT, NODE_RUNTIME_DECLARE, NODE_SUBNET_REPORT, SERVICE_CONTROL,
 };
 pub use node_l3_status::{
     NodeL3Status, NodeL3StatusContext, NodeL3StatusKey, NodeL3StatusRequest, NodeL3StatusResponse,
@@ -77,4 +78,9 @@ pub use registration_recovery::{
 pub use runtime_declaration::{
     MAX_RUNTIME_DECLARATION_BYTES, RuntimeDeclarationAccepted, RuntimeDeclarationRequest,
     runtime_declaration_digest,
+};
+
+pub use node_record_report::{
+    MAX_NODE_RECORD_REPORT_BYTES, NodeRecordReportAccepted, NodeRecordReportRequest,
+    node_record_report_digest,
 };
