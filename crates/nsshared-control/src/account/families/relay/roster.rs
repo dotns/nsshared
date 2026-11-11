@@ -181,7 +181,7 @@ pub struct Roster {
     pub issued_at_unix_ms: u64,
     /// Exclusive validity deadline; lifetime must be at least 24 hours.
     pub valid_until_unix_ms: u64,
-    /// Complete set, sorted strictly by full identity bytes.
+    /// Complete set, sorted by identity and, in schema 3, by Network.
     pub identities: Vec<RosterEntry>,
 }
 
@@ -225,7 +225,16 @@ impl Roster {
         if self.identities.len() > MAX_IDENTITIES {
             return Err(AccountError::Bounds);
         }
-        require(ascending_by(&self.identities, |value| &value.identity))?;
+        if self.schema_version == 3 {
+            require(self.identities.windows(2).all(|pair| {
+                pair[0].identity < pair[1].identity
+                    || (pair[0].identity == pair[1].identity
+                        && pair[0].class == pair[1].class
+                        && pair[0].network < pair[1].network)
+            }))?;
+        } else {
+            require(ascending_by(&self.identities, |value| &value.identity))?;
+        }
         require(
             self.identities
                 .iter()
