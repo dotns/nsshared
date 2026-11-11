@@ -5,6 +5,7 @@ use crate::{
 };
 use nsshared_codec::cbor::CborReader;
 use nsshared_identity::keys::IdentityKey;
+use nsshared_identity::realm::RealmId;
 use std::collections::BTreeSet;
 use thiserror::Error;
 
@@ -185,7 +186,8 @@ pub fn verify_participant_roster(
     for _ in 0..count {
         match input.array_up_to(MAX_BYTES)? {
             0 | 1 => return Err(ParticipantRosterError::MissingClass),
-            2 => {}
+            2 if content.schema_version != 3 => {}
+            3 if content.schema_version == 3 => {}
             _ => return Err(ParticipantRosterError::DuplicateClass),
         }
         let identity = identity(&mut input)?;
@@ -194,7 +196,16 @@ pub fn verify_participant_roster(
             1 => IdentityClass::GatewayNode,
             _ => return Err(ParticipantRosterError::UnknownClass),
         };
-        content.identities.push(RosterEntry { identity, class });
+        let network = if content.schema_version == 3 {
+            Some(RealmId::from_bytes(input.fixed_bytes()?))
+        } else {
+            None
+        };
+        content.identities.push(RosterEntry {
+            identity,
+            class,
+            network,
+        });
     }
     input.finish()?;
     let signature = carrier.fixed_bytes()?;

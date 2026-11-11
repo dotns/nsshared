@@ -242,6 +242,7 @@ fn admission_identity_count_bound_and_atomic_classes() {
             .map(|entry| nsshared_control::account::relay::RosterEntry {
                 identity: entry.identity,
                 class: entry.class,
+                network: None,
             })
             .collect(),
     };
