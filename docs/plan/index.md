@@ -193,3 +193,4 @@ Each plan is a single line linking to its detail file. All detailed information 
 - [x] [**20261110-0803-node-liveness-refusal-contract Define typed Node liveness refusal receipts**](20261110-0803-node-liveness-refusal-contract.md) `2026-11-10`
 
 - [-] [**20261111-signed-network-roster Signed Network scope in participant rosters**](20261111-signed-network-roster.md) `2026-11-11`
+- [x] [**20261111-1144-scoped-relay-directory-updates Network-scoped relay directory update contract**](20261111-1144-scoped-relay-directory-updates.md) `2026-11-11`

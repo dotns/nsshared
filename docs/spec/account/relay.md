@@ -137,6 +137,15 @@ for exactly this pair are defined under
 Directory eligibility uses the separate signed
 [directory binding](#directory-bindings).
 
+An Account directory publication is a projection for one Network. Its version
+is monotonic within that Network and issuer, including after a relay is removed;
+an equal version requires identical content. A higher version may omit a relay
+whose binding no longer covers that Network. Each relay ID keeps its original
+short code, and a code observed in a prior projection remains reserved for that
+ID even while the relay is absent. Reappearance with the same ID and code is
+allowed. Consumers retain accepted ID/code assignments across revisions and
+restarts. The global and Quick directory update rule remains append-only.
+
 For a relay in the public pool, the signed complete roster MUST contain the Nodes
 of every Network covered by its directory binding, including Networks created after pool selection,
 without requiring the pool to be resaved. This Network membership coverage does
