@@ -8,7 +8,11 @@
 use crate::{capability::Capabilities, error::ErrorCode, transport::Object};
 use nsshared_identity::relay_id::RelayId;
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeSet, net::IpAddr, str::FromStr};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    net::IpAddr,
+    str::FromStr,
+};
 use thiserror::Error;
 
 /// Maximum directory entries, 24 × 24 short codes (rendezvous §5.4, quick §4.1).
@@ -339,6 +343,79 @@ pub fn check_update(old: &Directory, new: &Directory) -> Result<(), DirectoryErr
         }
     }
     Ok(())
+}
+
+/// Permanent relay ID and short-code assignments observed in one Account Network projection.
+/// Retain this alongside the accepted directory so a later revision cannot reuse a removed code.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(transparent)]
+pub struct ProjectionHistory(BTreeMap<u16, String>);
+
+impl ProjectionHistory {
+    /// All previously accepted ID/code assignments, including relays absent today.
+    #[must_use]
+    pub fn assignments(&self) -> &BTreeMap<u16, String> {
+        &self.0
+    }
+}
+
+/// Checks an Account Network projection and returns the history to persist on success.
+/// A higher version may remove entries. An ID keeps its code, and a removed code remains
+/// reserved for its original ID, including across further revisions and restarts.
+/// Quick directories continue to use [`check_update`].
+///
+/// # Errors
+///
+/// [`DirectoryError`] naming the first violated update or historical ownership rule.
+pub fn check_projected_update(
+    old: Option<&Directory>,
+    new: &Directory,
+    history: &ProjectionHistory,
+) -> Result<ProjectionHistory, DirectoryError> {
+    if let Some(old) = old {
+        if new.version < old.version {
+            return Err(DirectoryError::VersionRegressed);
+        }
+        if new.version == old.version && new != old {
+            return Err(DirectoryError::ChangedWithoutVersion);
+        }
+    }
+    let mut assignments = history.0.clone();
+    let mut codes = BTreeSet::new();
+    if assignments.len() > MAX_RELAYS {
+        return Err(DirectoryError::TooManyRelays);
+    }
+    for (&id, code) in &assignments {
+        if id == 0 {
+            return Err(DirectoryError::Id);
+        }
+        if !is_code(code) {
+            return Err(DirectoryError::Code);
+        }
+        if !codes.insert(code.clone()) {
+            return Err(DirectoryError::CodeReused);
+        }
+    }
+    for relay in old
+        .into_iter()
+        .flat_map(Directory::relays)
+        .chain(new.relays())
+    {
+        if let Some(code) = assignments.get(&relay.id) {
+            if code != &relay.code {
+                return Err(DirectoryError::CodeChanged);
+            }
+        } else {
+            if !codes.insert(relay.code.clone()) {
+                return Err(DirectoryError::CodeReused);
+            }
+            assignments.insert(relay.id, relay.code.clone());
+            if assignments.len() > MAX_RELAYS {
+                return Err(DirectoryError::TooManyRelays);
+            }
+        }
+    }
+    Ok(ProjectionHistory(assignments))
 }
 
 fn is_code(code: &str) -> bool {

@@ -1618,3 +1618,10 @@ Added bounded region snapshot staging and closed the sealed v0.9 fixture release
   cross-batch duplicate detection without accumulating the whole owner cut.
 - Preserved the existing batch and owner limits while adding positive and
   adversarial coverage for durable evidence, capacity recovery, and replay.
+## 2026-11-11 11:44 [progress]
+
+Define a separate Account Network relay projection update rule. A higher version
+may remove a relay while previously observed ID/code assignments remain reserved;
+Quick's append-only update rule is unchanged. NSGW and NS receivers must adopt
+this rule before deploying the NSD Network projection producer.
+

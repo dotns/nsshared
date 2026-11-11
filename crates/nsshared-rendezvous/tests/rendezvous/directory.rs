@@ -3,6 +3,7 @@
 #![allow(clippy::unwrap_used, reason = "test fixture helpers")]
 
 use nsshared_identity::relay_id::RelayId;
+use nsshared_rendezvous::directory::{ProjectionHistory, check_projected_update};
 use nsshared_rendezvous::{
     capability, capability::Capabilities, directory::CODE_LETTERS, directory::Directory,
     directory::DirectoryError, directory::MAX_RELAYS, directory::RelayEntry,
@@ -252,6 +253,46 @@ fn update_rules() {
     let retired = Directory::new(4, vec![entry(1, "KT"), entry(2, "KM"), entry(4, "SG")]).unwrap();
     assert_eq!(
         check_update(&old, &retired),
+        Err(DirectoryError::CodeReused)
+    );
+}
+
+#[test]
+fn network_projection_may_remove_and_restore_its_original_relay() {
+    let old = base();
+    let reduced = Directory::new(4, vec![entry(1, "KT"), entry(2, "KM")]).unwrap();
+    let history = check_projected_update(None, &old, &ProjectionHistory::default()).unwrap();
+    let history = check_projected_update(Some(&old), &reduced, &history).unwrap();
+    assert_eq!(history.assignments().len(), 3);
+    let restored = Directory::new(5, old.relays().to_vec()).unwrap();
+    assert!(check_projected_update(Some(&reduced), &restored, &history).is_ok());
+    assert_eq!(check_update(&old, &reduced), Err(DirectoryError::IdRemoved));
+}
+
+#[test]
+fn network_projection_rejects_rollback_and_retired_code_reuse() {
+    let old = base();
+    let reduced = Directory::new(4, vec![entry(1, "KT"), entry(2, "KM")]).unwrap();
+    let history = check_projected_update(None, &old, &ProjectionHistory::default()).unwrap();
+    let history = check_projected_update(Some(&old), &reduced, &history).unwrap();
+    let reused = Directory::new(5, vec![entry(1, "KT"), entry(2, "KM"), entry(4, "SG")]).unwrap();
+    assert_eq!(
+        check_projected_update(Some(&reduced), &reused, &history),
+        Err(DirectoryError::CodeReused)
+    );
+    let changed = Directory::new(5, vec![entry(1, "AA"), entry(2, "KM")]).unwrap();
+    assert_eq!(
+        check_projected_update(Some(&reduced), &changed, &history),
+        Err(DirectoryError::CodeChanged)
+    );
+    assert_eq!(
+        check_projected_update(Some(&reduced), &old, &history),
+        Err(DirectoryError::VersionRegressed)
+    );
+    let encoded = serde_json::to_vec(&history).unwrap();
+    let restored: ProjectionHistory = serde_json::from_slice(&encoded).unwrap();
+    assert_eq!(
+        check_projected_update(Some(&reduced), &reused, &restored),
         Err(DirectoryError::CodeReused)
     );
 }
