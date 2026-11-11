@@ -160,6 +160,7 @@ fn signed_schema_three_binds_each_identity_to_its_network() {
     let recipient = IdentitySecret::from_seed([2; 32]).public();
     let identity = IdentitySecret::from_seed([3; 32]).public();
     let network = RealmId::from_bytes([9; 16]);
+    let other_network = RealmId::from_bytes([10; 16]);
     let content = Roster {
         schema_version: 3,
         issuer,
@@ -168,11 +169,18 @@ fn signed_schema_three_binds_each_identity_to_its_network() {
         attribution_epoch: RosterVersion(4),
         issued_at_unix_ms: 1_000,
         valid_until_unix_ms: 86_401_000,
-        identities: vec![RosterEntry {
-            identity,
-            class: IdentityClass::OrdinaryNode,
-            network: Some(network),
-        }],
+        identities: vec![
+            RosterEntry {
+                identity,
+                class: IdentityClass::OrdinaryNode,
+                network: Some(network),
+            },
+            RosterEntry {
+                identity,
+                class: IdentityClass::OrdinaryNode,
+                network: Some(other_network),
+            },
+        ],
     };
     let mut message = ROSTER_DOMAIN.to_vec();
     message.extend_from_slice(&content.canonical().unwrap());
@@ -183,8 +191,9 @@ fn signed_schema_three_binds_each_identity_to_its_network() {
     let bytes = signed.canonical().unwrap();
     let generation = verify_participant_roster(&bytes, issuer, recipient, 0, 0, 2_000).unwrap();
     assert_eq!(generation.identities[0].network, Some(network));
+    assert_eq!(generation.identities[1].network, Some(other_network));
     let mut tampered = signed.clone();
-    tampered.content.identities[0].network = Some(RealmId::from_bytes([8; 16]));
+    tampered.content.identities[1].network = Some(RealmId::from_bytes([11; 16]));
     assert!(
         verify_participant_roster(
             &tampered.canonical().unwrap(),
@@ -196,6 +205,12 @@ fn signed_schema_three_binds_each_identity_to_its_network() {
         )
         .is_err()
     );
-    tampered.content.identities[0].network = None;
+    tampered.content.identities[1].network = Some(network);
+    assert!(tampered.canonical().is_err());
+    tampered.content.identities[1].network = Some(other_network);
+    tampered.content.identities[1].class = IdentityClass::GatewayNode;
+    assert!(tampered.canonical().is_err());
+    tampered.content.identities[1].class = IdentityClass::OrdinaryNode;
+    tampered.content.identities[1].network = None;
     assert!(tampered.canonical().is_err());
 }

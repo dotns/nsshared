@@ -75,7 +75,7 @@ pub enum ParticipantRosterError {
     /// An identity entry uses an undefined class value.
     #[error("unknown participant roster class")]
     UnknownClass,
-    /// The complete mapping assigns an identity more than once.
+    /// The complete mapping repeats one identity/Network authorization.
     #[error("duplicate participant roster identity")]
     DuplicateIdentity,
 }
@@ -95,7 +95,7 @@ fn validate_content(roster: &Roster) -> Result<(), ParticipantRosterError> {
     }
     let mut seen = BTreeSet::new();
     for entry in &roster.identities {
-        if !seen.insert(entry.identity) {
+        if !seen.insert((entry.identity, entry.network)) {
             return Err(ParticipantRosterError::DuplicateIdentity);
         }
     }
