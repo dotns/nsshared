@@ -47,10 +47,12 @@ fn history(version: u64, destination_class: IdentityClass) -> ParticipantRosterG
             RosterEntry {
                 identity: a,
                 class: IdentityClass::OrdinaryNode,
+                network: None,
             },
             RosterEntry {
                 identity: b,
                 class: destination_class,
+                network: None,
             },
         ],
         // Historical ownership remains valid for comparison after roster expiry.

@@ -36,6 +36,8 @@ pub struct RosterEntry {
     pub identity: IdentityKey,
     /// Class used for usage attributed to this attribution epoch.
     pub class: IdentityClass,
+    /// Signed Network authorization. Required by schema 3; absent in legacy rosters.
+    pub network: Option<RealmId>,
 }
 
 /// Identity, class and the start of its current uninterrupted admission.
@@ -165,7 +167,7 @@ pub fn validate_admission_snapshot(
 /// Complete signed participant roster content, before its signature wrapper.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Roster {
-    /// Signed content schema: 1 couples epoch to version; 2 carries both independently.
+    /// Signed content schema: 1 couples epoch to version; 2 adds epoch; 3 binds Network per identity.
     pub schema_version: u64,
     /// Issuing authority, checked against caller trust during verification.
     pub issuer: IdentityKey,
@@ -187,7 +189,7 @@ impl Roster {
     pub(super) fn read_header(input: &mut CborReader<'_>) -> Result<Self, AccountError> {
         let arity = input.array_up_to(8)?;
         let schema_version = input.uint()?;
-        require(matches!((schema_version, arity), (1, 7) | (2, 8)))?;
+        require(matches!((schema_version, arity), (1, 7) | (2 | 3, 8)))?;
         let issuer = identity(input)?;
         let recipient = identity(input)?;
         let version = RosterVersion(input.uint()?);
@@ -212,7 +214,7 @@ impl Roster {
         require(self.version.0 > 0 && self.attribution_epoch.0 > 0)?;
         require(match self.schema_version {
             1 => self.attribution_epoch == self.version,
-            2 => true,
+            2 | 3 => true,
             _ => false,
         })?;
         require(
@@ -223,7 +225,12 @@ impl Roster {
         if self.identities.len() > MAX_IDENTITIES {
             return Err(AccountError::Bounds);
         }
-        require(ascending_by(&self.identities, |value| &value.identity))
+        require(ascending_by(&self.identities, |value| &value.identity))?;
+        require(
+            self.identities
+                .iter()
+                .all(|entry| entry.network.is_some() == (self.schema_version == 3)),
+        )
     }
 
     /// Encodes canonical content for signing with the roster signature domain.
@@ -238,16 +245,19 @@ impl Roster {
             .bytes(self.issuer.as_bytes())
             .bytes(self.recipient.as_bytes())
             .uint(self.version.0);
-        if self.schema_version == 2 {
+        if self.schema_version != 1 {
             out.uint(self.attribution_epoch.0);
         }
         out.uint(self.issued_at_unix_ms)
             .uint(self.valid_until_unix_ms)
             .array(self.identities.len());
         for entry in &self.identities {
-            out.array(2)
+            out.array(if self.schema_version == 3 { 3 } else { 2 })
                 .bytes(entry.identity.as_bytes())
                 .uint(entry.class as u64);
+            if let Some(network) = entry.network {
+                out.bytes(network.as_bytes());
+            }
         }
         bounded(out.into_bytes())
     }
@@ -262,14 +272,23 @@ impl Roster {
         let count = input.array_up_to(MAX_IDENTITIES)?;
         value.identities.reserve(count);
         for _ in 0..count {
-            input.array(2)?;
+            input.array(if value.schema_version == 3 { 3 } else { 2 })?;
             let identity = identity(&mut input)?;
             let class = match input.uint()? {
                 0 => IdentityClass::OrdinaryNode,
                 1 => IdentityClass::GatewayNode,
                 _ => return Err(AccountError::Field),
             };
-            value.identities.push(RosterEntry { identity, class });
+            let network = if value.schema_version == 3 {
+                Some(RealmId::from_bytes(input.fixed_bytes()?))
+            } else {
+                None
+            };
+            value.identities.push(RosterEntry {
+                identity,
+                class,
+                network,
+            });
         }
         input.finish()?;
         value.validate()?;

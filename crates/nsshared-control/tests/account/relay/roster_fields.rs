@@ -131,11 +131,71 @@ fn separate_attribution_epoch_schema_round_trips() {
     assert!(invalid.canonical().is_err());
     invalid = roster;
     invalid.schema_version = 3;
-    assert!(invalid.canonical().is_err());
-    for (arity, schema) in [(7, 2), (8, 1), (8, 3)] {
+    assert_eq!(
+        Roster::decode(&invalid.canonical().unwrap()).unwrap(),
+        invalid
+    );
+    for (arity, schema) in [(7, 2), (8, 1), (8, 4)] {
         let mut invalid = bytes.clone();
         invalid[0] = 0x80 + arity;
         invalid[1] = schema;
         assert!(Roster::decode(&invalid).is_err());
     }
+}
+
+#[test]
+fn signed_schema_three_binds_each_identity_to_its_network() {
+    use ed25519_dalek::{Signer as _, SigningKey};
+    use nsshared_control::account::{
+        domains::ROSTER_DOMAIN,
+        relay::{
+            IdentityClass, Roster, RosterEntry, RosterVersion, SignedRoster,
+            verify_participant_roster,
+        },
+    };
+    use nsshared_identity::realm::RealmId;
+
+    let signer = SigningKey::from_bytes(&[1; 32]);
+    let issuer = IdentitySecret::from_seed([1; 32]).public();
+    let recipient = IdentitySecret::from_seed([2; 32]).public();
+    let identity = IdentitySecret::from_seed([3; 32]).public();
+    let network = RealmId::from_bytes([9; 16]);
+    let content = Roster {
+        schema_version: 3,
+        issuer,
+        recipient,
+        version: RosterVersion(5),
+        attribution_epoch: RosterVersion(4),
+        issued_at_unix_ms: 1_000,
+        valid_until_unix_ms: 86_401_000,
+        identities: vec![RosterEntry {
+            identity,
+            class: IdentityClass::OrdinaryNode,
+            network: Some(network),
+        }],
+    };
+    let mut message = ROSTER_DOMAIN.to_vec();
+    message.extend_from_slice(&content.canonical().unwrap());
+    let signed = SignedRoster {
+        content,
+        signature: signer.sign(&message).to_bytes(),
+    };
+    let bytes = signed.canonical().unwrap();
+    let generation = verify_participant_roster(&bytes, issuer, recipient, 0, 0, 2_000).unwrap();
+    assert_eq!(generation.identities[0].network, Some(network));
+    let mut tampered = signed.clone();
+    tampered.content.identities[0].network = Some(RealmId::from_bytes([8; 16]));
+    assert!(
+        verify_participant_roster(
+            &tampered.canonical().unwrap(),
+            issuer,
+            recipient,
+            0,
+            0,
+            2_000
+        )
+        .is_err()
+    );
+    tampered.content.identities[0].network = None;
+    assert!(tampered.canonical().is_err());
 }
