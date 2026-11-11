@@ -13,3 +13,4 @@ Extend the signed roster contract with an authenticated per-identity Network sco
 
 - Schema 3 requires a Network in every entry and verifies it under the roster signature.
 - The nsshared-control account suite passes 201 tests; strict Clippy passes.
+- Local schema 4 accepts two distinct Network grants for one identity and rejects duplicate pairs or conflicting class/history; the account suite passes 202 tests and strict Clippy passes.
