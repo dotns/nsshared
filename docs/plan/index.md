@@ -194,3 +194,5 @@ Each plan is a single line linking to its detail file. All detailed information 
 
 - [-] [**20261111-signed-network-roster Signed Network scope in participant rosters**](20261111-signed-network-roster.md) `2026-11-11`
 - [x] [**20261111-1144-scoped-relay-directory-updates Network-scoped relay directory update contract**](20261111-1144-scoped-relay-directory-updates.md) `2026-11-11`
+
+- [-] [**20261111-1309-private-account-record Define authenticated private ordinary NodeRecord submission**](20261111-1309-private-account-record.md) `2026-11-11`
