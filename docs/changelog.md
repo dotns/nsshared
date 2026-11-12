@@ -1,3 +1,15 @@
+## 2026-11-12 01:00 [release]
+
+Prepare 0.13.0 with `GatewayReport` schema 3: the schema-2 form with tag 3 and one
+trailing build capability observation `[capability_version, features]`
+(`BuildCapabilities`, `is_feature_token`, `MAX_BUILD_FEATURES` 32,
+`MAX_FEATURE_TOKEN_BYTES` 64). `build_capabilities = None` keeps the exact schema-2
+bytes; decode accepts schema 2 and schema 3 only. The values are observations for
+NSD health inventories and never gate behaviour. The new public field breaks struct
+literals, so this is a 0.x minor. Receivers built before 0.13.0 refuse schema 3:
+upgrade NSD before gateways send it. Existing fixtures are unchanged; independent
+vectors add accepted and refused schema-3 forms. No merge, tag or publication.
+
 ## 2026-11-10 [progress]
 
 Add a bounded canonical root-signed proof for one derived Account identity and

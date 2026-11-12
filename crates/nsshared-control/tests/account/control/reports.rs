@@ -331,3 +331,88 @@ fn ordinary_node_posture_operation_is_registered() {
 mod node_posture;
 
 mod fenced_gateway;
+
+#[test]
+fn gateway_report_schema_3_carries_build_capabilities() {
+    let vectors = nsshared_testkit::vectors!("account/control/reports");
+    let bytes = |name| {
+        vectors
+            .iter()
+            .find(|v| v.name() == name)
+            .unwrap()
+            .hex("bytes")
+    };
+    let legacy = GatewayReport::decode(&bytes("gateway.report-request")).unwrap();
+    assert_eq!(legacy.build_capabilities, None);
+    let report = GatewayReport::decode(&bytes("build-capabilities")).unwrap();
+    assert_eq!(
+        report.build_capabilities,
+        Some(BuildCapabilities {
+            capability_version: 2,
+            features: vec![
+                "control.report_capabilities.v1".into(),
+                "node.session_after_direct_outage.v1".into()
+            ],
+        })
+    );
+    assert_eq!(
+        GatewayReport {
+            build_capabilities: None,
+            ..report.clone()
+        },
+        legacy,
+        "schema 3 keeps every schema-2 field"
+    );
+    assert_eq!(report.canonical().unwrap(), bytes("build-capabilities"));
+    assert_eq!(&report.canonical().unwrap()[..2], [0x8f, 0x03]);
+    let receipt = GatewayReportResponse::decode(&bytes("gateway.report-response")).unwrap();
+    receipt.validate_for(&report).unwrap();
+
+    for features in [
+        vec!["b.a.v1".to_owned(), "a.b.v1".to_owned()],
+        vec!["a.b.v1".to_owned(), "a.b.v1".to_owned()],
+        vec!["a.b".to_owned()],
+        (0..=MAX_BUILD_FEATURES)
+            .map(|index| format!("a.f{index:02}.v1"))
+            .collect(),
+    ] {
+        let invalid = GatewayReport {
+            build_capabilities: Some(BuildCapabilities {
+                capability_version: 1,
+                features,
+            }),
+            ..report.clone()
+        };
+        assert!(invalid.canonical().is_err());
+    }
+    let zero = BuildCapabilities {
+        capability_version: 0,
+        features: Vec::new(),
+    };
+    assert!(zero.validate().is_err());
+}
+
+#[test]
+fn feature_token_grammar() {
+    for token in ["a.b.v1", "control.report_capabilities.v12", "a1_.b_2.v10"] {
+        assert!(is_feature_token(token), "{token}");
+    }
+    let longest = format!("a.{}.v1", "b".repeat(59));
+    assert_eq!(longest.len(), MAX_FEATURE_TOKEN_BYTES);
+    assert!(is_feature_token(&longest));
+    for token in [
+        String::new(),
+        "a.b".into(),
+        "a.b.v1.c".into(),
+        "A.b.v1".into(),
+        "_a.b.v1".into(),
+        "a..v1".into(),
+        "a.b.v0".into(),
+        "a.b.v01".into(),
+        "a.b.1".into(),
+        "a.b-c.v1".into(),
+        format!("a.{}.v1", "b".repeat(60)),
+    ] {
+        assert!(!is_feature_token(&token), "{token}");
+    }
+}

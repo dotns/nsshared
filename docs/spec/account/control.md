@@ -767,6 +767,20 @@ public_ingress_scopes, certificates, public_host_or_null, exit_installation_or_n
   second gateway identity, assigned-address authority, connector listener,
   datagram relay endpoint or relay capacity.
 
+Schema 3 (0.13.0) appends one build capability observation and is otherwise the
+schema-2 form with tag 3: `[3, request_id_16, ..., exit_installation_or_null,
+[capability_version, features]]` (15 elements). `capability_version` is a positive
+u32; `features` holds at most 32 strictly ascending tokens of at most 64 bytes, each
+`<area>.<name>.v<N>` (`area` and `name` lowercase ASCII letters, digits and
+underscores starting with a letter, `N` a positive decimal without a leading zero).
+`GatewayReport.build_capabilities = None` encodes exactly the schema-2 bytes and
+`Some` encodes schema 3; decode accepts only these two forms, so a schema-2 report
+with a 15th element, a schema-3 report without the pair and a null pair refuse.
+The values are observations of the reporting binary: receivers record and show
+them and never change behaviour based on them; machine capabilities stay the only
+behaviour-gating tokens. A receiver built before 0.13.0 refuses schema 3, so
+senders adopt it only after their receivers accept it.
+
 `GatewayCertificateObservation` is `[id, hostnames, issuer, not_after_seconds,
 fingerprint, ack_generation_or_null, last_error_or_null]`. Hostnames are ordered
 unique text; generation, when present, is positive. These nonsecret activation

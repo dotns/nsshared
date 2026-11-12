@@ -241,3 +241,4 @@ Each task is a single line linking to its detail file. All detailed information 
 - [x] [**20261111-1144-scoped-relay-directory-updates Define Network-scoped relay directory updates**](20261111-1144-scoped-relay-directory-updates.md) `P1`
 
 - [-] [**20261111-1309-private-account-record Define authenticated private ordinary NodeRecord submission**](20261111-1309-private-account-record.md) `P1`
+- [x] [**20261112-0100-gateway-report-build-capabilities Carry build capabilities in gateway reports**](20261112-0100-gateway-report-build-capabilities.md) `P1`

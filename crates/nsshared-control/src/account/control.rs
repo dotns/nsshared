@@ -50,16 +50,17 @@ pub use node_l3_status::{
     node_l3_event_digest,
 };
 pub use reports::{
-    ControlReportOperation, DiskEncryptionStatus, FencedGatewayReportRequest,
+    BuildCapabilities, ControlReportOperation, DiskEncryptionStatus, FencedGatewayReportRequest,
     FencedGatewayReportResponse, GATEWAY_RTT_FEATURE, GatewayCertificateObservation, GatewayReport,
     GatewayReportResponse, GatewayRttObservation, GatewayRttTier, HeartbeatRequest,
-    HeartbeatResponse, MAX_NODE_LIVENESS_REFUSAL_BYTES, MAX_NODE_OBSERVATIONS,
-    MAX_NODE_POSTURE_IP_BYTES, MAX_NODE_POSTURE_IPS, MAX_NODE_POSTURE_TEXT_BYTES,
-    MaterialStatusResponse, NodeDisconnectRequest, NodeDisconnectResponse, NodeHeartbeatRequest,
-    NodeHeartbeatResponse, NodeLivenessOperation, NodeLivenessRefusal, NodeLivenessRefusalCode,
-    NodeLivenessRefusalReason, NodePostureRequest, NodePostureResponse, NodePostureSnapshot,
-    NodeReportContext, NodeReportError, NodeRuntimeFence, PAIR_TRANSPORT_FALLBACK_FEATURE,
-    PairTransportSnapshot, PairTransportUnhealthy,
+    HeartbeatResponse, MAX_BUILD_FEATURES, MAX_FEATURE_TOKEN_BYTES,
+    MAX_NODE_LIVENESS_REFUSAL_BYTES, MAX_NODE_OBSERVATIONS, MAX_NODE_POSTURE_IP_BYTES,
+    MAX_NODE_POSTURE_IPS, MAX_NODE_POSTURE_TEXT_BYTES, MaterialStatusResponse,
+    NodeDisconnectRequest, NodeDisconnectResponse, NodeHeartbeatRequest, NodeHeartbeatResponse,
+    NodeLivenessOperation, NodeLivenessRefusal, NodeLivenessRefusalCode, NodeLivenessRefusalReason,
+    NodePostureRequest, NodePostureResponse, NodePostureSnapshot, NodeReportContext,
+    NodeReportError, NodeRuntimeFence, PAIR_TRANSPORT_FALLBACK_FEATURE, PairTransportSnapshot,
+    PairTransportUnhealthy, is_feature_token,
 };
 pub use route_command::{
     CommittedSelection, RouteAction, RouteCommand, RouteDecision, RouteError, RouteOutcome,

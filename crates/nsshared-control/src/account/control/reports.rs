@@ -1,9 +1,11 @@
 //! Pure observations and authenticated report operation dispatch.
+mod build_capabilities;
 mod fenced_gateway;
 mod node;
 mod node_liveness_refusal;
 mod node_observations;
 mod node_posture;
+pub use build_capabilities::*;
 pub use fenced_gateway::*;
 pub use node::*;
 pub use node_liveness_refusal::*;
@@ -186,11 +188,16 @@ pub struct GatewayReport {
     pub certificates: Vec<GatewayCertificateObservation>,
     /// Optional exact Exit observation; absence cannot withdraw a confirmation.
     pub exit_installation: Option<crate::account::subnet::ExitInstallObservation>,
+    /// Optional build capability observation. `None` encodes schema 2, `Some` schema 3.
+    pub build_capabilities: Option<BuildCapabilities>,
 }
 impl GatewayReport {
     /// Encodes observations, preserving missing values distinctly.
+    ///
+    /// Without build capabilities the bytes are the 14-element schema-2 form; with them,
+    /// the 15-element schema-3 form appends `[capability_version, features]`.
     /// # Errors
-    /// Refuses invalid ports, text, capabilities or collection bounds.
+    /// Refuses invalid ports, text, capabilities, build capabilities or collection bounds.
     pub fn canonical(&self) -> Result<Vec<u8>, AccountError> {
         require(self.certificates.len() <= MAX_EDGE_ITEMS)?;
         crate::account::node::enrollment::validate_capabilities(&self.capabilities)
@@ -209,7 +216,12 @@ impl GatewayReport {
             }
         }
         let mut out = CborWriter::default();
-        out.array(14).uint(2).bytes(&self.request_id);
+        if self.build_capabilities.is_some() {
+            out.array(15).uint(3);
+        } else {
+            out.array(14).uint(2);
+        }
+        out.bytes(&self.request_id);
         write_optional_text(&mut out, self.software_version.as_deref(), data_text)?;
         write_optional_text(&mut out, self.source_revision.as_deref(), data_text)?;
         write_optional_uint(&mut out, self.connections.map(u64::from));
@@ -233,15 +245,21 @@ impl GatewayReport {
         } else {
             out.null();
         }
+        if let Some(build) = &self.build_capabilities {
+            build.write(&mut out)?;
+        }
         bounded(out.into_bytes())
     }
     /// Decodes canonical gateway observations with bounds before allocation.
+    ///
+    /// Accepts exactly the schema-2 (14 elements) and schema-3 (15 elements) forms.
     /// # Errors
     /// Refuses malformed fields, overflows or noncanonical input.
     pub fn decode(bytes: &[u8]) -> Result<Self, AccountError> {
         let mut input = CborReader::new(bytes, MAX_BYTES)?;
-        input.array(14)?;
-        require(input.uint()? == 2)?;
+        let arity = input.array_up_to(15)?;
+        let schema = input.uint()?;
+        require((arity, schema) == (14, 2) || (arity, schema) == (15, 3))?;
         let request_id = input.fixed_bytes()?;
         let software_version = read_optional_text(&mut input, MAX_TEXT_BYTES)?;
         let source_revision = read_optional_text(&mut input, MAX_TEXT_BYTES)?;
@@ -277,6 +295,11 @@ impl GatewayReport {
                 input.bytes_up_to(MAX_BYTES)?,
             )?)
         };
+        let build_capabilities = if schema == 3 {
+            Some(BuildCapabilities::read(&mut input)?)
+        } else {
+            None
+        };
         input.finish()?;
         let value = Self {
             request_id,
@@ -292,6 +315,7 @@ impl GatewayReport {
             capabilities,
             public_ingress_scopes,
             certificates,
+            build_capabilities,
         };
         value.canonical()?;
         Ok(value)

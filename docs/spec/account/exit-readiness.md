@@ -37,7 +37,7 @@ The public API includes `canonical`/`decode` on context, peer, binding, observat
 
 `GatewayReport` changes to fixed 14-element schema 2:
 `[2, request_id, software_version?, source_revision?, connections?, terminate_enabled?, public_http_port?, internal_http_port?, draining, capabilities, public_ingress_scopes, certificates, public_host?, exit_installation?:bstr(ExitInstallObservation)]`.
-Previous field semantics/order remain; optional values use CBOR null. The former optional trailing public_host becomes a mandatory nullable slot. Old schema-1/12-or-13-element reports refuse. `exit_installation=None` reports health only and cannot clear a current confirmation.
+Previous field semantics/order remain; optional values use CBOR null. The former optional trailing public_host becomes a mandatory nullable slot. Old schema-1/12-or-13-element reports refuse. Schema 3 (0.13.0) adds only a trailing build capability observation; see [control](control.md#gateway-observations). `exit_installation=None` reports health only and cannot clear a current confirmation.
 
 `GatewayReportResponse` changes to:
 `[2, request_id:bstr(16), accepted_exit_installation?:Digest32, exit_challenge?:bstr(ExitInstallContext)]`.
