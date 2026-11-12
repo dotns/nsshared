@@ -142,4 +142,28 @@ def vectors():
         emit(name + "-material-response", "payload", [1, cbor.encode(report)], operation="gateway.material_status", direction=1)
     emit("relay-usage-request", "payload", raw=units["relay-report"], operation="gateway.usage_report", direction=0)
     emit("relay-usage-response", "payload", raw=units["unknown-mapping"], operation="gateway.usage_report", direction=1)
+    # Schema 3 appends one build capability observation [capability_version, features].
+    build = [2, ["control.report_capabilities.v1", "node.session_after_direct_outage.v1"]]
+    long_token = "a." + "b" * 59 + ".v1"  # 64 bytes
+    for name, value, accepted in [
+            ("build-capabilities", build, True),
+            ("build-no-features", [1, []], True),
+            ("build-max-features", [1, [f"area.f{index:02}.v1" for index in range(32)]], True),
+            ("build-max-token", [1, [long_token]], True),
+            ("build-null", None, False),
+            ("build-version-zero", [0, []], False),
+            ("build-version-overflow", [2**32, []], False),
+            ("build-unsorted", [1, ["node.b.v1", "control.a.v1"]], False),
+            ("build-duplicate", [1, ["control.a.v1", "control.a.v1"]], False),
+            ("build-too-many", [1, [f"area.f{index:02}.v1" for index in range(33)]], False),
+            ("build-long-token", [1, ["a." + "b" * 60 + ".v1"]], False),
+            ("build-single-element", [1], False)] + [
+            (f"build-token-{label}", [1, [token]], False) for label, token in [
+                ("uppercase", "Control.a.v1"), ("two-parts", "control.a"), ("four-parts", "control.a.v1.x"),
+                ("version-zero", "control.a.v0"), ("leading-zero", "control.a.v01"), ("no-version", "control.a.v"),
+                ("empty-name", "control..v1"), ("digit-start", "1control.a.v1"), ("hyphen", "control.a-b.v1")]]:
+        changed = [3, *copy.deepcopy(gateway)[1:], value]
+        emit(name, "payload", changed, accepted, operation="gateway.report", direction=0)
+    emit("build-schema2-extended", "payload", [*copy.deepcopy(gateway), build], False, operation="gateway.report", direction=0)
+    emit("build-schema3-missing", "payload", [3, *copy.deepcopy(gateway)[1:]], False, operation="gateway.report", direction=0)
     return out
